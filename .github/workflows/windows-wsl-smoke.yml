@@ -9,12 +9,15 @@
 # virtualization is "experimental, at your own risk"), so this job is allowed to
 # fail without blocking anything. A red run here is a signal to investigate, not
 # a broken main branch.
-name: Windows WSL smoke
+name: Windows backend smoke
 
 on:
   workflow_dispatch:
   push:
     paths:
+      - "bionodulo/**"
+      - "main.py"
+      - "desktop/**"
       - "desktop/src-tauri/src/wsl.rs"
       - "desktop/src-tauri/src/supervisor.rs"
       - "desktop/src-tauri/tests/wsl_smoke.rs"
@@ -28,6 +31,80 @@ permissions:
   contents: read
 
 jobs:
+  # The native Windows backend, started the way the app starts it. This is the
+  # path every Windows user hits before local execution is provisioned (and
+  # whenever it fails), so "backend exited before becoming ready" has to be
+  # caught here rather than by a user. Needs no WSL, so unlike the smoke job it
+  # is reliable and blocking.
+  native-backend:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install desktop tooling
+        working-directory: desktop
+        run: npm install
+
+      - name: Stage backend, python and uv
+        working-directory: desktop
+        env:
+          BIONODULO_BACKEND_SRC: ${{ github.workspace }}
+        run: npm run prepare:assets
+
+      - name: Create the environment and start the backend
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $backend = "desktop/assets/bionodulo-backend"
+          $uv = Get-ChildItem -Recurse -Filter uv.exe desktop/assets/uv |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $uv) { throw "bundled uv.exe not found" }
+
+          $venv = Join-Path $env:RUNNER_TEMP "venv"
+          & $uv venv $venv --python 3.12 --seed
+          $env:VIRTUAL_ENV = $venv
+          & $uv pip install -e $backend --index-strategy unsafe-best-match
+
+          $py = Join-Path $venv "Scripts/python.exe"
+          $workspace = Join-Path $env:RUNNER_TEMP "workspace"
+          New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+
+          $env:PYTHONPATH = (Resolve-Path $backend).Path
+          $env:PYTHONUNBUFFERED = "1"
+          $out = Join-Path $env:RUNNER_TEMP "backend.log"
+          $proc = Start-Process -FilePath $py -PassThru -NoNewWindow `
+            -RedirectStandardOutput $out -RedirectStandardError "$out.err" `
+            -ArgumentList @(
+              (Join-Path (Resolve-Path $backend).Path "main.py"),
+              "--host", "127.0.0.1", "--port", "8188",
+              "--project-root", $workspace
+            )
+
+          # Poll exactly as the supervisor does, and report what the process
+          # printed rather than "check the logs" if it dies.
+          $ok = $false
+          foreach ($i in 1..120) {
+            if ($proc.HasExited) { break }
+            try {
+              $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 `
+                "http://127.0.0.1:8188/api/health"
+              if ($r.StatusCode -eq 200) { $ok = $true; break }
+            } catch { }
+            Start-Sleep -Milliseconds 500
+          }
+          if (-not $ok) {
+            Write-Host "=== stdout ==="; Get-Content $out -ErrorAction SilentlyContinue
+            Write-Host "=== stderr ==="; Get-Content "$out.err" -ErrorAction SilentlyContinue
+            throw "backend never answered on 127.0.0.1:8188"
+          }
+          Write-Host "backend answered"
+          Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+
   smoke:
     runs-on: windows-latest
     # Unsupported platform capability: report, never block.

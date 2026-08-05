@@ -305,8 +305,11 @@ pub mod runtime {
     /// Where the rootfs is fetched from when local execution is first set up.
     /// A minimal userland only: pixi and the environment locks provide the
     /// tools, exactly as they do on Linux and macOS.
-    const ROOTFS_URL: &str =
-        "https://cloud-images.ubuntu.com/wsl/noble/current/ubuntu-noble-wsl-amd64-wsl.rootfs.tar.gz";
+    /// Note the `releases/` segment: the sibling `wsl/noble/current/` path
+    /// publishes only manifests, and 404s for the tarball. That mistake made
+    /// provisioning impossible on every machine until CI ran it.
+    const ROOTFS_URL: &str = "https://cloud-images.ubuntu.com/wsl/releases/noble/current/\
+ubuntu-noble-wsl-amd64-wsl.rootfs.tar.gz";
 
     const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
     const IMPORT_TIMEOUT: Duration = Duration::from_secs(600);
