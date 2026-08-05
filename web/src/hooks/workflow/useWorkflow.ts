@@ -132,7 +132,20 @@ export function useWorkflow() {
         const tabs = loaded.filter((w): w is Workflow => w !== null);
         if (tabs.length === 0) return; // all fetches failed; keep placeholder
         setWorkflows(tabs);
-        setActiveIndex(0);
+
+        // Select the deep-linked workflow by identity, not by position.
+        // Failed fetches are dropped from `tabs`, so if the requested one did
+        // not load, index 0 is somebody's unrelated recent workflow -- the
+        // editor then silently opens the wrong thing and looks like it ignored
+        // the link.
+        const requestedIndex = requested ? tabs.findIndex(w => w.id === requested) : -1;
+        if (requested && requestedIndex === -1) {
+          logError(
+            'cloud.workflows.deeplink',
+            new Error(`Requested workflow ${requested} could not be opened`),
+          );
+        }
+        setActiveIndex(requestedIndex >= 0 ? requestedIndex : 0);
         cloudLoadedRef.current = true;
       } catch (err) {
         logError('cloud.workflows.load', err);
