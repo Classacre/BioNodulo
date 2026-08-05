@@ -105,7 +105,18 @@ impl WslReadiness {
 /// visible. UNC paths have no `/mnt` form and are returned as an error so the
 /// caller can fall back to `wslpath` or refuse the file.
 pub fn to_wsl_path(path: &Path) -> Result<String, String> {
-    let raw = path.to_string_lossy().replace('\\', "/");
+    let mut raw = path.to_string_lossy().replace('\\', "/");
+
+    // Windows hands out extended-length paths (\\?\C:\...) from canonicalize
+    // and several shell APIs. Those denote an ordinary drive path, so strip the
+    // prefix rather than mistaking the leading slashes for a network share.
+    if let Some(rest) = raw.strip_prefix("//?/") {
+        raw = match rest.strip_prefix("UNC/") {
+            // \\?\UNC\server\share is genuinely a network path.
+            Some(share) => format!("//{share}"),
+            None => rest.to_string(),
+        };
+    }
 
     if raw.starts_with("//") {
         return Err(format!(
@@ -558,6 +569,23 @@ mod tests {
             to_wsl_path(Path::new("/home/mika/reads.fastq")).unwrap(),
             "/home/mika/reads.fastq"
         );
+    }
+
+    #[test]
+    fn extended_length_paths_are_ordinary_drive_paths() {
+        // std::fs::canonicalize returns this form on Windows, so it reaches
+        // to_wsl_path routinely. Refusing it as a network path made the engine
+        // install fail with advice about copying to a local drive.
+        assert_eq!(
+            to_wsl_path(Path::new(r"\\?\D:\a\BioNodulo")).unwrap(),
+            "/mnt/d/a/BioNodulo"
+        );
+    }
+
+    #[test]
+    fn an_extended_length_unc_path_is_still_a_network_path() {
+        let err = to_wsl_path(Path::new(r"\\?\UNC\server\share\r.fastq")).unwrap_err();
+        assert!(err.contains("Network paths"), "{err}");
     }
 
     #[test]
