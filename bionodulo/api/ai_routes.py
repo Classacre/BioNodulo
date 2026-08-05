@@ -11,6 +11,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from bionodulo.ai.assistant import chat_with_tools
+from bionodulo.ai.hosted import (
+    HOSTED_MODEL,
+    HOSTED_PROVIDER,
+    bearer_from_headers,
+    hosted_api_base,
+    hosted_unavailable_reason,
+    is_hosted_enabled,
+)
 from bionodulo.ai.orchestrator import reproduce_paper
 from bionodulo.api.app_state import app_state, setting_literal
 from bionodulo.api.rate_limits import limiter
@@ -39,6 +47,17 @@ def _llm_runtime_settings(request: Request, body: AIChatRequest) -> tuple[str, s
     if provider.lower() == "litellm":
         api_key = api_key or os.environ.get("LITELLM_API_KEY") or None
         api_base = api_base or os.environ.get("BIONODULO_LITELLM_BASE_URL", "http://localhost:4000/v1")
+
+    # Hosted assistant. Chosen only when the user has not configured a key of
+    # their own, so "bring your own key" always wins and never silently routes
+    # someone's prompts through our cloud.
+    if api_key is None and not api_base and is_hosted_enabled():
+        token = bearer_from_headers(request.headers)
+        if token:
+            provider = HOSTED_PROVIDER
+            model = model or HOSTED_MODEL
+            api_key = token
+            api_base = hosted_api_base()
 
     temperature_value = setting_literal(request, "bionodulo.llm.temperature", 0.2)
     try:

@@ -147,7 +147,19 @@ async def parse_paper(
     response = await call_llm(config, messages, json_mode=True)
     if response.error:
         raise RuntimeError(f"Paper parsing failed: {response.error}")
-    return ReproductionPlan.from_dict(safe_json_parse(response.content))
+
+    parsed = safe_json_parse(response.content)
+    plan = ReproductionPlan.from_dict(parsed)
+    # An unreadable answer used to yield an empty plan, which the sub-agents
+    # then reported as "the paper contains nothing" -- a confusing lie about the
+    # input rather than an honest failure to read the model's reply.
+    if not (plan.title or plan.tools or plan.steps):
+        preview = (response.content or "").strip()[:400] or "<empty response>"
+        raise RuntimeError(
+            "Could not extract a reproduction plan from the paper. "
+            f"The model replied with: {preview}"
+        )
+    return plan
 
 
 async def _default_agent_fn(
@@ -166,6 +178,10 @@ async def _default_agent_fn(
         history=[],
         system_prompt=role_prompt,
         tool_names=tool_names,
+        # A reproduction builds one node and one edge per call, so the
+        # interactive default runs out mid-pipeline and leaves a half-wired
+        # graph. Reproduction is not interactive; let it finish.
+        max_tool_rounds=40,
         **base_kwargs,
     )
 

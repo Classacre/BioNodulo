@@ -19,7 +19,10 @@ class LLMConfig:
     model: str = "openai/gpt-4.1-mini"
     api_key: str = ""
     api_base: str = ""
-    temperature: float = 0.2
+    #: ``None`` omits the parameter entirely. Reasoning models reject it --
+    #: Claude 4.6+ answers "`temperature` is deprecated for this model" -- so a
+    #: fixed default would make those models unusable.
+    temperature: float | None = 0.2
     max_tokens: int = 1024
     timeout: float = 60.0
 
@@ -116,11 +119,12 @@ async def call_llm(
     kwargs: dict[str, Any] = {
         "model": config.model,
         "messages": messages,
-        "temperature": config.temperature,
         "max_tokens": config.max_tokens,
         "timeout": config.timeout,
         "stream": False,
     }
+    if config.temperature is not None:
+        kwargs["temperature"] = config.temperature
     if config.api_key:
         kwargs["api_key"] = config.api_key
     if config.api_base:
@@ -136,6 +140,13 @@ async def call_llm(
             break
         except Exception as exc:
             last_error = exc
+            # Reasoning models reject `temperature` outright ("deprecated for
+            # this model"). Which models do so is the vendor's business and
+            # changes without notice, so react to the refusal instead of
+            # maintaining a list that silently goes stale.
+            if "temperature" in str(exc).lower() and "temperature" in kwargs:
+                kwargs.pop("temperature")
+                continue
             if attempt >= attempts - 1:
                 return LLMResponse(
                     content="",
@@ -157,6 +168,17 @@ async def call_llm(
     choice = choices[0]
     message = _obj_get(choice, "message", {})
     content = _obj_get(message, "content", "") or ""
+    if not str(content).strip():
+        # LiteLLM implements JSON mode for providers that lack `response_format`
+        # (Anthropic among them) by forcing a synthetic tool call, which leaves
+        # `content` empty and the payload in the call's arguments. Reading it
+        # back is what makes json_mode work on those providers at all -- without
+        # this, every structured call looks like the model said nothing.
+        for call in _obj_get(message, "tool_calls", []) or []:
+            arguments = _obj_get(_obj_get(call, "function", {}), "arguments", "")
+            if str(arguments).strip():
+                content = arguments
+                break
     usage = _obj_get(response, "usage", {}) or {}
     if not isinstance(usage, dict):
         usage = dict(usage) if hasattr(usage, "items") else {}
@@ -191,7 +213,16 @@ def safe_json_parse(text: str) -> dict[str, Any]:
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
-        return {}
+        # Reasoning models often narrate around the JSON even when told not to,
+        # and `response_format` is not honoured by every provider. Recover the
+        # outermost object rather than discarding a good answer.
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return {}
+        try:
+            parsed = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return {}
     return parsed if isinstance(parsed, dict) else {}
 
 

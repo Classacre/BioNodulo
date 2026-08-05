@@ -65,6 +65,12 @@ dev = [
     "mypy>=1.8.0",
 ]
 collab = []
+# Paper -> Markdown conversion for the AI assistant. Optional because the
+# assistant degrades to plain text extraction without it, and markitdown pulls a
+# sizeable dependency tree that a headless worker never needs.
+papers = [
+    "markitdown[pdf,docx,xlsx]>=0.1.1",
+]
 
 [project.scripts]
 bionodulo = "main:main"

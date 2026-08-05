@@ -1208,6 +1208,19 @@ async def aexecute_tool(name: str, arguments: dict[str, Any], ctx: ToolContext) 
         if isinstance(result, dict) and result.get("error"):
             return {"status": "error", "error": result["error"], "result": result}
         return {"status": "ok", "result": result, "mutates": tool.mutates}
+    except TypeError as exc:
+        # Omitting a required argument is the commonest model mistake, and the
+        # raw Python message names a private function the model has never heard
+        # of. Say it in terms of the tool it actually called, so the next turn
+        # can correct itself instead of repeating the call.
+        logger.warning("Tool '%s' called with bad arguments: %s", name, exc)
+        return {
+            "status": "error",
+            "error": (
+                f"Tool '{name}' was called with invalid arguments ({exc}). "
+                f"Supplied: {sorted(arguments)}. Call it again with every required argument."
+            ),
+        }
     except Exception as exc:
         logger.exception("Tool execution failed: %s", name)
         return {"status": "error", "error": str(exc)}

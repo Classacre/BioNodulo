@@ -128,6 +128,15 @@ def _extract_pdf_text(data_url: str, max_chars: int = 8000) -> str | None:
         _, b64 = _parse_data_url(data_url)
         pdf_bytes = base64.b64decode(b64)
 
+        # Markdown first: it keeps the headings and, crucially, the tables where
+        # accessions, tool versions and parameters live. A page-by-page text
+        # dump interleaves table cells into prose the model cannot read back.
+        from bionodulo.ai.papers import to_markdown
+
+        markdown = to_markdown(pdf_bytes, filename="paper.pdf", max_chars=max_chars)
+        if markdown:
+            return markdown
+
         # Try PyPDF2 first
         try:
             from PyPDF2 import PdfReader
@@ -426,7 +435,18 @@ async def _call_llm(
     try:
         response = await litellm.acompletion(**kwargs)
     except Exception as exc:
-        raise RuntimeError(f"LLM provider error: {exc}") from exc
+        # Reasoning models reject `temperature` outright ("deprecated for this
+        # model"). Which ones do is the provider's business and changes without
+        # notice, so react to the refusal rather than keep a list that goes
+        # stale and takes the assistant down with it.
+        if "temperature" in str(exc).lower() and "temperature" in kwargs:
+            kwargs.pop("temperature")
+            try:
+                response = await litellm.acompletion(**kwargs)
+            except Exception as retry_exc:
+                raise RuntimeError(f"LLM provider error: {retry_exc}") from retry_exc
+        else:
+            raise RuntimeError(f"LLM provider error: {exc}") from exc
 
     choices = _obj_get(response, "choices", [])
     if not choices:
@@ -449,6 +469,13 @@ async def _call_llm(
 # The agent loop can run a workflow, read its logs, fix the graph, and re-run.
 # Autonomous debugging needs more than a couple of rounds, so the budget is
 # generous; cost is bounded by history trimming + tool-result truncation below.
+#: Tool-use rounds before the loop gives up.
+#:
+#: Interactive chat rarely needs more than a handful, but reproducing a paper
+#: builds a node and an edge at a time: an eight-step pipeline is already ~15
+#: calls before validation, and hitting the cap mid-build leaves a half-wired
+#: graph. Callers that orchestrate multi-step builds raise it via
+#: ``max_tool_rounds``.
 MAX_TOOL_ROUNDS = 12
 
 # Token-efficiency knobs. The assistant loop sends the FULL message list on
@@ -616,7 +643,9 @@ async def _graph_run_tool(state: AssistantGraphState) -> AssistantGraphState:
 def _route_after_model(state: AssistantGraphState) -> str:
     if state.get("error"):
         return "__end__"
-    if state.get("tool_calls") and int(state.get("rounds", 0)) < MAX_TOOL_ROUNDS:
+    if state.get("tool_calls") and int(state.get("rounds", 0)) < int(
+        state.get("max_tool_rounds") or MAX_TOOL_ROUNDS
+    ):
         return "tool"
     return "__end__"
 
@@ -653,6 +682,7 @@ async def chat_with_tools(
     run_queue: Any = None,
     system_prompt: str | None = None,
     tool_names: list[str] | None = None,
+    max_tool_rounds: int | None = None,
 ) -> ChatResponse:
     """Run the AI chat with a tool-use loop.
 
@@ -711,6 +741,7 @@ async def chat_with_tools(
             "api_key": api_key,
             "api_base": api_base,
             "temperature": temperature,
+            "max_tool_rounds": int(max_tool_rounds or MAX_TOOL_ROUNDS),
             "max_tokens": max_tokens,
             "tool_schemas": tool_schemas,
         }
@@ -721,7 +752,9 @@ async def chat_with_tools(
     proposed_description = final_state.get("proposed_description", "")
     reply = final_state.get("reply", "")
 
-    if final_state.get("tool_calls") and int(final_state.get("rounds", 0)) >= MAX_TOOL_ROUNDS:
+    if final_state.get("tool_calls") and int(final_state.get("rounds", 0)) >= int(
+        final_state.get("max_tool_rounds") or MAX_TOOL_ROUNDS
+    ):
         if final_state.get("mutated_workflow"):
             graph_ctx = final_state["ctx"]
             proposed_workflow = graph_ctx.workflow
