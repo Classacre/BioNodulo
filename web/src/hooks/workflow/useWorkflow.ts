@@ -22,10 +22,39 @@ function createWorkflowId(): string {
   return `wf-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * Drop edges the canvas cannot draw.
+ *
+ * An edge is `{ from: {node, output}, to: {node, input} }`. Anything else --
+ * a `{source, target}` pair from an importer, an edge left behind by a deleted
+ * node -- used to reach the renderer and throw on `edge.from.node`, which
+ * unmounts the whole editor and leaves a blank page. One malformed edge should
+ * cost that edge, not the workflow.
+ */
+function usableEdges(wf: Workflow): Workflow['edges'] {
+  if (!Array.isArray(wf.edges)) return [];
+  const nodeIds = new Set((Array.isArray(wf.nodes) ? wf.nodes : []).map(n => n?.id));
+  const kept = wf.edges.filter(edge => {
+    const from = edge?.from;
+    const to = edge?.to;
+    if (!from || !to || typeof from.node !== 'string' || typeof to.node !== 'string') return false;
+    return nodeIds.has(from.node) && nodeIds.has(to.node);
+  });
+  if (kept.length !== wf.edges.length) {
+    logError(
+      'workflow.edges.dropped',
+      new Error(`Dropped ${wf.edges.length - kept.length} unusable edge(s) from "${wf.name || wf.id}"`),
+    );
+  }
+  return kept;
+}
+
 function normalizeWorkflow(wf: Workflow): Workflow {
   return {
     ...wf,
     id: wf.id || createWorkflowId(),
+    nodes: Array.isArray(wf.nodes) ? wf.nodes.filter(n => n && typeof n.id === 'string') : [],
+    edges: usableEdges(wf),
     parameters: Array.isArray(wf.parameters) ? wf.parameters : [],
   };
 }
