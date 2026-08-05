@@ -6,7 +6,7 @@ mod provision;
 mod security;
 mod settings;
 mod supervisor;
-mod wsl;
+pub mod wsl;
 
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
@@ -221,32 +221,6 @@ pub fn wsl_mode_enabled(app: &tauri::AppHandle) -> bool {
         return false;
     }
     matches!(settings::get(app, "localExecution"), serde_json::Value::Bool(true))
-}
-
-/// Build the backend command, either directly or routed through WSL.
-///
-/// The Windows interpreter cannot run inside the distribution, so WSL mode
-/// substitutes the Linux virtualenv provisioned during setup.
-pub fn wsl_spawn_command(
-    via_wsl: bool,
-    python: &std::path::Path,
-    backend: &std::path::Path,
-) -> tokio::process::Command {
-    if !via_wsl {
-        let mut cmd = tokio::process::Command::new(python);
-        cmd.current_dir(backend);
-        return cmd;
-    }
-
-    let workdir = wsl::to_wsl_path(backend).unwrap_or_else(|_| wsl::LINUX_HOME.to_string());
-    let mut cmd = tokio::process::Command::new("wsl.exe");
-    cmd.args(wsl::exec_args(&workdir, &wsl::linux_python(), &[]));
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
-    cmd
 }
 
 /// Every URL the backend may be reachable on, in probe order.

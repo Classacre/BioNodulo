@@ -1,0 +1,99 @@
+# Prove Windows local execution actually runs, on a real Windows host.
+#
+# The WSL path shipped twice with bugs that no unit test could catch: a Windows
+# path handed to the Linux interpreter, and an environment set on wsl.exe that
+# never reached the process inside the distribution. Both killed the backend
+# instantly and left an empty log. Only running it finds that class of bug.
+#
+# WSL2 on GitHub-hosted runners is explicitly unsupported by GitHub (nested
+# virtualization is "experimental, at your own risk"), so this job is allowed to
+# fail without blocking anything. A red run here is a signal to investigate, not
+# a broken main branch.
+name: Windows WSL smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/src-tauri/src/wsl.rs"
+      - "desktop/src-tauri/src/supervisor.rs"
+      - "desktop/src-tauri/tests/wsl_smoke.rs"
+      - "desktop/src-tauri/windows/**"
+      - ".github/workflows/windows-wsl-smoke.yml"
+  schedule:
+    # Weekly, to catch runner-image changes rather than only our own.
+    - cron: "23 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    # Unsupported platform capability: report, never block.
+    continue-on-error: true
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report WSL status
+        id: wsl
+        shell: pwsh
+        run: |
+          # wsl.exe exits non-zero when the feature is absent, so tolerate it
+          # here and decide from the output rather than failing the step.
+          $ErrorActionPreference = "Continue"
+          wsl.exe --status 2>&1 | Out-String | Write-Host
+          wsl.exe --version 2>&1 | Out-String | Write-Host
+          $listed = (wsl.exe --list --quiet 2>&1 | Out-String)
+          Write-Host "distributions: $listed"
+
+      - name: Enable WSL2 if the runner image lacks it
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          wsl.exe --status *> $null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "WSL not usable; attempting to enable it."
+            # The runner is already elevated, so this mirrors what the NSIS
+            # installer hook does on a user's machine.
+            wsl.exe --install --no-distribution 2>&1 | Out-String | Write-Host
+            wsl.exe --set-default-version 2 2>&1 | Out-String | Write-Host
+          } else {
+            Write-Host "WSL is already usable."
+          }
+          wsl.exe --update 2>&1 | Out-String | Write-Host
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux build dependencies for Tauri
+        shell: pwsh
+        run: rustc --version; cargo --version
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Run the WSL smoke test
+        shell: pwsh
+        working-directory: desktop/src-tauri
+        run: |
+          cargo test --test wsl_smoke -- --ignored --nocapture --test-threads=1
+
+      - name: Collect diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          wsl.exe --list --verbose 2>&1 | Out-String | Write-Host
+          wsl.exe -d BioNodulo --exec ls -la /opt/bionodulo 2>&1 | Out-String | Write-Host
+          wsl.exe -d BioNodulo --exec /opt/bionodulo/venv/bin/python -V 2>&1 |
+            Out-String | Write-Host
+
+      - name: Remove the distribution
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          wsl.exe --unregister BioNodulo 2>&1 | Out-String | Write-Host

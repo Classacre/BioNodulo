@@ -38,3 +38,9 @@ tauri-plugin-updater = "2"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29", features = ["signal"] }
+
+[dev-dependencies]
+# The WSL smoke test drives real processes and polls the backend over HTTP, so
+# it needs a multi-threaded runtime and a client the lib does not enable.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "io-util"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }

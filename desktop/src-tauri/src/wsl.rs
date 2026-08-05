@@ -160,6 +160,42 @@ pub fn exec_args(working_dir: &str, program: &str, program_args: &[String]) -> V
     args
 }
 
+/// Full wsl.exe argument list for launching the backend inside the distro.
+///
+/// Two things make this more than `exec_args` plus a script name, and getting
+/// either wrong kills the backend instantly with nothing in the logs:
+///
+/// * every path must already be a Linux path. A Windows path handed to the
+///   Linux interpreter simply does not exist.
+/// * environment variables set on the wsl.exe process do **not** reach the
+///   Linux process -- WSL forwards only what WSLENV names. The environment is
+///   therefore passed explicitly by running the interpreter under `env`.
+pub fn backend_argv(
+    working_dir: &str,
+    python: &str,
+    script: &str,
+    app_args: &[String],
+    envs: &[(String, String)],
+) -> Vec<String> {
+    let mut args = vec![
+        "--distribution".to_string(),
+        DISTRO.to_string(),
+        "--cd".to_string(),
+        working_dir.to_string(),
+        "--exec".to_string(),
+        // /usr/bin/env, not a shell: argv is passed through untouched, so a
+        // value containing spaces needs no quoting and cannot be re-split.
+        "env".to_string(),
+    ];
+    for (key, value) in envs {
+        args.push(format!("{key}={value}"));
+    }
+    args.push(python.to_string());
+    args.push(script.to_string());
+    args.extend(app_args.iter().cloned());
+    args
+}
+
 /// Arguments that import the distribution from a rootfs tarball.
 pub fn import_args(install_dir: &Path, tarball: &Path) -> Vec<String> {
     vec![
@@ -561,6 +597,80 @@ mod tests {
         let args = exec_args("/tmp", "true", &[]);
         let d = args.iter().position(|a| a == "--distribution").unwrap();
         assert_eq!(args[d + 1], DISTRO);
+    }
+
+    fn sample_argv() -> Vec<String> {
+        backend_argv(
+            "/mnt/c/app",
+            "/opt/bionodulo/venv/bin/python",
+            "/mnt/c/app/main.py",
+            &["--port".into(), "8400".into()],
+            &[("BIONODULO_PORT".into(), "8400".into())],
+        )
+    }
+
+    #[test]
+    fn the_script_path_is_passed_through_verbatim() {
+        // The caller translates it. Shipping a Windows path here made Python
+        // exit instantly with an empty log, because C:\... does not exist in
+        // the distribution.
+        let argv = sample_argv();
+        assert!(argv.contains(&"/mnt/c/app/main.py".to_string()));
+        assert!(!argv.iter().any(|a| a.contains('\\') || a.contains(':')
+            && a.chars().next().is_some_and(|c| c.is_ascii_uppercase())));
+    }
+
+    #[test]
+    fn the_environment_travels_inside_the_distribution() {
+        // Variables set on the wsl.exe process are NOT inherited by the Linux
+        // process; WSL forwards only what WSLENV names. Passing them through
+        // `env` is what makes them arrive.
+        let argv = sample_argv();
+        let env_at = argv.iter().position(|a| a == "env").expect("env prefix");
+        let var_at = argv
+            .iter()
+            .position(|a| a == "BIONODULO_PORT=8400")
+            .expect("variable present");
+        let py_at = argv
+            .iter()
+            .position(|a| a.ends_with("/python"))
+            .expect("interpreter present");
+
+        // env, then assignments, then the interpreter -- any other order and
+        // `env` treats the interpreter as a variable or vice versa.
+        assert!(env_at < var_at, "{argv:?}");
+        assert!(var_at < py_at, "{argv:?}");
+    }
+
+    #[test]
+    fn application_arguments_follow_the_script() {
+        let argv = sample_argv();
+        let script_at = argv.iter().position(|a| a.ends_with("main.py")).unwrap();
+        let port_at = argv.iter().position(|a| a == "--port").unwrap();
+        assert!(script_at < port_at, "{argv:?}");
+    }
+
+    #[test]
+    fn a_value_with_spaces_needs_no_quoting() {
+        // argv goes straight to execve, so quoting would become part of the
+        // value rather than protecting it.
+        let argv = backend_argv(
+            "/w",
+            "/p",
+            "/s.py",
+            &[],
+            &[("DIR".into(), "/mnt/c/My Data".into())],
+        );
+        assert!(argv.contains(&"DIR=/mnt/c/My Data".to_string()), "{argv:?}");
+    }
+
+    #[test]
+    fn the_backend_runs_in_our_distribution_and_its_own_directory() {
+        let argv = sample_argv();
+        let d = argv.iter().position(|a| a == "--distribution").unwrap();
+        assert_eq!(argv[d + 1], DISTRO);
+        let cd = argv.iter().position(|a| a == "--cd").unwrap();
+        assert_eq!(argv[cd + 1], "/mnt/c/app");
     }
 
     #[test]

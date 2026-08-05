@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Child;
+use tokio::process::{Child, Command};
 
 use crate::{paths, port};
 
@@ -153,23 +153,72 @@ impl Supervisor {
 
         let cors_origins = format!("{},https://cloud.bionodulo.com", url);
         let cf = crate::paths::cloudflared_path(app);
-        let mut cmd = crate::wsl_spawn_command(via_wsl, &python, &backend);
-        cmd.arg(&main_script)
-            .arg("--host")
-            .arg(bind_host)
-            .arg("--port")
-            .arg(free.to_string())
-            .arg("--project-root")
-            .arg(&project_root)
-            .current_dir(&backend)
-            .env("PYTHONPATH", &backend)
-            .env("PYTHONUNBUFFERED", "1")
-            .env("VIRTUAL_ENV", &venv)
-            .env("BIONODULO_HOST", bind_host)
-            .env("BIONODULO_PORT", free.to_string())
-            .env("BIONODULO_CORS_ORIGINS", &cors_origins)
-            .env("BIONODULO_CORS_ALLOW_LOOPBACK", "1")
-            .stdout(Stdio::piped())
+
+        // Every path handed across the WSL boundary must already be a Linux
+        // path, and the environment must travel explicitly: variables set on
+        // wsl.exe do not reach the process inside the distribution.
+        let to_side = |path: &std::path::Path| -> Result<String, String> {
+            if via_wsl {
+                crate::wsl::to_wsl_path(path)
+            } else {
+                Ok(path.to_string_lossy().into_owned())
+            }
+        };
+        let script = to_side(&main_script)?;
+        let workdir = to_side(&backend)?;
+        let py_path = to_side(&backend)?;
+        let venv_dir = if via_wsl {
+            crate::wsl::venv_path()
+        } else {
+            venv.to_string_lossy().into_owned()
+        };
+
+        let app_args: Vec<String> = vec![
+            "--host".into(),
+            bind_host.into(),
+            "--port".into(),
+            free.to_string(),
+            "--project-root".into(),
+            project_root.clone(),
+        ];
+        let mut envs: Vec<(String, String)> = vec![
+            ("PYTHONPATH".into(), py_path),
+            ("PYTHONUNBUFFERED".into(), "1".into()),
+            ("VIRTUAL_ENV".into(), venv_dir),
+            ("BIONODULO_HOST".into(), bind_host.into()),
+            ("BIONODULO_PORT".into(), free.to_string()),
+            ("BIONODULO_CORS_ORIGINS".into(), cors_origins),
+            ("BIONODULO_CORS_ALLOW_LOOPBACK".into(), "1".into()),
+        ];
+        // cloudflared is a Windows executable, so it cannot be launched from
+        // inside the distribution. Sharing a workflow falls back to the cloud
+        // path there rather than silently pointing at an unrunnable binary.
+        if cf.exists() && !via_wsl {
+            envs.push((
+                "BIONODULO_CLOUDFLARED".into(),
+                cf.to_string_lossy().into_owned(),
+            ));
+        }
+
+        let mut cmd = if via_wsl {
+            let mut c = Command::new("wsl.exe");
+            c.args(crate::wsl::backend_argv(
+                &workdir,
+                &crate::wsl::linux_python(),
+                &script,
+                &app_args,
+                &envs,
+            ));
+            c
+        } else {
+            let mut c = Command::new(&python);
+            c.arg(&script).args(&app_args).current_dir(&backend);
+            for (key, value) in &envs {
+                c.env(key, value);
+            }
+            c
+        };
+        cmd.stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(false);
         #[cfg(windows)]
@@ -177,9 +226,6 @@ impl Supervisor {
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-        if cf.exists() {
-            cmd.env("BIONODULO_CLOUDFLARED", cf.to_string_lossy().to_string());
         }
 
         let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn backend: {e}"))?;
@@ -226,6 +272,26 @@ impl Supervisor {
         }
     }
 
+    /// Last few captured lines, for embedding in a startup failure.
+    fn recent_output(&self) -> String {
+        let inner = self.inner.lock().unwrap();
+        let tail: Vec<&str> = inner
+            .logs
+            .iter()
+            .rev()
+            .take(8)
+            .map(String::as_str)
+            .collect();
+        if tail.is_empty() {
+            return " It produced no output at all, which usually means the command \
+                     itself could not run."
+                .to_string();
+        }
+        let mut lines: Vec<&str> = tail;
+        lines.reverse();
+        format!("\n\n{}", lines.join("\n"))
+    }
+
     /// Probe every candidate address until one serves health, returning it.
     ///
     /// All candidates are tried on each pass rather than one being given the
@@ -251,8 +317,14 @@ impl Supervisor {
             {
                 let mut guard = self.child.lock().await;
                 if let Some(c) = guard.as_mut() {
-                    if let Ok(Some(_)) = c.try_wait() {
-                        return Err("Backend exited before becoming ready. Check the logs.".into());
+                    if let Ok(Some(status)) = c.try_wait() {
+                        // "Check the logs" is useless advice when the backend
+                        // died before writing any: quote what it actually
+                        // printed, which is where the real cause is.
+                        return Err(format!(
+                            "Backend exited ({status}) before becoming ready.{}",
+                            self.recent_output()
+                        ));
                     }
                 }
             }
