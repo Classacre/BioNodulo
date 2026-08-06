@@ -14,6 +14,12 @@ const en = {
     loadErrorMessage: 'The node registry failed to load, so nodes may show without ports or connections. Retry once your connection is back.',
     retry: 'Retry',
   },
+  update: {
+    availableTitle: 'BioNodulo {{version}} is available',
+    availableMessage: 'Installing restarts the app, so finish or stop any running workflow first.',
+    installNow: 'Install and restart',
+    failedTitle: 'Update failed',
+  },
   common: {
     cancel: 'Cancel',
     close: 'Close',

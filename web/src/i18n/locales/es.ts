@@ -14,6 +14,12 @@ const es = {
     loadErrorMessage: 'El registro de nodos no se cargó, por lo que los nodos pueden aparecer sin puertos ni conexiones. Vuelve a intentarlo cuando se restablezca la conexión.',
     retry: 'Reintentar',
   },
+  update: {
+    availableTitle: 'BioNodulo {{version}} ya está disponible',
+    availableMessage: 'Al instalar se reinicia la aplicación; termina o detén cualquier flujo en ejecución primero.',
+    installNow: 'Instalar y reiniciar',
+    failedTitle: 'Error al actualizar',
+  },
   common: {
     cancel: 'Cancelar',
     close: 'Cerrar',

@@ -9,6 +9,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { ViewportPortal, useReactFlow } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
 import type { Comment } from '../../collab/types';
+import { markThreadRead, threadHasUnread } from '../../collab/commentReads';
 import { NODE_WIDTH } from './canvasModel';
 
 interface NodeCommentsProps {
@@ -30,6 +31,8 @@ interface NodeThread {
   nodeId: string;
   count: number;
   unresolved: boolean;
+  /** Holds something this reader has not seen (not the same as unresolved). */
+  unread: boolean;
   thread: Comment[];
 }
 
@@ -50,14 +53,24 @@ export default function NodeComments({
     const map = new Map<string, NodeThread>();
     for (const c of comments) {
       if (!c.node_id || c.parent_id) continue;
-      const entry = map.get(c.node_id) ?? { nodeId: c.node_id, count: 0, unresolved: false, thread: [] };
+      const entry = map.get(c.node_id) ?? { nodeId: c.node_id, count: 0, unresolved: false, unread: false, thread: [] };
       entry.thread.push(c);
       entry.count += 1 + (c.replies?.length ?? 0);
       entry.unresolved = entry.unresolved || !c.resolved;
       map.set(c.node_id, entry);
     }
+    for (const entry of map.values()) {
+      entry.unread = threadHasUnread(entry.nodeId, entry.thread, currentUserId);
+    }
     return map;
-  }, [comments]);
+  }, [comments, currentUserId]);
+
+  // Opening a thread is what marks it read. Done here rather than in the click
+  // handler so opening from the node toolbar counts too.
+  const openThread = useCallback((nodeId: string | null) => {
+    if (nodeId) markThreadRead(nodeId);
+    onOpenChange(nodeId);
+  }, [onOpenChange]);
 
   const submit = useCallback((nodeId: string) => {
     const text = draft.trim();
@@ -80,17 +93,28 @@ export default function NodeComments({
         const x = node.position.x + w;
         const y = node.position.y;
         return (
-          <button
+          // Two elements: the anchor is positioned by transform, the badge
+          // inside it animates. One element cannot do both, because the bounce
+          // animates `transform` and would overwrite the placement.
+          <div
             key={`pin-${entry.nodeId}`}
-            type="button"
-            className={`collab-comment-pin nodrag nopan ${entry.unresolved ? 'open' : 'resolved'}`}
+            className="collab-comment-anchor"
             style={{ transform: `translate(${x}px, ${y}px)` }}
-            title={t('canvas.comments.pinTitle', { count: entry.count })}
-            aria-label={t('canvas.comments.pinTitle', { count: entry.count })}
-            onClick={(e) => { e.stopPropagation(); onOpenChange(openNodeId === entry.nodeId ? null : entry.nodeId); setDraft(''); }}
           >
-            {entry.count}
-          </button>
+            <button
+              type="button"
+              className={`collab-comment-pin nodrag nopan ${entry.unresolved ? 'open' : 'resolved'}${entry.unread ? ' unread' : ''}`}
+              title={entry.unread
+                ? t('canvas.comments.pinTitleUnread', { count: entry.count, defaultValue: '{{count}} comments, unread' })
+                : t('canvas.comments.pinTitle', { count: entry.count })}
+              aria-label={entry.unread
+                ? t('canvas.comments.pinTitleUnread', { count: entry.count, defaultValue: '{{count}} comments, unread' })
+                : t('canvas.comments.pinTitle', { count: entry.count })}
+              onClick={(e) => { e.stopPropagation(); openThread(openNodeId === entry.nodeId ? null : entry.nodeId); setDraft(''); }}
+            >
+              {entry.count}
+            </button>
+          </div>
         );
       })}
 

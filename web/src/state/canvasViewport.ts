@@ -14,7 +14,11 @@
  * the cardinality.
  */
 
-/** Reads the visible centre in flow coordinates. Registered by the canvas. */
+/**
+ * Reads the visible centre in flow coordinates. Registered by the canvas, which
+ * uses React Flow's own `screenToFlowPosition` rather than inverting the
+ * viewport transform here.
+ */
 export type ViewportCenterReader = () => [number, number] | null;
 
 let reader: ViewportCenterReader | null = null;
@@ -38,21 +42,4 @@ export function newNodePosition(): [number, number] {
   const centre = reader?.() ?? null;
   const [x, y] = centre ?? DEFAULT_POSITION;
   return [x + (Math.random() - 0.5) * SPREAD, y + (Math.random() - 0.5) * SPREAD];
-}
-
-/**
- * Centre of a viewport, in flow coordinates.
- *
- * React Flow's transform maps flow -> screen as `screen = flow * zoom + pan`,
- * so the inverse of the container's midpoint is `(mid - pan) / zoom`.
- */
-export function centerOfViewport(
-  viewport: { x: number; y: number; zoom: number },
-  size: { width: number; height: number },
-): [number, number] {
-  const zoom = viewport.zoom || 1;
-  return [
-    (size.width / 2 - viewport.x) / zoom,
-    (size.height / 2 - viewport.y) / zoom,
-  ];
 }

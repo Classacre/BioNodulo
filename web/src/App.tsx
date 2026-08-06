@@ -55,6 +55,7 @@ import {
 } from './components/ui';
 import { useSettings } from './hooks/settings';
 import { newNodePosition } from './state/canvasViewport';
+import { offerUpdateOnStartup } from './utils/appUpdate';
 import { useObjectInfo } from './hooks/data';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
@@ -355,6 +356,14 @@ export default function App() {
   // a row, and reopening the library each time is worse than the space it uses.
   // Offered because the panel does crowd a small screen.
   const closeLibraryAfterAdd = getBool('bionodulo.nodeLibrary.closeAfterAdd', false);
+
+  // Offer a new desktop version once per launch. No-op in the browser.
+  useEffect(() => {
+    void offerUpdateOnStartup(t);
+    // Deliberately once: re-checking on every render would re-toast, and a
+    // release that appears mid-session can wait for the next launch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const initialCollabTarget = useMemo(() => readCollabLinkTarget(), []);
   const initialRequestedWorkflowId = initialCollabTarget?.workflowId ?? null;
   const [collabInvite, setCollabInvite] = useState<CollabLinkTarget | null>(initialCollabTarget);

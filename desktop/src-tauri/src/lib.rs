@@ -78,7 +78,9 @@ pub fn run() {
             commands::show_logs,
             commands::get_local_execution_status,
             commands::setup_local_execution,
-            commands::reset_local_execution
+            commands::reset_local_execution,
+            commands::check_for_update,
+            commands::install_update
         ])
         .setup(|app| {
             let handle = app.handle().clone();

@@ -1378,25 +1378,55 @@ body.is-dragging-panel {
 /* On-node comment pin (flow coords): an opaque coloured circle with the comment
    count — amber while any comment is open, green once the thread is resolved.
    Centred on the node's top-right corner. */
-.collab-comment-pin {
+/* Anchor sits exactly on the node's top-right corner and only positions; the
+   badge inside does the offsetting and the animating. Splitting them is what
+   lets the pin bounce without its keyframes overwriting the placement. */
+.collab-comment-anchor {
   position: absolute;
   top: 0; left: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.collab-comment-pin {
+  /* Float clear of the node rather than sitting on it: up and out from the
+     corner, so it reads as attached to the node without covering its header. */
+  position: absolute;
+  bottom: 10px;
+  left: -14px;
   transform-origin: center;
-  margin: -10px 0 0 -10px;           /* centre the 20px circle on the anchor point */
-  min-width: 20px; height: 20px;
-  padding: 0 5px;
+  min-width: 28px; height: 28px;
+  padding: 0 8px;
   display: inline-flex; align-items: center; justify-content: center;
   border: 2px solid var(--surface);
   border-radius: 999px;
   color: #fff;
-  font-size: 11px; font-weight: 800; line-height: 1; cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
-  z-index: 7;
+  font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer;
+  /* A wider, softer shadow sells "hovering above" rather than "stuck on". */
+  box-shadow: 0 3px 10px rgba(0,0,0,0.45);
   /* .react-flow__viewport is pointer-events:none — opt interactive overlays back in. */
   pointer-events: all;
 }
 .collab-comment-pin.open { background: #f59e0b; }
 .collab-comment-pin.resolved { background: #22c55e; }
+
+/* Unread: bounce until the thread is opened. Motion is the only thing that
+   reliably catches the eye on a canvas the user is panning around. */
+@keyframes collab-comment-bounce {
+  0%, 55%, 100% { transform: translateY(0); }
+  25%           { transform: translateY(-7px); }
+  40%           { transform: translateY(-3px); }
+}
+.collab-comment-pin.unread {
+  animation: collab-comment-bounce 1.4s ease-in-out infinite;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.5), 0 0 0 3px rgba(239, 68, 68, 0.35);
+}
+
+/* Respect a user who has asked the OS for less motion: keep the ring, drop the
+   movement. */
+@media (prefers-reduced-motion: reduce) {
+  .collab-comment-pin.unread { animation: none; }
+}
 
 /* Comment thread popover (flow coords). */
 .collab-comment-popover {

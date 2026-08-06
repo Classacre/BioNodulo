@@ -39,7 +39,7 @@ import '@xyflow/react/dist/style.css';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { toast } from '../../state/notifications';
-import { centerOfViewport, setViewportCenterReader } from '../../state/canvasViewport';
+import { setViewportCenterReader } from '../../state/canvasViewport';
 import type { WorkflowNode, WorkflowEdge, ObjectInfo, NodeStatus, WorkflowParameter } from '../../types';
 import type { AwarenessState, Comment } from '../../collab/types';
 import { edgeColorForSource } from '../../utils';
@@ -366,7 +366,14 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     setViewportCenterReader(() => {
       const bounds = hostRef.current?.getBoundingClientRect();
       if (!bounds || !bounds.width || !bounds.height) return null;
-      return centerOfViewport(rf.getViewport(), bounds);
+      // React Flow's own screen->flow conversion, rather than inverting the
+      // transform by hand: it accounts for the container's offset on the page
+      // and stays correct if the library changes how the viewport is applied.
+      const { x, y } = rf.screenToFlowPosition({
+        x: bounds.left + bounds.width / 2,
+        y: bounds.top + bounds.height / 2,
+      });
+      return [x, y];
     });
     return () => setViewportCenterReader(null);
   }, [rf]);

@@ -213,3 +213,74 @@ pub async fn reset_local_execution(app: AppHandle) -> Result<(), String> {
     }
     crate::wsl::runtime::unregister().await
 }
+
+/// Whether a newer release is published, without downloading it.
+///
+/// The updater plugin, its signing key and the signed `latest.json` feed have
+/// been configured since the Tauri migration, but nothing ever asked it a
+/// question -- so the app shipped with a working auto-updater that never
+/// updated anything. This is the missing call.
+///
+/// Returns `available: false` rather than an error when the check itself fails:
+/// a user who is offline, or behind a proxy that blocks GitHub, should not be
+/// shown an error they can do nothing about on every launch.
+#[tauri::command]
+pub async fn check_for_update(app: AppHandle) -> Value {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+        match app.updater() {
+            Ok(updater) => match updater.check().await {
+                Ok(Some(update)) => {
+                    return serde_json::json!({
+                        "available": true,
+                        "version": update.version,
+                        "notes": update.body,
+                        "currentVersion": app.package_info().version.to_string(),
+                    });
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    log::info!("[update] check failed: {error}");
+                }
+            },
+            Err(error) => log::info!("[update] updater unavailable: {error}"),
+        }
+    }
+    serde_json::json!({
+        "available": false,
+        "currentVersion": app.package_info().version.to_string(),
+    })
+}
+
+/// Download and install the pending update, then restart into it.
+///
+/// Signature verification is the plugin's job and is not optional: the feed is
+/// signed with the minisign key baked into tauri.conf.json, so a tampered or
+/// substituted artifact fails here rather than being installed.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+        let updater = app.updater().map_err(|e| e.to_string())?;
+        let update = updater
+            .check()
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "No update is available.".to_string())?;
+
+        update
+            .download_and_install(|_chunk, _total| {}, || {})
+            .await
+            .map_err(|e| format!("Could not install the update: {e}"))?;
+
+        // The backend is a child process; restarting the app replaces it too.
+        app.restart();
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = &app;
+        Err("Updates are only available in the desktop app.".into())
+    }
+}
