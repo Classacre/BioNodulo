@@ -1093,7 +1093,24 @@ async def test_phylogenetic_tree_builder_writes_consensus_and_manifest(tmp_path:
     )
 
     assert Path(consensus_path).name == "consensus_tree.nwk"
-    assert Path(consensus_path).read_text(encoding="utf-8") == "((A:0.10000,B:0.20000):0.30000,C:0.40000):0.00000;\n"
+
+    # Assert the tree, not its spelling. Biopython chooses how many decimal
+    # places to write branch lengths and has changed that between releases --
+    # the same tree came out as "0.10000" and later as "0.1" -- so comparing the
+    # file byte-for-byte tests the library's formatting rather than our output.
+    from Bio import Phylo
+
+    consensus = Phylo.read(consensus_path, "newick")
+    assert sorted(leaf.name for leaf in consensus.get_terminals()) == ["A", "B", "C"]
+    lengths = {
+        leaf.name: pytest.approx(leaf.branch_length, abs=1e-6)
+        for leaf in consensus.get_terminals()
+    }
+    assert lengths == {"A": 0.1, "B": 0.2, "C": 0.4}
+    # A and B are siblings; C joins above them.
+    assert sorted(
+        leaf.name for leaf in consensus.common_ancestor(["A", "B"]).get_terminals()
+    ) == ["A", "B"]
 
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     assert manifest["consensus_method"] == "majority"

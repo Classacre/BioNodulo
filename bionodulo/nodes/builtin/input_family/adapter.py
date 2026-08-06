@@ -27,12 +27,12 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from bionodulo.nodes.command_node import CommandNode
+from bionodulo import __version__ as _BIONODULO_VERSION
 
 logger = logging.getLogger(__name__)
 
 URL_SCHEMES = {"http", "https", "ftp"}
 _DOWNLOAD_CHUNK_BYTES = 1024 * 256
-from bionodulo import __version__ as _BIONODULO_VERSION
 
 # Version comes from the package: the literal used to say 2.0, a release
 # that never existed.

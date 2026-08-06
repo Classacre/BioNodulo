@@ -7,7 +7,7 @@ import json
 import os
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from bionodulo.ai.assistant import chat_with_tools
@@ -71,6 +71,13 @@ def _llm_runtime_settings(request: Request, body: AIChatRequest) -> tuple[str, s
     except (TypeError, ValueError):
         max_tokens = 4096
     max_tokens = max(256, min(max_tokens, 32768))
+
+    # Neither a key of their own nor a signed-in session: say which of the two
+    # is missing. Falling through leaves LiteLLM to raise "openai API key is
+    # required", which is true and useless to someone who has never configured
+    # a provider.
+    if not api_key and provider.lower() not in {"custom", "litellm", "mock"}:
+        raise HTTPException(status_code=401, detail=hosted_unavailable_reason())
 
     return provider, model, api_key, api_base, temperature, max_tokens
 

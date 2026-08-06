@@ -11,6 +11,7 @@ import {
   type CloudRunInputs,
 } from '../../api/website';
 import { cloudConfigAtom } from '../../state/appAtoms';
+import { closedIds, forgetClosed, rememberClosed } from '../../state/closedWorkflows';
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
 import { collectLocalInputArtifacts } from '../../utils/workflowFiles';
@@ -143,10 +144,17 @@ export function useWorkflow() {
             : null;
 
         const list = await listCloudWorkflows().catch(() => []);
+        // Tabs the user closed stay closed. A deep link is an explicit request,
+        // so it overrides the dismissal (and clears it, or the workflow would
+        // vanish again on the next visit).
+        const dismissed = closedIds();
+        if (requested) forgetClosed(requested);
+
         // Build the id set to open: deep-linked first, then most-recent, capped.
         const ids: string[] = [];
         if (requested) ids.push(requested);
         for (const summary of list) {
+          if (dismissed.has(summary.id)) continue;
           if (ids.length >= CLOUD_TAB_LIMIT) break;
           if (!ids.includes(summary.id)) ids.push(summary.id);
         }
@@ -232,6 +240,9 @@ export function useWorkflow() {
   // it; otherwise fetch it and append a tab. No-op outside editor mode.
   const openCloudWorkflow = useCallback(async (id: string) => {
     if (!editorMode || !id) return;
+    // Deliberately reopening it retracts the earlier dismissal; otherwise the
+    // tab would work for this session and disappear on the next visit.
+    forgetClosed(id);
     let already = -1;
     setWorkflows(prev => {
       already = prev.findIndex(w => w.id === id);
@@ -272,6 +283,10 @@ export function useWorkflow() {
   const closeTab = useCallback((index: number) => {
     let nextLen = 0;
     setWorkflows(prev => {
+      // Record the dismissal before dropping it, so restoring tabs next visit
+      // honours the decision instead of reopening what was just closed.
+      const closing = prev[index];
+      if (closing?.id) rememberClosed(closing.id);
       const next = prev.filter((_, i) => i !== index);
       if (next.length === 0) next.push(emptyWorkflow());
       nextLen = next.length;

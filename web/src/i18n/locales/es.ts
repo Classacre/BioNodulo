@@ -2162,6 +2162,13 @@ class MyToolNode(CommandNode):
       inputs: 'Entradas',
       outputs: 'Salidas',
     },
+    empty: {
+      title: 'Comenzar un flujo',
+      createNew: 'Nuevo flujo',
+      import: 'Importar…',
+      recent: 'Recientes',
+      browseAll: 'Todos los flujos',
+    },
     comments: {
       title: 'Comentarios',
       pinTitle: '{{count}} comentario',

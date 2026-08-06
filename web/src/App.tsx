@@ -120,6 +120,7 @@ import {
 } from './utils/cloudRunStatus';
 import InviteDialog from './collab/InviteDialog';
 const OpenWorkflowModal = lazy(() => import('./components/modals/OpenWorkflowModal'));
+const EmptyCanvasMenu = lazy(() => import('./components/canvas/EmptyCanvasMenu'));
 import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow } from './localTemplates';
@@ -3504,6 +3505,18 @@ export default function App() {
             onDismiss={() => setDismissedReport(resolveReport)}
             onOpenConsole={() => { setConsoleVisible(true); setRailTab('console'); }}
             onResolve={() => { resolve(activeWorkflow); }}
+          />
+        )}
+        {/* An empty tab offers what to do next instead of a blank canvas. The
+            editor used to answer that by restoring every saved graph as a tab,
+            which is slow when there are many and buries the wanted one. */}
+        {activeWorkflow.nodes.length === 0 && activeWorkflow.edges.length === 0 && (
+          <EmptyCanvasMenu
+            cloudMode={Boolean(cloudConfig?.editorMode)}
+            onCreateNew={() => { if (cloudConfig?.editorMode) void newCloudWorkflow(); else addTab(); }}
+            onOpenRecent={(id) => void openCloudWorkflow(id)}
+            onBrowseAll={() => setShowOpenWorkflow(true)}
+            onImport={() => setShowImport(true)}
           />
         )}
         <WorkflowCanvas

@@ -4533,3 +4533,50 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .bio-node-download.is-indeterminate .bio-node-download-fill { animation: none; width: 100%; opacity: 0.5; }
 }
+
+/* Start screen for an empty tab. Floats over the canvas centre so the grid
+   stays visible behind it -- the tab is usable, not blocked. */
+.empty-canvas-menu {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  width: min(420px, calc(100% - 48px));
+  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+  /* Only the controls take clicks; dragging the canvas around it still works. */
+  pointer-events: auto;
+}
+.empty-canvas-title {
+  margin: 0 0 14px;
+  font-size: 16px; font-weight: 700;
+}
+.empty-canvas-actions { display: flex; gap: 10px; }
+.empty-canvas-action {
+  flex: 1;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 12px;
+  font-size: 13px; font-weight: 600;
+}
+.empty-canvas-recent { margin-top: 18px; }
+.empty-canvas-recent-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-muted);
+}
+.empty-canvas-recent-list { list-style: none; margin: 0; padding: 0; }
+.empty-canvas-recent-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  background: none; border: 0; border-radius: 8px;
+  color: var(--text); font-size: 13px; text-align: left; cursor: pointer;
+}
+.empty-canvas-recent-item:hover { background: var(--surface-2, rgba(255,255,255,0.06)); }
+.empty-canvas-recent-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
