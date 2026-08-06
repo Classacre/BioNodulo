@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import { isDesktopApp } from '../../utils/appUpdate';
 import Icon from '../ui/Icon';
 import { authUserAtom, cloudConfigAtom, showAuthDialogAtom } from '../../state/appAtoms';
 import { showInviteDialogAtom } from '../../state/uiAtoms';
@@ -35,6 +36,20 @@ export default function UserPanel({ onClose }: UserPanelProps) {
   const configUser = cloudConfig?.user ?? null;
   const accountUrl = cloudConfig?.accountUrl ? cloudConfig.accountUrl.replace(/\/+$/, '') : null;
   const guest = isGuestUser(authUser) && !configUser && !clerkSignedIn;
+
+  // Clerk renders its profile/organization screens as modals whose UI it fetches
+  // at click time. The desktop app's content security policy permits scripts
+  // from the app bundle only, so those calls silently do nothing there -- three
+  // buttons that looked live and were not. Where the modal cannot run, link to
+  // the same screens on the website instead, which is also how billing, API
+  // keys and cloud files already work.
+  const modalsAvailable = clerkEnabled && !isDesktopApp();
+  const accountLinks = accountUrl
+    ? {
+        account: `${accountUrl}/dashboard/account`,
+        team: `${accountUrl}/dashboard/team`,
+      }
+    : null;
   const hasCloudAccount = Boolean(configUser) || clerkSignedIn || (Boolean(authUser) && !isGuestUser(authUser));
 
   // /api/me fills in email + team for a local Clerk sign-in (where /api/config
@@ -180,21 +195,29 @@ export default function UserPanel({ onClose }: UserPanelProps) {
           <h4 className="account-heading">{t('account.cloud', { defaultValue: 'Cloud' })}</h4>
           <div className="account-row"><span>{t('account.plan', { defaultValue: 'Plan' })}</span><span className="account-strong">{planLabel}</span></div>
           <div className="account-row"><span>{t('account.credits', { defaultValue: 'Credits' })}</span><span className="account-strong">{credits ? `${credits.remaining.toLocaleString()} / ${credits.total.toLocaleString()}` : '—'}</span></div>
-          {clerkEnabled && (
+          {modalsAvailable ? (
             <button className="btn btn-sm account-action" onClick={openProfile}>
               <Icon name="lock" size={13} /> {t('account.sessions', { defaultValue: 'Sessions & security' })}
             </button>
-          )}
+          ) : accountLinks && hasCloudAccount ? (
+            <a className="btn btn-sm account-action" href={accountLinks.account} target="_blank" rel="noopener noreferrer">
+              <Icon name="lock" size={13} /> {t('account.sessions', { defaultValue: 'Sessions & security' })} <Icon name="link" size={11} />
+            </a>
+          ) : null}
         </section>
 
         {/* Team */}
         <section className="account-section">
           <h4 className="account-heading">{t('account.teamHeading', { defaultValue: 'Team' })}</h4>
-          {clerkEnabled && (
+          {modalsAvailable ? (
             <button className="btn btn-sm account-action" onClick={openOrganization}>
               <Icon name="users" size={13} /> {t('account.manageTeam', { defaultValue: 'Manage team' })}
             </button>
-          )}
+          ) : accountLinks && hasCloudAccount ? (
+            <a className="btn btn-sm account-action" href={accountLinks.team} target="_blank" rel="noopener noreferrer">
+              <Icon name="users" size={13} /> {t('account.manageTeam', { defaultValue: 'Manage team' })} <Icon name="link" size={11} />
+            </a>
+          ) : null}
           <button className="btn btn-sm account-action" onClick={() => openInvite(true)}>
             <Icon name="users" size={13} /> {t('account.invite', { defaultValue: 'Invite collaborator' })}
           </button>
@@ -220,11 +243,15 @@ export default function UserPanel({ onClose }: UserPanelProps) {
 
         {/* Profile + sign out */}
         <section className="account-section">
-          {clerkEnabled && (
+          {modalsAvailable ? (
             <button className="btn btn-sm account-action" onClick={openProfile}>
               <Icon name="user" size={13} /> {t('account.editProfile', { defaultValue: 'Edit profile' })}
             </button>
-          )}
+          ) : accountLinks && hasCloudAccount ? (
+            <a className="btn btn-sm account-action" href={accountLinks.account} target="_blank" rel="noopener noreferrer">
+              <Icon name="user" size={13} /> {t('account.editProfile', { defaultValue: 'Edit profile' })} <Icon name="link" size={11} />
+            </a>
+          ) : null}
           <button
             className="btn btn-sm account-action account-signout"
             onClick={() => { if (clerkEnabled) signOut(); else signOutOAuth(); }}
