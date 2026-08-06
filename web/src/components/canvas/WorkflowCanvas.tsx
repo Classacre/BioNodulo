@@ -38,6 +38,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import { toast } from '../../state/notifications';
+import { centerOfViewport, setViewportCenterReader } from '../../state/canvasViewport';
 import type { WorkflowNode, WorkflowEdge, ObjectInfo, NodeStatus, WorkflowParameter } from '../../types';
 import type { AwarenessState, Comment } from '../../collab/types';
 import { edgeColorForSource } from '../../utils';
@@ -136,6 +138,25 @@ function useCanvasChrome(): { colorMode: 'light' | 'dark'; pattern: string } {
 // same type family — so BAM_INDEXED→BAM and FASTQ_PAIRED→FASTQ stay valid while
 // cross-family links (FASTQ→VCF) are rejected. Deliberately lenient: better to
 // allow an odd link than to block a real one the backend would accept.
+/**
+ * Why a link was refused, in the user's terms, or null when it is fine.
+ *
+ * Type checking used to silently grey out the port, which left people
+ * reasonably concluding the editor was broken: "don't know why i can't connect
+ * fastqc to multiqc". A refusal has to say what it refused and why.
+ */
+export function connectionTypeWarning(
+  outType: string,
+  inType: string,
+  labels: { source: string; target: string },
+): string | null {
+  if (typesCompatible(outType, inType)) return null;
+  return (
+    `${labels.source} produces ${outType}, but ${labels.target} expects ${inType}. ` +
+    `Connect it anyway if the tool accepts it — the run will report the real error if not.`
+  );
+}
+
 function typesCompatible(outType: string, inType: string): boolean {
   if (!outType || !inType) return true;
   const o = outType.toUpperCase();
@@ -277,6 +298,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const { t } = useTranslation();
   const tRef = useRef(t); tRef.current = t;
   const rf = useReactFlow();
+
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
   const { getBool, getNumber, getString, set } = useSettings();
   const showGrid = getBool('bionodulo.canvas.showGrid', true);
@@ -338,6 +360,17 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const [logsNode, setLogsNode] = useState<{ id: string; x: number; y: number } | null>(null);
   const [menu, setMenu] = useState<{ kind: 'node' | 'pane' | 'edge'; x: number; y: number; nodeId?: string; edgeId?: string; flow: { x: number; y: number } } | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
+  // Publish where "the middle of what I'm looking at" is, so nodes added from
+  // the library land in view instead of near the flow origin.
+  useEffect(() => {
+    setViewportCenterReader(() => {
+      const bounds = hostRef.current?.getBoundingClientRect();
+      if (!bounds || !bounds.width || !bounds.height) return null;
+      return centerOfViewport(rf.getViewport(), bounds);
+    });
+    return () => setViewportCenterReader(null);
+  }, [rf]);
+
 
   // Precompute the connected input/output port keys once per edges change, so
   // the node reconcile is O(nodes) instead of scanning all edges per node.
@@ -541,7 +574,31 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     const filtered = edgesRef.current.filter(e => !(e.to.node === connection.target && e.to.input === connection.targetHandle));
     onEdgesChange([...filtered, newEdge]);
     onPushHistory();
-  }, [onEdgesChange, onPushHistory]);
+
+    // The link is made either way. If our type model disagrees with it, say so
+    // rather than refusing: the model is sometimes wrong, and the tool itself
+    // gives the authoritative answer when the workflow runs.
+    const outType = outTypeByNodeOutput.get(`${connection.source}:${connection.sourceHandle}`) || '';
+    const inType = inTypeByNodeInput.get(`${connection.target}:${connection.targetHandle}`) || '';
+    const warning = connectionTypeWarning(outType, inType, {
+      source: connection.sourceHandle,
+      target: connection.targetHandle,
+    });
+    if (warning) {
+      toast.warning(t('canvas.connection.typeMismatch', { defaultValue: 'Unusual connection' }), {
+        message: warning,
+        actions: [
+          {
+            label: t('common.undo', { defaultValue: 'Undo' }),
+            onClick: () => {
+              onEdgesChange(edgesRef.current.filter(e => e.id !== newEdge.id));
+              onPushHistory();
+            },
+          },
+        ],
+      });
+    }
+  }, [onEdgesChange, onPushHistory, outTypeByNodeOutput, inTypeByNodeInput, t]);
 
   // Native connection gate: React Flow calls this while the user drags a link
   // and greys out ports it rejects. Block self-links, type-incompatible ports,
@@ -558,11 +615,15 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   }, [edges]);
 
   const isValidConnection = useCallback((conn: Connection | RFEdge): boolean => {
-    const { source, target, sourceHandle, targetHandle } = conn;
+    const { source, target } = conn;
     if (!source || !target || source === target) return false;
-    const outType = outTypeByNodeOutput.get(`${source}:${sourceHandle}`) || '';
-    const inType = inTypeByNodeInput.get(`${target}:${targetHandle}`) || '';
-    if (!typesCompatible(outType, inType)) return false;
+    // Types are advisory, not a gate. Our own type model is not always right --
+    // FastQC's report directory is exactly what MultiQC consumes, yet the
+    // declared types disagreed -- and a wrong model must not stop a real
+    // pipeline. A mismatch is reported on drop instead (see onConnect).
+    //
+    // Cycles stay blocked: a workflow that is not a DAG cannot execute at all,
+    // so there is nothing for the tool to report later.
     // Reject if the target already reaches the source (adding source->target would
     // create a cycle). Iterative BFS over the memoized adjacency map.
     const seen = new Set<string>();
@@ -576,7 +637,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       if (next) queue.push(...next);
     }
     return true;
-  }, [adjacency, outTypeByNodeOutput, inTypeByNodeInput]);
+  }, [adjacency]);
 
   // Native edge reconnection: drag an existing edge's end onto another port.
   // The ref tracks whether a drag actually landed on a valid handle — if it's

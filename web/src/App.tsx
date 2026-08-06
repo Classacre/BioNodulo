@@ -54,6 +54,7 @@ import {
   type CommandItem,
 } from './components/ui';
 import { useSettings } from './hooks/settings';
+import { newNodePosition } from './state/canvasViewport';
 import { useObjectInfo } from './hooks/data';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
@@ -350,6 +351,10 @@ export default function App() {
 
   // Authentication state — extracted to useAuth.
   const collabEnabled = getBool('bionodulo.collab.enabled');
+  // Off by default: someone assembling a pipeline usually adds several nodes in
+  // a row, and reopening the library each time is worse than the space it uses.
+  // Offered because the panel does crowd a small screen.
+  const closeLibraryAfterAdd = getBool('bionodulo.nodeLibrary.closeAfterAdd', false);
   const initialCollabTarget = useMemo(() => readCollabLinkTarget(), []);
   const initialRequestedWorkflowId = initialCollabTarget?.workflowId ?? null;
   const [collabInvite, setCollabInvite] = useState<CollabLinkTarget | null>(initialCollabTarget);
@@ -3236,18 +3241,21 @@ export default function App() {
             const newNode: WorkflowNode = {
               id: `${meta.id}_${Date.now()}`,
               type: meta.id,
-              position: [200 + Math.random() * 40, 200 + Math.random() * 40],
+              // Where the user is looking, not the flow origin.
+              position: newNodePosition(),
               params: defaultsFor(meta),
               node_info: meta,
               ui: { title: meta.display_name },
             };
             handleNodesChange([...activeWorkflow.nodes, newNode]);
             pushHistory();
+            if (closeLibraryAfterAdd) closePanel(tab);
           }}
           onAddBlueprint={(bp) => {
-            const newNode = instantiateBlueprint(bp, [200 + Math.random() * 40, 200 + Math.random() * 40]);
+            const newNode = instantiateBlueprint(bp, newNodePosition());
             handleNodesChange([...activeWorkflow.nodes, newNode]);
             pushHistory();
+            if (closeLibraryAfterAdd) closePanel(tab);
           }}
           onClose={() => closePanel(tab)}
         />

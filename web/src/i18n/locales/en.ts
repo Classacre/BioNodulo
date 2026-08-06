@@ -1353,6 +1353,8 @@ const en = {
       showGridDescription: 'Draw the background grid on the canvas',
       showComments: 'Show Comments',
       showCommentsDescription: 'Show comment pins on nodes',
+      closeLibraryAfterAdd: 'Close node library after adding',
+      closeLibraryAfterAddDescription: 'Hide the node library once a node is added, freeing canvas space.',
       debugOverlay: 'Debug Overlay',
       debugOverlayDescription: 'Show React Flow debug info (node ids, positions, viewport) on top of nodes',
       showControls: 'Show Controls',

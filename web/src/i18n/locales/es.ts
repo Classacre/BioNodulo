@@ -1363,6 +1363,8 @@ const es = {
       showGridDescription: 'Dibujar la cuadricula de fondo en el lienzo',
       showComments: 'Mostrar comentarios',
       showCommentsDescription: 'Mostrar los indicadores de comentarios en los nodos',
+      closeLibraryAfterAdd: 'Cerrar la biblioteca de nodos al añadir',
+      closeLibraryAfterAddDescription: 'Oculta la biblioteca de nodos tras añadir uno, liberando espacio en el lienzo.',
       debugOverlay: 'Superposicion de depuracion',
       debugOverlayDescription: 'Mostrar la informacion de depuracion de React Flow (ids, posiciones, viewport) sobre los nodos',
       showControls: 'Mostrar controles',

@@ -75,8 +75,13 @@ class MultiQCNode(CommandNode):
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
         return {
             "required": {
+                # MultiQC scans whatever it is pointed at, so a QC tool's report
+                # DIRECTORY is its primary input -- fastqc -> multiqc is the
+                # canonical use. Declaring FILE_LIST alone contradicted the
+                # description below and made that link look invalid in the
+                # editor, which users reasonably read as the tool being broken.
                 "reports": (
-                    "FILE_LIST",
+                    "FILE_LIST|QC_REPORT_DIR|DIRECTORY|HTML_REPORT|KRAKEN_REPORT",
                     {"description": ("One or more files or directories containing recognizable analysis data")},
                 ),
             },

@@ -254,12 +254,17 @@ async def test_fastqc_fake_execution_requires_each_documented_artifact(tmp_path:
 def test_multiqc_contract_exposes_report_and_parsed_data_directory() -> None:
     inputs = MultiQCNode.INPUT_TYPES()
 
+    # MultiQC scans directories as readily as files, so its declared type must
+    # admit a QC tool's report directory -- fastqc -> multiqc is the canonical
+    # pipeline, and declaring FILE_LIST alone made that link look invalid.
     assert inputs["required"] == {
         "reports": (
-            "FILE_LIST",
+            "FILE_LIST|QC_REPORT_DIR|DIRECTORY|HTML_REPORT|KRAKEN_REPORT",
             {"description": ("One or more files or directories containing recognizable analysis data")},
         )
     }
+    accepted = inputs["required"]["reports"][0].split("|")
+    assert "QC_REPORT_DIR" in accepted, "fastqc's output must be connectable"
     assert inputs["optional"]["title"][1]["default"] == ""
     assert inputs["optional"]["comment"][1]["default"] == ""
     assert inputs["optional"]["force"][1]["default"] is False

@@ -356,6 +356,9 @@ export default function SettingsPanel({
           <SettingRow query={query} label={st('canvas.showGrid')} desc={st('canvas.showGridDescription')} keywords="grid dots background cuadricula puntos fondo">
             <div className={`toggle ${getBool('bionodulo.canvas.showGrid', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.showGrid', !getBool('bionodulo.canvas.showGrid', true))} />
           </SettingRow>
+          <SettingRow query={query} label={st('canvas.closeLibraryAfterAdd')} desc={st('canvas.closeLibraryAfterAddDescription')} keywords="node library panel close after add space biblioteca cerrar">
+            <div className={`toggle ${getBool('bionodulo.nodeLibrary.closeAfterAdd', false) ? 'on' : ''}`} onClick={() => set('bionodulo.nodeLibrary.closeAfterAdd', !getBool('bionodulo.nodeLibrary.closeAfterAdd', false))} />
+          </SettingRow>
           <SettingRow query={query} label={st('canvas.showComments')} desc={st('canvas.showCommentsDescription')} keywords="comments pins notes annotations comentarios notas">
             <div className={`toggle ${getBool('bionodulo.canvas.showComments', true) ? 'on' : ''}`} onClick={() => set('bionodulo.canvas.showComments', !getBool('bionodulo.canvas.showComments', true))} />
           </SettingRow>
