@@ -2,12 +2,26 @@
 # as a GitHub Release in THIS repo — matching the updater endpoint in
 # desktop/src-tauri/tauri.conf.json (Classacre/BioNodulo).
 #
-# Trigger: push a tag like `desktop-v0.1.0-alpha.1`, or run manually.
+# Triggers, in order of how releases actually happen:
+#   - called by ci.yml when the version on main has no release yet (the usual
+#     path -- see the desktop-release job there for why it is a workflow_call
+#     and not a pushed tag)
+#   - push a tag like `desktop-v0.1.0-alpha.1` (manual re-release)
+#   - run manually
 name: desktop-release
 on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag, e.g. desktop-v0.1.0-alpha.13. Created if absent."
+        required: true
+        type: string
   push:
     tags: ["desktop-v*"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   # The web SPA (web/dist) is platform-independent, so build it ONCE here where
@@ -172,8 +186,11 @@ jobs:
           # WINDOWS_CERTIFICATE would fail the build rather than skip signing.
         with:
           projectPath: desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: "BioNodulo Desktop ${{ github.ref_name }}"
+          # `github.ref_name` is the tag only on the tag-push path. Called from
+          # ci.yml it is the branch (`main`), which would publish a release
+          # named after the branch and overwrite it on every version.
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: "BioNodulo Desktop ${{ inputs.tag || github.ref_name }}"
           # Both flags are load-bearing for the updater, which reads
           # releases/latest/download/latest.json (see tauri.conf.json).
           # GitHub's "latest" resolves to the most recent release that is

@@ -226,3 +226,59 @@ jobs:
           tags: bionodulo:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+
+  # --- Desktop release ---------------------------------------------------
+  # A version bump must release the desktop app, or it silently drifts behind
+  # the editor. It reached alpha.10 while cloud served alpha.13, because
+  # desktop-release.yml only fires on a `desktop-v*` tag and tagging was a
+  # manual step someone had to remember after every bump.
+  #
+  # Deliberately NOT "push a tag and let the tag trigger the release": a tag
+  # pushed with GITHUB_TOKEN does not start another workflow run, so that would
+  # tag every release and build none of them. Calling the workflow keeps it in
+  # this run, and tauri-action creates the tag itself alongside the release.
+  check-desktop-release:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      needed: ${{ steps.check.outputs.needed }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Has this version been released?
+        id: check
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./web/package.json').version")"
+          # The `python` job runs test_version_consistency.py, which proves
+          # every other declaration agrees with this one.
+          tag="desktop-v${version}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+          # Keyed on whether the release exists rather than on diffing the
+          # previous commit, so this is idempotent: re-runs, merges and
+          # force-pushes cannot double-release, and a bump that landed while CI
+          # was red still releases on the next green push instead of being
+          # skipped forever.
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "${tag} already released."
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "${tag} needs releasing."
+          fi
+
+  desktop-release:
+    needs: [python, python-quality, frontend, e2e, check-desktop-release]
+    if: needs.check-desktop-release.outputs.needed == 'true'
+    # Releasing from a red commit is worse than releasing late, hence the full
+    # `needs` above.
+    uses: ./.github/workflows/desktop-release.yml
+    with:
+      tag: ${{ needs.check-desktop-release.outputs.tag }}
+    secrets: inherit
+    permissions:
+      contents: write
