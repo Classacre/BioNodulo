@@ -54,7 +54,10 @@ describe('GettingStartedModal i18n', () => {
     );
 
     expect(screen.getByRole('dialog', { name: 'Primeros pasos' })).toBeInTheDocument();
-    expect(screen.getByText('BioNodulo v2')).toBeInTheDocument();
+    // The build's version, not a literal — "v2" stayed frozen across every
+    // release and made a current build look years out of date.
+    expect(screen.getByText(`BioNodulo ${__APP_VERSION__}`)).toBeInTheDocument();
+    expect(__APP_VERSION__).toMatch(/^\d+\.\d+\.\d+/);
     expect(screen.getByRole('combobox', { name: 'Idioma' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Espanol' })).toBeInTheDocument();

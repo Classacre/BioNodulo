@@ -2803,7 +2803,18 @@ export default function App() {
         label: t('commandPalette.commands.workflow.newTab'),
         group: 'Workflow',
         groupLabelKey: 'commandPalette.groups.workflow',
-        onSelect: addTab,
+        // Must match the "+" button. A local tab in cloud mode has no id, so it
+        // cannot be saved or restored — it looks like a tab and loses the work.
+        onSelect: editorMode ? () => void newCloudWorkflow() : addTab,
+      },
+      {
+        // "+" makes a blank workflow, so this is the only way to reach the
+        // picker for an existing one.
+        id: 'workflow.open',
+        label: t('topbar.openWorkflow'),
+        group: 'Workflow',
+        groupLabelKey: 'commandPalette.groups.workflow',
+        onSelect: () => setShowOpenWorkflow(true),
       },
       {
         id: 'workflow.closeTab',
@@ -2905,6 +2916,7 @@ export default function App() {
     addTab,
     clearLogs,
     closeTab,
+    editorMode,
     focusMode,
     get,
     getBinding,
@@ -2915,11 +2927,13 @@ export default function App() {
     handleToggleQueue,
     i18n.language,
     t,
+    newCloudWorkflow,
     palettes,
     redo,
     set,
     setPalette,
     setRailTab,
+    setShowOpenWorkflow,
     toggleFocusMode,
     togglePanel,
     undo,
@@ -3403,7 +3417,7 @@ export default function App() {
           }
           closeTab(index);
         }}
-        onAdd={editorMode ? () => setShowOpenWorkflow(true) : addTab}
+        onAdd={editorMode ? () => void newCloudWorkflow() : addTab}
         onRename={handleRenameTab}
         onDuplicate={handleDuplicateTab}
         onReorder={handleReorderTabs}

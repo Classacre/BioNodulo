@@ -221,7 +221,9 @@ export default function GettingStartedModal({
       header={(
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>BioNodulo v2</div>
+            {/* Read the build's version rather than a literal, which sat at
+                "v2" across every release and made the app look stale. */}
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>BioNodulo {__APP_VERSION__}</div>
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--muted)' }}>
               <span>{t('gettingStarted.languageLabel')}</span>
               <select
