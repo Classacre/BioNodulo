@@ -121,6 +121,9 @@ export function useWorkflow() {
   // (which has a client id the DB doesn't know → 404).
   const cloudLoadStartedRef = useRef(false);
   const cloudLoadedRef = useRef(false);
+  // State, not just the ref: the effect that records open tabs has to re-run
+  // when restoration finishes, and a ref assignment does not schedule a render.
+  const [cloudRestored, setCloudRestored] = useState(false);
   const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Local persistence (skipped in cloud editor mode).
@@ -175,7 +178,13 @@ export function useWorkflow() {
           ids.map(id => getCloudWorkflow(id).then(normalizeWorkflow).catch(() => null)),
         );
         const tabs = loaded.filter((w): w is Workflow => w !== null);
-        if (tabs.length === 0) return; // all fetches failed; keep placeholder
+        if (tabs.length === 0) {
+          // Nothing to restore. Still mark restoration done, or the open-tab
+          // record is never written and every later change is forgotten too.
+          cloudLoadedRef.current = true;
+          setCloudRestored(true);
+          return;
+        }
         setWorkflows(tabs);
 
         // Select the deep-linked workflow by identity, not by position.
@@ -192,6 +201,7 @@ export function useWorkflow() {
         }
         setActiveIndex(requestedIndex >= 0 ? requestedIndex : 0);
         cloudLoadedRef.current = true;
+        setCloudRestored(true);
       } catch (err) {
         logError('cloud.workflows.load', err);
       }
@@ -202,9 +212,9 @@ export function useWorkflow() {
   // whatever happens to be recent. Guarded on cloudLoadedRef so the initial
   // placeholder does not overwrite the record before restoration runs.
   useEffect(() => {
-    if (!editorMode || !cloudLoadedRef.current) return;
+    if (!editorMode || !cloudRestored) return;
     writeOpenWorkflows(workflows.map(w => w.id).filter(Boolean) as string[]);
-  }, [workflows, editorMode]);
+  }, [workflows, editorMode, cloudRestored]);
 
   // Cloud save: debounced PUT of the active workflow's definition.
   useEffect(() => {
