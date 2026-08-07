@@ -8,8 +8,14 @@ mod settings;
 mod supervisor;
 pub mod wsl;
 
+/// Set once the first exit request has been handled, so the exit that follows
+/// the backend shutdown is allowed through instead of being prevented again.
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
+
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 
 use supervisor::Supervisor;
@@ -45,6 +51,17 @@ pub fn run() {
         // single-instance MUST be registered before deep-link.
         builder = builder
             .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+                // Surface the window that is already running. Without this a
+                // second launch -- from the Start menu, a desktop shortcut, a
+                // file association -- is swallowed: the plugin stops the new
+                // process and the existing window stays wherever it was,
+                // including minimised or behind other windows, so the app looks
+                // like it simply refuses to open.
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
                 deeplink::on_second_instance(app, &argv);
             }))
             .plugin(tauri_plugin_deep_link::init())
@@ -124,6 +141,14 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(|app, event| {
             if let RunEvent::ExitRequested { api, .. } = event {
+                // `handle.exit(0)` raises ExitRequested again. Without this
+                // latch the handler prevented its own exit forever: the window
+                // closed, the process kept running, and because the plugin
+                // above then treated every relaunch as a second instance, the
+                // app could never be reopened either.
+                if SHUTTING_DOWN.swap(true, Ordering::SeqCst) {
+                    return;
+                }
                 // Drain the backend before the process exits.
                 api.prevent_exit();
                 let handle = app.clone();

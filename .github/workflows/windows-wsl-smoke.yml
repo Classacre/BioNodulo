@@ -65,9 +65,37 @@ jobs:
             Select-Object -First 1 -ExpandProperty FullName
           if (-not $uv) { throw "bundled uv.exe not found" }
 
+          # Use the BUNDLED interpreter, exactly as the app does. Asking uv for
+          # "3.12" instead would let it download one, which is precisely the
+          # step that is unavailable to an installed app -- and would hide a
+          # broken bundle. A user hit:
+          #   Backend exited (exit code: 103) ...
+          #   No Python at '"C:\...\python-embedded\python.exe'
+          # which is the Windows venv launcher failing to resolve the base
+          # interpreter recorded in pyvenv.cfg.
+          $embedded = Join-Path (Resolve-Path "desktop/assets/python-embedded/windows") "python.exe"
+          if (-not (Test-Path $embedded)) {
+            Get-ChildItem -Recurse -Depth 2 desktop/assets/python-embedded | Select-Object -First 40 FullName
+            throw "bundled python.exe not found at $embedded"
+          }
+          & $embedded --version
+
           $venv = Join-Path $env:RUNNER_TEMP "venv"
-          & $uv venv $venv --python 3.12 --seed
+          & $uv venv $venv --python $embedded --seed
           $env:VIRTUAL_ENV = $venv
+
+          # The launcher stub reads `home` from here. A quoted or stale value is
+          # what produces "No Python at ..." at runtime rather than at creation.
+          $cfg = Join-Path $venv "pyvenv.cfg"
+          Write-Host "=== pyvenv.cfg ==="; Get-Content $cfg
+          $home_line = (Get-Content $cfg | Where-Object { $_ -match '^home\s*=' })
+          if ($home_line -match '"') { throw "pyvenv.cfg home contains a quote: $home_line" }
+          $home_path = ($home_line -split '=', 2)[1].Trim()
+          if (-not (Test-Path $home_path)) { throw "pyvenv.cfg home does not exist: $home_path" }
+
+          # Prove the venv's python actually launches; this is what exits 103.
+          & (Join-Path $venv "Scripts/python.exe") --version
+          if ($LASTEXITCODE -ne 0) { throw "venv python failed to start (exit $LASTEXITCODE)" }
           & $uv pip install -e $backend --index-strategy unsafe-best-match
 
           $py = Join-Path $venv "Scripts/python.exe"
