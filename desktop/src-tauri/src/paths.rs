@@ -43,6 +43,31 @@ pub fn venv_exists(venv: &Path) -> bool {
     venv_python(venv).exists()
 }
 
+/// Whether the venv's interpreter can actually start.
+///
+/// Existing is not enough. On Windows `Scripts/python.exe` is a launcher stub
+/// that resolves its real interpreter from `home` in `pyvenv.cfg`; upgrading
+/// the app replaces the bundled interpreter while the venv, which lives in the
+/// user's data directory, survives untouched. The stub is then left pointing at
+/// a path its own installation no longer owns and exits 103 with
+/// "No Python at '<path>'" -- a backend that never starts, on every launch,
+/// with no way for the user to recover short of deleting a folder they have no
+/// reason to know about.
+pub fn venv_is_usable(venv: &Path) -> bool {
+    let python = venv_python(venv);
+    if !python.exists() {
+        return false;
+    }
+    let mut cmd = std::process::Command::new(&python);
+    cmd.arg("--version");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    matches!(cmd.output(), Ok(out) if out.status.success())
+}
+
 fn is_dev() -> bool {
     // tauri::is_dev() is compiled in for `tauri dev`; env override for staged tests.
     tauri::is_dev() || std::env::var("BIONODULO_DEV").as_deref() == Ok("1")

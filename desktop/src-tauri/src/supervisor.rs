@@ -115,6 +115,19 @@ impl Supervisor {
                 python.display()
             ));
         }
+        // Existing is not the same as working. After an upgrade the venv can
+        // still point at an interpreter the previous installation owned, and
+        // launching it exits 103 with "No Python at ..." -- an error about a
+        // path the user never chose. Rebuild instead of spawning it.
+        if !paths::venv_is_usable(&venv) {
+            log::warn!("[supervisor] venv at {} cannot start; rebuilding", venv.display());
+            if let Err(err) = crate::provision::setup(app).await {
+                self.set_status(app, PythonStatus::Error);
+                return Err(format!(
+                    "The Python environment could not be rebuilt: {err}"
+                ));
+            }
+        }
         if !main_script.exists() {
             self.set_status(app, PythonStatus::Error);
             return Err(format!(

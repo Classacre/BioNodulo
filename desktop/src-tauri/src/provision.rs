@@ -48,7 +48,16 @@ async fn run_setup(app: &AppHandle) -> Result<(), String> {
 async fn create_venv(app: &AppHandle) -> Result<(), String> {
     let venv = paths::venv_path(app);
     if paths::venv_exists(&venv) {
-        return Ok(());
+        if paths::venv_is_usable(&venv) {
+            return Ok(());
+        }
+        // Present but broken -- almost always an upgrade that replaced the
+        // bundled interpreter the venv still points at. Rebuilding is the only
+        // recovery, and doing it here spares the user deleting a directory they
+        // have no reason to know exists.
+        progress(app, "venv", "Rebuilding the Python environment…", Some(0.05));
+        log::warn!("[provision] venv at {} cannot start; rebuilding", venv.display());
+        let _ = std::fs::remove_dir_all(&venv);
     }
     if let Some(parent) = venv.parent() {
         let _ = std::fs::create_dir_all(parent);
