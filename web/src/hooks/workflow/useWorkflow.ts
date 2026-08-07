@@ -11,7 +11,7 @@ import {
   type CloudRunInputs,
 } from '../../api/website';
 import { cloudConfigAtom } from '../../state/appAtoms';
-import { closedIds, forgetClosed, rememberClosed } from '../../state/closedWorkflows';
+import { readOpenWorkflows, writeOpenWorkflows } from '../../state/openWorkflows';
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
 import { collectLocalInputArtifacts } from '../../utils/workflowFiles';
@@ -144,19 +144,27 @@ export function useWorkflow() {
             : null;
 
         const list = await listCloudWorkflows().catch(() => []);
-        // Tabs the user closed stay closed. A deep link is an explicit request,
-        // so it overrides the dismissal (and clears it, or the workflow would
-        // vanish again on the next visit).
-        const dismissed = closedIds();
-        if (requested) forgetClosed(requested);
+        const known = new Set(list.map(summary => summary.id));
+        const remembered = readOpenWorkflows();
 
-        // Build the id set to open: deep-linked first, then most-recent, capped.
+        // Restore exactly the tabs that were open, plus any deep link. Only a
+        // browser that has never recorded a set falls back to recent work --
+        // otherwise closing a tab would be undone on the next visit.
         const ids: string[] = [];
         if (requested) ids.push(requested);
-        for (const summary of list) {
-          if (dismissed.has(summary.id)) continue;
-          if (ids.length >= CLOUD_TAB_LIMIT) break;
-          if (!ids.includes(summary.id)) ids.push(summary.id);
+        if (remembered === null) {
+          // A browser that has never recorded a set gets the single most recent
+          // workflow, not a wall of them. Opening eight tabs nobody asked for is
+          // slow, buries the one that was wanted, and is what made closing tabs
+          // feel futile.
+          const mostRecent = list[0];
+          if (mostRecent && !ids.includes(mostRecent.id)) ids.push(mostRecent.id);
+        } else {
+          for (const id of remembered) {
+            if (ids.length >= CLOUD_TAB_LIMIT) break;
+            // Drop anything deleted elsewhere; restoring it would 404.
+            if (known.has(id) && !ids.includes(id)) ids.push(id);
+          }
         }
         // Nothing yet — create a fresh workflow so the editor isn't empty.
         if (ids.length === 0) {
@@ -189,6 +197,14 @@ export function useWorkflow() {
       }
     })();
   }, [editorMode]);
+
+  // Remember which tabs are open, so the next visit restores this set and not
+  // whatever happens to be recent. Guarded on cloudLoadedRef so the initial
+  // placeholder does not overwrite the record before restoration runs.
+  useEffect(() => {
+    if (!editorMode || !cloudLoadedRef.current) return;
+    writeOpenWorkflows(workflows.map(w => w.id).filter(Boolean) as string[]);
+  }, [workflows, editorMode]);
 
   // Cloud save: debounced PUT of the active workflow's definition.
   useEffect(() => {
@@ -240,9 +256,6 @@ export function useWorkflow() {
   // it; otherwise fetch it and append a tab. No-op outside editor mode.
   const openCloudWorkflow = useCallback(async (id: string) => {
     if (!editorMode || !id) return;
-    // Deliberately reopening it retracts the earlier dismissal; otherwise the
-    // tab would work for this session and disappear on the next visit.
-    forgetClosed(id);
     let already = -1;
     setWorkflows(prev => {
       already = prev.findIndex(w => w.id === id);
@@ -283,10 +296,6 @@ export function useWorkflow() {
   const closeTab = useCallback((index: number) => {
     let nextLen = 0;
     setWorkflows(prev => {
-      // Record the dismissal before dropping it, so restoring tabs next visit
-      // honours the decision instead of reopening what was just closed.
-      const closing = prev[index];
-      if (closing?.id) rememberClosed(closing.id);
       const next = prev.filter((_, i) => i !== index);
       if (next.length === 0) next.push(emptyWorkflow());
       nextLen = next.length;

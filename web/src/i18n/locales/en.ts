@@ -2152,13 +2152,6 @@ class MyToolNode(CommandNode):
       inputs: 'Inputs',
       outputs: 'Outputs',
     },
-    empty: {
-      title: 'Start a workflow',
-      createNew: 'New workflow',
-      import: 'Import…',
-      recent: 'Recent',
-      browseAll: 'All workflows',
-    },
     comments: {
       title: 'Comments',
       pinTitle: '{{count}} comment',
