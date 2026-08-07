@@ -47,17 +47,6 @@ export interface UseClerkAuthResult {
   clerkSignedIn: boolean;
   /** Open Clerk's hosted sign-in (modal). No-op until Clerk is ready. */
   openSignIn: () => void;
-  /**
-   * Open Clerk's hosted UserProfile modal. This is the single reuse surface for
-   * profile editing AND session/device management — its Security tab lists
-   * active sessions with revoke. No custom backend needed. No-op until ready.
-   */
-  openProfile: () => void;
-  /**
-   * Open Clerk's hosted OrganizationProfile modal (team members, roles,
-   * invitations). No-op until Clerk is ready or when no active organization.
-   */
-  openOrganization: () => void;
   /** Sign out of Clerk and clear the app token. */
   signOut: () => void;
 }
@@ -181,18 +170,11 @@ export function useClerkAuth(): UseClerkAuthResult {
     clerkRef.current?.openSignIn();
   };
 
-  const openProfile = () => {
-    clerkRef.current?.openUserProfile();
-  };
-
-  const openOrganization = () => {
-    const clerk = clerkRef.current;
-    if (!clerk) return;
-    // openOrganizationProfile needs an active org; fall back to the profile modal
-    // (Clerk lets the user pick/create an org there) when none is set.
-    if (clerk.organization) clerk.openOrganizationProfile();
-    else clerk.openUserProfile();
-  };
+  // openUserProfile/openOrganizationProfile used to live here. They could
+  // never run: this SPA bundles clerk-js itself and the UI chunks are absent,
+  // so both threw "Clerk was not loaded with Ui components", and the desktop
+  // CSP blocked them regardless. The account panel links to the website, which
+  // renders those same screens properly.
 
   const signOut = () => {
     const clerk = clerkRef.current;
@@ -202,5 +184,5 @@ export function useClerkAuth(): UseClerkAuthResult {
     if (clerk) void clerk.signOut();
   };
 
-  return { clerkEnabled, clerkSignedIn, openSignIn, openProfile, openOrganization, signOut };
+  return { clerkEnabled, clerkSignedIn, openSignIn, signOut };
 }

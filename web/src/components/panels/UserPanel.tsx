@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { isDesktopApp } from '../../utils/appUpdate';
+import { accountUrlFrom } from '../../utils/accountUrl';
 import Icon from '../ui/Icon';
 import { authUserAtom, cloudConfigAtom, showAuthDialogAtom } from '../../state/appAtoms';
 import { showInviteDialogAtom } from '../../state/uiAtoms';
@@ -29,27 +29,29 @@ export default function UserPanel({ onClose }: UserPanelProps) {
   const cloudConfig = useAtomValue(cloudConfigAtom);
   const authUser = useAtomValue(authUserAtom);
   const openInvite = useSetAtom(showInviteDialogAtom);
-  const { clerkEnabled, clerkSignedIn, openSignIn, openProfile, openOrganization, signOut } = useClerkAuth();
+  const { clerkEnabled, clerkSignedIn, openSignIn, signOut } = useClerkAuth();
   const { pending: desktopPending, available: oauthAvailable, signInViaBrowser, cancel: cancelDesktopSignIn } = useDesktopAuth();
 
   const setShowAuthDialog = useSetAtom(showAuthDialogAtom);
   const configUser = cloudConfig?.user ?? null;
-  const accountUrl = cloudConfig?.accountUrl ? cloudConfig.accountUrl.replace(/\/+$/, '') : null;
   const guest = isGuestUser(authUser) && !configUser && !clerkSignedIn;
 
-  // Clerk renders its profile/organization screens as modals whose UI it fetches
-  // at click time. The desktop app's content security policy permits scripts
-  // from the app bundle only, so those calls silently do nothing there -- three
-  // buttons that looked live and were not. Where the modal cannot run, link to
-  // the same screens on the website instead, which is also how billing, API
-  // keys and cloud files already work.
-  const modalsAvailable = clerkEnabled && !isDesktopApp();
-  const accountLinks = accountUrl
-    ? {
-        account: `${accountUrl}/dashboard/account`,
-        team: `${accountUrl}/dashboard/team`,
-      }
-    : null;
+  // Every account action links to the website. Clerk's modal has never worked
+  // in either environment: the desktop CSP is `script-src 'self'`, so its UI
+  // fetch is blocked and the click silently does nothing, and in the browser
+  // the SPA bundles clerk-js without the UI chunks, so `openUserProfile()`
+  // throws "Clerk was not loaded with Ui components". The website renders these
+  // exact screens properly, which is also how billing, API keys and cloud files
+  // already work.
+  //
+  // The destination is derived, not configured: it used to come only from
+  // `BIONODULO_ACCOUNT_URL`, set in no environment, so it was null everywhere
+  // and every control gated on it rendered nothing at all.
+  const accountUrl = accountUrlFrom(cloudConfig?.accountUrl);
+  const accountLinks = {
+    account: `${accountUrl}/dashboard/account`,
+    team: `${accountUrl}/dashboard/team`,
+  };
   const hasCloudAccount = Boolean(configUser) || clerkSignedIn || (Boolean(authUser) && !isGuestUser(authUser));
 
   // /api/me fills in email + team for a local Clerk sign-in (where /api/config
@@ -195,29 +197,21 @@ export default function UserPanel({ onClose }: UserPanelProps) {
           <h4 className="account-heading">{t('account.cloud', { defaultValue: 'Cloud' })}</h4>
           <div className="account-row"><span>{t('account.plan', { defaultValue: 'Plan' })}</span><span className="account-strong">{planLabel}</span></div>
           <div className="account-row"><span>{t('account.credits', { defaultValue: 'Credits' })}</span><span className="account-strong">{credits ? `${credits.remaining.toLocaleString()} / ${credits.total.toLocaleString()}` : '—'}</span></div>
-          {modalsAvailable ? (
-            <button className="btn btn-sm account-action" onClick={openProfile}>
-              <Icon name="lock" size={13} /> {t('account.sessions', { defaultValue: 'Sessions & security' })}
-            </button>
-          ) : accountLinks && hasCloudAccount ? (
+          {hasCloudAccount && (
             <a className="btn btn-sm account-action" href={accountLinks.account} target="_blank" rel="noopener noreferrer">
               <Icon name="lock" size={13} /> {t('account.sessions', { defaultValue: 'Sessions & security' })} <Icon name="link" size={11} />
             </a>
-          ) : null}
+          )}
         </section>
 
         {/* Team */}
         <section className="account-section">
           <h4 className="account-heading">{t('account.teamHeading', { defaultValue: 'Team' })}</h4>
-          {modalsAvailable ? (
-            <button className="btn btn-sm account-action" onClick={openOrganization}>
-              <Icon name="users" size={13} /> {t('account.manageTeam', { defaultValue: 'Manage team' })}
-            </button>
-          ) : accountLinks && hasCloudAccount ? (
+          {hasCloudAccount && (
             <a className="btn btn-sm account-action" href={accountLinks.team} target="_blank" rel="noopener noreferrer">
               <Icon name="users" size={13} /> {t('account.manageTeam', { defaultValue: 'Manage team' })} <Icon name="link" size={11} />
             </a>
-          ) : null}
+          )}
           <button className="btn btn-sm account-action" onClick={() => openInvite(true)}>
             <Icon name="users" size={13} /> {t('account.invite', { defaultValue: 'Invite collaborator' })}
           </button>
@@ -226,7 +220,9 @@ export default function UserPanel({ onClose }: UserPanelProps) {
         {/* Billing + API keys + files (managed in the dashboard) */}
         <section className="account-section">
           <h4 className="account-heading">{t('account.manageHeading', { defaultValue: 'Manage' })}</h4>
-          {accountUrl && (
+          {/* Was gated on the same null accountUrl, so this whole section was
+              empty in production. */}
+          {hasCloudAccount && (
             <>
               <a className="btn btn-sm account-action" href={`${accountUrl}/dashboard/billing`} target="_blank" rel="noopener noreferrer">
                 <Icon name="activity" size={13} /> {t('account.billing', { defaultValue: 'Billing & usage' })} <Icon name="link" size={11} />
@@ -243,15 +239,11 @@ export default function UserPanel({ onClose }: UserPanelProps) {
 
         {/* Profile + sign out */}
         <section className="account-section">
-          {modalsAvailable ? (
-            <button className="btn btn-sm account-action" onClick={openProfile}>
-              <Icon name="user" size={13} /> {t('account.editProfile', { defaultValue: 'Edit profile' })}
-            </button>
-          ) : accountLinks && hasCloudAccount ? (
+          {hasCloudAccount && (
             <a className="btn btn-sm account-action" href={accountLinks.account} target="_blank" rel="noopener noreferrer">
               <Icon name="user" size={13} /> {t('account.editProfile', { defaultValue: 'Edit profile' })} <Icon name="link" size={11} />
             </a>
-          ) : null}
+          )}
           <button
             className="btn btn-sm account-action account-signout"
             onClick={() => { if (clerkEnabled) signOut(); else signOutOAuth(); }}
