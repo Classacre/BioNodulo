@@ -211,11 +211,17 @@ async fn install_with_recovery(app: &AppHandle, upgrade: bool) -> Result<(), Str
     install_without_build_isolation(app).await
 }
 
-/// The build backends the package needs, when nothing isolates the build.
+/// What the build needs present when nothing isolates it.
 ///
-/// Mirrors `[build-system] requires` in the backend's `pyproject.toml`;
-/// `build_requirements_match_the_backend` fails if they drift apart.
-const BUILD_REQUIREMENTS: [&str; 1] = ["hatchling"];
+/// A superset of `[build-system] requires`, and it has to be:
+/// `hatchling` alone fails an EDITABLE install with `ModuleNotFoundError: No
+/// module named 'editables'`, because that is a dependency of hatchling's
+/// editable-wheel builder rather than of hatchling itself, and nothing declares
+/// it. With build isolation uv resolves it; without isolation, nobody does.
+///
+/// `build_requirements_cover_the_backend` fails if the declared requirements
+/// grow beyond this list.
+const BUILD_REQUIREMENTS: [&str; 2] = ["hatchling", "editables"];
 
 /// Install with no temporary build environment at all.
 ///
@@ -528,11 +534,16 @@ mod tests {
     );
 
     /// The fallback install puts the build backend in the environment itself,
-    /// so this list has to be whatever the package declares. If they drift, the
-    /// fallback fails on a missing backend at the exact moment it is the last
-    /// thing standing between the user and a broken install.
+    /// so everything the package declares has to be in that list. If one is
+    /// added to `pyproject.toml` and not here, the fallback fails on a missing
+    /// backend at the exact moment it is the last thing standing between the
+    /// user and a broken install.
+    ///
+    /// Coverage, not equality: the list is deliberately larger than what is
+    /// declared, because an editable build also needs `editables` and nothing
+    /// declares that.
     #[test]
-    fn build_requirements_match_the_backend() {
+    fn build_requirements_cover_the_backend() {
         let pyproject = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../pyproject.toml");
         let text = std::fs::read_to_string(&pyproject)
@@ -552,12 +563,18 @@ mod tests {
             .filter(|s| !s.is_empty())
             .collect();
 
-        assert_eq!(
-            declared,
-            super::BUILD_REQUIREMENTS.to_vec(),
-            "the fallback install seeds {:?} but the backend declares {declared:?}",
-            super::BUILD_REQUIREMENTS
-        );
+        assert!(!declared.is_empty(), "parsed no requirements at all");
+        for requirement in &declared {
+            let name = requirement
+                .split(['>', '<', '=', '!', '~', '[', ' '])
+                .next()
+                .unwrap_or(requirement);
+            assert!(
+                super::BUILD_REQUIREMENTS.contains(&name),
+                "the backend declares {name:?} but the fallback install seeds only {:?}",
+                super::BUILD_REQUIREMENTS
+            );
+        }
     }
 
     #[test]

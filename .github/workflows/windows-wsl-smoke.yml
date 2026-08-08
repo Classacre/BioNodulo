@@ -231,7 +231,7 @@ jobs:
 
           # The build backend has to be present in the environment itself,
           # because there is no isolated one to put it in.
-          & $uv pip install hatchling --index-strategy unsafe-best-match
+          & $uv pip install hatchling editables --index-strategy unsafe-best-match
           if ($LASTEXITCODE -ne 0) { throw "seeding the build backend failed" }
 
           & $uv pip install -e $src --no-build-isolation --index-strategy unsafe-best-match
