@@ -48,28 +48,47 @@ pub async fn setup(app: &AppHandle) -> Result<(), String> {
 
 async fn run_setup(app: &AppHandle) -> Result<(), String> {
     create_venv(app).await?;
-    install_requirements(app).await?;
+    install_with_recovery(app, false).await?;
     verify(app).await
 }
 
 async fn create_venv(app: &AppHandle) -> Result<(), String> {
     let venv = paths::venv_path(app);
-    if paths::venv_exists(&venv) {
-        if paths::venv_is_usable(&venv) {
-            return Ok(());
-        }
-        // Present but broken -- almost always an upgrade that replaced the
-        // bundled interpreter the venv still points at. Rebuilding is the only
-        // recovery, and doing it here spares the user deleting a directory they
-        // have no reason to know exists.
+    if paths::venv_exists(&venv) && paths::venv_is_usable(&venv) {
+        return Ok(());
+    }
+    rebuild_venv(app).await
+}
+
+/// Discard whatever environment is there and build a fresh one.
+///
+/// The usual reason is an upgrade that replaced or moved the interpreter the
+/// venv was created from: the venv lives in the user's roaming data directory,
+/// which no installer touches, so it outlives the installation it points at.
+/// Rebuilding is the only recovery, and doing it here spares the user deleting
+/// a directory they have no reason to know exists.
+async fn rebuild_venv(app: &AppHandle) -> Result<(), String> {
+    let venv = paths::venv_path(app);
+    if venv.exists() {
         progress(app, "venv", "Rebuilding the Python environment…", Some(0.05));
-        log::warn!("[provision] venv at {} cannot start; rebuilding", venv.display());
-        let _ = std::fs::remove_dir_all(&venv);
+        log::warn!("[provision] discarding the venv at {}", venv.display());
+        // Not ignored. A removal that quietly fails -- Windows holds a handle
+        // on a running interpreter, and antivirus locks files mid-scan --
+        // leaves the old `pyvenv.cfg` in place, so the "rebuilt" environment
+        // would still name the dead interpreter and fail exactly as before.
+        std::fs::remove_dir_all(&venv).map_err(|e| {
+            format!(
+                "Could not remove the old Python environment at \"{}\": {e}. \
+                 Close BioNodulo and delete that folder, then run setup again.",
+                venv.display()
+            )
+        })?;
+    } else {
+        progress(app, "venv", "Creating Python environment…", Some(0.1));
     }
     if let Some(parent) = venv.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    progress(app, "venv", "Creating Python environment…", Some(0.1));
 
     let selector = python_selector(app);
     run_uv(
@@ -86,27 +105,73 @@ async fn create_venv(app: &AppHandle) -> Result<(), String> {
     .await
 }
 
-async fn install_requirements(app: &AppHandle) -> Result<(), String> {
+async fn install_requirements(app: &AppHandle, upgrade: bool) -> Result<(), String> {
     progress(
         app,
         "deps",
-        "Installing dependencies (this may take a few minutes)…",
+        if upgrade {
+            "Upgrading dependencies…"
+        } else {
+            "Installing dependencies (this may take a few minutes)…"
+        },
         Some(0.3),
     );
     let backend = paths::backend_path(app);
-    run_uv(
-        app,
-        &[
-            "pip".into(),
-            "install".into(),
-            "-e".into(),
-            backend.to_string_lossy().into_owned(),
-            "--index-strategy".into(),
-            "unsafe-best-match".into(),
-        ],
-        "deps",
-    )
-    .await
+    let mut args: Vec<String> = vec!["pip".into(), "install".into()];
+    if upgrade {
+        args.push("--upgrade".into());
+    }
+    args.extend([
+        "-e".into(),
+        backend.to_string_lossy().into_owned(),
+        "--index-strategy".into(),
+        "unsafe-best-match".into(),
+    ]);
+    run_uv(app, &args, "deps").await
+}
+
+/// Install, and if the environment turns out to be dead, rebuild it and retry.
+///
+/// `venv_is_usable` checks the interpreter recorded in `pyvenv.cfg` before we
+/// get here, so this should not trigger. It exists because that check and uv
+/// are two separate readers of the same file, and a user who hits a case where
+/// they disagree gets a dead end: an error naming a path they never chose, and
+/// no way to recover short of deleting a directory they cannot be expected to
+/// find. This class of failure has now shipped twice. One retry turns it into a
+/// slow first run instead of an unusable install.
+async fn install_with_recovery(app: &AppHandle, upgrade: bool) -> Result<(), String> {
+    let Err(err) = install_requirements(app, upgrade).await else {
+        return Ok(());
+    };
+    if !is_dead_environment(&err) {
+        return Err(err);
+    }
+    log::warn!("[provision] environment is unusable, rebuilding and retrying: {err}");
+    rebuild_venv(app).await?;
+    // Nothing is installed in a freshly built environment, so there is nothing
+    // to upgrade.
+    install_requirements(app, false).await
+}
+
+/// Whether a failure means the environment's interpreter is gone.
+///
+/// uv builds each dependency in a *temporary* virtualenv created from the
+/// interpreter the target environment records, so an environment that starts
+/// perfectly can still be unable to install anything:
+///
+///     ├─▶ Failed to create temporary virtualenv
+///     ╰─▶ Could not find a suitable Python executable for the virtual
+///         environment based on the interpreter: …\python-embedded\python.exe
+///
+/// The Windows launcher-stub variant of the same dead base reports itself
+/// differently, as `No Python at '…'`, so both are matched.
+fn is_dead_environment(message: &str) -> bool {
+    const SIGNATURES: [&str; 3] = [
+        "Failed to create temporary virtualenv",
+        "Could not find a suitable Python executable",
+        "No Python at",
+    ];
+    SIGNATURES.iter().any(|s| message.contains(s))
 }
 
 pub async fn update_dependencies(app: &AppHandle) -> Result<(), String> {
@@ -114,22 +179,13 @@ pub async fn update_dependencies(app: &AppHandle) -> Result<(), String> {
     if !paths::venv_exists(&venv) {
         return Err("Environment not set up yet.".into());
     }
-    progress(app, "deps", "Upgrading dependencies…", None);
-    let backend = paths::backend_path(app);
-    run_uv(
-        app,
-        &[
-            "pip".into(),
-            "install".into(),
-            "--upgrade".into(),
-            "-e".into(),
-            backend.to_string_lossy().into_owned(),
-            "--index-strategy".into(),
-            "unsafe-best-match".into(),
-        ],
-        "deps",
-    )
-    .await?;
+    // Upgrading into an environment whose base interpreter is gone fails in the
+    // build step, not here, and reports a path the user never chose. Setup
+    // already refuses to use such an environment; this path has to as well.
+    if !paths::venv_is_usable(&venv) {
+        rebuild_venv(app).await?;
+    }
+    install_with_recovery(app, true).await?;
     verify(app).await?;
     progress(app, "done", "Dependencies up to date.", Some(1.0));
     Ok(())
@@ -299,10 +355,54 @@ pub(crate) fn format_failure(
 
 #[cfg(test)]
 mod tests {
-    use super::format_failure;
+    use super::{format_failure, is_dead_environment};
 
     fn args(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    /// The message a user actually received, verbatim.
+    const REPORTED_FAILURE: &str = concat!(
+        r#""\\?\C:\Program Files\BioNodulo\uv\uv.exe" pip install -e "#,
+        r#""\\?\C:\Program Files\BioNodulo\bionodulo-backend" "#,
+        "--index-strategy unsafe-best-match exited with code 1:\n",
+        "Using Python 3.12.8 environment at: ",
+        r"C:\Users\nieuw\AppData\Roaming\com.bionodulo.desktop\venv",
+        "\n",
+        "Resolved 110 packages in 275ms\n",
+        "  × Failed to build bionodulo @ ",
+        "file:///C:/Program%20Files/BioNodulo/bionodulo-backend\n",
+        "  ├─▶ Failed to create temporary virtualenv\n",
+        "  ╰─▶ Could not find a suitable Python executable for the virtual ",
+        "environment based on the interpreter: ",
+        r"C:\Users\nieuw\AppData\Local\BioNodulo\python-embedded\python.exe",
+    );
+
+    #[test]
+    fn recognises_the_reported_failure_as_a_dead_environment() {
+        // If this stops matching, the app stops recovering and the user is
+        // back at an error naming a path they never chose.
+        assert!(is_dead_environment(REPORTED_FAILURE));
+    }
+
+    #[test]
+    fn recognises_the_launcher_stub_variant() {
+        // Same dead base, different reporter: the Windows venv launcher.
+        assert!(is_dead_environment(
+            r#"Backend exited (exit code: 103) ... No Python at '"C:\x\python.exe'"#
+        ));
+    }
+
+    #[test]
+    fn does_not_rebuild_for_unrelated_failures() {
+        // Rebuilding costs minutes and discards a working environment, so a
+        // network or resolver failure must not trigger it.
+        assert!(!is_dead_environment(
+            "error: Failed to fetch: https://pypi.org/simple/fastapi/"
+        ));
+        assert!(!is_dead_environment(
+            "error: No solution found when resolving dependencies"
+        ));
     }
 
     #[test]

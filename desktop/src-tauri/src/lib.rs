@@ -1,6 +1,8 @@
 mod commands;
 mod deeplink;
-mod paths;
+// Public so the venv-recovery integration test can ask the same question the
+// app asks, rather than a reimplementation of it that could drift.
+pub mod paths;
 mod port;
 mod provision;
 mod security;

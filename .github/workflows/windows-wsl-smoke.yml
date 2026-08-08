@@ -19,8 +19,11 @@ on:
       - "main.py"
       - "desktop/**"
       - "desktop/src-tauri/src/wsl.rs"
+      - "desktop/src-tauri/src/paths.rs"
+      - "desktop/src-tauri/src/provision.rs"
       - "desktop/src-tauri/src/supervisor.rs"
       - "desktop/src-tauri/tests/wsl_smoke.rs"
+      - "desktop/src-tauri/tests/venv_recovery.rs"
       - "desktop/src-tauri/windows/**"
       - ".github/workflows/windows-wsl-smoke.yml"
   schedule:
@@ -133,9 +136,48 @@ jobs:
           Write-Host "backend answered"
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 
-  # The install as an INSTALLED APP performs it, which is not what the job above
-  # tests. That one passes a relative path inside a writable workspace; the
-  # shipped app passes what Tauri's resource_dir() returns, which is an
+  # Whether the app's OWN decision about a stale environment matches uv's.
+  #
+  # `provisioning-shape` below proves uv fails when the recorded interpreter is
+  # gone, and that rebuilding recovers -- but it proves it in PowerShell, about
+  # nothing the app runs. The app's check has only ever been tested against
+  # hand-written `pyvenv.cfg` files, so "the key uv writes is the key uv reads
+  # back, and the one we test" stayed an assumption. This runs the shipped
+  # `paths::venv_is_usable` against a real uv venv whose base was removed, and
+  # requires uv to name the same path.
+  venv-recovery:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "desktop/src-tauri -> target"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install desktop tooling
+        working-directory: desktop
+        run: npm install
+
+      - name: Stage backend, python and uv
+        working-directory: desktop
+        env:
+          BIONODULO_BACKEND_SRC: ${{ github.workspace }}
+        run: npm run prepare:assets
+
+      - name: Reject a venv whose base interpreter is gone
+        working-directory: desktop/src-tauri
+        run: cargo test --test venv_recovery -- --ignored --nocapture
+
+  # The install as an INSTALLED APP performs it, which is not what
+  # `native-backend` tests. That one passes a relative path inside a writable
+  # workspace; the shipped app passes what resource_dir() returns, which is an
   # extended-length path, under Program Files, containing a space:
   #
   #   "\\?\C:\Program Files\BioNodulo\uv\uv.exe pip" exited with code Some(1)
