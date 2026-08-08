@@ -287,6 +287,70 @@ jobs:
             Write-Host "NOTHING REPRODUCED -- the cause is elsewhere (uv cache, py launcher)"
           }
 
+      # Rebuilding a venv IN PLACE, which is what the app does.
+      #
+      # Every case above used a fresh random venv path, and uv caches
+      # interpreter metadata keyed by the executable's path. The app always
+      # rebuilds to the SAME path, and puts back a python.exe copied from the
+      # same distribution -- same path, same size, plausibly the same mtime. If
+      # that is a cache hit, uv answers with the interpreter the PREVIOUS venv
+      # at that path was built from, which is precisely a path that no longer
+      # exists and appears nowhere in the new pyvenv.cfg.
+      - name: Rebuild in place and see whose interpreter uv reports
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $uv = Get-ChildItem -Recurse -Filter uv.exe desktop/assets/uv |
+            Select-Object -First 1 -ExpandProperty FullName
+          $bundled = Join-Path (Resolve-Path "desktop/assets/python-embedded/windows") "python.exe"
+          $src = (Resolve-Path "desktop/assets/bionodulo-backend").Path
+          $env:UV_PYTHON_PREFERENCE = "only-system"
+          $env:UV_NO_PROGRESS = "1"
+
+          # The interpreter of an installation that will be removed, exactly as
+          # the pre-alpha.5 per-user install was.
+          $old = Join-Path $env:RUNNER_TEMP "OldInstall\python-embedded"
+          Copy-Item -Recurse -Force (Split-Path $bundled -Parent) $old
+          $oldPy = Join-Path $old "python.exe"
+
+          # The venv path never changes across upgrades: it is in the user's
+          # roaming data directory.
+          $venv = Join-Path $env:RUNNER_TEMP "stable-venv"
+
+          & $uv venv $venv --python $oldPy --seed *> $null
+          $env:VIRTUAL_ENV = $venv
+          $first = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
+          Write-Host "=== install against the old installation's venv === exit=$LASTEXITCODE"
+
+          # The upgrade: old installation goes, venv is rebuilt in place from
+          # the interpreter the new installation ships.
+          Remove-Item -Recurse -Force $old
+          Remove-Item -Recurse -Force $venv
+          & $uv venv $venv --python $bundled --seed *> $null
+
+          Write-Host "=== pyvenv.cfg after the in-place rebuild ==="
+          Get-Content (Join-Path $venv "pyvenv.cfg")
+
+          $out = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Host "=== install after the rebuild === exit=$code"
+          Write-Host $out
+
+          if ($out -match [regex]::Escape($oldPy)) {
+            Write-Host "REPRODUCED: uv named the REMOVED interpreter despite a correct pyvenv.cfg"
+            # Does isolating the cache fix it? That is the candidate fix.
+            $env:UV_CACHE_DIR = Join-Path $env:RUNNER_TEMP "private-uv-cache"
+            $out2 = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
+            Write-Host "=== same install with a private UV_CACHE_DIR === exit=$LASTEXITCODE"
+            Write-Host $out2
+            if ($LASTEXITCODE -ne 0) { throw "a private cache did not fix it either" }
+            Write-Host "CONFIRMED: the uv cache is the carrier, and isolating it recovers"
+          } elseif ($code -ne 0) {
+            throw "the rebuild failed for some other reason; see above"
+          } else {
+            Write-Host "NOT REPRODUCED: an in-place rebuild installs cleanly here"
+          }
+
   # The install as an INSTALLED APP performs it, which is not what
   # `native-backend` tests. That one passes a relative path inside a writable
   # workspace; the shipped app passes what resource_dir() returns, which is an
