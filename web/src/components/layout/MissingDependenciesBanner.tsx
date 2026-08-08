@@ -26,8 +26,11 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
   const startInstall = useCallback(async () => {
     onOpenConsole();
     await install(workflow);
-    // Re-resolve shortly after so the banner reflects the new env state.
-    setTimeout(() => onResolve(), 1000);
+    // Re-resolve immediately: the install hook only resolves once the backend
+    // confirms the job completed, so there is no race to guard against and the
+    // 1-second delay served no purpose other than leaving the orange highlight
+    // visible for a second longer than necessary.
+    onResolve();
   }, [install, workflow, onOpenConsole, onResolve]);
 
   const summary = report.summary || t('resolveReport.missingCount', { count: totalMissing });

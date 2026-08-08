@@ -105,9 +105,16 @@ class CloudSettings:
             clerk_publishable_key=os.environ.get(
                 "BIONODULO_CLERK_PUBLISHABLE_KEY", ""
             ).strip(),
-            oauth_client_id=os.environ.get("BIONODULO_OAUTH_CLIENT_ID", "").strip(),
-            oauth_authorize_url=os.environ.get("BIONODULO_OAUTH_AUTHORIZE_URL", "").strip(),
-            oauth_token_url=os.environ.get("BIONODULO_OAUTH_TOKEN_URL", "").strip(),
+            # OAuth 2.0 + PKCE for the desktop app. client_id and the Clerk
+            # endpoint URLs are non-secret public values -- they belong in the
+            # distributed binary -- so fall back to the BioNodulo Clerk app
+            # when the env vars are absent. Cloud deployments override them.
+            oauth_client_id=os.environ.get("BIONODULO_OAUTH_CLIENT_ID", "").strip()
+            or ("" if cloud_mode else "FCecssIqa03P8Yar"),
+            oauth_authorize_url=os.environ.get("BIONODULO_OAUTH_AUTHORIZE_URL", "").strip()
+            or ("" if cloud_mode else "https://clerk.bionodulo.com/oauth/authorize"),
+            oauth_token_url=os.environ.get("BIONODULO_OAUTH_TOKEN_URL", "").strip()
+            or ("" if cloud_mode else "https://clerk.bionodulo.com/oauth/token"),
         )
 
     def public_config(self) -> dict[str, Any]:

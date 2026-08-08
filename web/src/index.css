@@ -1845,9 +1845,22 @@ input[type="range"]::-moz-range-thumb {
 /* Console */
 .bottom-console {
   position: absolute; left: 0; right: 0; bottom: 0;
-  height: 200px; background: var(--surface); border-top: 1px solid var(--border);
+  /* height driven by inline style from component; fallback for first paint */
+  height: 280px; background: var(--surface); border-top: 1px solid var(--border);
   z-index: 20; display: flex; flex-direction: column;
   animation: consoleUp 0.15s ease;
+}
+.console-resize-handle {
+  height: 6px; cursor: ns-resize; background: transparent; flex-shrink: 0;
+  margin-top: -3px; padding-top: 3px; box-sizing: content-box;
+  position: relative; z-index: 1;
+}
+.console-resize-handle::after {
+  content: ''; display: block; width: 40px; height: 3px; border-radius: 2px;
+  background: var(--border); margin: 0 auto; transition: background 0.15s;
+}
+.console-resize-handle:hover::after, .console-resize-handle:active::after {
+  background: var(--accent);
 }
 @keyframes consoleUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 

@@ -93,6 +93,7 @@ pub fn run() {
             commands::complete_setup,
             commands::select_directory,
             commands::open_external,
+            commands::open_in_window,
             commands::open_path,
             commands::show_logs,
             commands::get_local_execution_status,

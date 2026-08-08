@@ -1781,13 +1781,22 @@ export default function App() {
         setIsRunning(false);
         return;
       }
-      // Auto-install missing dependencies before running unless the user opted
-      // into the manual prompt-before-install flow (banner + Install button).
-      // SKIP in the cloud editor: there is no local installer — the AWS Batch
-      // worker installs the workflow's environment as part of the run.
-      if (!editorMode && !getBool('bionodulo.dependencies.promptBeforeInstall')) {
+      // Cloud editor: auto-install missing deps before the run so the AWS Batch
+      // worker does not have to wait for a separate install step.
+      // Desktop: the MissingDependenciesBanner is always shown when deps are
+      // missing; the user installs explicitly via that banner, and Run should
+      // fail fast rather than silently installing in the background.
+      if (editorMode && !getBool('bionodulo.dependencies.promptBeforeInstall')) {
         const ready = await ensureDependenciesInstalled(activeWorkflow);
         if (!ready) {
+          setConsoleVisible(true);
+          setRailTab('console');
+          setIsRunning(false);
+          return;
+        }
+      } else if (!editorMode) {
+        const report = await resolve(activeWorkflow);
+        if (report && !report.env_ready) {
           setConsoleVisible(true);
           setRailTab('console');
           setIsRunning(false);
@@ -3511,7 +3520,7 @@ export default function App() {
             }}
           />
         )}
-        {getBool('bionodulo.dependencies.promptBeforeInstall') && resolveReport && resolveReport.has_issues && resolveReport !== dismissedReport && (
+        {(!editorMode || getBool('bionodulo.dependencies.promptBeforeInstall')) && resolveReport && resolveReport.has_issues && resolveReport !== dismissedReport && (
           <MissingDependenciesBanner
             report={resolveReport}
             workflow={activeWorkflow}

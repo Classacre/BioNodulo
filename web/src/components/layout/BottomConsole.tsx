@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -9,6 +9,29 @@ import { htmlPreviewStateAtom, openLightboxAtom } from '../../state/lightboxAtom
 import { logError } from '../../state/logging';
 import { logsAtom } from '../../state/runAtoms';
 import { appPath } from '../../utils/appBase';
+
+const CONSOLE_HEIGHT_KEY = 'bionodulo.console.height';
+const CONSOLE_MIN_HEIGHT = 120;
+const CONSOLE_MAX_HEIGHT = 800;
+const CONSOLE_DEFAULT_HEIGHT = 280;
+
+/**
+ * Open a URL in a new in-app window (Tauri desktop) or a new browser tab (web).
+ * On desktop the window inherits the same security allow-list as the main
+ * window; on the web it is a plain window.open call.
+ */
+function openInWindow(url: string, title: string): void {
+  const tauri = (window as unknown as Record<string, unknown>).__TAURI__;
+  if (tauri) {
+    // Tauri exposes invoke globally with withGlobalTauri:true
+    const invoke = (tauri as { core?: { invoke?: Function } }).core?.invoke;
+    if (invoke) {
+      invoke('open_in_window', { url, title }).catch(() => window.open(url, '_blank'));
+      return;
+    }
+  }
+  window.open(url, '_blank');
+}
 
 function runStatusLabel(t: TFunction, status: RunRecord['status'] | 'failed'): string {
   return t(`console.status.${status}`);
@@ -286,15 +309,16 @@ function ReportPanel({ history, t }: { history: RunRecord[]; t: TFunction }) {
           <Icon name="export" size={12} /> {t('console.manifestJson')}
         </button>
         {selectedRunId && (
-          <a
+          <button
             className="btn btn-sm"
-            href={appPath(`/api/runs/${encodeURIComponent(selectedRunId)}/report`)}
-            target="_blank"
-            rel="noreferrer"
+            onClick={() => openInWindow(
+              appPath(`/api/runs/${encodeURIComponent(selectedRunId)}/report`),
+              t('console.openReportTitle')
+            )}
             title={t('console.openReportTitle')}
           >
             <Icon name="link" size={12} /> {t('console.openReport')}
-          </a>
+          </button>
         )}
       </div>
       <div style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', minHeight: 200 }}>
@@ -341,6 +365,43 @@ export default function BottomConsole({
   const LOG_RENDER_STEP = 1000;
   const logsBodyRef = useRef<HTMLDivElement>(null);
   const userScrolledUpRef = useRef(false);
+
+  // Resize state — the user can drag the top edge to grow or shrink the drawer.
+  const [consoleHeight, setConsoleHeight] = useState<number>(() => {
+    try { return parseInt(localStorage.getItem(CONSOLE_HEIGHT_KEY) || String(CONSOLE_DEFAULT_HEIGHT), 10); }
+    catch { return CONSOLE_DEFAULT_HEIGHT; }
+  });
+  const resizeDragging = useRef(false);
+  const resizeStartY = useRef(0);
+  const resizeStartH = useRef(0);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeDragging.current = true;
+    resizeStartY.current = e.clientY;
+    resizeStartH.current = consoleHeight;
+    const onMove = (ev: MouseEvent) => {
+      if (!resizeDragging.current) return;
+      // Dragging upward (negative delta) increases height.
+      const delta = resizeStartY.current - ev.clientY;
+      const next = Math.min(CONSOLE_MAX_HEIGHT, Math.max(CONSOLE_MIN_HEIGHT, resizeStartH.current + delta));
+      setConsoleHeight(next);
+    };
+    const onUp = () => {
+      resizeDragging.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      // Persist so the height survives tab switches.
+      try { localStorage.setItem(CONSOLE_HEIGHT_KEY, String(resizeStartH.current)); } catch { /* ignore */ }
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [consoleHeight]);
+
+  // Persist height whenever it changes (debounced via ref approach above).
+  useEffect(() => {
+    try { localStorage.setItem(CONSOLE_HEIGHT_KEY, String(consoleHeight)); } catch { /* ignore */ }
+  }, [consoleHeight]);
 
   const {
     safeLogs,
@@ -464,7 +525,14 @@ export default function BottomConsole({
   const previewCount = imagePreviews.length + htmlPreviews.length;
 
   return (
-    <div className="bottom-console">
+    <div className="bottom-console" style={{ height: consoleHeight }}>
+      {/* Drag handle — grab and pull to resize the drawer */}
+      <div
+        className="console-resize-handle"
+        onMouseDown={handleResizeMouseDown}
+        title={t('console.resizeTitle', { defaultValue: 'Drag to resize' })}
+        aria-hidden="true"
+      />
       <div className="console-tabs">
         <button className={`console-tab ${tab === 'logs' ? 'active' : ''}`} onClick={() => setTab('logs')}>
           {t('console.tabsLogs')} {hostLogs.length > 0 && `(${hostLogs.length})`}
@@ -626,7 +694,17 @@ export default function BottomConsole({
                       style={{ maxHeight: 180, maxWidth: 280, borderRadius: 6, border: '1px solid var(--border)' }}
                       onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
-                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{img.nodeId}</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <span>{img.nodeId}</span>
+                      <button
+                        className="btn btn-xs btn-ghost"
+                        style={{ fontSize: 10, padding: '1px 4px' }}
+                        onClick={e => { e.stopPropagation(); openInWindow(img.src, img.filename); }}
+                        title={t('console.openPreviewTitle', { defaultValue: 'Open in new window' })}
+                      >
+                        <Icon name="link" size={10} />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {htmlPreviews.map(htmlItem => (
@@ -683,7 +761,17 @@ export default function BottomConsole({
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <Icon name="file" size={10} /> {htmlItem.filename}
                       </span>
-                      <span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('console.previewHtmlBadge')}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <span style={{ fontSize: 9, color: 'var(--muted)' }}>{t('console.previewHtmlBadge')}</span>
+                        <button
+                          className="btn btn-xs btn-ghost"
+                          style={{ fontSize: 10, padding: '1px 4px' }}
+                          onClick={e => { e.stopPropagation(); openInWindow(htmlItem.src, htmlItem.filename); }}
+                          title={t('console.openPreviewTitle', { defaultValue: 'Open in new window' })}
+                        >
+                          <Icon name="link" size={10} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

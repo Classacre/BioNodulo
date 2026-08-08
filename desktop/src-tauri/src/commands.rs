@@ -89,7 +89,22 @@ pub async fn complete_setup(app: AppHandle) -> Result<Value, String> {
         "venvPath",
         Value::String(paths::venv_path(&app).to_string_lossy().into_owned()),
     );
-    crate::start_backend_and_load(&app).await;
+    // Navigate to the loading screen immediately so the user sees something
+    // while the backend starts. Previously the window sat on first-run.html
+    // for the entire startup time with no visible change — "Launch" appeared
+    // to do nothing. The backend start fires in the background and navigates
+    // to the app once it is ready (or to error.html on failure).
+    let _ = app.run_on_main_thread({
+        let app2 = app.clone();
+        move || {
+            if let Some(win) = app2.get_webview_window("main") {
+                let _ = win.eval("window.location.replace('loading.html')");
+            }
+        }
+    });
+    tauri::async_runtime::spawn(async move {
+        crate::start_backend_and_load(&app).await;
+    });
     Ok(serde_json::json!({ "success": true }))
 }
 
@@ -113,6 +128,34 @@ pub fn open_external(app: AppHandle, url: String) -> bool {
         log::warn!("[ipc] refused open_external for {url}");
         false
     }
+}
+
+#[tauri::command]
+pub fn open_in_window(app: AppHandle, url: String, title: String) {
+    use tauri::WebviewWindowBuilder;
+    // Unique-enough label: timestamp in milliseconds.
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let label = format!("view-{ts}");
+    let parsed = match url.parse::<tauri::Url>() {
+        Ok(u) => u,
+        Err(e) => {
+            log::warn!("[ipc] open_in_window: bad URL {url:?}: {e}");
+            return;
+        }
+    };
+    let _ = WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::External(parsed))
+        .title(&title)
+        .inner_size(1200.0, 800.0)
+        .on_navigation(|u| {
+            crate::security::is_allowed_navigation(
+                u.as_str(),
+                crate::backend_origin_opt().as_deref(),
+            )
+        })
+        .build();
 }
 
 #[tauri::command]
