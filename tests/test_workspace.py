@@ -60,3 +60,65 @@ def test_cloud_directory_snapshot_rejects_symbolic_links(tmp_path: Path) -> None
 
     with pytest.raises(HTTPException, match="symbolic links"):
         _scan_cloud_directory(source)
+
+
+def test_examples_link_survives_losing_a_race(tmp_path, monkeypatch):
+    """Two processes seeding the same workspace must both succeed.
+
+    CI runs pytest with `-n auto`. Two workers both saw no `examples` link,
+    both called `os.symlink`, and the loser got FileExistsError -- which is an
+    OSError, so it fell through to the copytree fallback. By then the target
+    WAS a symlink to the source, so copying the source into it copied a tree
+    onto itself:
+
+        shutil.Error: [... 'examples/workflows/fastq_qc_pipeline.bionodulo.json'
+                       and '.../workspace/examples/workflows/...' are the same file]
+
+    Losing the race is success: the link the caller wanted now exists.
+    """
+    import os
+
+    from bionodulo.core.workspace import ensure_examples_link
+
+    project = tmp_path / "project"
+    (project / "examples").mkdir(parents=True)
+    (project / "examples" / "w.json").write_text("{}")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    real_symlink = os.symlink
+
+    def symlink_loses_the_race(src, dst, **kwargs):
+        # Someone else created it between the existence check and here.
+        real_symlink(src, dst, **kwargs)
+        raise FileExistsError(17, "File exists", str(dst))
+
+    monkeypatch.setattr(os, "symlink", symlink_loses_the_race)
+
+    ensure_examples_link(workspace, project)
+
+    assert (workspace / "examples" / "w.json").exists()
+
+
+def test_examples_link_falls_back_to_copying(tmp_path, monkeypatch):
+    """Windows without the symlink privilege has no link to fall back from."""
+    import os
+
+    from bionodulo.core.workspace import ensure_examples_link
+
+    project = tmp_path / "project"
+    (project / "examples").mkdir(parents=True)
+    (project / "examples" / "w.json").write_text("{}")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    def no_symlink_privilege(src, dst, **kwargs):
+        raise OSError(1, "A required privilege is not held by the client")
+
+    monkeypatch.setattr(os, "symlink", no_symlink_privilege)
+
+    ensure_examples_link(workspace, project)
+
+    target = workspace / "examples"
+    assert not target.is_symlink()
+    assert (target / "w.json").read_text() == "{}"

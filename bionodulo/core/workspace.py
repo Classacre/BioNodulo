@@ -49,5 +49,14 @@ def ensure_examples_link(workspace_root: Path, project_dir: Path | None = None) 
     workspace_root.mkdir(parents=True, exist_ok=True)
     try:
         os.symlink(str(source), str(target))
+    except FileExistsError:
+        # Another process seeded the same workspace between the check above and
+        # here. Losing that race is success -- the link the caller wanted now
+        # exists. Falling through to the copy instead (FileExistsError IS an
+        # OSError) copied the tree onto itself through the link it had just lost
+        # to: "…/examples/w.json and …/workspace/examples/w.json are the same
+        # file". Two pytest-xdist workers were enough to hit it.
+        return
     except OSError:
+        # No privilege to create symlinks (Windows, typically); copy instead.
         shutil.copytree(source, target, dirs_exist_ok=True)
