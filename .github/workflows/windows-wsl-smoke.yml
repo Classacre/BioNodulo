@@ -268,6 +268,45 @@ jobs:
           }
           Set-ItemProperty -Path $key -Name LongPathsEnabled -Value $lp
 
+          # An upgrade that moves the bundled interpreter leaves a venv that
+          # STARTS fine and cannot build anything, because every dependency
+          # build isolates into a temporary venv created from the base
+          # interpreter recorded in pyvenv.cfg. A user hit exactly this:
+          #   Failed to create temporary virtualenv
+          #   Could not find a suitable Python executable ... based on the
+          #   interpreter: ...\AppData\Local\BioNodulo\python-embedded\python.exe
+          # Second time this class has shipped, so pin the mechanism.
+          $moved = Join-Path $env:RUNNER_TEMP "moved-python"
+          Copy-Item -Recurse -Force (Split-Path $embedded -Parent) $moved
+          $movedPy = Join-Path $moved "python.exe"
+          $venv = Join-Path $env:RUNNER_TEMP "venv-stalebase"
+          & $uv venv $venv --python $movedPy --seed *> $null
+          $env:VIRTUAL_ENV = $venv
+
+          # The upgrade: the interpreter it was built from goes away.
+          Remove-Item -Recurse -Force $moved
+
+          Write-Host "=== venv whose base interpreter was removed ==="
+          & (Join-Path $venv "Scripts/python.exe") --version
+          Write-Host "    venv itself starts: exit $LASTEXITCODE (this is why the old probe passed)"
+          $out = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
+          $staleCode = $LASTEXITCODE
+          Write-Host $out
+          if ($staleCode -eq 0) {
+            throw "expected a stale base interpreter to break the build; it did not"
+          }
+          Write-Host "reproduced: exit $staleCode"
+
+          # And rebuilding recovers, which is what the app now does.
+          Remove-Item -Recurse -Force $venv
+          & $uv venv $venv --python $embedded --seed *> $null
+          $out = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
+          $results += [pscustomobject]@{
+            Variant = "rebuilt after stale base"
+            Exit    = $LASTEXITCODE
+            Error   = ($out -split "`n" | Where-Object { $_ -match "error" } | Select-Object -First 1)
+          }
+
           Write-Host "`n================ SUMMARY ================"
           $results | Format-Table -AutoSize -Wrap | Out-String | Write-Host
           if ($results | Where-Object { $_.Exit -ne 0 }) {

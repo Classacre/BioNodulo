@@ -53,9 +53,25 @@ pub fn venv_exists(venv: &Path) -> bool {
 /// "No Python at '<path>'" -- a backend that never starts, on every launch,
 /// with no way for the user to recover short of deleting a folder they have no
 /// reason to know about.
+///
+/// Starting is necessary but not sufficient. `pyvenv.cfg` also records the BASE
+/// interpreter the venv was built from, and every dependency build isolates
+/// into a temporary venv created from that one. An upgrade that moves the
+/// bundled interpreter leaves a venv that starts perfectly and cannot build
+/// anything:
+///
+///   Failed to create temporary virtualenv
+///   Could not find a suitable Python executable for the virtual environment
+///   based on the interpreter: …\AppData\Local\BioNodulo\python-embedded\python.exe
+///
+/// So the recorded base is checked too, and a venv naming one that is gone is
+/// rebuilt rather than used.
 pub fn venv_is_usable(venv: &Path) -> bool {
     let python = venv_python(venv);
     if !python.exists() {
+        return false;
+    }
+    if !base_interpreter_present(venv) {
         return false;
     }
     let mut cmd = std::process::Command::new(&python);
@@ -66,6 +82,45 @@ pub fn venv_is_usable(venv: &Path) -> bool {
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
     matches!(cmd.output(), Ok(out) if out.status.success())
+}
+
+/// The base interpreter a venv was created from, as recorded in `pyvenv.cfg`.
+///
+/// `base-executable` names the interpreter directly; `home` names its directory
+/// and is the older key, and the one the Windows launcher stub reads.
+pub fn recorded_base_interpreter(venv: &Path) -> Option<PathBuf> {
+    let cfg = std::fs::read_to_string(venv.join("pyvenv.cfg")).ok()?;
+
+    let value_of = |key: &str| -> Option<String> {
+        cfg.lines().find_map(|line| {
+            // Split on the FIRST `=` only: a Windows path contains no `=`, but
+            // "C:\Program Files\..." must survive intact.
+            let (k, v) = line.split_once('=')?;
+            (k.trim() == key).then(|| v.trim().to_string())
+        })
+    };
+
+    if let Some(exe) = value_of("base-executable").filter(|v| !v.is_empty()) {
+        return Some(PathBuf::from(exe));
+    }
+    let home = value_of("home").filter(|v| !v.is_empty())?;
+    Some(PathBuf::from(home).join(if cfg!(target_os = "windows") {
+        "python.exe"
+    } else {
+        "python"
+    }))
+}
+
+/// Whether the interpreter this venv was built from is still on disk.
+///
+/// A venv with no `pyvenv.cfg`, or one recording nothing, is treated as fine:
+/// missing metadata is not evidence of a dead base, and needlessly rebuilding a
+/// working environment costs the user minutes every launch.
+pub fn base_interpreter_present(venv: &Path) -> bool {
+    match recorded_base_interpreter(venv) {
+        Some(base) => base.exists(),
+        None => true,
+    }
 }
 
 fn is_dev() -> bool {
@@ -158,6 +213,122 @@ mod tests {
     #[test]
     fn os_key_is_known() {
         assert!(matches!(os_key(), "windows" | "macos" | "linux"));
+    }
+
+    /// A venv whose recorded base interpreter is gone is not usable, even
+    /// though its own python starts.
+    ///
+    /// A user upgraded and hit:
+    ///   Failed to build bionodulo @ file:///C:/Program%20Files/BioNodulo/...
+    ///   ├─▶ Failed to create temporary virtualenv
+    ///   ╰─▶ Could not find a suitable Python executable ... based on the
+    ///       interpreter: C:\Users\...\AppData\Local\BioNodulo\python-embedded\python.exe
+    ///
+    /// The venv in the roaming data directory survived an upgrade that moved
+    /// the bundled interpreter, so `pyvenv.cfg` still named the old location.
+    /// The venv itself ran fine -- `python --version` succeeded, so the probe
+    /// passed and it was never rebuilt -- but every build isolates into a
+    /// temporary venv created FROM that base interpreter, and that path was
+    /// gone. Starting is not the property that matters.
+    mod base_interpreter {
+        use super::*;
+
+        fn tmp(name: &str) -> PathBuf {
+            let dir = std::env::temp_dir().join(format!("bn-venv-test-{name}"));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        }
+
+        fn write_cfg(dir: &Path, body: &str) {
+            std::fs::write(dir.join("pyvenv.cfg"), body).unwrap();
+        }
+
+        #[test]
+        fn reads_base_executable() {
+            let venv = tmp("base-exec");
+            write_cfg(&venv, "home = C:\\py\nbase-executable = C:\\py\\python.exe\n");
+
+            assert_eq!(
+                recorded_base_interpreter(&venv),
+                Some(PathBuf::from("C:\\py\\python.exe"))
+            );
+        }
+
+        #[test]
+        fn falls_back_to_home_when_base_executable_is_absent() {
+            // Not every tool writes base-executable; `home` is the older key,
+            // and is what the Windows launcher stub itself reads.
+            let venv = tmp("home-only");
+            write_cfg(&venv, "home = /usr/local\nversion = 3.12.8\n");
+
+            let found = recorded_base_interpreter(&venv).expect("no interpreter");
+            assert!(found.starts_with("/usr/local"), "{found:?}");
+        }
+
+        #[test]
+        fn tolerates_spacing_around_the_separator() {
+            let venv = tmp("spacing");
+            write_cfg(&venv, "base-executable=/opt/py/bin/python\n");
+
+            assert_eq!(
+                recorded_base_interpreter(&venv),
+                Some(PathBuf::from("/opt/py/bin/python"))
+            );
+        }
+
+        #[test]
+        fn keeps_a_path_containing_spaces_intact() {
+            // "Program Files" — split on the first `=` only.
+            let venv = tmp("spaces");
+            write_cfg(
+                &venv,
+                "base-executable = C:\\Program Files\\BioNodulo\\python.exe\n",
+            );
+
+            assert_eq!(
+                recorded_base_interpreter(&venv),
+                Some(PathBuf::from("C:\\Program Files\\BioNodulo\\python.exe"))
+            );
+        }
+
+        #[test]
+        fn reports_nothing_when_there_is_no_config() {
+            let venv = tmp("no-cfg");
+
+            assert_eq!(recorded_base_interpreter(&venv), None);
+        }
+
+        #[test]
+        fn a_missing_base_interpreter_makes_the_venv_unusable() {
+            // The reported failure, exactly: the venv is fine, its base is not.
+            let venv = tmp("dead-base");
+            write_cfg(
+                &venv,
+                "base-executable = /definitely/not/here/python\nversion = 3.12.8\n",
+            );
+
+            assert!(!base_interpreter_present(&venv));
+        }
+
+        #[test]
+        fn a_present_base_interpreter_is_accepted() {
+            let venv = tmp("live-base");
+            let base = venv.join("fake-python");
+            std::fs::write(&base, b"").unwrap();
+            write_cfg(&venv, &format!("base-executable = {}\n", base.to_string_lossy()));
+
+            assert!(base_interpreter_present(&venv));
+        }
+
+        #[test]
+        fn no_config_is_not_treated_as_broken() {
+            // Absent metadata is not evidence of a dead base, and rebuilding a
+            // working environment on every launch is worse than not checking.
+            let venv = tmp("cfg-absent");
+
+            assert!(base_interpreter_present(&venv));
+        }
     }
 
     #[test]
