@@ -133,6 +133,80 @@ jobs:
           Write-Host "backend answered"
           Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 
+  # The install as an INSTALLED APP performs it, which is not what the job above
+  # tests. That one passes a relative path inside a writable workspace; the
+  # shipped app passes what Tauri's resource_dir() returns, which is an
+  # extended-length path, under Program Files, containing a space:
+  #
+  #   "\\?\C:\Program Files\BioNodulo\uv\uv.exe pip" exited with code Some(1)
+  #
+  # Three differences at once, so this isolates them rather than guessing.
+  # Reports each variant instead of stopping at the first failure.
+  provisioning-shape:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install desktop tooling
+        working-directory: desktop
+        run: npm install
+
+      - name: Stage backend, python and uv
+        working-directory: desktop
+        env:
+          BIONODULO_BACKEND_SRC: ${{ github.workspace }}
+        run: npm run prepare:assets
+
+      - name: Install from each path shape
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $uv = Get-ChildItem -Recurse -Filter uv.exe desktop/assets/uv |
+            Select-Object -First 1 -ExpandProperty FullName
+          $embedded = Join-Path (Resolve-Path "desktop/assets/python-embedded/windows") "python.exe"
+          $src = (Resolve-Path "desktop/assets/bionodulo-backend").Path
+
+          # A directory whose name contains a space, like "Program Files".
+          $spaced = Join-Path $env:RUNNER_TEMP "With Space\BioNodulo"
+          New-Item -ItemType Directory -Force -Path $spaced | Out-Null
+          Copy-Item -Recurse -Force "$src" (Join-Path $spaced "bionodulo-backend")
+          $spacedBackend = Join-Path $spaced "bionodulo-backend"
+
+          $variants = @(
+            @{ name = "plain path (what CI already covers)"; path = $src },
+            @{ name = "path containing a space";             path = $spacedBackend },
+            @{ name = "extended-length prefix";              path = "\\?\$src" },
+            @{ name = "extended-length + space (shipped)";   path = "\\?\$spacedBackend" }
+          )
+
+          $results = @()
+          foreach ($v in $variants) {
+            $venv = Join-Path $env:RUNNER_TEMP ("venv-" + [guid]::NewGuid().ToString("N").Substring(0,8))
+            & $uv venv $venv --python $embedded --seed *> $null
+            $env:VIRTUAL_ENV = $venv
+            Write-Host "=== $($v.name) ==="
+            Write-Host "    path: $($v.path)"
+            $out = & $uv pip install -e $v.path --index-strategy unsafe-best-match 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            Write-Host $out
+            $results += [pscustomobject]@{
+              Variant = $v.name
+              Exit    = $code
+              Error   = ($out -split "`n" | Where-Object { $_ -match "error|Error|ERROR" } | Select-Object -First 1)
+            }
+          }
+
+          Write-Host "`n================ SUMMARY ================"
+          $results | Format-Table -AutoSize -Wrap | Out-String | Write-Host
+          if ($results | Where-Object { $_.Exit -ne 0 }) {
+            throw "at least one path shape fails; see the summary above"
+          }
+
   smoke:
     runs-on: windows-latest
     # Unsupported platform capability: report, never block.
