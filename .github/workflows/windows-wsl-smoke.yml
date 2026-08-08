@@ -175,22 +175,23 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo test --test venv_recovery -- --ignored --nocapture
 
-  # Where uv gets an interpreter path that is NOT in our venv.
+  # Installing with NO temporary build environment, which is the last resort
+  # when the machine cannot make one.
   #
-  # A user on alpha.18 hit the failure with a freshly rebuilt venv whose
-  # pyvenv.cfg named the correct, present, bundled interpreter -- and uv still
-  # refused, "based on the interpreter:
-  # C:\Users\...\AppData\Local\BioNodulo\python-embedded\python.exe", the
-  # directory left behind by the pre-alpha.5 per-user install. That path cannot
-  # have come from the venv, so it is ambient: an environment variable, the
-  # user's PATH, a PEP 514 registry entry, or a version file. We pass
-  # UV_PYTHON_PREFERENCE=only-system, which sends uv looking through exactly
-  # those places.
+  # Four reports, all the same line: `Failed to create temporary virtualenv`.
+  # The final one came from a venv whose pyvenv.cfg named the correct, present,
+  # bundled interpreter, so the fault was not in the venv at all. A matrix run
+  # on a clean Windows host ruled out every ambient setting that could steer
+  # uv's discovery -- UV_PYTHON, the stale directory on PATH, a PEP 514 registry
+  # entry, `.python-version`, `uv.toml` -- and an in-place rebuild at a fixed
+  # path installed cleanly, so it is not the interpreter cache either. Whatever
+  # remains is local to that machine and cannot be enumerated remotely.
   #
-  # One factor at a time, against a healthy venv, so the answer is a name rather
-  # than another guess. Each stale location is modelled the way the reporter's
-  # machine actually is: the DIRECTORY exists, python.exe inside it does not.
-  ambient-python-config:
+  # So stop making that step work and stop performing it. This proves the
+  # fallback the app now takes: seed the build backend into the environment
+  # itself, then install with --no-build-isolation. If this passes, an install
+  # can complete on a machine where creating a build environment is impossible.
+  no-build-isolation:
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -210,161 +211,36 @@ jobs:
           BIONODULO_BACKEND_SRC: ${{ github.workspace }}
         run: npm run prepare:assets
 
-      - name: Find which ambient setting steers uv
+      - name: Install the backend without an isolated build environment
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Continue"
+          $ErrorActionPreference = "Stop"
           $uv = Get-ChildItem -Recurse -Filter uv.exe desktop/assets/uv |
             Select-Object -First 1 -ExpandProperty FullName
           $bundled = Join-Path (Resolve-Path "desktop/assets/python-embedded/windows") "python.exe"
           $src = (Resolve-Path "desktop/assets/bionodulo-backend").Path
 
-          # The reporter's leftover: directory present, interpreter gone.
-          $stale = Join-Path $env:RUNNER_TEMP "Local\BioNodulo\python-embedded"
-          New-Item -ItemType Directory -Force -Path $stale | Out-Null
-          $stalePy = Join-Path $stale "python.exe"
-
-          $origPath = $env:PATH
-          $results = @()
-
-          function Try-Install($name, $setup, $teardown) {
-            $venv = Join-Path $env:RUNNER_TEMP ("venv-" + [guid]::NewGuid().ToString("N").Substring(0,8))
-            & $script:uv venv $venv --python $script:bundled --seed *> $null
-            $env:VIRTUAL_ENV = $venv
-            $env:UV_PYTHON_PREFERENCE = "only-system"
-            $env:UV_NO_PROGRESS = "1"
-            & $setup
-            $out = & $script:uv pip install -e $script:src --index-strategy unsafe-best-match 2>&1 | Out-String
-            $code = $LASTEXITCODE
-            & $teardown
-            $reproduced = $out -match "based on the interpreter"
-            Write-Host "=== $name === exit=$code reproduced=$reproduced"
-            if ($code -ne 0) { Write-Host $out }
-            $script:results += [pscustomobject]@{ Case = $name; Exit = $code; Reproduced = $reproduced }
-          }
-
-          Try-Install "control (nothing perturbed)" { } { }
-
-          Try-Install "UV_PYTHON points at the stale interpreter" `
-            { $env:UV_PYTHON = $script:stalePy } { Remove-Item Env:UV_PYTHON -ErrorAction SilentlyContinue }
-
-          Try-Install "stale directory prepended to PATH" `
-            { $env:PATH = "$script:stale;$script:origPath" } { $env:PATH = $script:origPath }
-
-          Try-Install "PEP 514 registry entry naming the stale interpreter" `
-            {
-              New-Item -Path "HKCU:\Software\Python\BioNodulo\3.12\InstallPath" -Force | Out-Null
-              Set-ItemProperty -Path "HKCU:\Software\Python\BioNodulo\3.12\InstallPath" `
-                -Name "(default)" -Value $script:stale
-              Set-ItemProperty -Path "HKCU:\Software\Python\BioNodulo\3.12\InstallPath" `
-                -Name "ExecutablePath" -Value $script:stalePy
-              Set-ItemProperty -Path "HKCU:\Software\Python\BioNodulo\3.12" `
-                -Name "Version" -Value "3.12" -ErrorAction SilentlyContinue
-            } `
-            { Remove-Item -Recurse -Force "HKCU:\Software\Python\BioNodulo" -ErrorAction SilentlyContinue }
-
-          Try-Install ".python-version beside the backend" `
-            { Set-Content -Path (Join-Path $script:src ".python-version") -Value $script:stalePy } `
-            { Remove-Item (Join-Path $script:src ".python-version") -ErrorAction SilentlyContinue }
-
-          $uvToml = Join-Path $env:APPDATA "uv\uv.toml"
-          Try-Install "uv.toml in APPDATA pinning the stale interpreter" `
-            {
-              New-Item -ItemType Directory -Force -Path (Split-Path $uvToml -Parent) | Out-Null
-              Set-Content -Path $uvToml -Value "python = `"$($script:stalePy -replace '\\','\\')`""
-            } `
-            { Remove-Item $uvToml -ErrorAction SilentlyContinue }
-
-          Write-Host "`n================ SUMMARY ================"
-          $results | Format-Table -AutoSize -Wrap | Out-String | Write-Host
-
-          $control = $results | Where-Object { $_.Case -like "control*" }
-          if ($control.Exit -ne 0) { throw "the control case failed; the matrix says nothing" }
-          $culprits = $results | Where-Object { $_.Reproduced }
-          if ($culprits) {
-            Write-Host "REPRODUCED BY: $($culprits.Case -join '; ')"
-          } else {
-            Write-Host "NOTHING REPRODUCED -- the cause is elsewhere (uv cache, py launcher)"
-          }
-
-          # Several cases fail on purpose, and pwsh fails the step on a trailing
-          # non-zero $LASTEXITCODE -- which silently skipped everything after
-          # this. The verdicts above are the result; the exit code is not.
-          exit 0
-
-      # Rebuilding a venv IN PLACE, which is what the app does.
-      #
-      # Every case above used a fresh random venv path, and uv caches
-      # interpreter metadata keyed by the executable's path. The app always
-      # rebuilds to the SAME path, and puts back a python.exe copied from the
-      # same distribution -- same path, same size, plausibly the same mtime. If
-      # that is a cache hit, uv answers with the interpreter the PREVIOUS venv
-      # at that path was built from, which is precisely a path that no longer
-      # exists and appears nowhere in the new pyvenv.cfg.
-      - name: Rebuild in place and see whose interpreter uv reports
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Continue"
-          $uv = Get-ChildItem -Recurse -Filter uv.exe desktop/assets/uv |
-            Select-Object -First 1 -ExpandProperty FullName
-          $bundled = Join-Path (Resolve-Path "desktop/assets/python-embedded/windows") "python.exe"
-          $src = (Resolve-Path "desktop/assets/bionodulo-backend").Path
+          $venv = Join-Path $env:RUNNER_TEMP "venv-nbi"
+          & $uv venv $venv --python $bundled --seed
+          # Exactly the environment the app gives uv.
+          $env:VIRTUAL_ENV = $venv
           $env:UV_PYTHON_PREFERENCE = "only-system"
           $env:UV_NO_PROGRESS = "1"
+          $env:UV_NO_CONFIG = "1"
+          $env:UV_CACHE_DIR = Join-Path $env:RUNNER_TEMP "uv-cache-nbi"
 
-          # The interpreter of an installation that will be removed, exactly as
-          # the pre-alpha.5 per-user install was.
-          $old = Join-Path $env:RUNNER_TEMP "OldInstall\python-embedded"
-          Copy-Item -Recurse -Force (Split-Path $bundled -Parent) $old
-          $oldPy = Join-Path $old "python.exe"
+          # The build backend has to be present in the environment itself,
+          # because there is no isolated one to put it in.
+          & $uv pip install hatchling --index-strategy unsafe-best-match
+          if ($LASTEXITCODE -ne 0) { throw "seeding the build backend failed" }
 
-          # The venv path never changes across upgrades: it is in the user's
-          # roaming data directory.
-          $venv = Join-Path $env:RUNNER_TEMP "stable-venv"
+          & $uv pip install -e $src --no-build-isolation --index-strategy unsafe-best-match
+          if ($LASTEXITCODE -ne 0) { throw "the no-build-isolation install failed" }
 
-          & $uv venv $venv --python $oldPy --seed *> $null
-          $env:VIRTUAL_ENV = $venv
-          $first = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
-          Write-Host "=== install against the old installation's venv === exit=$LASTEXITCODE"
+          # Installed is not the same as importable.
+          & (Join-Path $venv "Scripts/python.exe") -c "import bionodulo, uvicorn, fastapi; print(bionodulo.__version__)"
+          if ($LASTEXITCODE -ne 0) { throw "the backend does not import after installing" }
 
-          # The upgrade: old installation goes, venv is rebuilt in place from
-          # the interpreter the new installation ships.
-          Remove-Item -Recurse -Force $old
-          Remove-Item -Recurse -Force $venv
-          & $uv venv $venv --python $bundled --seed *> $null
-
-          Write-Host "=== pyvenv.cfg after the in-place rebuild ==="
-          Get-Content (Join-Path $venv "pyvenv.cfg")
-
-          $out = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
-          $code = $LASTEXITCODE
-          Write-Host "=== install after the rebuild === exit=$code"
-          Write-Host $out
-
-          if ($out -match [regex]::Escape($oldPy)) {
-            Write-Host "REPRODUCED: uv named the REMOVED interpreter despite a correct pyvenv.cfg"
-            # Does isolating the cache fix it? That is the candidate fix.
-            $env:UV_CACHE_DIR = Join-Path $env:RUNNER_TEMP "private-uv-cache"
-            $out2 = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
-            Write-Host "=== same install with a private UV_CACHE_DIR === exit=$LASTEXITCODE"
-            Write-Host $out2
-            if ($LASTEXITCODE -ne 0) { throw "a private cache did not fix it either" }
-            Write-Host "CONFIRMED: the uv cache is the carrier, and isolating it recovers"
-          } elseif ($code -ne 0) {
-            throw "the rebuild failed for some other reason; see above"
-          } else {
-            Write-Host "NOT REPRODUCED: an in-place rebuild installs cleanly here"
-          }
-
-  # The install as an INSTALLED APP performs it, which is not what
-  # `native-backend` tests. That one passes a relative path inside a writable
-  # workspace; the shipped app passes what resource_dir() returns, which is an
-  # extended-length path, under Program Files, containing a space:
-  #
-  #   "\\?\C:\Program Files\BioNodulo\uv\uv.exe pip" exited with code Some(1)
-  #
-  # Three differences at once, so this isolates them rather than guessing.
-  # Reports each variant instead of stopping at the first failure.
   provisioning-shape:
     runs-on: windows-latest
     timeout-minutes: 30

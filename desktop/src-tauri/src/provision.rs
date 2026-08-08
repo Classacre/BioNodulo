@@ -74,6 +74,13 @@ fn diagnostics(app: &AppHandle) -> String {
     for path in recorded {
         out.push_str(&format!("\n  recorded: {} [{}]", path.display(), mark(&path)));
     }
+    // Stripped before uv runs, but worth naming: a report where one of these is
+    // set explains a failure that otherwise looks impossible.
+    for key in HOSTILE_TO_INHERIT {
+        if let Ok(value) = std::env::var(key) {
+            out.push_str(&format!("\n  inherited: {key}={value} (ignored)"));
+        }
+    }
     out
 }
 
@@ -183,7 +190,65 @@ async fn install_with_recovery(app: &AppHandle, upgrade: bool) -> Result<(), Str
     rebuild_venv(app).await?;
     // Nothing is installed in a freshly built environment, so there is nothing
     // to upgrade.
-    install_requirements(app, false).await
+    let Err(err) = install_requirements(app, false).await else {
+        return Ok(());
+    };
+    if !is_dead_environment(&err) {
+        return Err(err);
+    }
+    // A freshly built environment, from an interpreter this installation ships
+    // and has just verified, and uv STILL cannot make a build environment out
+    // of it. At that point the fault is not in the venv and rebuilding it again
+    // would be superstition, so stop trying to make that step work and stop
+    // performing it.
+    log::warn!("[provision] build isolation is broken on this machine; installing without it");
+    progress(
+        app,
+        "deps",
+        "Retrying without an isolated build environment…",
+        Some(0.6),
+    );
+    install_without_build_isolation(app).await
+}
+
+/// The build backends the package needs, when nothing isolates the build.
+///
+/// Mirrors `[build-system] requires` in the backend's `pyproject.toml`;
+/// `build_requirements_match_the_backend` fails if they drift apart.
+const BUILD_REQUIREMENTS: [&str; 1] = ["hatchling"];
+
+/// Install with no temporary build environment at all.
+///
+/// Every report of this failure has been the same line -- `Failed to create
+/// temporary virtualenv` -- from a machine whose venv was correct and whose
+/// bundled interpreter was present. Three rounds went into making that step
+/// succeed. It cannot fail if it does not happen.
+///
+/// The cost is that the build backend has to live in the environment itself
+/// rather than in a throwaway one, which is why this is the last resort and not
+/// the default: it is a slightly dirtier environment, in exchange for an
+/// install that completes.
+async fn install_without_build_isolation(app: &AppHandle) -> Result<(), String> {
+    let mut seed: Vec<String> = vec!["pip".into(), "install".into()];
+    seed.extend(BUILD_REQUIREMENTS.iter().map(|s| (*s).to_string()));
+    seed.extend(["--index-strategy".into(), "unsafe-best-match".into()]);
+    run_uv(app, &seed, "deps").await?;
+
+    let backend = paths::backend_path(app);
+    run_uv(
+        app,
+        &[
+            "pip".into(),
+            "install".into(),
+            "-e".into(),
+            backend.to_string_lossy().into_owned(),
+            "--no-build-isolation".into(),
+            "--index-strategy".into(),
+            "unsafe-best-match".into(),
+        ],
+        "deps",
+    )
+    .await
 }
 
 /// Whether a failure means the environment's interpreter is gone.
@@ -283,9 +348,43 @@ async fn run_uv(app: &AppHandle, args: &[String], phase: &str) -> Result<(), Str
         ("VIRTUAL_ENV", venv.to_string_lossy().into_owned()),
         ("UV_PYTHON_PREFERENCE", "only-system".into()),
         ("UV_NO_PROGRESS", "1".into()),
+        // Ignore any uv.toml on the machine. The app's environment is not the
+        // user's Python project, and a setting meant for their work should not
+        // decide how the bundled backend installs.
+        ("UV_NO_CONFIG", "1".into()),
+        // A cache of our own, beside the venv it describes. uv caches
+        // interpreter metadata keyed by executable path, and this app rebuilds
+        // to the SAME path every time; a shared cache therefore carries
+        // knowledge of environments belonging to installations that are gone.
+        // Costs one re-download after upgrading, and buys a machine whose past
+        // cannot reach into this install.
+        (
+            "UV_CACHE_DIR",
+            paths::data_root(app)
+                .join("uv-cache")
+                .to_string_lossy()
+                .into_owned(),
+        ),
     ];
     run_stream(app, uv.to_string_lossy().as_ref(), args, phase, &extra).await
 }
+
+/// Inherited variables that redirect a Python or uv invocation.
+///
+/// A user hit a failure naming an interpreter from an installation removed
+/// versions ago, on a machine where the venv was correct and the bundled
+/// interpreter present -- so something outside both was steering uv. None of
+/// these are ours to honour: whatever the user's shell has configured for their
+/// own Python work, this install has exactly one interpreter and one
+/// environment, and both are decided here.
+const HOSTILE_TO_INHERIT: [&str; 6] = [
+    "UV_PYTHON",
+    "UV_PYTHON_INSTALL_DIR",
+    "UV_SYSTEM_PYTHON",
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "__PYVENV_LAUNCHER__",
+];
 
 async fn run_stream(
     app: &AppHandle,
@@ -296,6 +395,9 @@ async fn run_stream(
 ) -> Result<(), String> {
     let mut cmd = Command::new(exe);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    for key in HOSTILE_TO_INHERIT {
+        cmd.env_remove(key);
+    }
     for (k, v) in extra_env {
         cmd.env(k, v);
     }
@@ -424,6 +526,39 @@ mod tests {
         "environment based on the interpreter: ",
         r"C:\Users\nieuw\AppData\Local\BioNodulo\python-embedded\python.exe",
     );
+
+    /// The fallback install puts the build backend in the environment itself,
+    /// so this list has to be whatever the package declares. If they drift, the
+    /// fallback fails on a missing backend at the exact moment it is the last
+    /// thing standing between the user and a broken install.
+    #[test]
+    fn build_requirements_match_the_backend() {
+        let pyproject = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../pyproject.toml");
+        let text = std::fs::read_to_string(&pyproject)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", pyproject.display()));
+
+        let requires = text
+            .split("[build-system]")
+            .nth(1)
+            .and_then(|s| s.split("requires").nth(1))
+            .and_then(|s| s.split('[').nth(1))
+            .and_then(|s| s.split(']').next())
+            .expect("no [build-system] requires in pyproject.toml");
+
+        let declared: Vec<String> = requires
+            .split(',')
+            .map(|s| s.trim().trim_matches(['"', '\'']).to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        assert_eq!(
+            declared,
+            super::BUILD_REQUIREMENTS.to_vec(),
+            "the fallback install seeds {:?} but the backend declares {declared:?}",
+            super::BUILD_REQUIREMENTS
+        );
+    }
 
     #[test]
     fn recognises_the_reported_failure_as_a_dead_environment() {
