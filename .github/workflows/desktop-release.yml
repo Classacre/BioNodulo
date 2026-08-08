@@ -19,6 +19,13 @@ on:
   push:
     tags: ["desktop-v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        # So an incomplete release can be repaired without a version bump.
+        # tauri-action uploads only what is missing from an existing release.
+        description: "Release tag to build into, e.g. desktop-v0.1.0-alpha.16"
+        required: false
+        type: string
 
 permissions:
   contents: write

@@ -17,7 +17,13 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Never on main: releases run here, and a push landing mid-build cancels the
+  # per-OS jobs. That published 0.1.0-alpha.16 with no Windows installer -- and
+  # because tauri-action creates the tag early, the next run's
+  # check-desktop-release saw the tag, called it released and skipped, so the
+  # gap was permanent. Branches and PRs still cancel, where fast feedback is
+  # worth more than a complete artifact set.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   python:
@@ -250,6 +256,8 @@ jobs:
 
       - name: Has this version been released?
         id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version="$(node -p "require('./web/package.json').version")"
@@ -258,17 +266,40 @@ jobs:
           tag="desktop-v${version}"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
 
-          # Keyed on whether the release exists rather than on diffing the
-          # previous commit, so this is idempotent: re-runs, merges and
-          # force-pushes cannot double-release, and a bump that landed while CI
-          # was red still releases on the next green push instead of being
-          # skipped forever.
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "needed=false" >> "$GITHUB_OUTPUT"
-            echo "${tag} already released."
-          else
+          # Keyed on what was actually PUBLISHED, not on diffing the previous
+          # commit, so this is idempotent: re-runs, merges and force-pushes
+          # cannot double-release, and a bump that landed while CI was red still
+          # releases on the next green push instead of being skipped forever.
+          #
+          # A tag alone is not evidence of a release. tauri-action creates the
+          # tag before the per-OS builds finish, so a cancelled or failed build
+          # leaves a tagged release missing platforms -- which is how alpha.16
+          # shipped without a Windows installer and could never be retried.
+          # Every platform's installer must be present.
+          required=(
+            "_x64-setup.exe"     # Windows
+            "_amd64.deb"         # Linux
+            "_x64.dmg"           # macOS Intel
+            "_aarch64.dmg"       # macOS Apple silicon
+          )
+          assets="$(gh release view "${tag}" --json assets \
+            --jq '.assets[].name' 2>/dev/null || true)"
+
+          missing=()
+          for want in "${required[@]}"; do
+            grep -q -- "${want}" <<<"${assets}" || missing+=("${want}")
+          done
+
+          if [ -z "${assets}" ]; then
             echo "needed=true" >> "$GITHUB_OUTPUT"
-            echo "${tag} needs releasing."
+            echo "${tag} has no release yet."
+          elif [ ${#missing[@]} -gt 0 ]; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "${tag} is published but incomplete; missing: ${missing[*]}"
+            echo "Re-running so the absent installers are uploaded."
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "${tag} is released with every installer."
           fi
 
   desktop-release:
