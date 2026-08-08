@@ -100,6 +100,11 @@ impl Supervisor {
             _ => {}
         }
         self.set_status(app, PythonStatus::Starting);
+        let _ = tauri::Emitter::emit(app, "startup:progress", serde_json::json!({
+            "step": "check_env",
+            "label": "Checking Python environment…",
+            "done": false
+        }));
 
         let venv = paths::venv_path(app);
         let python = paths::venv_python(&venv);
@@ -128,6 +133,11 @@ impl Supervisor {
                 ));
             }
         }
+        let _ = tauri::Emitter::emit(app, "startup:progress", serde_json::json!({
+            "step": "check_env",
+            "label": "Python environment ready",
+            "done": true
+        }));
         if !main_script.exists() {
             self.set_status(app, PythonStatus::Error);
             return Err(format!(
@@ -241,6 +251,11 @@ impl Supervisor {
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
 
+        let _ = tauri::Emitter::emit(app, "startup:progress", serde_json::json!({
+            "step": "start_process",
+            "label": if via_wsl { "Starting backend inside WSL2…" } else { "Starting local backend…" },
+            "done": false
+        }));
         let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn backend: {e}"))?;
         let pid = child.id();
         self.inner.lock().unwrap().child_pid = pid;
@@ -269,9 +284,54 @@ impl Supervisor {
 
         *self.child.lock().await = Some(child);
 
+        let _ = tauri::Emitter::emit(app, "startup:progress", serde_json::json!({
+            "step": "start_process",
+            "label": "Backend process launched",
+            "done": true
+        }));
+        let _ = tauri::Emitter::emit(app, "startup:progress", serde_json::json!({
+            "step": "health_wait",
+            "label": "Waiting for backend to become ready…",
+            "done": false,
+            "elapsed_secs": 0
+        }));
+
+        // Emit elapsed time updates while we wait for the backend to answer.
+        // This keeps the loading screen from looking frozen during WSL2 boot.
+        let ticker_app = app.clone();
+        let ticker = tauri::async_runtime::spawn(async move {
+            let t0 = std::time::Instant::now();
+            let mut last = 0u64;
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                let elapsed = t0.elapsed().as_secs();
+                if elapsed == last { continue; }
+                last = elapsed;
+                let label = if elapsed < 10 {
+                    "Waiting for backend to become ready…".to_string()
+                } else if elapsed < 30 {
+                    format!("Still starting… ({elapsed}s)")
+                } else {
+                    format!("Starting (this can take up to 60s on first launch)… ({elapsed}s)")
+                };
+                let _ = tauri::Emitter::emit(&ticker_app, "startup:progress", serde_json::json!({
+                    "step": "health_wait",
+                    "label": label,
+                    "done": false,
+                    "elapsed_secs": elapsed
+                }));
+            }
+        });
+
         let candidates = crate::wsl_candidate_urls(via_wsl, url, free).await;
         match self.wait_for_ready_any(&candidates).await {
             Ok(reachable) => {
+                ticker.abort();
+                let _ = tauri::Emitter::emit(app, "startup:progress", serde_json::json!({
+                    "step": "health_wait",
+                    "label": "Backend ready",
+                    "done": true
+                }));
                 // Adopt whichever address answered: under WSL that may be the
                 // distribution's own IP rather than loopback.
                 self.inner.lock().unwrap().server_url = reachable;
@@ -279,6 +339,7 @@ impl Supervisor {
                 Ok(())
             }
             Err(e) => {
+                ticker.abort();
                 self.set_status(app, PythonStatus::Error);
                 Err(e)
             }

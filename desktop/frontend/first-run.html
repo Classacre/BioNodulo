@@ -40,7 +40,13 @@
         border-radius: 10px; padding: 10px 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
         font-size: 12px; color: #8aa0c8; white-space: pre-wrap;
       }
-      .msg { margin-top: 14px; font-size: 13px; color: #9fb0d0; }
+      .msg { margin-top: 14px; font-size: 13px; color: #9fb0d0; display: flex; align-items: baseline; gap: 8px; }
+      .elapsed { font-size: 12px; color: #5a6e90; font-variant-numeric: tabular-nums; min-width: 32px; }
+      .hint {
+        margin-top: 10px; font-size: 12px; color: #5a6e90; line-height: 1.5;
+        border-left: 2px solid #2a3a60; padding-left: 10px; min-height: 0;
+        transition: opacity 0.3s;
+      }
       .choice {
         border: 1px solid #2a3a60; border-radius: 12px; padding: 14px 16px; margin-top: 14px;
         background: #0d1424;
@@ -76,7 +82,8 @@
         <h1>Setting up Python environment</h1>
         <p class="sub">Creating an isolated environment and installing dependencies with uv. This runs once.</p>
         <div class="progress-wrap"><div id="bar" class="progress-bar"></div></div>
-        <div id="phase" class="msg">Preparing…</div>
+        <div id="phase" class="msg">Preparing…<span id="elapsed" class="elapsed"></span></div>
+        <div id="hint" class="hint"></div>
         <div id="log" class="log" aria-live="polite"></div>
       </section>
 
