@@ -208,7 +208,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path $ro | Out-Null
           Copy-Item -Recurse -Force "$src" (Join-Path $ro "bionodulo-backend")
           $roBackend = Join-Path $ro "bionodulo-backend"
-          icacls $roBackend /inheritance:r /grant:r "$($env:USERNAME):(OI)(CI)(RX)" /T /Q | Out-Null
+          # Model Program Files exactly: world-READABLE, write-denied. The
+          # first attempt used /inheritance:r and granted RX to one user, which
+          # removed read access for the account actually running and produced a
+          # read failure -- a different bug from the one being investigated.
+          icacls $roBackend /deny "*S-1-1-0:(OI)(CI)(W,D,WDAC,WO)" /T /Q | Out-Null
 
           $venv = Join-Path $env:RUNNER_TEMP "venv-readonly"
           & $uv venv $venv --python $embedded --seed *> $null
@@ -222,7 +226,7 @@ jobs:
             Exit    = $roCode
             Error   = ($out -split "`n" | Where-Object { $_ -match "error|Error|ERROR|denied" } | Select-Object -First 1)
           }
-          icacls $roBackend /reset /T /Q | Out-Null
+          icacls $roBackend /remove:d "*S-1-1-0" /T /Q | Out-Null
 
           # Long paths. Runners ship with LongPathsEnabled=1; a default Windows
           # install has it off, so any path over 260 chars fails there and
