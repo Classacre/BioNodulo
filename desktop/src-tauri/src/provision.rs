@@ -40,10 +40,41 @@ pub async fn setup(app: &AppHandle) -> Result<(), String> {
             Ok(())
         }
         Err(e) => {
+            let e = format!("{e}\n\n{}", diagnostics(app));
             progress(app, "error", e.clone(), None);
             Err(e)
         }
     }
+}
+
+/// What a report of a provisioning failure has to contain to be actionable.
+///
+/// Three rounds of this bug were spent guessing at facts only the machine had.
+/// Which build is installed was assumed twice and wrong at least once; whether
+/// the recorded interpreter existed had to be asked for; that a *directory*
+/// survived while the interpreter inside it did not was discovered by asking a
+/// third time. All of it is one paste away if the app simply says so.
+fn diagnostics(app: &AppHandle) -> String {
+    let venv = paths::venv_path(app);
+    let bundled = paths::embedded_python_exe(&paths::embedded_python_dir(app));
+    let mark = |p: &std::path::Path| if p.exists() { "present" } else { "MISSING" };
+
+    let mut out = format!(
+        "BioNodulo {} ({})\n  venv:    {}\n  bundled: {} [{}]",
+        env!("CARGO_PKG_VERSION"),
+        paths::os_key(),
+        venv.display(),
+        bundled.display(),
+        mark(&bundled),
+    );
+    let recorded = paths::recorded_interpreters(&venv);
+    if recorded.is_empty() {
+        out.push_str("\n  recorded: none (no pyvenv.cfg)");
+    }
+    for path in recorded {
+        out.push_str(&format!("\n  recorded: {} [{}]", path.display(), mark(&path)));
+    }
+    out
 }
 
 async fn run_setup(app: &AppHandle) -> Result<(), String> {
@@ -54,7 +85,7 @@ async fn run_setup(app: &AppHandle) -> Result<(), String> {
 
 async fn create_venv(app: &AppHandle) -> Result<(), String> {
     let venv = paths::venv_path(app);
-    if paths::venv_exists(&venv) && paths::venv_is_usable(&venv) {
+    if paths::venv_exists(&venv) && paths::venv_is_usable(app, &venv) {
         return Ok(());
     }
     rebuild_venv(app).await
@@ -132,13 +163,15 @@ async fn install_requirements(app: &AppHandle, upgrade: bool) -> Result<(), Stri
 
 /// Install, and if the environment turns out to be dead, rebuild it and retry.
 ///
-/// `venv_is_usable` checks the interpreter recorded in `pyvenv.cfg` before we
-/// get here, so this should not trigger. It exists because that check and uv
-/// are two separate readers of the same file, and a user who hits a case where
-/// they disagree gets a dead end: an error naming a path they never chose, and
-/// no way to recover short of deleting a directory they cannot be expected to
-/// find. This class of failure has now shipped twice. One retry turns it into a
-/// slow first run instead of an unusable install.
+/// `venv_is_usable` inspects `pyvenv.cfg` before we get here, so this should
+/// not trigger. It exists because that check and uv are two separate readers of
+/// the same file, and a user who hits a case where they disagree gets a dead
+/// end: an error naming a path they never chose, and no way to recover short of
+/// deleting a directory they cannot be expected to find.
+///
+/// It has earned its place. This class of failure shipped three times, and the
+/// third report came from a build where the pre-flight check passed on a venv
+/// uv then refused. Load-bearing, not belt-and-braces.
 async fn install_with_recovery(app: &AppHandle, upgrade: bool) -> Result<(), String> {
     let Err(err) = install_requirements(app, upgrade).await else {
         return Ok(());
@@ -196,7 +229,7 @@ pub async fn update_dependencies(app: &AppHandle) -> Result<(), String> {
     // Upgrading into an environment whose base interpreter is gone fails in the
     // build step, not here, and reports a path the user never chose. Setup
     // already refuses to use such an environment; this path has to as well.
-    if !paths::venv_is_usable(&venv) {
+    if !paths::venv_is_usable(app, &venv) {
         rebuild_venv(app).await?;
     }
     install_with_recovery(app, true).await?;

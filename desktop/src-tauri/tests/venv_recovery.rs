@@ -149,8 +149,19 @@ fn a_venv_whose_base_interpreter_is_gone_is_rejected_and_rebuildable() {
     // A healthy venv must not be rebuilt: doing so on every launch costs the
     // user minutes and is how an over-eager check gets reverted.
     assert!(
-        paths::venv_is_usable(&venv),
-        "a freshly created venv was judged unusable"
+        paths::venv_is_usable_against(&venv, &old_python),
+        "a freshly created venv was judged unusable by its own interpreter"
+    );
+
+    // The case every path-existence check missed, and the one that brought this
+    // back a third time: NOTHING is missing yet. The interpreter this venv was
+    // built from is right there and works -- it simply is not the one this
+    // installation ships, because it belongs to an installation that has since
+    // been replaced. That has to be enough to condemn it.
+    assert!(
+        !paths::venv_is_usable_against(&venv, &bundled),
+        "a venv built by a different installation was judged usable while its \
+         interpreter still existed"
     );
 
     // The upgrade: the old installation's interpreter goes away.
@@ -165,8 +176,18 @@ fn a_venv_whose_base_interpreter_is_gone_is_rejected_and_rebuildable() {
     );
 
     assert!(
-        !paths::venv_is_usable(&venv),
+        !paths::venv_is_usable_against(&venv, &old_python),
         "a venv whose base interpreter is gone was judged usable"
+    );
+
+    // The reporter's machine, exactly: the old installation's directory is
+    // still there, only the interpreter inside it was removed. Existence checks
+    // that stop at the directory pass here; this must not.
+    std::fs::create_dir_all(&owned_by_old_install).expect("recreate old install dir");
+    assert!(
+        !paths::venv_is_usable_against(&venv, &old_python),
+        "a venv was judged usable because the directory holding its missing \
+         interpreter still existed"
     );
 
     // And uv agrees. How it words the refusal depends on how far it gets,
@@ -222,7 +243,7 @@ fn a_venv_whose_base_interpreter_is_gone_is_rejected_and_rebuildable() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert!(
-        paths::venv_is_usable(&venv),
+        paths::venv_is_usable_against(&venv, &bundled),
         "the rebuilt venv is still judged unusable"
     );
 

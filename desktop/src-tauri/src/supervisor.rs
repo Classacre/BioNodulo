@@ -119,7 +119,7 @@ impl Supervisor {
         // still point at an interpreter the previous installation owned, and
         // launching it exits 103 with "No Python at ..." -- an error about a
         // path the user never chose. Rebuild instead of spawning it.
-        if !paths::venv_is_usable(&venv) {
+        if !paths::venv_is_usable(app, &venv) {
             log::warn!("[supervisor] venv at {} cannot start; rebuilding", venv.display());
             if let Err(err) = crate::provision::setup(app).await {
                 self.set_status(app, PythonStatus::Error);

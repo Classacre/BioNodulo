@@ -66,12 +66,33 @@ pub fn venv_exists(venv: &Path) -> bool {
 ///
 /// So the recorded base is checked too, and a venv naming one that is gone is
 /// rebuilt rather than used.
-pub fn venv_is_usable(venv: &Path) -> bool {
+/// Third attempt, and the first that does not infer this from a path.
+///
+/// Checking that the recorded interpreter *exists* was not enough either: a
+/// user on the build that did exactly that hit the same failure again, with
+/// `%LOCALAPPDATA%\BioNodulo\python-embedded` still present as a directory and
+/// only `python.exe` removed from it. Something in that `pyvenv.cfg` satisfied
+/// the check while uv read a different value out of the same file -- which is
+/// possible because `pyvenv.cfg` records the interpreter more than once
+/// (`home`, `base-executable`, `executable`) and nothing keeps them agreeing.
+///
+/// So stop asking whether a recorded path exists and ask the question that
+/// actually matters: was this venv built by the interpreter THIS installation
+/// ships? Every interpreter the file names has to resolve to that one. A venv
+/// that names anything else belongs to an installation that is gone, whether or
+/// not some of its files happen to still be on disk.
+pub fn venv_is_usable(app: &AppHandle, venv: &Path) -> bool {
+    let bundled = embedded_python_exe(&embedded_python_dir(app));
+    venv_is_usable_against(venv, &bundled)
+}
+
+/// The decision itself, separated from the app handle so it can be tested.
+pub fn venv_is_usable_against(venv: &Path, bundled: &Path) -> bool {
     let python = venv_python(venv);
     if !python.exists() {
         return false;
     }
-    if !base_interpreter_present(venv) {
+    if !venv_was_built_by(venv, bundled) {
         return false;
     }
     let mut cmd = std::process::Command::new(&python);
@@ -84,12 +105,58 @@ pub fn venv_is_usable(venv: &Path) -> bool {
     matches!(cmd.output(), Ok(out) if out.status.success())
 }
 
-/// The base interpreter a venv was created from, as recorded in `pyvenv.cfg`.
+/// Whether every interpreter this venv records is the one `bundled` names.
 ///
-/// `base-executable` names the interpreter directly; `home` names its directory
-/// and is the older key, and the one the Windows launcher stub reads.
-pub fn recorded_base_interpreter(venv: &Path) -> Option<PathBuf> {
-    let cfg = std::fs::read_to_string(venv.join("pyvenv.cfg")).ok()?;
+/// All of them, not the first that parses: the whole point is that the keys can
+/// disagree, and uv is free to consult whichever it likes.
+///
+/// Two deliberate leniencies, both to avoid rebuilding a working environment on
+/// every launch -- which costs minutes and is how an over-eager check gets
+/// reverted. A venv recording nothing is accepted, because absent metadata is
+/// not evidence of a wrong base. And if the bundled interpreter itself cannot
+/// be resolved -- running unbundled, or a broken install -- there is nothing to
+/// compare against, so fall back to requiring only that the recorded ones exist.
+pub fn venv_was_built_by(venv: &Path, bundled: &Path) -> bool {
+    let recorded = recorded_interpreters(venv);
+    if recorded.is_empty() {
+        return true;
+    }
+    let Ok(bundled) = bundled.canonicalize() else {
+        return recorded.iter().all(|p| p.exists());
+    };
+    recorded
+        .iter()
+        .all(|p| matches!(p.canonicalize(), Ok(p) if same_path(&p, &bundled)))
+}
+
+/// Compare two already-canonical paths.
+///
+/// Canonicalising first is what makes this safe: it resolves 8.3 short names
+/// (`RUNNER~1`), symlinks and `.` segments, and on Windows returns the same
+/// verbatim `\\?\` form for both sides, so an extended-length path and a plain
+/// one compare equal. Windows paths are then compared case-insensitively
+/// because the filesystem is.
+fn same_path(a: &Path, b: &Path) -> bool {
+    if cfg!(target_os = "windows") {
+        a.as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&b.as_os_str().to_string_lossy())
+    } else {
+        a == b
+    }
+}
+
+/// Every interpreter `pyvenv.cfg` names, in the keys that can name one.
+///
+/// `base-executable` and `executable` are full paths; `home` is the directory
+/// holding the interpreter. uv 0.5.11 writes only `home`, CPython's `venv`
+/// writes `home` and `executable`, and other tools write `base-executable` --
+/// so which key is authoritative depends on who built the venv, and the reader
+/// is not always the writer.
+pub fn recorded_interpreters(venv: &Path) -> Vec<PathBuf> {
+    let Ok(cfg) = std::fs::read_to_string(venv.join("pyvenv.cfg")) else {
+        return Vec::new();
+    };
 
     let value_of = |key: &str| -> Option<String> {
         cfg.lines().find_map(|line| {
@@ -98,29 +165,34 @@ pub fn recorded_base_interpreter(venv: &Path) -> Option<PathBuf> {
             let (k, v) = line.split_once('=')?;
             (k.trim() == key).then(|| v.trim().to_string())
         })
+        .filter(|v| !v.is_empty())
     };
 
-    if let Some(exe) = value_of("base-executable").filter(|v| !v.is_empty()) {
-        return Some(PathBuf::from(exe));
-    }
-    let home = value_of("home").filter(|v| !v.is_empty())?;
-    Some(PathBuf::from(home).join(if cfg!(target_os = "windows") {
+    let exe_name = if cfg!(target_os = "windows") {
         "python.exe"
     } else {
         "python"
-    }))
+    };
+
+    let mut found: Vec<PathBuf> = Vec::new();
+    for key in ["base-executable", "executable"] {
+        if let Some(path) = value_of(key) {
+            found.push(PathBuf::from(path));
+        }
+    }
+    if let Some(home) = value_of("home") {
+        found.push(PathBuf::from(home).join(exe_name));
+    }
+    found
 }
 
-/// Whether the interpreter this venv was built from is still on disk.
+/// The first interpreter `pyvenv.cfg` names, for reporting.
 ///
-/// A venv with no `pyvenv.cfg`, or one recording nothing, is treated as fine:
-/// missing metadata is not evidence of a dead base, and needlessly rebuilding a
-/// working environment costs the user minutes every launch.
-pub fn base_interpreter_present(venv: &Path) -> bool {
-    match recorded_base_interpreter(venv) {
-        Some(base) => base.exists(),
-        None => true,
-    }
+/// Deliberately not used to decide anything. "The first one that parses" is
+/// what let a venv whose keys disagreed pass as healthy; decisions go through
+/// [`venv_was_built_by`], which considers all of them.
+pub fn recorded_base_interpreter(venv: &Path) -> Option<PathBuf> {
+    recorded_interpreters(venv).into_iter().next()
 }
 
 fn is_dev() -> bool {
@@ -300,34 +372,150 @@ mod tests {
         }
 
         #[test]
-        fn a_missing_base_interpreter_makes_the_venv_unusable() {
-            // The reported failure, exactly: the venv is fine, its base is not.
-            let venv = tmp("dead-base");
+        fn collects_every_key_that_can_name_an_interpreter() {
+            // Because they can disagree, and uv reads whichever it likes.
+            let venv = tmp("all-keys");
             write_cfg(
                 &venv,
-                "base-executable = /definitely/not/here/python\nversion = 3.12.8\n",
+                "home = /a\nbase-executable = /b/python\nexecutable = /c/python\n",
             );
 
-            assert!(!base_interpreter_present(&venv));
+            let found = recorded_interpreters(&venv);
+            assert_eq!(found.len(), 3, "{found:?}");
+            assert!(found.contains(&PathBuf::from("/b/python")), "{found:?}");
+            assert!(found.contains(&PathBuf::from("/c/python")), "{found:?}");
+        }
+    }
+
+    /// Whether the venv belongs to THIS installation.
+    ///
+    /// Checking that the recorded interpreter merely *exists* shipped, and the
+    /// same failure came back from a machine where
+    /// `%LOCALAPPDATA%\BioNodulo\python-embedded` was still a directory with
+    /// `python.exe` removed. Existence was never the property that mattered:
+    /// a venv built by an installation that is gone is stale even if some of
+    /// its files linger, and healthy only if it names the interpreter shipped
+    /// alongside the code doing the asking.
+    mod built_by_this_installation {
+        use super::*;
+
+        fn tmp(name: &str) -> PathBuf {
+            let dir = std::env::temp_dir().join(format!("bn-venv-owner-{name}"));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        }
+
+        /// A real file, so `canonicalize` has something to resolve.
+        fn interpreter(dir: &Path, name: &str) -> PathBuf {
+            let path = dir.join(name);
+            std::fs::write(&path, b"").unwrap();
+            path
+        }
+
+        fn write_cfg(dir: &Path, body: &str) {
+            std::fs::write(dir.join("pyvenv.cfg"), body).unwrap();
         }
 
         #[test]
-        fn a_present_base_interpreter_is_accepted() {
-            let venv = tmp("live-base");
-            let base = venv.join("fake-python");
-            std::fs::write(&base, b"").unwrap();
-            write_cfg(&venv, &format!("base-executable = {}\n", base.to_string_lossy()));
+        fn accepts_a_venv_built_from_the_bundled_interpreter() {
+            let dir = tmp("match");
+            let bundled = interpreter(&dir, "python-bundled");
+            let venv = dir.join("venv");
+            std::fs::create_dir_all(&venv).unwrap();
+            write_cfg(
+                &venv,
+                &format!("base-executable = {}\n", bundled.to_string_lossy()),
+            );
 
-            assert!(base_interpreter_present(&venv));
+            assert!(venv_was_built_by(&venv, &bundled));
         }
 
         #[test]
-        fn no_config_is_not_treated_as_broken() {
-            // Absent metadata is not evidence of a dead base, and rebuilding a
+        fn rejects_a_venv_built_from_a_different_interpreter_that_still_exists() {
+            // The case every previous check missed: nothing is missing, the
+            // venv simply is not ours.
+            let dir = tmp("other");
+            let bundled = interpreter(&dir, "python-bundled");
+            let other = interpreter(&dir, "python-elsewhere");
+            let venv = dir.join("venv");
+            std::fs::create_dir_all(&venv).unwrap();
+            write_cfg(
+                &venv,
+                &format!("base-executable = {}\n", other.to_string_lossy()),
+            );
+
+            assert!(!venv_was_built_by(&venv, &bundled));
+        }
+
+        #[test]
+        fn rejects_a_venv_whose_keys_disagree() {
+            // One key naming the right interpreter is not enough. This is the
+            // shape that would let a stale venv through while uv reads the
+            // other key and fails.
+            let dir = tmp("disagree");
+            let bundled = interpreter(&dir, "python-bundled");
+            let stale = dir.join("gone").join("python.exe");
+            let venv = dir.join("venv");
+            std::fs::create_dir_all(&venv).unwrap();
+            write_cfg(
+                &venv,
+                &format!(
+                    "base-executable = {}\nhome = {}\n",
+                    bundled.to_string_lossy(),
+                    stale.parent().unwrap().to_string_lossy()
+                ),
+            );
+
+            assert!(!venv_was_built_by(&venv, &bundled));
+        }
+
+        #[test]
+        fn rejects_a_venv_whose_interpreter_is_gone() {
+            // Still caught, now as a special case of "not ours".
+            let dir = tmp("gone");
+            let bundled = interpreter(&dir, "python-bundled");
+            let venv = dir.join("venv");
+            std::fs::create_dir_all(&venv).unwrap();
+            write_cfg(&venv, "base-executable = /definitely/not/here/python\n");
+
+            assert!(!venv_was_built_by(&venv, &bundled));
+        }
+
+        #[test]
+        fn a_venv_recording_nothing_is_left_alone() {
+            // Absent metadata is not evidence of a wrong base, and rebuilding a
             // working environment on every launch is worse than not checking.
-            let venv = tmp("cfg-absent");
+            let dir = tmp("no-cfg");
+            let bundled = interpreter(&dir, "python-bundled");
+            let venv = dir.join("venv");
+            std::fs::create_dir_all(&venv).unwrap();
 
-            assert!(base_interpreter_present(&venv));
+            assert!(venv_was_built_by(&venv, &bundled));
+        }
+
+        #[test]
+        fn falls_back_to_existence_when_there_is_no_bundled_interpreter() {
+            // Running unbundled there is nothing to compare against, so keep
+            // the weaker check rather than rebuilding on every launch.
+            let dir = tmp("unbundled");
+            let live = interpreter(&dir, "python-live");
+            let absent = dir.join("nowhere").join("python");
+
+            let ok = dir.join("venv-ok");
+            std::fs::create_dir_all(&ok).unwrap();
+            write_cfg(&ok, &format!("base-executable = {}\n", live.to_string_lossy()));
+
+            let dead = dir.join("venv-dead");
+            std::fs::create_dir_all(&dead).unwrap();
+            write_cfg(
+                &dead,
+                &format!("base-executable = {}\n", absent.to_string_lossy()),
+            );
+
+            let missing_bundle = dir.join("no-such-python");
+            assert!(venv_was_built_by(&ok, &missing_bundle));
+            assert!(!venv_was_built_by(&dead, &missing_bundle));
         }
     }
 

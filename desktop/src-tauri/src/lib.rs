@@ -115,7 +115,7 @@ pub fn run() {
             // Build the main window on the main thread. First run → wizard;
             // otherwise the loading page while the backend starts.
             let needs_setup = settings::get_first_run(&handle)
-                || !paths::venv_is_usable(&paths::venv_path(&handle));
+                || !paths::venv_is_usable(&handle, &paths::venv_path(&handle));
             let initial = if needs_setup {
                 WebviewUrl::App("first-run.html".into())
             } else {
