@@ -358,10 +358,35 @@ export default function App() {
   const closeLibraryAfterAdd = getBool('bionodulo.nodeLibrary.closeAfterAdd', false);
 
   // Offer a new desktop version once per launch. No-op in the browser.
+  //
+  // Two paths to the same notification:
+  //   1. The Rust layer emits "app:update-available" at startup — before the
+  //      Python backend is ready — so the prompt appears as soon as the SPA
+  //      loads rather than after the full WSL2/backend warm-up. This is the
+  //      normal fast path.
+  //   2. The legacy useEffect call handles the edge case where the event fired
+  //      before the listener was registered (unlikely — the event is sent after
+  //      a network round-trip — but possible on very fast machines) and the
+  //      case where the app runs in a context without a Tauri host.
   useEffect(() => {
-    void offerUpdateOnStartup(t);
-    // Deliberately once: re-checking on every render would re-toast, and a
-    // release that appears mid-session can wait for the next launch.
+    const tauri = (window as unknown as { __TAURI__?: { event?: { listen?: Function } } }).__TAURI__;
+    const listenFn = tauri?.event?.listen;
+    let unlisten: (() => void) | undefined;
+    if (listenFn) {
+      // Listen for the early Rust-side check result. The promise resolves
+      // with an unlisten function; we call it on cleanup.
+      void (listenFn as Function)('app:update-available', (event: { payload: { available: boolean; version?: string; notes?: string; currentVersion?: string } }) => {
+        const status = event.payload;
+        if (status.available && status.version) {
+          void offerUpdateOnStartup(t);
+        }
+      }).then((fn: () => void) => { unlisten = fn; });
+    } else {
+      // No Tauri host (browser / cloud editor): fall back to the direct check.
+      void offerUpdateOnStartup(t);
+    }
+    return () => { unlisten?.(); };
+    // Deliberately once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const initialCollabTarget = useMemo(() => readCollabLinkTarget(), []);

@@ -133,6 +133,17 @@ pub fn run() {
                 .build()?;
 
             if !needs_setup {
+                // Check for updates immediately at startup — before the backend even
+                // warms up. Previously this ran in a useEffect after the SPA mounted,
+                // which on Windows/WSL2 meant waiting 30+ seconds. Now the check fires
+                // in the background the moment the app opens and emits an event the
+                // SPA picks up whenever it finishes loading.
+                {
+                    let h_update = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        check_and_emit_update(&h_update).await;
+                    });
+                }
                 let h2 = handle.clone();
                 tauri::async_runtime::spawn(async move {
                     start_backend_and_load(&h2).await;
@@ -162,6 +173,31 @@ pub fn run() {
                 });
             }
         });
+}
+
+/// Fire-and-forget update check that emits an event the SPA listens for.
+///
+/// Runs at app startup, before the Python backend is ready, so the
+/// notification arrives as soon as the SPA loads rather than waiting for
+/// the backend to finish warming up.
+async fn check_and_emit_update(app: &tauri::AppHandle) {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_updater::UpdaterExt;
+        let result = match app.updater() {
+            Ok(updater) => updater.check().await,
+            Err(_) => return,
+        };
+        if let Ok(Some(update)) = result {
+            let payload = serde_json::json!({
+                "available": true,
+                "version": update.version,
+                "notes": update.body,
+                "currentVersion": app.package_info().version.to_string(),
+            });
+            let _ = tauri::Emitter::emit(app, "app:update-available", payload);
+        }
+    }
 }
 
 /// Start the backend, point the main window at its loopback UI, and flush any

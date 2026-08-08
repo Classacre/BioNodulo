@@ -348,7 +348,7 @@ impl Supervisor {
                     }
                 }
             }
-            tokio::time::sleep(Duration::from_millis(500)).await;
+            tokio::time::sleep(Duration::from_millis(150)).await;
         }
         Err(format!(
             "Backend did not become ready within {}s.",
