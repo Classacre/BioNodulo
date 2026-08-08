@@ -246,8 +246,27 @@ jobs:
           # Long paths. Runners ship with LongPathsEnabled=1; a default Windows
           # install has it off, so any path over 260 chars fails there and
           # nowhere else.
-          $lp = Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem" -Name LongPathsEnabled -ErrorAction SilentlyContinue
-          Write-Host "LongPathsEnabled on this runner: $($lp.LongPathsEnabled)"
+          $key = "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem"
+          $lp = (Get-ItemProperty -Path $key -Name LongPathsEnabled -ErrorAction SilentlyContinue).LongPathsEnabled
+          Write-Host "LongPathsEnabled on this runner: $lp"
+
+          # Turn it off, which is the Windows default a user actually has, and
+          # install again. This is the last difference between the runner and a
+          # normal machine that CI can control.
+          Set-ItemProperty -Path $key -Name LongPathsEnabled -Value 0
+          $venv = Join-Path $env:RUNNER_TEMP "venv-nolongpath"
+          & $uv venv $venv --python $embedded --seed *> $null
+          $env:VIRTUAL_ENV = $venv
+          Write-Host "=== LongPathsEnabled=0 ==="
+          $out = & $uv pip install -e $src --index-strategy unsafe-best-match 2>&1 | Out-String
+          $lpCode = $LASTEXITCODE
+          Write-Host $out
+          $results += [pscustomobject]@{
+            Variant = "LongPathsEnabled=0"
+            Exit    = $lpCode
+            Error   = ($out -split "`n" | Where-Object { $_ -match "error|denied|too long" } | Select-Object -First 1)
+          }
+          Set-ItemProperty -Path $key -Name LongPathsEnabled -Value $lp
 
           Write-Host "`n================ SUMMARY ================"
           $results | Format-Table -AutoSize -Wrap | Out-String | Write-Host
