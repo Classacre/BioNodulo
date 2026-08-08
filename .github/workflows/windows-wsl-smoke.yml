@@ -287,6 +287,11 @@ jobs:
             Write-Host "NOTHING REPRODUCED -- the cause is elsewhere (uv cache, py launcher)"
           }
 
+          # Several cases fail on purpose, and pwsh fails the step on a trailing
+          # non-zero $LASTEXITCODE -- which silently skipped everything after
+          # this. The verdicts above are the result; the exit code is not.
+          exit 0
+
       # Rebuilding a venv IN PLACE, which is what the app does.
       #
       # Every case above used a fresh random venv path, and uv caches
