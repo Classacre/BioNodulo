@@ -94,17 +94,47 @@ def test_it_only_releases_from_main() -> None:
 def test_it_cannot_release_the_same_version_twice() -> None:
     """Re-runs, merges and force-pushes all replay this job.
 
-    Keying on whether the tag exists (rather than diffing against the previous
+    Keying on what was published (rather than diffing against the previous
     commit) also means a bump that landed while CI was red still releases on the
     next green push, instead of being skipped forever.
     """
     run = CI["jobs"][CHECK]["steps"][-1]["run"]
 
-    assert "ls-remote" in run
+    assert "gh release view" in run
     assert "needed=false" in run
     assert CI["jobs"][CALL]["if"] == (
         "needs.check-desktop-release.outputs.needed == 'true'"
     )
+
+
+def test_a_tag_alone_does_not_count_as_released() -> None:
+    """tauri-action creates the tag BEFORE the per-OS builds finish.
+
+    alpha.16 published with no Windows installer: a push cancelled that build,
+    and because the check asked only whether the tag existed, every later run
+    saw one and skipped. The gap was permanent.
+    """
+    run = CI["jobs"][CHECK]["steps"][-1]["run"]
+
+    # Every platform's installer, or the release is incomplete and re-runs.
+    for artifact in ("_x64-setup.exe", "_amd64.deb", "_x64.dmg", "_aarch64.dmg"):
+        assert artifact in run, artifact
+    assert "incomplete" in run
+
+
+def test_a_push_cannot_cancel_a_release() -> None:
+    """Releases run on main, and cancel-in-progress killed one mid-build."""
+    cancel = CI["concurrency"]["cancel-in-progress"]
+
+    assert "refs/heads/main" in str(cancel), cancel
+    # Branches and PRs keep cancelling; fast feedback matters more there.
+    assert "!=" in str(cancel), cancel
+
+
+def test_an_incomplete_release_can_be_repaired_without_a_version_bump() -> None:
+    triggers = _triggers(RELEASE)
+
+    assert "tag" in triggers["workflow_dispatch"]["inputs"]
 
 
 def test_the_release_may_write_contents() -> None:
