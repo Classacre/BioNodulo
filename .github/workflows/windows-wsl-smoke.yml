@@ -208,23 +208,38 @@ jobs:
           New-Item -ItemType Directory -Force -Path $ro | Out-Null
           Copy-Item -Recurse -Force "$src" (Join-Path $ro "bionodulo-backend")
           $roBackend = Join-Path $ro "bionodulo-backend"
-          # Model Program Files exactly: world-READABLE, write-denied. The
-          # first attempt used /inheritance:r and granted RX to one user, which
-          # removed read access for the account actually running and produced a
-          # read failure -- a different bug from the one being investigated.
-          icacls $roBackend /deny "*S-1-1-0:(OI)(CI)(W,D,WDAC,WO)" /T /Q | Out-Null
+          # Model Program Files: readable by everyone, not writable.
+          #
+          # Two earlier attempts got this wrong and denied reads instead.
+          # `/inheritance:r` dropped the running account's access outright, and
+          # icacls' simple `(W)` right expands to FILE_GENERIC_WRITE, which
+          # includes SYNCHRONIZE -- and every synchronous file open asks for
+          # SYNCHRONIZE, so denying W denies opening the file at all. Specific
+          # rights only: write data, append, write EA, write attributes.
+          icacls $roBackend /deny "*S-1-1-0:(OI)(CI)(WD,AD,WEA,WA)" /T /Q | Out-Null
 
-          $venv = Join-Path $env:RUNNER_TEMP "venv-readonly"
-          & $uv venv $venv --python $embedded --seed *> $null
-          $env:VIRTUAL_ENV = $venv
-          Write-Host "=== read-only source tree (Program Files, unelevated) ==="
-          $out = & $uv pip install -e $roBackend --index-strategy unsafe-best-match 2>&1 | Out-String
-          $roCode = $LASTEXITCODE
-          Write-Host $out
-          $results += [pscustomobject]@{
-            Variant = "read-only source tree"
-            Exit    = $roCode
-            Error   = ($out -split "`n" | Where-Object { $_ -match "error|Error|ERROR|denied" } | Select-Object -First 1)
+          # Prove the tree is still readable, so a failure below is about
+          # writing rather than another self-inflicted ACL.
+          Get-Content (Join-Path $roBackend "pyproject.toml") -TotalCount 1 | Out-Null
+          Write-Host "read-only tree is readable: yes"
+
+          foreach ($mode in @("editable", "copied")) {
+            $venv = Join-Path $env:RUNNER_TEMP "venv-ro-$mode"
+            & $uv venv $venv --python $embedded --seed *> $null
+            $env:VIRTUAL_ENV = $venv
+            Write-Host "=== read-only source tree, $mode install ==="
+            if ($mode -eq "editable") {
+              $out = & $uv pip install -e $roBackend --index-strategy unsafe-best-match 2>&1 | Out-String
+            } else {
+              $out = & $uv pip install $roBackend --index-strategy unsafe-best-match 2>&1 | Out-String
+            }
+            $code = $LASTEXITCODE
+            Write-Host $out
+            $results += [pscustomobject]@{
+              Variant = "read-only source, $mode"
+              Exit    = $code
+              Error   = ($out -split "`n" | Where-Object { $_ -match "error|denied" } | Select-Object -First 1)
+            }
           }
           icacls $roBackend /remove:d "*S-1-1-0" /T /Q | Out-Null
 
