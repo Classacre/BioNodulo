@@ -163,12 +163,26 @@ async fn install_with_recovery(app: &AppHandle, upgrade: bool) -> Result<(), Str
 ///     ╰─▶ Could not find a suitable Python executable for the virtual
 ///         environment based on the interpreter: …\python-embedded\python.exe
 ///
-/// The Windows launcher-stub variant of the same dead base reports itself
-/// differently, as `No Python at '…'`, so both are matched.
-fn is_dead_environment(message: &str) -> bool {
-    const SIGNATURES: [&str; 3] = [
+/// The same dead base reports itself differently depending on how far uv gets,
+/// and which one you see depends on whether the venv's own interpreter still
+/// runs. All three were observed for one cause:
+///
+///   - it runs           -> uv resolves, then fails building (the report above)
+///   - it does not run   -> `No virtual environment found`, before resolving
+///   - launched directly -> the Windows stub exits 103 with `No Python at '…'`
+///
+/// `No virtual environment found` is safe to treat as fatal here only because
+/// this runs after the venv has been created and confirmed to exist. Reaching
+/// it means the environment is there and unusable, which is precisely the case
+/// worth rebuilding for.
+///
+/// Public so `tests/venv_recovery.rs` can hold real uv output against it rather
+/// than a copy of these strings, which would pass while the app still failed.
+pub fn is_dead_environment(message: &str) -> bool {
+    const SIGNATURES: [&str; 4] = [
         "Failed to create temporary virtualenv",
         "Could not find a suitable Python executable",
+        "No virtual environment found",
         "No Python at",
     ];
     SIGNATURES.iter().any(|s| message.contains(s))
@@ -383,6 +397,17 @@ mod tests {
         // If this stops matching, the app stops recovering and the user is
         // back at an error naming a path they never chose.
         assert!(is_dead_environment(REPORTED_FAILURE));
+    }
+
+    #[test]
+    fn recognises_the_variant_where_the_venv_no_longer_starts() {
+        // Observed on Windows CI, from the same cause: with the base gone the
+        // venv's own interpreter cannot start, so uv never gets as far as
+        // building and reports the environment as absent instead.
+        assert!(is_dead_environment(
+            "error: No virtual environment found; run `uv venv` to create an \
+             environment, or pass `--system` to install into a non-virtual environment"
+        ));
     }
 
     #[test]

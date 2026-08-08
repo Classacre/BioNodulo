@@ -4,7 +4,7 @@ mod deeplink;
 // app asks, rather than a reimplementation of it that could drift.
 pub mod paths;
 mod port;
-mod provision;
+pub mod provision;
 mod security;
 mod settings;
 mod supervisor;

@@ -18,11 +18,15 @@
 //!
 //! `paths::venv_is_usable` is supposed to catch exactly that. Its unit tests
 //! assert against hand-written `pyvenv.cfg` files, which proves the parser and
-//! nothing else: whether the key uv actually writes on Windows is the key uv
-//! later reads back was still an assumption. This test removes it by building a
-//! real venv with the bundled uv, deleting the interpreter it came from, and
-//! requiring that the path uv refuses to build from is the same path the app
-//! tests for.
+//! nothing else: whether the key uv actually writes on Windows is the key the
+//! app reads back was still an assumption. It matters -- uv 0.5.11 writes no
+//! `base-executable` at all, so the `home` fallback is the only thing holding
+//! this up.
+//!
+//! So build a real venv with the bundled uv, delete the interpreter it came
+//! from, and require that the app rejects it, that uv rejects it too, and that
+//! the app recognises uv's refusal well enough to rebuild rather than hand the
+//! user a path they never chose.
 //!
 //! Ignored by default -- it needs the staged assets and talks to the network.
 //!
@@ -165,8 +169,13 @@ fn a_venv_whose_base_interpreter_is_gone_is_rejected_and_rebuildable() {
         "a venv whose base interpreter is gone was judged usable"
     );
 
-    // And uv agrees, for the same reason and about the same path. Without this
-    // the check could be testing a path uv never consults.
+    // And uv agrees. How it words the refusal depends on how far it gets,
+    // which depends on whether the venv's own interpreter still runs -- the
+    // reported failure resolved 110 packages first and died creating the build
+    // environment, while a venv that cannot start is reported as absent before
+    // resolution begins. Both are the same dead base, so assert the property
+    // that decides recovery rather than one variant's wording: the app must
+    // classify whatever uv actually says as a dead environment.
     let out = uv(
         &[
             "pip",
@@ -189,8 +198,9 @@ fn a_venv_whose_base_interpreter_is_gone_is_rejected_and_rebuildable() {
         "installing into a venv with a dead base unexpectedly succeeded"
     );
     assert!(
-        stderr.contains(&old_python.to_string_lossy().to_string()),
-        "uv failed for some other reason than the dead base:\n{stderr}"
+        app_lib::provision::is_dead_environment(&stderr),
+        "uv refused the environment in a way the app does not recognise, so it \
+         would report this to the user instead of rebuilding:\n{stderr}"
     );
 
     // Recovery, exactly as provisioning performs it: drop the venv and rebuild
