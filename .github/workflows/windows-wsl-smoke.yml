@@ -201,10 +201,39 @@ jobs:
             }
           }
 
+          # A read-only source tree. The installed app lives under Program
+          # Files, which a non-elevated process cannot write to, and CI runs
+          # elevated -- so this is the difference the job above cannot see.
+          $ro = Join-Path $env:RUNNER_TEMP "ReadOnly\\BioNodulo"
+          New-Item -ItemType Directory -Force -Path $ro | Out-Null
+          Copy-Item -Recurse -Force "$src" (Join-Path $ro "bionodulo-backend")
+          $roBackend = Join-Path $ro "bionodulo-backend"
+          icacls $roBackend /inheritance:r /grant:r "$($env:USERNAME):(OI)(CI)(RX)" /T /Q | Out-Null
+
+          $venv = Join-Path $env:RUNNER_TEMP "venv-readonly"
+          & $uv venv $venv --python $embedded --seed *> $null
+          $env:VIRTUAL_ENV = $venv
+          Write-Host "=== read-only source tree (Program Files, unelevated) ==="
+          $out = & $uv pip install -e $roBackend --index-strategy unsafe-best-match 2>&1 | Out-String
+          $roCode = $LASTEXITCODE
+          Write-Host $out
+          $results += [pscustomobject]@{
+            Variant = "read-only source tree"
+            Exit    = $roCode
+            Error   = ($out -split "`n" | Where-Object { $_ -match "error|Error|ERROR|denied" } | Select-Object -First 1)
+          }
+          icacls $roBackend /reset /T /Q | Out-Null
+
+          # Long paths. Runners ship with LongPathsEnabled=1; a default Windows
+          # install has it off, so any path over 260 chars fails there and
+          # nowhere else.
+          $lp = Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem" -Name LongPathsEnabled -ErrorAction SilentlyContinue
+          Write-Host "LongPathsEnabled on this runner: $($lp.LongPathsEnabled)"
+
           Write-Host "`n================ SUMMARY ================"
           $results | Format-Table -AutoSize -Wrap | Out-String | Write-Host
           if ($results | Where-Object { $_.Exit -ne 0 }) {
-            throw "at least one path shape fails; see the summary above"
+            throw "at least one shape fails; see the summary above"
           }
 
   smoke:

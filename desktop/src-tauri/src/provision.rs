@@ -1,12 +1,19 @@
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::process::Stdio;
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::sync::Mutex;
 
 use crate::paths;
 
 const PYTHON_VERSION: &str = "3.12";
+
+/// How much stderr to quote back in a failure. Enough to carry a resolver
+/// error and its context; not so much that the dialog becomes a log file.
+const STDERR_TAIL_LINES: usize = 12;
 
 #[derive(Serialize, Clone)]
 pub struct SetupProgress {
@@ -212,14 +219,28 @@ async fn run_stream(
             }
         });
     }
+    // Kept so the failure message can say WHY. Without this the user gets
+    // `"…\uv.exe pip" exited with code Some(1)` and nothing else -- a report
+    // nobody can act on, which is exactly what happened.
+    let tail = Arc::new(Mutex::new(VecDeque::<String>::new()));
     if let Some(err) = child.stderr.take() {
         let app2 = app.clone();
         let ph = phase_owned.clone();
+        let tail = Arc::clone(&tail);
         tokio::spawn(async move {
             let mut lines = BufReader::new(err).lines();
             while let Ok(Some(l)) = lines.next_line().await {
                 let l = l.trim_end().to_string();
                 if !l.is_empty() {
+                    {
+                        let mut t = tail.lock().await;
+                        t.push_back(l.clone());
+                        // Bounded: a resolver failure can print thousands of
+                        // lines, and the last few are the ones that explain it.
+                        while t.len() > STDERR_TAIL_LINES {
+                            t.pop_front();
+                        }
+                    }
                     progress(&app2, &ph, l, None);
                 }
             }
@@ -228,13 +249,26 @@ async fn run_stream(
 
     let status = child.wait().await.map_err(|e| e.to_string())?;
     if status.success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "\"{} {}\" exited with code {:?}",
-            exe,
-            args.first().cloned().unwrap_or_default(),
-            status.code()
-        ))
+        return Ok(());
     }
+
+    // The full argv, not just args[0]: `pip` alone does not identify which of
+    // several uv invocations failed, nor which path it was given.
+    let rendered = std::iter::once(exe.to_string())
+        .chain(args.iter().cloned())
+        .map(|a| if a.contains(' ') { format!("\"{a}\"") } else { a })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let reason = {
+        let t = tail.lock().await;
+        if t.is_empty() {
+            String::new()
+        } else {
+            format!("\n{}", t.iter().cloned().collect::<Vec<_>>().join("\n"))
+        }
+    };
+    Err(format!(
+        "{rendered} exited with code {:?}{reason}",
+        status.code()
+    ))
 }
