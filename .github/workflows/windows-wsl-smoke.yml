@@ -175,6 +175,118 @@ jobs:
         working-directory: desktop/src-tauri
         run: cargo test --test venv_recovery -- --ignored --nocapture
 
+  # Where uv gets an interpreter path that is NOT in our venv.
+  #
+  # A user on alpha.18 hit the failure with a freshly rebuilt venv whose
+  # pyvenv.cfg named the correct, present, bundled interpreter -- and uv still
+  # refused, "based on the interpreter:
+  # C:\Users\...\AppData\Local\BioNodulo\python-embedded\python.exe", the
+  # directory left behind by the pre-alpha.5 per-user install. That path cannot
+  # have come from the venv, so it is ambient: an environment variable, the
+  # user's PATH, a PEP 514 registry entry, or a version file. We pass
+  # UV_PYTHON_PREFERENCE=only-system, which sends uv looking through exactly
+  # those places.
+  #
+  # One factor at a time, against a healthy venv, so the answer is a name rather
+  # than another guess. Each stale location is modelled the way the reporter's
+  # machine actually is: the DIRECTORY exists, python.exe inside it does not.
+  ambient-python-config:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install desktop tooling
+        working-directory: desktop
+        run: npm install
+
+      - name: Stage backend, python and uv
+        working-directory: desktop
+        env:
+          BIONODULO_BACKEND_SRC: ${{ github.workspace }}
+        run: npm run prepare:assets
+
+      - name: Find which ambient setting steers uv
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $uv = Get-ChildItem -Recurse -Filter uv.exe desktop/assets/uv |
+            Select-Object -First 1 -ExpandProperty FullName
+          $bundled = Join-Path (Resolve-Path "desktop/assets/python-embedded/windows") "python.exe"
+          $src = (Resolve-Path "desktop/assets/bionodulo-backend").Path
+
+          # The reporter's leftover: directory present, interpreter gone.
+          $stale = Join-Path $env:RUNNER_TEMP "Local\BioNodulo\python-embedded"
+          New-Item -ItemType Directory -Force -Path $stale | Out-Null
+          $stalePy = Join-Path $stale "python.exe"
+
+          $origPath = $env:PATH
+          $results = @()
+
+          function Try-Install($name, $setup, $teardown) {
+            $venv = Join-Path $env:RUNNER_TEMP ("venv-" + [guid]::NewGuid().ToString("N").Substring(0,8))
+            & $script:uv venv $venv --python $script:bundled --seed *> $null
+            $env:VIRTUAL_ENV = $venv
+            $env:UV_PYTHON_PREFERENCE = "only-system"
+            $env:UV_NO_PROGRESS = "1"
+            & $setup
+            $out = & $script:uv pip install -e $script:src --index-strategy unsafe-best-match 2>&1 | Out-String
+            $code = $LASTEXITCODE
+            & $teardown
+            $reproduced = $out -match "based on the interpreter"
+            Write-Host "=== $name === exit=$code reproduced=$reproduced"
+            if ($code -ne 0) { Write-Host $out }
+            $script:results += [pscustomobject]@{ Case = $name; Exit = $code; Reproduced = $reproduced }
+          }
+
+          Try-Install "control (nothing perturbed)" { } { }
+
+          Try-Install "UV_PYTHON points at the stale interpreter" `
+            { $env:UV_PYTHON = $script:stalePy } { Remove-Item Env:UV_PYTHON -ErrorAction SilentlyContinue }
+
+          Try-Install "stale directory prepended to PATH" `
+            { $env:PATH = "$script:stale;$script:origPath" } { $env:PATH = $script:origPath }
+
+          Try-Install "PEP 514 registry entry naming the stale interpreter" `
+            {
+              New-Item -Path "HKCU:\Software\Python\BioNodulo\3.12\InstallPath" -Force | Out-Null
+              Set-ItemProperty -Path "HKCU:\Software\Python\BioNodulo\3.12\InstallPath" `
+                -Name "(default)" -Value $script:stale
+              Set-ItemProperty -Path "HKCU:\Software\Python\BioNodulo\3.12\InstallPath" `
+                -Name "ExecutablePath" -Value $script:stalePy
+              Set-ItemProperty -Path "HKCU:\Software\Python\BioNodulo\3.12" `
+                -Name "Version" -Value "3.12" -ErrorAction SilentlyContinue
+            } `
+            { Remove-Item -Recurse -Force "HKCU:\Software\Python\BioNodulo" -ErrorAction SilentlyContinue }
+
+          Try-Install ".python-version beside the backend" `
+            { Set-Content -Path (Join-Path $script:src ".python-version") -Value $script:stalePy } `
+            { Remove-Item (Join-Path $script:src ".python-version") -ErrorAction SilentlyContinue }
+
+          $uvToml = Join-Path $env:APPDATA "uv\uv.toml"
+          Try-Install "uv.toml in APPDATA pinning the stale interpreter" `
+            {
+              New-Item -ItemType Directory -Force -Path (Split-Path $uvToml -Parent) | Out-Null
+              Set-Content -Path $uvToml -Value "python = `"$($script:stalePy -replace '\\','\\')`""
+            } `
+            { Remove-Item $uvToml -ErrorAction SilentlyContinue }
+
+          Write-Host "`n================ SUMMARY ================"
+          $results | Format-Table -AutoSize -Wrap | Out-String | Write-Host
+
+          $control = $results | Where-Object { $_.Case -like "control*" }
+          if ($control.Exit -ne 0) { throw "the control case failed; the matrix says nothing" }
+          $culprits = $results | Where-Object { $_.Reproduced }
+          if ($culprits) {
+            Write-Host "REPRODUCED BY: $($culprits.Case -join '; ')"
+          } else {
+            Write-Host "NOTHING REPRODUCED -- the cause is elsewhere (uv cache, py launcher)"
+          }
+
   # The install as an INSTALLED APP performs it, which is not what
   # `native-backend` tests. That one passes a relative path inside a writable
   # workspace; the shipped app passes what resource_dir() returns, which is an
