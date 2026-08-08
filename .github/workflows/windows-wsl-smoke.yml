@@ -268,14 +268,19 @@ jobs:
           }
           Set-ItemProperty -Path $key -Name LongPathsEnabled -Value $lp
 
-          # An upgrade that moves the bundled interpreter leaves a venv that
-          # STARTS fine and cannot build anything, because every dependency
-          # build isolates into a temporary venv created from the base
-          # interpreter recorded in pyvenv.cfg. A user hit exactly this:
+          # An upgrade that moves the bundled interpreter leaves a venv whose
+          # pyvenv.cfg names a path that is gone. Second time this class has
+          # shipped, so pin it.
+          #
+          # This produces the LAUNCHER-STUB variant: Scripts/python.exe exits
+          # 103 with "No Python at ...". A user hit the other variant, where
+          # the venv starts perfectly and only build isolation fails:
           #   Failed to create temporary virtualenv
           #   Could not find a suitable Python executable ... based on the
           #   interpreter: ...\AppData\Local\BioNodulo\python-embedded\python.exe
-          # Second time this class has shipped, so pin the mechanism.
+          # Which one you get depends on how the venv was built. Both come from
+          # the same dead recorded base, and both are caught by checking that
+          # base exists rather than by starting the venv.
           $moved = Join-Path $env:RUNNER_TEMP "moved-python"
           Copy-Item -Recurse -Force (Split-Path $embedded -Parent) $moved
           $movedPy = Join-Path $moved "python.exe"
