@@ -225,7 +225,8 @@
       "to": {
         "node": "render_uniprot_search_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e1"
     },
     {
       "from": {
@@ -235,7 +236,8 @@
       "to": {
         "node": "render_uniprot_seq_0",
         "input": "file"
-      }
+      },
+      "id": "e2"
     },
     {
       "from": {
@@ -245,7 +247,8 @@
       "to": {
         "node": "render_alphafold_meta_0",
         "input": "file"
-      }
+      },
+      "id": "e3"
     },
     {
       "from": {
@@ -255,7 +258,8 @@
       "to": {
         "node": "render_pdb_meta_0",
         "input": "file"
-      }
+      },
+      "id": "e4"
     }
   ],
   "groups": [],

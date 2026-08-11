@@ -814,7 +814,8 @@
       "to": {
         "node": "render_bracken_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e24"
     },
     {
       "from": {
@@ -824,7 +825,8 @@
       "to": {
         "node": "render_humann_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e25"
     },
     {
       "from": {
@@ -834,7 +836,8 @@
       "to": {
         "node": "render_humann_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e26"
     },
     {
       "from": {
@@ -844,7 +847,8 @@
       "to": {
         "node": "render_humann_tab_2",
         "input": "file"
-      }
+      },
+      "id": "e27"
     },
     {
       "from": {
@@ -854,7 +858,8 @@
       "to": {
         "node": "krona_001",
         "input": "classification"
-      }
+      },
+      "id": "e28"
     },
     {
       "id": "e20",

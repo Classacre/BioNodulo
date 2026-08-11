@@ -699,7 +699,8 @@
       "to": {
         "node": "render_macs2_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e20"
     },
     {
       "from": {
@@ -709,7 +710,8 @@
       "to": {
         "node": "render_peak_annotation_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e21"
     },
     {
       "from": {
@@ -719,7 +721,8 @@
       "to": {
         "node": "bt2build_001",
         "input": "reference"
-      }
+      },
+      "id": "e22"
     },
     {
       "from": {
@@ -729,7 +732,8 @@
       "to": {
         "node": "bt2_001",
         "input": "index"
-      }
+      },
+      "id": "e23"
     },
     {
       "from": {
@@ -739,7 +743,8 @@
       "to": {
         "node": "bt2_control_001",
         "input": "index"
-      }
+      },
+      "id": "e24"
     }
   ],
   "groups": [],

@@ -508,7 +508,8 @@
       "to": {
         "node": "render_prokka_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e11"
     },
     {
       "from": {
@@ -518,7 +519,8 @@
       "to": {
         "node": "render_assembly_stats_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e12"
     },
     {
       "from": {
@@ -528,7 +530,8 @@
       "to": {
         "node": "render_assembly_contig_summary_tab_2",
         "input": "file"
-      }
+      },
+      "id": "e13"
     }
   ],
   "groups": [],

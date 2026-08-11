@@ -483,7 +483,8 @@
       "to": {
         "node": "render_deseq2_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e8"
     },
     {
       "from": {
@@ -493,7 +494,8 @@
       "to": {
         "node": "render_deseq2_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e9"
     },
     {
       "from": {
@@ -503,7 +505,8 @@
       "to": {
         "node": "render_normalized_counts_transpose_tab_2",
         "input": "file"
-      }
+      },
+      "id": "e10"
     },
     {
       "from": {
@@ -513,7 +516,8 @@
       "to": {
         "node": "render_significant_genes_tab_3",
         "input": "file"
-      }
+      },
+      "id": "e11"
     },
     {
       "from": {
@@ -523,7 +527,8 @@
       "to": {
         "node": "render_pathway_enrichment_tab_4",
         "input": "file"
-      }
+      },
+      "id": "e12"
     },
     {
       "from": {
@@ -533,7 +538,8 @@
       "to": {
         "node": "render_string_enrichment_tab_5",
         "input": "file"
-      }
+      },
+      "id": "e13"
     }
   ],
   "groups": [],

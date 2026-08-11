@@ -883,7 +883,8 @@
       "to": {
         "node": "render_gate_prioritized_vcf_tab_0",
         "input": "vcf"
-      }
+      },
+      "id": "e20"
     },
     {
       "from": {
@@ -893,7 +894,8 @@
       "to": {
         "node": "render_manta_sv_tab_0",
         "input": "vcf"
-      }
+      },
+      "id": "e21"
     },
     {
       "from": {
@@ -903,7 +905,8 @@
       "to": {
         "node": "render_delly_sv_tab_1",
         "input": "vcf"
-      }
+      },
+      "id": "e22"
     }
   ],
   "groups": [],

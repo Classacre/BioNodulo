@@ -183,7 +183,8 @@
       "to": {
         "node": "scanpy_spatial_001",
         "input": "adata"
-      }
+      },
+      "id": "e11"
     }
   ],
   "groups": [],

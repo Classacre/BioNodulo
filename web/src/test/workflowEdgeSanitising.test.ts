@@ -77,3 +77,52 @@ describe('workflow edge sanitising', () => {
     expect(usableEdges({ nodes } as Partial<Workflow>)).toEqual([]);
   });
 });
+
+/**
+ * An edge without an id rendered fine locally, but `workflowToDoc` keys the
+ * Yjs collab doc by edge id and silently skipped id-less edges -- so a
+ * template loaded inside a collab session lost its preview links and the run
+ * failed validation with "missing required input 'file'". The normaliser
+ * assigns an id at the state boundary instead. Re-implemented here (like the
+ * sanitiser above) to pin the contract without importing the editor runtime.
+ */
+function withEdgeIds(edges: NonNullable<Workflow['edges']>): NonNullable<Workflow['edges']> {
+  const taken = new Set(edges.map(e => e.id).filter(Boolean));
+  let seq = 0;
+  return edges.map(edge => {
+    if (edge.id) return edge;
+    let id = '';
+    do {
+      seq += 1;
+      id = `e_auto_${seq}`;
+    } while (taken.has(id));
+    taken.add(id);
+    return { ...edge, id };
+  });
+}
+
+describe('workflow edge id assignment', () => {
+  it('assigns an id to an edge that lacks one', () => {
+    const edges = [
+      { from: { node: 'a', output: 'reads' }, to: { node: 'b', input: 'reads' } },
+    ] as unknown as Workflow['edges'];
+
+    const result = withEdgeIds(edges);
+
+    expect(result[0].id).toBeTruthy();
+    expect(result[0].from).toEqual({ node: 'a', output: 'reads' });
+  });
+
+  it('keeps existing ids and never collides with them', () => {
+    const edges = [
+      { id: 'e_auto_1', from: { node: 'a', output: 'x' }, to: { node: 'b', input: 'x' } },
+      { from: { node: 'a', output: 'y' }, to: { node: 'b', input: 'y' } },
+      { from: { node: 'a', output: 'z' }, to: { node: 'b', input: 'z' } },
+    ] as unknown as Workflow['edges'];
+
+    const result = withEdgeIds(edges);
+
+    expect(result[0].id).toBe('e_auto_1');
+    expect(new Set(result.map(e => e.id)).size).toBe(3);
+  });
+});

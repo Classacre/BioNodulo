@@ -1,0 +1,143 @@
+# Cloud release sync — keeps the cloud deployment on the same version as the
+# app, so cloud.bionodulo.com never again lags the desktop release (it sat on
+# alpha.14 while the app shipped alpha.22 because the sync was manual and got
+# skipped).
+#
+# Triggered by a version bump landing on main (web/package.json is one of the
+# six files scripts/set_version.py rewrites), or by hand via workflow_dispatch
+# (e.g. to repair a half-finished sync).
+#
+# What it does, in the only safe order:
+#   1. Bump apps/web/package.json in the website checkout to this repo's
+#      version and commit it LOCALLY (not pushed yet — a push triggers the
+#      Vercel deploy, and the deploy is fail-closed on site-version ==
+#      editor-version, so it must not run before the pins move).
+#   2. Build + push the editor-lambda and worker images from THIS commit
+#      (bionodulo-website/infrastructure/deploy-backend.sh), and roll the
+#      editor Lambda over to the new image. The worker image bakes in the app
+#      commit, website commit, and catalog digest.
+#   3. Point the Vercel env pins (BIONODULO_APP_COMMIT, WORKER_APP_COMMIT,
+#      BIONODULO_WEBSITE_COMMIT, BIONODULO_CATALOG_DIGEST, WORKER_IMAGE) at the
+#      new commits/image digest. The worker refuses to boot when these do not
+#      match its baked-in identity, so the pins must never move without a
+#      fresh image — step 2 exists for that reason.
+#   4. Push the website bump commit, which triggers the Vercel production
+#      deploy of the site + editor SPA.
+#
+# One-time setup (the job no-ops until enabled):
+#   repo variable  CLOUD_SYNC_ENABLED = true
+#   repo secrets   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY   (ECR push + Lambda update)
+#                  VERCEL_TOKEN                                (env var API)
+#                  WEBSITE_REPO_PAT                            (push to bionodulo-website)
+#   repo variables VERCEL_PROJECT_ID / VERCEL_ORG_ID default to the production
+#                  values below; override only if the project moves.
+name: cloud-sync
+on:
+  push:
+    branches: [main]
+    paths:
+      - web/package.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID || 'prj_bbkWlAcuSEpbTGZkjQwWZ20yM0UH' }}
+  VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID || 'team_NcuTQNGQKL1u32cYafOvwfNp' }}
+  WEBSITE_REPO: Classacre/bionodulo-website
+
+jobs:
+  sync:
+    if: vars.CLOUD_SYNC_ENABLED == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: BioNodulo
+
+      - name: Check out the website repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.WEBSITE_REPO }}
+          token: ${{ secrets.WEBSITE_REPO_PAT }}
+          path: bionodulo-website
+
+      - name: Resolve release identity and check whether a sync is needed
+        id: rel
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./BioNodulo/web/package.json').version")"
+          site="$(node -p "require('./bionodulo-website/apps/web/package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "site=$site" >> "$GITHUB_OUTPUT"
+          echo "app_sha=$(git -C BioNodulo rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          digest="$(python3 -c 'import json; print(json.load(open("BioNodulo/bionodulo/nodes/generated/catalog.lock.json"))["catalog_digest"])')"
+          echo "catalog_digest=$digest" >> "$GITHUB_OUTPUT"
+          [ "$site" = "$version" ] && echo "current=true" >> "$GITHUB_OUTPUT" || true
+
+      - name: Commit the site version bump locally (pushed last, after the pins)
+        if: steps.rel.outputs.current != 'true'
+        run: |
+          set -euo pipefail
+          cd bionodulo-website
+          node -e '
+            const fs = require("fs");
+            const p = "apps/web/package.json";
+            const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
+            pkg.version = process.argv[1];
+            fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
+          ' "${{ steps.rel.outputs.version }}"
+          git config user.name "bionodulo-cloud-sync[bot]"
+          git config user.email "cloud-sync@bionodulo.com"
+          git add apps/web/package.json
+          git commit -m "Site version ${{ steps.rel.outputs.version }}; editor pin ${{ steps.rel.outputs.app_sha }}"
+          echo "web_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        id: bump
+
+      - name: Configure AWS credentials
+        if: steps.rel.outputs.current != 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Build, push, and roll out the backend images
+        if: steps.rel.outputs.current != 'true'
+        id: images
+        run: |
+          set -euo pipefail
+          cd bionodulo-website/infrastructure
+          ./deploy-backend.sh editor
+          worker_out="$(./deploy-backend.sh worker)"
+          echo "$worker_out"
+          # deploy_worker prints the immutable image ref; the closing log line
+          # repeats it. Extract the repo@sha256:... token.
+          worker_ref="$(echo "$worker_out" | grep -oE '[a-z0-9./-]+@sha256:[0-9a-f]{64}' | head -1)"
+          [ -n "$worker_ref" ] || { echo "could not parse worker image ref" >&2; exit 1; }
+          echo "worker_ref=$worker_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Update the Vercel env pins
+        if: steps.rel.outputs.current != 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          put_env() {
+            curl -sf -X POST \
+              "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?upsert=true&teamId=${VERCEL_ORG_ID}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"key\":\"$1\",\"value\":\"$2\",\"target\":[\"production\"],\"type\":\"encrypted\"}" \
+              > /dev/null
+          }
+          put_env BIONODULO_APP_COMMIT      "${{ steps.rel.outputs.app_sha }}"
+          put_env WORKER_APP_COMMIT         "${{ steps.rel.outputs.app_sha }}"
+          put_env BIONODULO_WEBSITE_COMMIT  "${{ steps.bump.outputs.web_sha }}"
+          put_env BIONODULO_CATALOG_DIGEST  "${{ steps.rel.outputs.catalog_digest }}"
+          put_env WORKER_IMAGE              "${{ steps.images.outputs.worker_ref }}"
+
+      - name: Push the site bump (triggers the Vercel production deploy)
+        if: steps.rel.outputs.current != 'true'
+        run: git -C bionodulo-website push origin HEAD:master

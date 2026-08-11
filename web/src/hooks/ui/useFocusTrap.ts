@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 const FOCUSABLE_SELECTOR = [
   'a[href]:not([tabindex="-1"])',
@@ -28,6 +28,15 @@ export function useFocusTrap(
   active: boolean,
   onEscape?: () => void,
 ): void {
+  // Keep the escape handler in a ref so a parent re-render (which hands us a
+  // fresh callback identity) does not re-run the trap effect: the cleanup
+  // restores focus to whatever was focused before the dialog opened, which
+  // used to steal focus from the dialog's inputs on every keystroke.
+  const escapeRef = useRef(onEscape);
+  useEffect(() => {
+    escapeRef.current = onEscape;
+  }, [onEscape]);
+
   useEffect(() => {
     if (!active) return;
     const container = containerRef.current;
@@ -47,10 +56,10 @@ export function useFocusTrap(
     }, 0);
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && onEscape) {
+      if (event.key === 'Escape' && escapeRef.current) {
         event.stopPropagation();
         event.preventDefault();
-        onEscape();
+        escapeRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -84,5 +93,5 @@ export function useFocusTrap(
         previouslyFocused.focus({ preventScroll: true });
       }
     };
-  }, [active, containerRef, onEscape]);
+  }, [active, containerRef]);
 }

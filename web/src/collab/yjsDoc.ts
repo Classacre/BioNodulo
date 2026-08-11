@@ -71,6 +71,21 @@ function serializeEdge(edge: WorkflowEdge): Record<string, unknown> {
   return cleanForYjs({ ...edge });
 }
 
+/**
+ * The Yjs map key for an edge. Templates and imports can carry id-less edges;
+ * skipping them silently deleted the edge from every collab peer's canvas
+ * (the official Biopython template lost its four preview links this way).
+ * Fall back to a deterministic endpoint key — an input accepts a single
+ * incoming edge, so `from->to` is unique and stable across repeated syncs.
+ */
+function edgeKey(edge: WorkflowEdge): string {
+  if (validId(edge?.id)) return edge.id;
+  const from = edge?.from;
+  const to = edge?.to;
+  if (!from || !to || !validId(from.node) || !validId(to.node)) return '';
+  return `${from.node}:${from.output}->${to.node}:${to.input}`;
+}
+
 function deserializeEdge(data: unknown): WorkflowEdge {
   if (typeof data !== 'object' || data === null) {
     throw new Error('Invalid edge data');
@@ -228,9 +243,12 @@ export function workflowToDoc(workflow: Workflow, doc?: Y.Doc): Y.Doc {
     const yEdges = ydoc.getMap('edges');
     const currentEdgeIds = new Set<string>();
     for (const edge of workflow.edges ?? []) {
-      if (!validId(edge?.id)) continue;
-      yEdges.set(edge.id, serializeEdge(edge));
-      currentEdgeIds.add(edge.id);
+      const key = edgeKey(edge);
+      if (!key) continue;
+      // Persist the key as the edge id too, so docToWorkflow hands the canvas
+      // an id-keyed edge (delete/reconnect/React keys all rely on it).
+      yEdges.set(key, serializeEdge(validId(edge.id) ? edge : { ...edge, id: key }));
+      currentEdgeIds.add(key);
     }
     yEdges.forEach((_, key) => {
       if (!currentEdgeIds.has(key)) yEdges.delete(key);

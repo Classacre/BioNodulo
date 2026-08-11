@@ -230,7 +230,8 @@
       "to": {
         "node": "render_percolator_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e8"
     },
     {
       "from": {
@@ -240,7 +241,8 @@
       "to": {
         "node": "render_percolator_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e9"
     },
     {
       "from": {
@@ -250,7 +252,8 @@
       "to": {
         "node": "render_sage_search_tab_2",
         "input": "file"
-      }
+      },
+      "id": "e10"
     }
   ],
   "groups": [],

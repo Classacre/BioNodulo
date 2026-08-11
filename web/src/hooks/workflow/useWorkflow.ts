@@ -50,12 +50,39 @@ function usableEdges(wf: Workflow): Workflow['edges'] {
   return kept;
 }
 
+let edgeIdSeq = 0;
+
+/**
+ * Assign an id to every edge that lacks one.
+ *
+ * Edge ids key the React list, the Yjs collab doc, and delete/reconnect
+ * operations. Templates and imports can carry id-less edges; those rendered
+ * fine locally, but `workflowToDoc` silently skipped them, so loading the
+ * official Biopython template inside a collab session lost its four preview
+ * links and the run then failed validation with "missing required input
+ * 'file'". Normalize at the state boundary so no entry path can reintroduce
+ * an id-less edge.
+ */
+function withEdgeIds(edges: Workflow['edges']): Workflow['edges'] {
+  const taken = new Set(edges.map(e => e.id).filter(Boolean));
+  return edges.map(edge => {
+    if (edge.id) return edge;
+    let id = '';
+    do {
+      edgeIdSeq += 1;
+      id = `e_auto_${edgeIdSeq}`;
+    } while (taken.has(id));
+    taken.add(id);
+    return { ...edge, id };
+  });
+}
+
 function normalizeWorkflow(wf: Workflow): Workflow {
   return {
     ...wf,
     id: wf.id || createWorkflowId(),
     nodes: Array.isArray(wf.nodes) ? wf.nodes.filter(n => n && typeof n.id === 'string') : [],
-    edges: usableEdges(wf),
+    edges: withEdgeIds(usableEdges(wf)),
     parameters: Array.isArray(wf.parameters) ? wf.parameters : [],
   };
 }

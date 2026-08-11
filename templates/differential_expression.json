@@ -374,7 +374,8 @@
       "to": {
         "node": "render_salmon_quant_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e16"
     },
     {
       "from": {
@@ -384,7 +385,8 @@
       "to": {
         "node": "render_kallisto_quant_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e17"
     },
     {
       "from": {
@@ -394,7 +396,8 @@
       "to": {
         "node": "render_quant_comparison_tab_2",
         "input": "file"
-      }
+      },
+      "id": "e18"
     }
   ],
   "groups": [],

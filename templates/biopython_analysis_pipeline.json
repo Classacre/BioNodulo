@@ -369,7 +369,8 @@
       "to": {
         "node": "view_blast_hits_001",
         "input": "file"
-      }
+      },
+      "id": "e10"
     },
     {
       "from": {
@@ -379,7 +380,8 @@
       "to": {
         "node": "view_protein_001",
         "input": "file"
-      }
+      },
+      "id": "e11"
     },
     {
       "from": {
@@ -389,7 +391,8 @@
       "to": {
         "node": "view_orf_table_001",
         "input": "file"
-      }
+      },
+      "id": "e12"
     },
     {
       "from": {
@@ -399,7 +402,8 @@
       "to": {
         "node": "view_genbank_001",
         "input": "file"
-      }
+      },
+      "id": "e13"
     }
   ],
   "groups": [],

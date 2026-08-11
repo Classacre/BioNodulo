@@ -1654,11 +1654,52 @@ export default function App() {
     let lastLen = 0;
     let stopped = false;
     let stopPolling: (() => void) | null = null;
+    // Provisioning heartbeat. A fresh run sits in `queued` with empty logs
+    // until the worker boots and its first progress callback lands — one to
+    // three minutes of silence that read as "stuck". Narrate that phase and
+    // keep a 30s cadence until the first real log line arrives.
+    const submittedAt = Date.now();
+    let announcedProvisioning = false;
+    let lastHeartbeatAt = 0;
+    const formatElapsed = () => {
+      const seconds = Math.max(0, Math.round((Date.now() - submittedAt) / 1000));
+      return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    };
+    const lifecycleLog = (message: string) => {
+      addLog({
+        run_id: runId,
+        node_id: 'cloud',
+        level: 'info',
+        message,
+        timestamp: new Date().toISOString(),
+      });
+    };
     const tick = async () => {
       if (stopped) return;
       const snap = await getCloudRun(runId);
       if (snap) {
+        const hasLogs = typeof snap.logs === 'string' && snap.logs.length > 0;
+        if (!hasLogs && !isTerminalCloudStatus(snap.status)) {
+          if (!announcedProvisioning) {
+            announcedProvisioning = true;
+            lastHeartbeatAt = Date.now();
+            lifecycleLog(t('console.actions.cloudRunProvisioning', {
+              defaultValue: 'Cloud runner queued — provisioning a machine and starting the engine. This usually takes 1–3 minutes; live progress streams here as soon as the runner is up.',
+            }));
+          } else if (Date.now() - lastHeartbeatAt >= 30_000) {
+            lastHeartbeatAt = Date.now();
+            lifecycleLog(t('console.actions.cloudRunProvisioningWait', {
+              defaultValue: 'Still provisioning the cloud runner… ({{elapsed}} elapsed)',
+              elapsed: formatElapsed(),
+            }));
+          }
+        }
         if (typeof snap.logs === 'string' && snap.logs.length > lastLen) {
+          if (lastLen === 0) {
+            lifecycleLog(t('console.actions.cloudRunStreaming', {
+              defaultValue: 'Cloud runner is up — streaming live progress.',
+            }));
+          }
           const fresh = snap.logs.slice(lastLen);
           lastLen = snap.logs.length;
           for (const raw of fresh.split('\n')) {

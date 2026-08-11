@@ -603,7 +603,8 @@
       "to": {
         "node": "render_counts_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e17"
     },
     {
       "from": {
@@ -613,7 +614,8 @@
       "to": {
         "node": "render_normalize_counts_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e18"
     },
     {
       "from": {
@@ -623,7 +625,8 @@
       "to": {
         "node": "render_flagstat_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e19"
     }
   ],
   "groups": [],

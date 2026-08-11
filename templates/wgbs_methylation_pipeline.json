@@ -454,7 +454,8 @@
       "to": {
         "node": "render_bismark_methylation_tab_0",
         "input": "file"
-      }
+      },
+      "id": "e18"
     },
     {
       "from": {
@@ -464,7 +465,8 @@
       "to": {
         "node": "render_methyldackel_tab_1",
         "input": "file"
-      }
+      },
+      "id": "e19"
     },
     {
       "from": {
@@ -474,7 +476,8 @@
       "to": {
         "node": "bismark_prep_001",
         "input": "genome_folder"
-      }
+      },
+      "id": "e20"
     }
   ],
   "groups": [],
