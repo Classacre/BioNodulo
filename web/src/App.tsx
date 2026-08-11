@@ -60,7 +60,7 @@ import { useObjectInfo } from './hooks/data';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
 import { useHPC } from './hooks/useHPC';
-import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages, useDependencyInstall, installProgressMessage } from './hooks/workflow';
+import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages } from './hooks/workflow';
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
 import { useAuth, useCollabPolling, useDeepLinkJoin } from './hooks/collab';
 import { useCloudConfig, useClerkAuth } from './hooks/cloud';
@@ -1594,55 +1594,6 @@ export default function App() {
     return () => window.removeEventListener('paste', handler);
   }, [appFileActionCopy, handleNodesChange, objectInfo, pushHistory]);
 
-  // Auto-install dependencies on Run. The toast id is held in a ref so the
-  // hook's progress callback can keep updating the same non-blocking toast.
-  const installToastIdRef = useRef<string | null>(null);
-  const { install: installDependencies } = useDependencyInstall((status) => {
-    const id = installToastIdRef.current;
-    if (!id) return;
-    const detail = installProgressMessage(status.message, t);
-    toast.update(id, {
-      message: status.current_step
-        ? (detail ? `${status.current_step} — ${detail}` : status.current_step)
-        : (detail || t('resolveReport.installing')),
-      progress: typeof status.percent === 'number' ? status.percent : null,
-    });
-  });
-
-  // Ensure the workflow env is installed before submitting a run. Returns true
-  // when it is safe to proceed (env ready or install succeeded), false to abort.
-  const ensureDependenciesInstalled = useCallback(async (workflow: Workflow): Promise<boolean> => {
-    const report = await resolve(workflow);
-    // If resolve failed (network/etc) we don't block the run — let submitRun
-    // surface any real error. Only act on a definitive "env not ready".
-    if (!report || report.env_ready) return true;
-    const toastId = toast.loading(t('resolveReport.installing'), { progress: 0 });
-    installToastIdRef.current = toastId;
-    try {
-      const ok = await installDependencies(workflow);
-      if (ok) {
-        toast.update(toastId, {
-          tone: 'success',
-          title: t('resolveReport.envReady'),
-          message: undefined,
-          progress: 100,
-          duration: 3000,
-        });
-        return true;
-      }
-      toast.update(toastId, {
-        tone: 'error',
-        title: t('console.actions.installFailed'),
-        message: report.summary || undefined,
-        progress: null,
-        duration: 8000,
-      });
-      return false;
-    } finally {
-      installToastIdRef.current = null;
-    }
-  }, [resolve, installDependencies, t]);
-
   // Cloud runs execute on AWS Batch; their progress is reported by the worker
   // to the website DB. Poll the run snapshot and stream newly-appended log lines
   // into the editor console so the user sees dependency install + node progress
@@ -1859,20 +1810,17 @@ export default function App() {
         setIsRunning(false);
         return;
       }
-      // Cloud editor: auto-install missing deps before the run so the AWS Batch
-      // worker does not have to wait for a separate install step.
+      // Cloud editor: do NOT gate on dependency install here. The shared
+      // editor backend is pixi-less by design (editor mode never executes
+      // workflows), so an install job there always dies with "pixi executable
+      // not found" — and it is unnecessary: the website's submit preflight
+      // validates the graph and solves + publishes the environment lock on
+      // the dispatch host before anything is provisioned. An unsatisfiable
+      // environment comes back as a 422 from submit with the reason.
       // Desktop: the MissingDependenciesBanner is always shown when deps are
       // missing; the user installs explicitly via that banner, and Run should
       // fail fast rather than silently installing in the background.
-      if (editorMode && !getBool('bionodulo.dependencies.promptBeforeInstall')) {
-        const ready = await ensureDependenciesInstalled(activeWorkflow);
-        if (!ready) {
-          setConsoleVisible(true);
-          setRailTab('console');
-          setIsRunning(false);
-          return;
-        }
-      } else if (!editorMode) {
+      if (!editorMode) {
         const report = await resolve(activeWorkflow);
         if (report && !report.env_ready) {
           setConsoleVisible(true);
@@ -2017,7 +1965,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, ensureDependenciesInstalled, editorMode, pollCloudRun, computeSpec, stageCloudRunInputs]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, editorMode, pollCloudRun, computeSpec, stageCloudRunInputs]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;
