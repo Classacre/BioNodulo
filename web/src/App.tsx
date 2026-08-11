@@ -1736,13 +1736,25 @@ export default function App() {
         if (isTerminalCloudStatus(snap.status)) {
           stopped = true;
           stopPolling?.();
+          // Put the failure reason IN the message line. A bare "Cloud run
+          // failed." with the cause tucked into the collapsible detail read
+          // as informationless ("Cloud run Failed, theres not much info"),
+          // and a run can die before its first log line (e.g. the worker's
+          // release-attestation refusal), leaving nothing else to show.
+          const failureMessage = snap.errorMessage
+            ? t('console.actions.cloudRunEndedWithError', {
+                defaultValue: `Cloud run ${snap.status}: ${snap.errorMessage}`,
+                status: snap.status,
+                error: snap.errorMessage,
+              })
+            : t('console.actions.cloudRunEnded', { defaultValue: `Cloud run ${snap.status}.`, status: snap.status });
           addLog({
             run_id: runId,
             node_id: 'cloud',
             level: snap.status === 'completed' ? 'info' : 'error',
             message: snap.status === 'completed'
               ? t('console.actions.cloudRunCompleted', { defaultValue: 'Cloud run completed.' })
-              : t('console.actions.cloudRunEnded', { defaultValue: `Cloud run ${snap.status}.`, status: snap.status }),
+              : failureMessage,
             detail: snap.errorMessage || undefined,
             timestamp: new Date().toISOString(),
           });
