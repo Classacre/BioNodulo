@@ -111,10 +111,7 @@ async def call_llm(
     """Call LiteLLM and normalize the response."""
     if not config.api_key and config.provider not in {"custom", "litellm", "mock"}:
         raise ValueError(f"{config.provider} API key is required.")
-    try:
-        import litellm
-    except ImportError as exc:
-        raise RuntimeError("LiteLLM is required for workflow AI nodes. Install with `pip install litellm`.") from exc
+    import litellm
 
     kwargs: dict[str, Any] = {
         "model": config.model,

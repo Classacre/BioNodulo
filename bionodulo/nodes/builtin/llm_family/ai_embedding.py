@@ -428,10 +428,7 @@ async def _api_text_embeddings(
     batch_size: int,
     api_key: str,
 ) -> tuple[Any, str]:
-    try:
-        import litellm
-    except ImportError as exc:
-        raise RuntimeError("litellm is required for API text embeddings") from exc
+    import litellm
 
     np = _numpy()
     vectors: list[list[float]] = []

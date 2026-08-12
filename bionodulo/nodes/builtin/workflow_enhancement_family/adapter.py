@@ -688,11 +688,7 @@ class DataValidatorNode(WorkflowEnhancementContract):
         return True
 
     def _validate_yaml(self, path: Path, report: dict[str, Any]) -> bool:
-        try:
-            import yaml
-        except ImportError:
-            report["errors"].append("YAML validation requires PyYAML")
-            return False
+        import yaml
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
         except Exception as exc:

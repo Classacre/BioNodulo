@@ -98,9 +98,6 @@ class RedisBroadcaster:
             logger.info("Redis broadcaster connected to %s", self._redis_url)
             return True
 
-        except ImportError:
-            logger.warning("redis package not installed — using in-memory fallback")
-            return False
         except Exception as exc:
             logger.warning("Redis connection failed (%s) — using in-memory fallback", exc)
             self._redis_client = None

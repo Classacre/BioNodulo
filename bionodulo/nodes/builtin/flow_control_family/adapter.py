@@ -1303,10 +1303,7 @@ class _DelayWaitContract(FlowControlNode):
         except ValueError:
             return False
         except Exception as exc:
-            try:
-                from httpx import HTTPError
-            except ImportError:
-                raise
+            from httpx import HTTPError
             if isinstance(exc, HTTPError):
                 return False
             raise

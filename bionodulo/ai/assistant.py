@@ -412,10 +412,7 @@ async def _call_llm(
 ) -> LLMResponse:
     if not api_key and provider not in {"custom", "litellm"}:
         raise ValueError(f"{provider} API key is required.")
-    try:
-        import litellm
-    except ImportError as exc:
-        raise RuntimeError("LiteLLM is required for AI chat. Install with `pip install litellm`.") from exc
+    import litellm
 
     kwargs: dict[str, Any] = {
         "model": _provider_model(provider, model),
