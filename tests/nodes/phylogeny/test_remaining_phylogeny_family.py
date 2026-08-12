@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
-from bionodulo.nodes.builtin import phylogeny as facade
 from bionodulo.nodes.builtin.phylogeny_family.evidence import NODE_EVIDENCE
 from bionodulo.nodes.registry import NodeRegistry
 
@@ -40,7 +39,6 @@ def _node_class(node_id: str) -> type:
 def test_remaining_phylogeny_nodes_have_focused_owners(node_id: str, module_name: str) -> None:
     node_class = _node_class(node_id)
     assert node_class.__module__ == f"bionodulo.nodes.builtin.phylogeny_family.{module_name}"
-    assert getattr(facade, node_class.__name__) is node_class
 
 
 @pytest.mark.parametrize("node_id", EXPECTED_OWNERS)

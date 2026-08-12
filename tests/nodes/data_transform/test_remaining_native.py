@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 
 import pytest
 
@@ -153,17 +152,3 @@ def test_native_data_operation_selector_defaults_match_the_implemented_branches(
     ]
     assert "URL" in SampleSheetNode.INPUT_TYPES()["required"]["sample_sheet"][1]["description"]
     assert DataFrameBuilderNode.INPUT_TYPES()["optional"]["group_column"][1]["default"] == ""
-
-
-def test_legacy_imports_reexport_compatible_classes() -> None:
-    legacy_exports = {
-        "aggregate": (AggregateNode, "aggregate"),
-        "normalize_data": (NormalizeDataNode, "normalize_data"),
-        "pivot_table": (PivotTableNode, "pivot_table"),
-        "reshape_table": (ReshapeTableNode, "pivot_table"),
-        "sample_subset": (SampleSubsetNode, "sample_subset"),
-        "split_file": (SplitFileNode, "split_file"),
-    }
-    for node_class, facade_name in legacy_exports.values():
-        facade = importlib.import_module(f"bionodulo.nodes.builtin.{facade_name}")
-        assert node_class in vars(facade).values()

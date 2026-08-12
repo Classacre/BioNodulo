@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from bionodulo.manager.example_data import EXAMPLE_DATA_MANIFEST
-from bionodulo.nodes.builtin.inputs import InputFASTANode
+from bionodulo.nodes.builtin.input_family.fasta import InputFASTANode
 from bionodulo.nodes.registry import NodeRegistry
 from bionodulo.workflow.validation import validate_workflow
 

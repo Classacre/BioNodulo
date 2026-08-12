@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin.rasusa import RasusaNode
+from bionodulo.nodes.builtin.qc_family.rasusa import RasusaNode
 
 
 def test_rasusa_is_source_pinned_and_has_truthful_conditional_ports() -> None:

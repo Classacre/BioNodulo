@@ -81,14 +81,6 @@ def test_live_discovery_assigns_each_stable_id_to_its_focused_module() -> None:
     assert live_index["bwa_index_dir"] == ("bionodulo.nodes.builtin.alignment_family.index_dir")
 
 
-def test_legacy_alignment_imports_resolve_to_focused_classes() -> None:
-    legacy = importlib.import_module("bionodulo.nodes.builtin.alignment")
-
-    assert legacy.BWAIndexNode is BWAIndexNode
-    assert legacy.BWAMemNode is BWAMemNode
-    assert legacy.BWAIndexDirNode is BWAIndexDirNode
-
-
 def test_index_contract_uses_auto_by_default_and_exact_documented_algorithms(
     tmp_path: Path,
 ) -> None:

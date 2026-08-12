@@ -20,7 +20,7 @@ def _node_class(node_id: str) -> type:
 
 
 def test_spatial_wave_resolves_to_focused_modules() -> None:
-    from bionodulo.nodes.builtin.spatial_transcriptomics import Cell2locationNode
+    from bionodulo.nodes.builtin.single_cell_spatial_family.cell2location import Cell2LocationNode
 
     registry = _registry()
     expected_modules = {
@@ -34,7 +34,7 @@ def test_spatial_wave_resolves_to_focused_modules() -> None:
     assert {node_id: registry.get(node_id).__module__ for node_id in expected_modules} == expected_modules
     assert issubclass(registry.get("spaceranger"), registry.get("spaceranger_count"))
     assert issubclass(registry.get("squidpy"), registry.get("squidpy_qc"))
-    assert Cell2locationNode is registry.get("cell2location")
+    assert Cell2LocationNode is registry.get("cell2location")
 
 
 def test_spaceranger_contract_is_external_and_source_pinned() -> None:

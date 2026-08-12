@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin import ncbi as legacy
 from bionodulo.nodes.builtin.ncbi_family import NCBIBLASTNode, NCBIBLASTParseNode
 from bionodulo.nodes.builtin.ncbi_family import blast
 from bionodulo.nodes.builtin.ncbi_family.blast import BLAST_OUTPUT_FORMATS, retrieval_params
@@ -18,7 +17,7 @@ from bionodulo.nodes.builtin.ncbi_family.blast_parse import (
 )
 
 
-def test_blast_authorities_formats_and_legacy_reexports() -> None:
+def test_blast_authorities_and_formats() -> None:
     assert NCBIBLASTNode.SOURCE_SHA256 == ("c864df25b8608d705cde6aee9344aba3e3a5ef7b16a0c8ca9e221e418aab83f3")
     assert NCBIBLASTNode.DEVELOPER_SOURCE_SHA256 == ("73dd88056332b1b21de8bfc2cbd272af03cae803c15c0cedf33c9c45a2171682")
     assert "XML" not in BLAST_OUTPUT_FORMATS
@@ -40,8 +39,6 @@ def test_blast_authorities_formats_and_legacy_reexports() -> None:
         "JSON2",
         "XML2",
     ]
-    assert legacy.NCBIBLASTNode is NCBIBLASTNode
-    assert legacy.NCBIBLASTParseNode is NCBIBLASTParseNode
 
 
 @pytest.mark.asyncio

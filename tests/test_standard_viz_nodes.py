@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from bionodulo.nodes.builtin.standard_viz_nodes import KronaTaxonomyNode, ScanpyUmapNode
+from bionodulo.nodes.builtin.metagenomics_family.krona import KronaTaxonomyNode
+from bionodulo.nodes.builtin.single_cell_spatial_family.scanpy_umap import ScanpyUmapNode
 from bionodulo.nodes.registry import NodeRegistry
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -9,14 +9,13 @@ from typing import Any
 import httpx
 import pytest
 
-from bionodulo.nodes.builtin import ncbi as legacy
 from bionodulo.nodes.builtin.api import http as api_http
 from bionodulo.nodes.builtin.api.http import APIHttpClient as SharedAPIHttpClient
 from bionodulo.nodes.builtin.ncbi_family import GEOQueryNode, NCBIEFetchNode, NCBIESearchNode
 from bionodulo.nodes.builtin.ncbi_family import adapter, efetch, esearch, geo_query
 
 
-def test_entrez_authority_ports_and_legacy_reexports() -> None:
+def test_entrez_authority_ports() -> None:
     assert NCBIESearchNode.VERSION == "2026-03-04"
     assert NCBIESearchNode.SOURCE_SHA256 == ("69c3cbd73e1fe38484809221f46e2380cee7d5a354b7dffa2b5f612a52785ee1")
     assert NCBIEFetchNode.VERSION == "2026-03-04"
@@ -28,9 +27,6 @@ def test_entrez_authority_ports_and_legacy_reexports() -> None:
     assert NCBIESearchNode.RETURN_NAMES == ("id_list", "total_count", "query_translation")
     assert "return_uids" not in NCBIESearchNode.INPUT_TYPES()["optional"]
     assert set(NCBIEFetchNode.INPUT_TYPES()["required"]) == {"accessions", "database"}
-    assert legacy.NCBIESearchNode is NCBIESearchNode
-    assert legacy.NCBIEFetchNode is NCBIEFetchNode
-    assert legacy.GEOQueryNode is GEOQueryNode
     assert efetch.default_extension("fasta", "text") == ".fasta"
     assert efetch.default_extension("gbwithparts", "text") == ".gb"
     assert efetch.default_extension("abstract", "text") == ".txt"

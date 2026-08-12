@@ -10,7 +10,7 @@ import pytest
 
 from bionodulo.nodes.builtin.input_family import adapter as input_adapter
 from bionodulo.nodes.builtin.input_family.adapter import CopyInputNode
-from bionodulo.nodes.builtin.inputs import (
+from bionodulo.nodes.builtin.input_family import (
     InputDirectoryNode,
     InputFASTANode,
     InputFASTQNode,
@@ -241,7 +241,7 @@ async def test_input_copy_is_idempotent_at_destination_and_invalid_modes_fail_cl
 
 
 def test_ncbi_efetch_url_builder() -> None:
-    from bionodulo.nodes.builtin.inputs import _ncbi_efetch_url
+    from bionodulo.nodes.builtin.input_family.adapter import _ncbi_efetch_url
 
     url = _ncbi_efetch_url("NR_074517.1", email="user@example.org")
     assert url.startswith("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?")

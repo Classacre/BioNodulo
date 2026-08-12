@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import importlib
-import inspect
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.builtin.trimming_family.fastp import FastpNode
 from bionodulo.execution.executor import WorkflowExecutor
 from scripts.gen_node_index import build_index
@@ -45,14 +41,6 @@ class _FakeContext:
 def test_stable_fastp_id_is_owned_only_by_the_focused_operation_module() -> None:
     module_name = "bionodulo.nodes.builtin.trimming_family.fastp"
     assert build_index()["fastp"] == module_name
-
-    legacy = importlib.import_module("bionodulo.nodes.builtin.trimming")
-    legacy_ids = {
-        obj.NODE_ID
-        for _name, obj in inspect.getmembers(legacy, inspect.isclass)
-        if issubclass(obj, BaseNode) and obj not in {BaseNode, CommandNode} and obj.__module__ == legacy.__name__
-    }
-    assert "fastp" not in legacy_ids
 
 
 def test_fastp_contract_and_pinned_upstream_authority_are_exact() -> None:

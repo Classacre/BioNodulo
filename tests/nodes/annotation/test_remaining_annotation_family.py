@@ -41,7 +41,6 @@ def test_annotation_legacy_extraction_has_six_focused_owners_and_aliases() -> No
         ),
     }
     live_index = build_index()
-    facade = importlib.import_module("bionodulo.nodes.builtin.annotation")
 
     for node_id, (node_class, module_name) in owners.items():
         assert live_index[node_id] == module_name
@@ -50,7 +49,6 @@ def test_annotation_legacy_extraction_has_six_focused_owners_and_aliases() -> No
         module = importlib.import_module(module_name)
         source = Path(module.__file__).read_text(encoding="utf-8")
         assert "from .legacy" not in source
-        assert getattr(facade, node_class.__name__) is node_class
 
     family_dir = Path(importlib.import_module("bionodulo.nodes.builtin.annotation_family").__file__).parent
     assert not (family_dir / "legacy.py").exists()

@@ -168,19 +168,3 @@ def test_camera_accepts_current_xcms_objects_and_uses_documented_defaults(tmp_pa
         )
     )
 
-
-def test_legacy_module_no_longer_owns_template_metabolomics_ids() -> None:
-    from bionodulo.nodes.builtin import metabolomics
-
-    assert metabolomics.XCMSPeakDetectionNode is XCMSPeakDetectionNode
-    assert metabolomics.XCMSRetentionCorrectionNode is XCMSRetentionCorrectionNode
-    assert metabolomics.CAMERAAnnotationNode is CAMERAAnnotationNode
-    assert metabolomics.__all__ == [
-        "CAMERAAnnotationNode",
-        "MSDIALProcessingNode",
-        "MZmineBatchProcessingNode",
-        "MetaboAnalystStatsNode",
-        "SiriusFormulaIDNode",
-        "XCMSPeakDetectionNode",
-        "XCMSRetentionCorrectionNode",
-    ]

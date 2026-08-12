@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
 from typing import Any
 
@@ -19,10 +18,8 @@ def test_long_read_assembly_ids_have_focused_source_pinned_owners() -> None:
         "unicycler": (UnicyclerNode, "0.5.1", "d153f67d6f626176c100724600104ade4f6d7a2e"),
     }
     live_index = build_index()
-    facade = importlib.import_module("bionodulo.nodes.builtin.assembly")
     for node_id, (node, version, commit) in expected.items():
         assert live_index[node_id] == node.__module__
-        assert getattr(facade, node.__name__) is node
         assert node.VERSION == version
         assert node.GIT_COMMIT == commit
         assert node.PACKAGE_CONSTRAINTS

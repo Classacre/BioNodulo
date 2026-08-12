@@ -7,7 +7,6 @@ from typing import Any
 import pytest
 
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.builtin import flow_control
 from bionodulo.nodes.builtin.flow_control_family import (
     BreakContinueNode,
     CounterAccumulatorNode,
@@ -61,7 +60,6 @@ def test_each_stable_id_has_one_focused_owner() -> None:
         module = importlib.import_module(f"bionodulo.nodes.builtin.flow_control_family.{module_name}")
         assert _owned_node_classes(module) == [expected_class]
         assert expected_class.NODE_ID == node_id
-        assert getattr(flow_control, expected_class.__name__) is expected_class
 
 
 def test_flow_control_authorities_are_pinned() -> None:

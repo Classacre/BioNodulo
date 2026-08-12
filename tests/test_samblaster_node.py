@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin.samblaster import SamblasterNode
+from bionodulo.nodes.builtin.alignment_family.samblaster import SamblasterNode
 
 
 def test_samblaster_is_source_pinned_and_uses_samtools_not_sambamba() -> None:

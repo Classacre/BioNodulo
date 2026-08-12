@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.builtin import variant as facade
+from bionodulo.nodes.builtin import variant_family as facade
 from bionodulo.nodes.builtin.variant_family import evidence, legacy
 
 
@@ -39,7 +39,7 @@ def _owned_node_classes(module: Any) -> list[type[BaseNode]]:
     ]
 
 
-def test_variant_facade_has_32_focused_owners_and_no_live_legacy_owner() -> None:
+def test_variant_family_has_32_focused_owners_and_no_live_legacy_owner() -> None:
     nodes = _facade_nodes()
     assert len(nodes) == 32
     assert EXPECTED_REMAINING_IDS <= set(nodes)

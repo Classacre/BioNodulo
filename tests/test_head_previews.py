@@ -15,7 +15,7 @@ import pytest
 
 from bionodulo.execution import head_preview as hp
 from bionodulo.execution.executor import ExecutionContext, WorkflowExecutor
-from bionodulo.nodes.builtin.qc import QualiMapNode
+from bionodulo.nodes.builtin.qc_family.qualimap_bamqc import QualiMapNode
 
 
 # ---------------------------------------------------------------------------

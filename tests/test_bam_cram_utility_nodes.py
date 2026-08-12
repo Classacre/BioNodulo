@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin import bam_cram_utils as legacy
 from bionodulo.nodes.builtin.bam_cram_utils_family.clip_overlap import BamUtilClipOverlapNode
 from bionodulo.nodes.builtin.bam_cram_utils_family.cramino import CraminoNode
 from bionodulo.nodes.builtin.bam_cram_utils_family.diff import BamUtilDiffNode
@@ -87,7 +86,6 @@ def test_bam_cram_utility_ids_have_focused_source_pinned_owners() -> None:
 
     for node_id, (node_class, source) in expected.items():
         assert index[node_id] == node_class.__module__
-        assert getattr(legacy, node_class.__name__) is node_class
         assert node_class.GIT_COMMIT in node_class.SOURCE_URL
         assert node_class.UPSTREAM_SOURCE == source
         assert node_class.SHELL is False

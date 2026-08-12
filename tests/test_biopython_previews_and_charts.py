@@ -8,9 +8,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from bionodulo.nodes.builtin import _bitmap_font as font
-from bionodulo.nodes.builtin.biopython_nodes import SequenceStatsNode
+from bionodulo.nodes.builtin.biopython_family.sequence_stats import SequenceStatsNode
 from bionodulo.nodes.builtin.utils import TextPreviewNode
-from bionodulo.nodes.builtin.visualization import BarChartNode
+from bionodulo.nodes.builtin.visualization_family.bar_chart import BarChartNode
 
 
 def _context(tmp_path: Path) -> SimpleNamespace:

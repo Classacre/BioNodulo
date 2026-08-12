@@ -115,14 +115,14 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
 def test_flow_control_nodes_register_without_http_extras(monkeypatch: pytest.MonkeyPatch) -> None:
     original_import = builtins.__import__
     module_names = [
-        "bionodulo.nodes.builtin.flow_control",
+        "bionodulo.nodes.builtin.flow_control_family",
         "bionodulo.nodes.builtin.api.http",
         "httpx",
     ]
     original_modules = {name: sys.modules.get(name) for name in module_names}
     builtin_pkg = sys.modules.get("bionodulo.nodes.builtin")
-    original_flow_control_attr = getattr(builtin_pkg, "flow_control", None) if builtin_pkg is not None else None
-    had_flow_control_attr = builtin_pkg is not None and hasattr(builtin_pkg, "flow_control")
+    original_flow_control_attr = getattr(builtin_pkg, "flow_control_family", None) if builtin_pkg is not None else None
+    had_flow_control_attr = builtin_pkg is not None and hasattr(builtin_pkg, "flow_control_family")
 
     def import_without_httpx(name: str, *args: Any, **kwargs: Any) -> Any:
         if name == "httpx" or name.startswith("httpx."):
@@ -134,7 +134,7 @@ def test_flow_control_nodes_register_without_http_extras(monkeypatch: pytest.Mon
     monkeypatch.setattr(builtins, "__import__", import_without_httpx)
 
     try:
-        module = importlib.import_module("bionodulo.nodes.builtin.flow_control")
+        module = importlib.import_module("bionodulo.nodes.builtin.flow_control_family")
         registry = NodeRegistry.create_isolated()
         registry.register_from_module(module)
 
@@ -148,9 +148,9 @@ def test_flow_control_nodes_register_without_http_extras(monkeypatch: pytest.Mon
                 sys.modules[name] = original_modules[name]
         if builtin_pkg is not None:
             if had_flow_control_attr:
-                setattr(builtin_pkg, "flow_control", original_flow_control_attr)
+                setattr(builtin_pkg, "flow_control_family", original_flow_control_attr)
             else:
-                delattr(builtin_pkg, "flow_control")
+                delattr(builtin_pkg, "flow_control_family")
 
 
 def test_switch_frontend_metadata_exposes_dynamic_branch_contract() -> None:
@@ -425,14 +425,12 @@ async def test_foreach_rejects_items_beyond_max_iterations_without_body() -> Non
 
 @pytest.mark.asyncio
 async def test_sleep_waits_for_requested_seconds_and_passes_value(monkeypatch: pytest.MonkeyPatch) -> None:
-    import bionodulo.nodes.builtin.flow_control as module
-
     sleeps: list[float] = []
 
     async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
 
-    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
     result = await _node_class("sleep")().run(seconds=2.5, value="sample.bam")
 
@@ -444,14 +442,12 @@ async def test_sleep_waits_for_requested_seconds_and_passes_value(monkeypatch: p
 
 @pytest.mark.asyncio
 async def test_wait_for_file_exists_triggers_without_sleep(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import bionodulo.nodes.builtin.flow_control as module
-
     sleeps: list[float] = []
 
     async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
 
-    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
     marker = tmp_path / "finished.flag"
     marker.write_text("done\n", encoding="utf-8")
 
@@ -469,14 +465,12 @@ async def test_wait_for_file_exists_triggers_without_sleep(tmp_path: Path, monke
 
 @pytest.mark.asyncio
 async def test_wait_for_timeout_can_pass_through(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    import bionodulo.nodes.builtin.flow_control as module
-
     sleeps: list[float] = []
 
     async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
 
-    monkeypatch.setattr(module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
     result = await _node_class("wait_for")().run(
         condition="file_exists",

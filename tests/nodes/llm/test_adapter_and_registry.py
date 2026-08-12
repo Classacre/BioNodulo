@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from bionodulo.ai.llm_backend import LLMConfig, LLMResponse
-from bionodulo.nodes.builtin import llm
+from bionodulo.nodes.builtin import llm_family as llm
 from bionodulo.nodes.builtin.llm_family import adapter, ai_embedding, ai_sequence_classification
 
 

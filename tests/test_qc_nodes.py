@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from bionodulo.nodes.builtin.qc import QualiMapNode
+from bionodulo.nodes.builtin.qc_family.qualimap_bamqc import QualiMapNode
 from bionodulo.nodes.registry import NodeRegistry
 
 

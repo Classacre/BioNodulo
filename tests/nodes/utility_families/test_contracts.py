@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.builtin import utility_collections, utility_dev, utility_file_format
 from bionodulo.nodes.builtin.utility_collections_family import (
     DictionaryNode,
     FlattenNestedNode,
@@ -39,7 +38,6 @@ from bionodulo.nodes.builtin.utility_file_format_family import adapter as file_a
 FAMILIES = (
     (
         "utility_collections_family",
-        utility_collections,
         collections_adapter,
         {
             "dictionary": ("dictionary", DictionaryNode),
@@ -53,7 +51,6 @@ FAMILIES = (
     ),
     (
         "utility_file_format_family",
-        utility_file_format,
         file_adapter,
         {
             "csv_to_json": ("csv_to_json", CSVToJSONNode),
@@ -67,7 +64,6 @@ FAMILIES = (
     ),
     (
         "utility_dev_family",
-        utility_dev,
         dev_adapter,
         {
             "breakpoint": ("breakpoint", BreakpointNode),
@@ -91,17 +87,16 @@ def _owned_node_classes(module: Any) -> list[type[BaseNode]]:
 
 
 def test_each_stable_id_has_one_focused_owner() -> None:
-    for package_name, facade, adapter, owners in FAMILIES:
+    for package_name, adapter, owners in FAMILIES:
         assert _owned_node_classes(adapter) == []
         for node_id, (module_name, expected_class) in owners.items():
             module = importlib.import_module(f"bionodulo.nodes.builtin.{package_name}.{module_name}")
             assert _owned_node_classes(module) == [expected_class]
             assert expected_class.NODE_ID == node_id
-            assert getattr(facade, expected_class.__name__) is expected_class
 
 
 def test_python_and_pyyaml_authorities_are_pinned() -> None:
-    for _package_name, _facade, _adapter, owners in FAMILIES:
+    for _package_name, _adapter, owners in FAMILIES:
         for _module_name, node_class in owners.values():
             assert node_class.GIT_COMMIT == "a32a426c03ce4c925bf7dcdbd2cf08fbdedd55e9"
             assert node_class.RUNTIME_VERSION == "3.12.3"

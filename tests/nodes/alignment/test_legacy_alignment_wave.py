@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import importlib
-import inspect
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.builtin.alignment_family.adapter import BWA_INDEX_SUFFIXES
 from bionodulo.nodes.builtin.alignment_family.bamleftalign import BamLeftAlignNode
@@ -45,7 +42,7 @@ def _bowtie2_bundle(directory: Path) -> Path:
     return prefix
 
 
-def test_focused_owners_and_compatibility_facades_are_unambiguous() -> None:
+def test_focused_owners_are_unambiguous() -> None:
     expected = {
         "bamleftalign": BamLeftAlignNode,
         "bowtie2": Bowtie2Node,
@@ -57,17 +54,6 @@ def test_focused_owners_and_compatibility_facades_are_unambiguous() -> None:
     assert {node_id: live_index[node_id] for node_id in expected} == {
         node_id: node.__module__ for node_id, node in expected.items()
     }
-
-    for module_name in ("alignment", "wrapped_bcftools"):
-        facade = importlib.import_module(f"bionodulo.nodes.builtin.{module_name}")
-        for node in expected.values():
-            assert getattr(facade, node.__name__) is node
-        owned = {
-            obj.NODE_ID
-            for _name, obj in inspect.getmembers(facade, inspect.isclass)
-            if issubclass(obj, BaseNode) and obj not in {BaseNode, CommandNode} and obj.__module__ == facade.__name__
-        }
-        assert not owned.intersection(expected)
 
 
 @pytest.mark.parametrize(

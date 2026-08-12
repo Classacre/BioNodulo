@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import importlib
-import inspect
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.builtin.qc_family.fastqc import FastQCNode
 from bionodulo.nodes.builtin.qc_family.multiqc import MultiQCNode
@@ -48,17 +45,6 @@ def test_live_builtin_index_assigns_each_id_to_its_focused_module() -> None:
 
     for node_id, module_name in expected:
         assert live_index[node_id] == module_name
-
-
-def test_legacy_qc_module_no_longer_owns_the_migrated_ids() -> None:
-    legacy = importlib.import_module("bionodulo.nodes.builtin.qc")
-    owned_ids = {
-        obj.NODE_ID
-        for _name, obj in inspect.getmembers(legacy, inspect.isclass)
-        if issubclass(obj, BaseNode) and obj not in {BaseNode, CommandNode} and obj.__module__ == legacy.__name__
-    }
-
-    assert {"fastqc", "multiqc", "qualimap", "qualimap_bamqc"}.isdisjoint(owned_ids)
 
 
 def test_nodes_pin_exact_official_release_authorities() -> None:

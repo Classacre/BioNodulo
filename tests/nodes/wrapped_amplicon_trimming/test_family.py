@@ -6,7 +6,6 @@ import hashlib
 import re
 from pathlib import Path
 
-from bionodulo.nodes.builtin import wrapped_amplicon_trimming as legacy
 from bionodulo.nodes.builtin import wrapped_amplicon_trimming_family as family
 from bionodulo.nodes.builtin.wrapped_amplicon_trimming_family.assets import ASSET_DIR
 from bionodulo.nodes.builtin.wrapped_amplicon_trimming_family.evidence import (
@@ -69,13 +68,12 @@ def _value_after(command: list[str], flag: str) -> str:
     return command[command.index(flag) + 1]
 
 
-def test_stable_ids_and_facade_identity_survive_semantic_relocation() -> None:
+def test_stable_ids_survive_semantic_relocation() -> None:
     nodes = _nodes()
     assert len(nodes) == 38
     assert {node.NODE_ID for node in nodes} == EXPECTED_IDS
     assert len({node.NODE_ID for node in nodes}) == len(nodes)
     assert all(".wrapped_" not in node.__module__ for node in nodes)
-    assert all(getattr(legacy, node.__name__) is node for node in nodes)
 
 
 def test_every_contract_has_exact_wrapper_packages_and_failure_semantics() -> None:

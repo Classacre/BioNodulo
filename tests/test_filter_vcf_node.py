@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin.filter_vcf import FilterVCFNode
+from bionodulo.nodes.builtin.bcftools_family.filter_vcf import FilterVCFNode
 from bionodulo.nodes.registry import _to_frontend_input_spec
 
 

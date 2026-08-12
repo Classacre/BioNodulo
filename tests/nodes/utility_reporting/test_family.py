@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin.reporting import HTMLReportNode as FacadeHTMLReportNode
 from bionodulo.nodes.builtin.reporting_family.html_report import HTMLReportNode
 from bionodulo.nodes.builtin.reporting_family.pdf_report import PDFReportNode
 from bionodulo.nodes.builtin.reporting_family.qc_dashboard import QCDashboardNode
@@ -60,7 +59,6 @@ def test_family_has_focused_ownership_and_keeps_943_ids() -> None:
     assert len(registry.object_info()) == EXPECTED_NODE_COUNT
     assert {node_id: registry.get(node_id).__module__ for node_id in NODE_MODULES} == NODE_MODULES
     assert FacadeTextPreviewNode is TextPreviewNode
-    assert FacadeHTMLReportNode is HTMLReportNode
 
 
 def test_family_records_exact_source_authorities() -> None:

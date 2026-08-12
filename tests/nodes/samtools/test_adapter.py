@@ -8,7 +8,6 @@ import pytest
 from bionodulo.environments.constants import PACKAGE_MIN_VERSIONS
 from bionodulo.environments.manifest import generate_manifest
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.registry import NodeRegistry
 from scripts.gen_node_index import build_index
 
@@ -46,20 +45,6 @@ def test_fresh_lazy_registry_resolves_each_stable_id_to_its_operation_module() -
         node = registry.get(node_id)
         assert node is not None
         assert node.__module__ == _module_name(operation)
-
-
-def test_legacy_samtools_module_no_longer_owns_the_migrated_ids() -> None:
-    legacy = importlib.import_module("bionodulo.nodes.builtin.samtools")
-    migrated_ids = {node_id for _operation, _class_name, node_id, _manpage, _source in OPERATIONS}
-    legacy_owned_ids = {
-        obj.NODE_ID
-        for _name, obj in inspect.getmembers(legacy, inspect.isclass)
-        if issubclass(obj, BaseNode)
-        and obj not in {BaseNode, CommandNode}
-        and obj.__module__ == legacy.__name__
-    }
-
-    assert migrated_ids.isdisjoint(legacy_owned_ids)
 
 
 @pytest.mark.parametrize(

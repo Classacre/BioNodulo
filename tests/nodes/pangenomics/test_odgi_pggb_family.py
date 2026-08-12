@@ -11,7 +11,6 @@ import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.execution.subprocess_runner import CommandExecutionError
-from bionodulo.nodes.builtin import pangenomics as legacy_pangenomics
 from bionodulo.nodes.builtin.pangenomics_family.odgi_build import ODGIBuildNode
 from bionodulo.nodes.builtin.pangenomics_family.odgi_stats import ODGIStatsNode
 from bionodulo.nodes.builtin.pangenomics_family.odgi_view import ODGIViewNode
@@ -98,16 +97,6 @@ def test_registry_owns_all_seven_ids_in_focused_modules() -> None:
     }
     assert {node_id: registry.get(node_id) for node_id in expected} == expected
     assert all("pangenomics_family" in node_class.__module__ for node_class in expected.values())
-
-
-def test_legacy_module_exports_the_focused_classes() -> None:
-    assert legacy_pangenomics.ODGIBuildNode is ODGIBuildNode
-    assert legacy_pangenomics.ODGIStatsNode is ODGIStatsNode
-    assert legacy_pangenomics.ODGIViewNode is ODGIViewNode
-    assert legacy_pangenomics.ODGIVizNode is ODGIVizNode
-    assert legacy_pangenomics.ODGIVisualizeNode is ODGIVisualizeNode
-    assert legacy_pangenomics.PGGBNode is PGGBNode
-    assert legacy_pangenomics.PGGBBuildNode is PGGBBuildNode
 
 
 def test_odgi_metadata_is_pinned_to_the_audited_source() -> None:

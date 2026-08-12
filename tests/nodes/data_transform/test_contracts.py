@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from bionodulo.nodes.builtin import data_transform as legacy
 from bionodulo.nodes.builtin.data_transform_family import (
     AggregateByGroupNode,
     DeduplicateNode,
@@ -61,10 +60,7 @@ def test_family_has_exact_focused_ownership_and_python_authority() -> None:
     assert all(node.__module__.startswith("bionodulo.nodes.builtin.data_transform_family.") for node in FAMILY)
 
 
-def test_facade_reexports_and_corrected_generic_contracts() -> None:
-    for node in FAMILY:
-        assert getattr(legacy, node.__name__) is node
-
+def test_corrected_generic_contracts() -> None:
     assert FormatConverterNode.REQUIRES_EXTERNAL_TOOLS is False
     assert FormatConverterNode.REQUIRED_EXECUTABLES == []
     assert FormatConverterNode.REQUIRED_CONDA_PACKAGES == []

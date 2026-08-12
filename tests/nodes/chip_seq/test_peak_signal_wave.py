@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin.annotation import BEDToolsClosestNode as LegacyClosest
 from bionodulo.nodes.builtin.bedtools_family.closest import BEDToolsClosestNode
 from bionodulo.nodes.builtin.chip_seq import MACS2BdgPeakNode as LegacyBdgPeak
 from bionodulo.nodes.builtin.chip_seq import MACS2CallpeakNode as LegacyCallpeak
@@ -94,7 +93,6 @@ def _materialize_macs2_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         (DeepToolsComputeMatrixNode, LegacyComputeMatrix),
         (DeepToolsPlotHeatmapNode, LegacyPlotHeatmap),
         (DeepToolsPlotProfileNode, LegacyPlotProfile),
-        (BEDToolsClosestNode, LegacyClosest),
     ),
 )
 def test_legacy_imports_are_exact_focused_aliases(focused: type, legacy: type) -> None:

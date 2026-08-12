@@ -9,10 +9,64 @@ from typing import Any
 
 import pytest
 
+from types import SimpleNamespace
+
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.builtin import _annotation_sequence_contracts as contracts
-from bionodulo.nodes.builtin import wrapped_annotation_sequence as facade
-from bionodulo.nodes.builtin import wrapped_annotation_sequence as family
+from bionodulo.nodes.builtin.aegean_family import (
+    AegeanCanonGff3Node,
+    AegeanGaevalNode,
+    AegeanLocusPocusNode,
+    AegeanParsevalNode,
+)
+from bionodulo.nodes.builtin.annotation_family.amrfinderplus import AMRFinderPlusNode
+from bionodulo.nodes.builtin.arriba_family import (
+    ArribaDrawFusionsNode,
+    ArribaGetFiltersNode,
+    ArribaNode,
+)
+from bionodulo.nodes.builtin.artic_family import ArticGuppyplexNode, ArticMinionNode
+from bionodulo.nodes.builtin.assembly_family.busco import BUSCONode
+from bionodulo.nodes.builtin.augustus_family import AugustusNode, AugustusTrainingNode
+from bionodulo.nodes.builtin.pangenomics_family.roary import RoaryNode
+from bionodulo.nodes.builtin.rna_seq_family.htseq_count import HTSeqCountNode
+from bionodulo.nodes.builtin.seqkit_family import (
+    SeqKitFx2tabNode,
+    SeqKitGrepNode,
+    SeqKitHeadNode,
+    SeqKitLocateNode,
+    SeqKitSortNode,
+    SeqKitSplit2Node,
+    SeqKitStatsNode,
+    SeqKitTranslateNode,
+)
+
+
+family = SimpleNamespace(
+    AMRFinderPlusNode=AMRFinderPlusNode,
+    AegeanCanonGff3Node=AegeanCanonGff3Node,
+    AegeanGaevalNode=AegeanGaevalNode,
+    AegeanLocusPocusNode=AegeanLocusPocusNode,
+    AegeanParsevalNode=AegeanParsevalNode,
+    ArribaDrawFusionsNode=ArribaDrawFusionsNode,
+    ArribaGetFiltersNode=ArribaGetFiltersNode,
+    ArribaNode=ArribaNode,
+    ArticGuppyplexNode=ArticGuppyplexNode,
+    ArticMinionNode=ArticMinionNode,
+    AugustusNode=AugustusNode,
+    AugustusTrainingNode=AugustusTrainingNode,
+    BUSCONode=BUSCONode,
+    HTSeqCountNode=HTSeqCountNode,
+    RoaryNode=RoaryNode,
+    SeqKitFx2tabNode=SeqKitFx2tabNode,
+    SeqKitGrepNode=SeqKitGrepNode,
+    SeqKitHeadNode=SeqKitHeadNode,
+    SeqKitLocateNode=SeqKitLocateNode,
+    SeqKitSortNode=SeqKitSortNode,
+    SeqKitSplit2Node=SeqKitSplit2Node,
+    SeqKitStatsNode=SeqKitStatsNode,
+    SeqKitTranslateNode=SeqKitTranslateNode,
+)
 
 
 Case = tuple[type[BaseNode], dict[str, Any], str, tuple[str, ...], tuple[str, ...]]
@@ -221,7 +275,7 @@ def _command_text(command: Any) -> str:
     return " ".join(str(part) for part in command) if isinstance(command, list) else str(command)
 
 
-def test_exactly_23_stable_ids_have_one_focused_owner_and_facade_reexport() -> None:
+def test_exactly_23_stable_ids_have_one_focused_owner() -> None:
     assert set(CASES) == set(contracts.NODE_EVIDENCE)
     assert len(CASES) == 23
 
@@ -229,7 +283,6 @@ def test_exactly_23_stable_ids_have_one_focused_owner_and_facade_reexport() -> N
         owner = importlib.import_module(node_class.__module__)
         assert _owned_node_classes(owner) == [node_class]
         assert node_class.NODE_ID == node_id
-        assert getattr(facade, node_class.__name__) is node_class
 
 
 @pytest.mark.parametrize("node_id", sorted(CASES))

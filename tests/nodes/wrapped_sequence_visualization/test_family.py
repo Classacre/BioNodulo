@@ -10,7 +10,6 @@ from typing import Any
 import pytest
 
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.builtin import wrapped_sequence_visualization as facade
 from bionodulo.nodes.builtin import wrapped_sequence_visualization_family as family
 from bionodulo.nodes.builtin.wrapped_sequence_visualization_family import adapter, contracts
 
@@ -192,7 +191,7 @@ def _owned_node_classes(module: Any) -> list[type[BaseNode]]:
     ]
 
 
-def test_exactly_twenty_stable_ids_have_one_focused_owner_and_legacy_reexports() -> None:
+def test_exactly_twenty_stable_ids_have_one_focused_owner() -> None:
     assert set(CASES) == set(contracts.NODE_EVIDENCE)
     assert len(CASES) == 20
     assert _owned_node_classes(adapter) == []
@@ -201,7 +200,6 @@ def test_exactly_twenty_stable_ids_have_one_focused_owner_and_legacy_reexports()
         owner = importlib.import_module(node_class.__module__)
         assert _owned_node_classes(owner) == [node_class]
         assert node_class.NODE_ID == node_id
-        assert getattr(facade, node_class.__name__) is node_class
 
 
 @pytest.mark.parametrize("node_id", sorted(CASES))

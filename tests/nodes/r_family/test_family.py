@@ -11,7 +11,6 @@ from bionodulo.environments.constants import (
     PACKAGE_MIN_VERSIONS,
     R_PACKAGE_TO_CONDA_PACKAGE,
 )
-from bionodulo.nodes.builtin.r_bioinformatics import DESeq2Node as FacadeDESeq2Node
 from bionodulo.nodes.builtin.r_family.biostrings_stats import BiostringsStatsNode
 from bionodulo.nodes.builtin.r_family.dataframe_builder import DataFrameBuilderNode
 from bionodulo.nodes.builtin.r_family.deseq2 import DESeq2AliasNode, DESeq2Node
@@ -21,8 +20,7 @@ from bionodulo.nodes.builtin.r_family.script import RScriptNode
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_deseq2_facade_and_alias_preserve_class_identity() -> None:
-    assert FacadeDESeq2Node is DESeq2Node
+def test_deseq2_alias_preserves_class_identity() -> None:
     assert issubclass(DESeq2AliasNode, DESeq2Node)
 
 

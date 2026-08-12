@@ -10,7 +10,6 @@ import pytest
 
 from bionodulo.environments.constants import PACKAGE_MIN_VERSIONS
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.builtin import visualization
 from bionodulo.nodes.builtin.visualization_family import (
     BarChartNode,
     CircosPlotNode,
@@ -70,7 +69,6 @@ def test_each_stable_id_has_one_focused_owner() -> None:
         module = importlib.import_module(f"bionodulo.nodes.builtin.visualization_family.{module_name}")
         assert _owned_node_classes(module) == [expected_class]
         assert expected_class.NODE_ID == node_id
-        assert getattr(visualization, expected_class.__name__) is expected_class
 
     assert issubclass(
         PhylogeneticTreeViewerCompatibilityNode,

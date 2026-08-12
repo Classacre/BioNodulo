@@ -17,7 +17,6 @@ from bionodulo.nodes.builtin.rna_seq_family.salmon import (
     SalmonIndexNode,
     SalmonQuantNode,
 )
-from bionodulo.nodes.builtin import wrapped_annotation_sequence
 
 
 def _fake_context(tmp_path: Path, materialize: Callable[[list[str] | str, dict[str, Any]], None]):
@@ -72,7 +71,6 @@ def test_legacy_facades_reexport_compatible_classes() -> None:
     assert rna_seq.KallistoQuantNode is KallistoQuantNode
     assert rna_seq.FeatureCountsNode is FeatureCountsNode
     assert rna_seq.FeatureCountsAliasNode is FeatureCountsAliasNode
-    assert wrapped_annotation_sequence.FeatureCountsNode is FeatureCountsNode
 
 
 def test_pinned_sources_and_output_contracts_are_exact() -> None:

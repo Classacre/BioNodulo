@@ -131,20 +131,14 @@ def test_operations_are_source_pinned_in_focused_modules(
     assert node.AUDIT_STATUS == "contract-checked-no-external-execution"
 
 
-def test_discovery_and_legacy_imports_resolve_to_focused_classes() -> None:
+def test_discovery_resolves_to_focused_classes() -> None:
     live_index = build_index()
-    legacy = importlib.import_module("bionodulo.nodes.builtin.alignment")
 
     assert live_index["bowtie2_build"] == "bionodulo.nodes.builtin.alignment_family.bowtie2_build"
     assert live_index["bowtie2_align"] == "bionodulo.nodes.builtin.alignment_family.bowtie2_align"
     assert live_index["bowtie2_inspect"] == "bionodulo.nodes.builtin.alignment_family.bowtie2_inspect"
     assert live_index["hisat2_build"] == "bionodulo.nodes.builtin.alignment_family.hisat2_build"
     assert live_index["hisat2_align"] == "bionodulo.nodes.builtin.alignment_family.hisat2_align"
-    assert legacy.Bowtie2BuildNode is Bowtie2BuildNode
-    assert legacy.Bowtie2AlignNode is Bowtie2AlignNode
-    assert legacy.Bowtie2IndexNode is Bowtie2IndexNode
-    assert legacy.HISAT2BuildNode is HISAT2BuildNode
-    assert legacy.HISAT2AlignNode is HISAT2AlignNode
 
 
 @pytest.mark.parametrize(

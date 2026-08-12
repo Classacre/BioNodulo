@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import copy
-import inspect
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.builtin import wrapped_hyphy_metagenomics as facade
 from bionodulo.nodes.builtin.comparative_genomics_family.contracts import (
     AGGRESSIVE,
     EXIT_CODE,
@@ -16,6 +14,7 @@ from bionodulo.nodes.builtin.comparative_genomics_family.contracts import (
     NODE_EVIDENCE,
     TOOLS_IUC_GIT_COMMIT,
 )
+from bionodulo.nodes.registry import NodeRegistry
 
 
 HYPHY_IDS = (
@@ -73,11 +72,11 @@ EXPECTED_OUTPUTS = {
 
 
 def _node_classes() -> dict[str, type[BaseNode]]:
-    return {
-        candidate.NODE_ID: candidate
-        for _name, candidate in inspect.getmembers(facade, inspect.isclass)
-        if issubclass(candidate, BaseNode) and candidate is not BaseNode and candidate.NODE_ID
-    }
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    classes = {node_id: registry.get(node_id) for node_id in NODE_EVIDENCE}
+    assert all(node_class is not None for node_class in classes.values())
+    return classes
 
 
 def _sample_value(name: str, spec: Any) -> Any:
@@ -130,12 +129,11 @@ def _command_text(command: Any) -> str:
     return str(command)
 
 
-def test_facade_exports_exactly_28_stable_ids() -> None:
+def test_exactly_28_stable_ids_are_registered() -> None:
     classes = _node_classes()
     assert set(classes) == set(EXPECTED_OUTPUTS) == set(NODE_EVIDENCE)
     assert len(classes) == 28
     for node_id, node_class in classes.items():
-        assert getattr(facade, node_class.__name__) is node_class
         assert node_class.NODE_ID == node_id
 
 

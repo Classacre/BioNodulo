@@ -7,7 +7,6 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin import alignment as legacy
 from bionodulo.nodes.builtin.alignment_family.minimap2_align import Minimap2AlignNode
 from bionodulo.nodes.builtin.alignment_family.minimap2_index import Minimap2IndexNode
 from bionodulo.nodes.builtin.alignment_family.star_adapter import STAR_INDEX_MARKERS
@@ -33,7 +32,6 @@ def test_minimap2_and_star_ids_have_focused_source_pinned_owners() -> None:
     }
     for node_id, node_class in expected.items():
         assert index[node_id] == node_class.__module__
-        assert getattr(legacy, node_class.__name__) is node_class
         assert node_class.GIT_COMMIT
         assert node_class.DOCUMENTATION_URL.startswith("https://github.com/")
 

@@ -11,8 +11,7 @@ from bionodulo.environments.constants import (
     EXECUTABLE_TO_CONDA_PACKAGE,
     PACKAGE_MIN_VERSIONS,
 )
-from bionodulo.nodes.builtin import ncbi as legacy
-from bionodulo.nodes.builtin.ncbi_family import SRADownloadNode, SRAFetchNode
+from bionodulo.nodes.builtin.ncbi_family import SRADownloadNode
 
 
 def test_sra_authority_environment_and_generic_outputs() -> None:
@@ -28,8 +27,6 @@ def test_sra_authority_environment_and_generic_outputs() -> None:
     assert SRADownloadNode.RETURN_NAMES == ("files", "download_report")
     assert SRADownloadNode.INPUT_TYPES()["optional"]["threads"][1]["default"] == 6
     assert SRADownloadNode.INPUT_TYPES()["optional"]["split_files"][1]["default"] is False
-    assert legacy.SRADownloadNode is SRADownloadNode
-    assert legacy.SRAFetchNode is SRAFetchNode
 
 
 def test_sra_commands_use_accession_directory_and_source_native_flags(tmp_path: Path) -> None:

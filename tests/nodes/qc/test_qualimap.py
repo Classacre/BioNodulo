@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin import qc
 from bionodulo.nodes.builtin.qc_family.qualimap import QualiMapAliasNode, QualiMapNode
 
 
@@ -38,12 +37,6 @@ def _write_report_bundle(report_dir: Path, *, outside: bool = False) -> None:
             asset_dir = report_dir / directory
             asset_dir.mkdir()
             (asset_dir / filename).write_bytes(content)
-
-
-def test_qualimap_facade_reexports_compatible_classes() -> None:
-    assert qc.QualiMapNode is QualiMapNode
-    assert qc.QualiMapAliasNode is QualiMapAliasNode
-    assert issubclass(QualiMapAliasNode, QualiMapNode)
 
 
 def test_qualimap_pinned_authority_runtime_and_bam_access_contract() -> None:

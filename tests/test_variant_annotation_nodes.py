@@ -4,7 +4,7 @@ from pathlib import Path
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
 from bionodulo.environments.manifest import workflow_to_packages
-from bionodulo.nodes.builtin.annotation import FuncotateTableNode
+from bionodulo.nodes.builtin.annotation_family.funcotate_table import FuncotateTableNode
 from bionodulo.nodes.registry import NodeRegistry
 
 

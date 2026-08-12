@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from bionodulo.nodes.builtin.mosdepth import MosdepthNode
+from bionodulo.nodes.builtin.qc_family.mosdepth import MosdepthNode
 
 
 def test_mosdepth_is_source_pinned_and_requires_an_alignment_index() -> None:

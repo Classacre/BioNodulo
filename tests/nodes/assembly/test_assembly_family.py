@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import importlib
-import inspect
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode
 from bionodulo.nodes.builtin.assembly_family.megahit import MEGAHITNode
 from bionodulo.nodes.builtin.assembly_family.quast import QuastNode
@@ -120,7 +117,7 @@ class _FakeContext:
         }
 
 
-def test_assembly_ids_are_owned_by_focused_modules_and_legacy_aliases_resolve() -> None:
+def test_assembly_ids_are_owned_by_focused_modules() -> None:
     live_index = build_index()
     expected = {
         "spades": "bionodulo.nodes.builtin.assembly_family.spades",
@@ -129,19 +126,8 @@ def test_assembly_ids_are_owned_by_focused_modules_and_legacy_aliases_resolve() 
     }
     assert {node_id: live_index[node_id] for node_id in expected} == expected
 
-    legacy = importlib.import_module("bionodulo.nodes.builtin.assembly")
-    assert legacy.SPAdesNode is SPAdesNode
-    assert legacy.MEGAHITNode is MEGAHITNode
-    assert legacy.QuastNode is QuastNode
     for node in (SPAdesNode, MEGAHITNode, QuastNode):
         assert node.__module__.startswith("bionodulo.nodes.builtin.assembly_family.")
-
-    legacy_ids = {
-        obj.NODE_ID
-        for _name, obj in inspect.getmembers(legacy, inspect.isclass)
-        if issubclass(obj, BaseNode) and obj not in {BaseNode, CommandNode} and obj.__module__ == legacy.__name__
-    }
-    assert not {"spades", "megahit", "quast"} & legacy_ids
 
 
 @pytest.mark.parametrize("node,expected", list(PINNED.items()))

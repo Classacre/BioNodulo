@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from bionodulo.environments.constants import EXECUTABLE_TO_CONDA_PACKAGE, PACKAGE_MIN_VERSIONS
-from bionodulo.nodes.builtin import pangenomics as legacy_pangenomics
+import bionodulo.nodes.builtin.pangenomics_family as pangenomics_family
 from bionodulo.nodes.builtin.pangenomics_family import (
     CactusExportNode,
     CactusGalaxyNode,
@@ -55,22 +55,19 @@ CLASSES = (
 )
 
 
-def test_registry_and_legacy_facade_use_twelve_focused_owners() -> None:
+def test_registry_uses_twelve_focused_owners() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     for node_class in CLASSES:
         assert registry.get(node_class.NODE_ID) is node_class
         assert "pangenomics_family" in node_class.__module__
-        assert getattr(legacy_pangenomics, node_class.__name__) is node_class
         assert node_class.__bases__ == (PangenomicsCommandContract,)
         assert node_class.__module__ == (
             f"bionodulo.nodes.builtin.pangenomics_family.{node_class.NODE_ID}"
         )
     family_dir = Path(VGConstructNode.__module__.replace(".", "/"))
     assert family_dir.name == "vg_construct"
-    assert not Path(legacy_pangenomics.__file__).with_name("pangenomics_family").joinpath(
-        "legacy.py"
-    ).exists()
+    assert not Path(pangenomics_family.__file__).with_name("legacy.py").exists()
 
 
 @pytest.mark.parametrize("node_class", CLASSES)

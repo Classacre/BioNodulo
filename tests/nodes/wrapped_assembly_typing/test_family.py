@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import copy
-import inspect
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from bionodulo.nodes.base import BaseNode
-from bionodulo.nodes.builtin import wrapped_assembly_typing as facade
+from bionodulo.nodes.registry import NodeRegistry
 
 
 TOOLS_IUC_COMMIT = "8eb66da1f6f16fde92688ee6c500d2bcdc924a47"
@@ -207,11 +206,11 @@ SOURCE_CASES = [
 
 
 def _node_classes() -> dict[str, type[BaseNode]]:
-    return {
-        candidate.NODE_ID: candidate
-        for _name, candidate in inspect.getmembers(facade, inspect.isclass)
-        if issubclass(candidate, BaseNode) and candidate is not BaseNode and candidate.NODE_ID
-    }
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    classes = {node_id: registry.get(node_id) for node_id in EXPECTED_OUTPUTS}
+    assert all(node_class is not None for node_class in classes.values())
+    return classes
 
 
 def _sample_value(name: str, spec: Any) -> Any:
@@ -313,13 +312,12 @@ def _planned_relatives(node_class: type[BaseNode], inputs: dict[str, Any], tmp_p
     return tuple(str(Path(path).relative_to(root)) for path in paths)
 
 
-def test_exactly_42_stable_ids_keep_legacy_facade_exports() -> None:
+def test_exactly_42_stable_ids_are_registered() -> None:
     classes = _node_classes()
     assert set(classes) == set(EXPECTED_OUTPUTS)
     assert len(classes) == 42
 
     for node_id, node_class in classes.items():
-        assert getattr(facade, node_class.__name__) is node_class
         assert node_class.NODE_ID == node_id
 
 

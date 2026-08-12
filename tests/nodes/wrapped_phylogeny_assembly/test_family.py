@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from bionodulo.nodes.builtin import wrapped_phylogeny_assembly as legacy
 from bionodulo.nodes.builtin import wrapped_phylogeny_assembly_family as family
 from bionodulo.nodes.builtin.wrapped_phylogeny_assembly_family.evidence import (
     ALPHAGENOME_CREDENTIAL,
@@ -110,12 +109,11 @@ def _nodes() -> list[type]:
     return [getattr(family, name) for name in family.__all__]
 
 
-def test_stable_ids_have_one_focused_owner_and_legacy_reexports() -> None:
+def test_stable_ids_have_one_focused_owner() -> None:
     nodes = _nodes()
     assert len(nodes) == 40
     assert {node.NODE_ID for node in nodes} == EXPECTED_IDS
     assert len({node.NODE_ID for node in nodes}) == len(nodes)
-    assert all(getattr(legacy, node.__name__) is node for node in nodes)
 
     owner_modules = {node.NODE_ID: node.__module__ for node in nodes}
     assert len(set(owner_modules.values())) == len(nodes)
@@ -132,7 +130,6 @@ def test_stable_ids_have_one_focused_owner_and_legacy_reexports() -> None:
 
     wrapper_dir = Path(family.__file__).parent
     assert not any("NODE_ID =" in path.read_text(encoding="utf-8") for path in wrapper_dir.glob("*.py"))
-    assert "NODE_ID" not in Path(legacy.__file__).read_text(encoding="utf-8")
 
 
 def test_amas_focused_owners_preserve_parent_relationships() -> None:

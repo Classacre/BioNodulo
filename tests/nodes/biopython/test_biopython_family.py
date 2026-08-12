@@ -368,11 +368,10 @@ def test_contract_validation_rejects_unrepresentable_modes() -> None:
     )
 
 
-def test_legacy_facades_reexport_the_focused_owners() -> None:
-    from bionodulo.nodes.builtin import biopython_nodes
+def test_family_package_reexports_the_focused_owners() -> None:
     from bionodulo.nodes.builtin.biopython_family import nodes
 
-    for facade in (biopython_nodes, nodes):
+    for facade in (nodes,):
         assert facade.SeqIOReadNode is SeqIOReadNode
         assert facade.SeqIOWriteNode is SeqIOWriteNode
         assert facade.SequenceTranslateNode is SequenceTranslateNode

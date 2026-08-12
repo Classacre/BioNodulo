@@ -10,15 +10,13 @@ import pytest
 
 from bionodulo.nodes.builtin._bam_index import validate_colocated_bam_index
 from bionodulo.nodes.builtin.epigenomics import DeepToolsBamCoverageNode
-from bionodulo.nodes.builtin.variant import (
-    DellyCallNode,
-    DellyNode,
-    FreeBayesNode,
-    GatkHaplotypeCallerNode,
-    MantaCallNode,
-    MantaNode,
-)
-from bionodulo.nodes.builtin.visualization import CoveragePlotNode
+from bionodulo.nodes.builtin.variant_family.delly import DellyNode
+from bionodulo.nodes.builtin.variant_family.delly_call import DellyCallNode
+from bionodulo.nodes.builtin.variant_family.freebayes import FreeBayesNode
+from bionodulo.nodes.builtin.variant_family.gatk_haplotype_caller import GatkHaplotypeCallerNode
+from bionodulo.nodes.builtin.variant_family.manta import MantaNode
+from bionodulo.nodes.builtin.variant_family.manta_call import MantaCallNode
+from bionodulo.nodes.builtin.visualization_family.coverage_plot import CoveragePlotNode
 from scripts.compile_catalog import EXPECTED_NODE_COUNT  # live catalog size: sealed ledger + declared post-baseline nodes
 
 

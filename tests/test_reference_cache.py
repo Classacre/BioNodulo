@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bionodulo.execution import reference_cache as rc  # noqa: E402
 from bionodulo.nodes.base import BaseNode  # noqa: E402
-from bionodulo.nodes.builtin.alignment import STARIndexNode  # noqa: E402
+from bionodulo.nodes.builtin.alignment_family.star_index import STARIndexNode  # noqa: E402
 
 
 def _clear(monkeypatch):

@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from bionodulo.nodes.builtin.protein_database_family import (
     AlphaFoldDBNode,
-    AlphaFoldNode,
     PDBDownloadNode,
-    PDBRetrieveNode,
     UniProtRetrieveNode,
     UniProtSearchNode,
 )
@@ -45,15 +43,3 @@ def test_template_nodes_have_explicit_validation_contracts() -> None:
         PDBDownloadNode.VALIDATE_INPUTS({"pdb_ids": "not-an-id", "format": "cif"})
     )
 
-
-def test_legacy_facades_resolve_to_focused_owners() -> None:
-    from bionodulo.nodes.builtin import alphafold, rcsb_pdb, uniprot
-
-    assert uniprot.UniProtSearchNode is UniProtSearchNode
-    assert uniprot.UniProtRetrieveNode is UniProtRetrieveNode
-    assert rcsb_pdb.PDBDownloadNode is PDBDownloadNode
-    assert rcsb_pdb.PDBRetrieveNode is PDBRetrieveNode
-    assert alphafold.AlphaFoldDBNode is AlphaFoldDBNode
-    assert alphafold.AlphaFoldNode is AlphaFoldNode
-    assert alphafold._LegacyAlphaFoldDBNode.NODE_ID == ""
-    assert alphafold._LegacyAlphaFoldNode.NODE_ID == ""

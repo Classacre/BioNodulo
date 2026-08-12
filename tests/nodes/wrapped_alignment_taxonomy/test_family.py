@@ -11,11 +11,11 @@ import pytest
 
 from bionodulo.nodes.base import BaseNode
 from bionodulo.nodes.command_node import CommandNode
-from bionodulo.nodes.builtin import wrapped_alignment_taxonomy as facade
 from bionodulo.nodes.builtin._alignment_taxonomy_contracts import (
     NODE_EVIDENCE,
     TOOLS_IUC_GIT_COMMIT,
 )
+from bionodulo.nodes.registry import NodeRegistry
 
 
 EXPECTED_OUTPUTS = {
@@ -64,11 +64,11 @@ ADAPTER_MODULES = (
 
 
 def _node_classes() -> dict[str, type[BaseNode]]:
-    return {
-        candidate.NODE_ID: candidate
-        for _name, candidate in inspect.getmembers(facade, inspect.isclass)
-        if issubclass(candidate, BaseNode) and candidate is not BaseNode and candidate.NODE_ID
-    }
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    classes = {node_id: registry.get(node_id) for node_id in NODE_EVIDENCE}
+    assert all(node_class is not None for node_class in classes.values())
+    return classes
 
 
 def _owned_node_classes(module: Any) -> list[type[BaseNode]]:
@@ -184,7 +184,6 @@ def test_exactly_33_stable_ids_have_focused_owners() -> None:
     for node_id, node_class in classes.items():
         owner = importlib.import_module(node_class.__module__)
         assert _owned_node_classes(owner) == [node_class]
-        assert getattr(facade, node_class.__name__) is node_class
         assert node_class.NODE_ID == node_id
 
 

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from bionodulo.nodes.builtin import long_read as legacy
 from bionodulo.nodes.builtin.long_read_family import (
     DoradoCorrectNode,
     DoradoDuplexNode,
@@ -15,7 +14,7 @@ from bionodulo.nodes.builtin.long_read_family import (
 )
 
 
-def test_pinned_authorities_outputs_and_legacy_reexports() -> None:
+def test_pinned_authorities_outputs() -> None:
     assert DoradoCorrectNode.GIT_COMMIT == "0949eb8de80dce9a198c08c0e37e31ed1eb627fc"
     assert DoradoDuplexNode.GIT_COMMIT == "0949eb8de80dce9a198c08c0e37e31ed1eb627fc"
     assert DoradoCorrectNode.SOURCE_REVISION == DoradoCorrectNode.GIT_COMMIT
@@ -30,11 +29,6 @@ def test_pinned_authorities_outputs_and_legacy_reexports() -> None:
     assert MedakaConsensusNode.GIT_COMMIT == "03b58482ca38088790edfa4b196f8bf619f83c05"
     assert MedakaConsensusNode.PACKAGE_CONSTRAINT == "medaka = 2.0.1"
     assert MedakaConsensusNode.REQUIRED_CONDA_PACKAGES == ["medaka"]
-
-    assert legacy.DoradoCorrectNode is DoradoCorrectNode
-    assert legacy.DoradoDuplexNode is DoradoDuplexNode
-    assert legacy.MedakaConsensusNode is MedakaConsensusNode
-    assert legacy.MedakaNode is MedakaNode
 
 
 def test_dorado_correct_renders_fasta_correction_without_model_downloads() -> None:
