@@ -7982,10 +7982,6 @@ class _PhylogeneticTreeViewerContract(VisualizationNode):
         return {"outputs": {"tree_image": str(output_path)}}
 
 
-class _PhylogeneticTreeViewerCompatibilityContract(_PhylogeneticTreeViewerContract):
-    """Compatibility wrapper for the original roadmap node ID."""
-
-    LEGACY_NODE_ID = "phylogenetic_tree_viewer"
 
 
 class _VCFStatsChartContract(VisualizationNode):
