@@ -15,6 +15,7 @@ from bionodulo.ai.hosted import (
     HOSTED_MODEL,
     HOSTED_PROVIDER,
     bearer_from_headers,
+    friendly_hosted_error,
     hosted_api_base,
     hosted_unavailable_reason,
     is_hosted_enabled,
@@ -50,12 +51,14 @@ def _llm_runtime_settings(request: Request, body: AIChatRequest) -> tuple[str, s
 
     # Hosted assistant. Chosen only when the user has not configured a key of
     # their own, so "bring your own key" always wins and never silently routes
-    # someone's prompts through our cloud.
+    # someone's prompts through our cloud. The model is pinned to the neutral
+    # hosted label: the proxy substitutes the real hosted model, whose identity
+    # is never exposed to the app.
     if api_key is None and not api_base and is_hosted_enabled():
         token = bearer_from_headers(request.headers)
         if token:
             provider = HOSTED_PROVIDER
-            model = model or HOSTED_MODEL
+            model = HOSTED_MODEL
             api_key = token
             api_base = hosted_api_base()
 
@@ -112,9 +115,12 @@ async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
             run_queue=_get_run_queue(request),
         )
     except Exception as exc:
+        # Hosted mode: never leak the upstream provider or model — translate
+        # quota exhaustion and outages into safe, actionable messages.
+        message = friendly_hosted_error(exc) if api_base == hosted_api_base() else f"AI error: {exc}"
         return {
-            "steps": [{"type": "reply", "content": f"AI error: {exc}"}],
-            "reply": f"AI error: {exc}",
+            "steps": [{"type": "reply", "content": message}],
+            "reply": message,
             "model": model or provider,
         }
 
@@ -175,7 +181,8 @@ async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
                 run_queue=_get_run_queue(request),
             )
         except Exception as exc:
-            yield f"data: {json.dumps({'type': 'reply', 'content': f'AI error: {exc}'})}\n\n"
+            message = friendly_hosted_error(exc) if api_base == hosted_api_base() else f"AI error: {exc}"
+            yield f"data: {json.dumps({'type': 'reply', 'content': message})}\n\n"
             yield "data: [DONE]\n\n"
             return
 
@@ -223,5 +230,7 @@ async def ai_reproduce_paper(request: Request, body: AIReproducePaperRequest) ->
             workflow_id=body.workflow_id,
         )
     except Exception as exc:
+        if api_base == hosted_api_base():
+            return {"error": friendly_hosted_error(exc)}
         return {"error": f"Paper reproduction failed: {exc}"}
     return report

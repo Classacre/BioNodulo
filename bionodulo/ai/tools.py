@@ -768,9 +768,14 @@ async def _search_literature(
 ) -> dict[str, Any]:
     """Search PubMed (NCBI E-utilities) for papers matching a query.
 
-    Keyless. Used by the optimize/reproduce flows to ground method choices in
-    the literature. Returns title, authors, journal, year, PMID, and DOI.
+    Keyless. Grounds method choices in the literature. Returns title, authors,
+    journal, year, PMID, DOI, abstract (via efetch), and free full-text links
+    (PubMed Central) where available, so the assistant can extract current
+    best practices -- and know when a paper is inaccessible and must be
+    requested from the user.
     """
+    import xml.etree.ElementTree as ET
+
     import httpx
 
     try:
@@ -792,6 +797,28 @@ async def _search_literature(
             )
             summary.raise_for_status()
             payload = summary.json().get("result", {}) or {}
+            # Abstracts come from efetch as XML; one request for all ids.
+            abstracts: dict[str, str] = {}
+            fetched = await client.get(
+                f"{base}/efetch.fcgi",
+                params={"db": "pubmed", "id": ",".join(ids), "rettype": "abstract", "retmode": "xml"},
+            )
+            fetched.raise_for_status()
+            root = ET.fromstring(fetched.text)
+            for article in root.iter("PubmedArticle"):
+                pmid_el = article.find("./MedlineCitation/PMID")
+                if pmid_el is None or not (pmid_el.text or "").strip():
+                    continue
+                parts = []
+                for abstext in article.findall("./MedlineCitation/Article/Abstract/AbstractText"):
+                    text = "".join(abstext.itertext()).strip()
+                    if not text:
+                        continue
+                    label = abstext.get("Label")
+                    parts.append(f"{label}: {text}" if label else text)
+                abstract = "\n".join(parts).strip()
+                if abstract:
+                    abstracts[pmid_el.text.strip()] = abstract[:2000]
     except Exception as exc:
         return {"error": f"Literature search failed: {exc}", "query": query}
 
@@ -799,21 +826,35 @@ async def _search_literature(
     for pmid in ids:
         entry = payload.get(pmid) or {}
         doi = ""
+        pmc = ""
         for article_id in entry.get("articleids", []) or []:
-            if article_id.get("idtype") == "doi":
+            idtype = article_id.get("idtype")
+            if idtype == "doi" and not doi:
                 doi = article_id.get("value", "")
-                break
-        results.append(
-            {
-                "pmid": pmid,
-                "title": entry.get("title", ""),
-                "authors": [a.get("name", "") for a in (entry.get("authors") or [])][:6],
-                "journal": entry.get("fulljournalname") or entry.get("source", ""),
-                "year": (entry.get("pubdate", "") or "")[:4],
-                "doi": doi,
-                "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
-            }
-        )
+            elif idtype == "pmc" and not pmc:
+                pmc = article_id.get("value", "")
+        abstract = abstracts.get(pmid, "")
+        result = {
+            "pmid": pmid,
+            "title": entry.get("title", ""),
+            "authors": [a.get("name", "") for a in (entry.get("authors") or [])][:6],
+            "journal": entry.get("fulljournalname") or entry.get("source", ""),
+            "year": (entry.get("pubdate", "") or "")[:4],
+            "doi": doi,
+            "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+            "doi_url": f"https://doi.org/{doi}" if doi else "",
+            "abstract": abstract,
+        }
+        if pmc:
+            # PubMed Central id means a free full text exists.
+            result["free_full_text_url"] = f"https://pmc.ncbi.nlm.nih.gov/articles/{pmc}/"
+        if not abstract and not pmc:
+            result["access_note"] = (
+                "No abstract or free full text available — the paper is likely "
+                "paywalled. Ask the user to upload the PDF or paste the relevant "
+                "sections before relying on it."
+            )
+        results.append(result)
     return {"query": query, "results": results, "count": len(results)}
 
 
@@ -1068,7 +1109,7 @@ ALL_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         "search_literature",
-        "Search PubMed for papers matching a query (title, authors, journal, year, PMID, DOI). Use to research the best method for a task or to find a paper's referenced datasets/tools.",
+        "Research the current literature: search PubMed for papers matching a query and return titles, authors, journal, year, PMID, DOI, abstracts, and free full-text links where available. ALWAYS use this before designing a new workflow from scratch, before choosing tools/nodes for an analysis, and whenever the user brainstorms an approach or asks about best practices or research. If a key paper has no abstract and no free full text, ask the user to upload it (give the link) before relying on it.",
         [
             ToolParameter("query", "string", "PubMed search query"),
             ToolParameter("max_results", "integer", "Maximum papers to return (<=20)", required=False, default=5),
