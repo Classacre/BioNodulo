@@ -500,5 +500,6 @@ export function useWorkflow() {
     openCloudWorkflow, newCloudWorkflow,
     validate, resolve, resolveReport, clearResolveReport, submitRun, exportWorkflow, importWorkflow,
     addRun, updateRun, setRuns,
+    cloudRestored,
   };
 }

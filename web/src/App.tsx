@@ -1,3 +1,5 @@
+import { runDoiFlow, type DoiUploadRequest } from './doi/doiFlow';
+import { DoiUploadOverlay } from './doi/DoiUploadOverlay';
 import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -110,6 +112,7 @@ import { setCollabRemoteBase } from './collab/remoteBase';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { cancelCloudRun, getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';
+import { createCloudWorkflow } from './api/website';
 import {
   mapCloudRunStatus,
   isTerminalCloudStatus,
@@ -285,6 +288,7 @@ export default function App() {
     setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
     openCloudWorkflow, newCloudWorkflow,
     validate, resolve, clearResolveReport, submitRun, addRun, updateRun, setRuns,
+    cloudRestored,
   } = useWorkflow();
   // Theme is fully owned by the palette system (usePaletteTheme + state/palettes),
   // which applies the active palette and its light/dark class on load and on change.
@@ -451,6 +455,83 @@ export default function App() {
     pendingHashWorkflowRef.current = wf;
     clearShareHash();
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // DOI→workflow flow (/build?doi=<identifier>). Captured at mount like the
+  // hash share payload, then run once the registry + cloud config are ready.
+  // ---------------------------------------------------------------------------
+  const pendingDoiRef = useRef<string | null>(null);
+  const [doiUploadRequest, setDoiUploadRequest] = useState<DoiUploadRequest | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const doi = params.get('doi');
+    if (!doi) return;
+    pendingDoiRef.current = doi;
+    params.delete('doi');
+    const next = `${window.location.pathname}${params.size ? `?${params}` : ''}${window.location.hash}`;
+    window.history.replaceState(null, '', next);
+  }, []);
+
+  // Fresh-state refs so the async flow never reads a stale closure mid-build.
+  const workflowsStateRef = useRef(workflows);
+  workflowsStateRef.current = workflows;
+  const activeIndexStateRef = useRef(activeIndex);
+  activeIndexStateRef.current = activeIndex;
+  const doiFlowStartedRef = useRef(false);
+  useEffect(() => {
+    const doi = pendingDoiRef.current;
+    if (!doi || doiFlowStartedRef.current) return;
+    if (!editorMode || !configResolved || objectInfoLoading) return;
+    // Signed-in users: wait for the cloud tab restore so it can't wipe the
+    // tab the flow is about to build on. Guests skip it (it 401s anyway).
+    if (authUser && !cloudRestored) return;
+    doiFlowStartedRef.current = true;
+    pendingDoiRef.current = null;
+    void runDoiFlow(doi, {
+      objectInfo,
+      signedIn: Boolean(authUser),
+      createCloudTab: async (name) => {
+        const id = await createCloudWorkflow(name);
+        await openCloudWorkflow(id);
+      },
+      addLocalTab: (name) => {
+        addWorkflow({
+          id: '',
+          version: '2.0',
+          app: 'bionodulo',
+          name,
+          description: '',
+          nodes: [],
+          edges: [],
+          groups: [],
+          outputs: {},
+          parameters: [],
+        });
+      },
+      renameActive: (name) => updateWorkflow(activeIndexStateRef.current, { name }),
+      getWorkflow: () => workflowsStateRef.current[activeIndexStateRef.current],
+      setWorkflow: (updater) => setWorkflow(activeIndexStateRef.current, updater),
+      fitView: () => {
+        requestAnimationFrame(() => requestAnimationFrame(() => canvasRef.current?.fitView()));
+      },
+      setUploadRequest: setDoiUploadRequest,
+      notify: {
+        loading: (title, id) => toast.loading(title, { id }),
+        success: (title, id, message) => toast.success(title, { id, message }),
+        info: (title, id, message) => toast.info(title, { id, message, duration: 8000 }),
+        error: (title, id, message) => toast.error(title, { id, message }),
+        dismiss: (id) => toast.dismiss(id),
+        guestBanner: () => toast.show({
+          id: 'doi-guest-banner',
+          tone: 'info',
+          dismissible: true,
+          title: t('doiFlow.guestBannerTitle', { defaultValue: 'You are building as a guest' }),
+          message: t('doiFlow.guestBannerMessage', { defaultValue: 'Sign in to save the workflow to your workspace.' }),
+        }),
+      },
+      t,
+    });
+  }, [editorMode, configResolved, objectInfoLoading, authUser, cloudRestored, objectInfo, addWorkflow, openCloudWorkflow, setWorkflow, updateWorkflow, t]);
 
   useEffect(() => {
     if (initialRequestedWorkflowId && requestedWorkflowId !== initialRequestedWorkflowId) {
@@ -3351,6 +3432,7 @@ export default function App() {
       <CommandPaletteHost />
       <TransferWindow />
       <KeyboardShortcutsModal open={showShortcuts} onOpenChange={setShowShortcuts} />
+      {doiUploadRequest && <DoiUploadOverlay request={doiUploadRequest} />}
 
       {draggingPanelTab && (
         <>
