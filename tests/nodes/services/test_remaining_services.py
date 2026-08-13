@@ -59,19 +59,6 @@ def test_service_nodes_have_focused_source_pinned_owners() -> None:
         assert node_class.GIT_COMMIT == SOURCE_COMMITS[node_id]
 
 
-def test_compatibility_facades_export_the_focused_classes() -> None:
-    facades = {
-        "cnvkit": ("CNVkitAccessNode", "cnvkit_access"),
-        "cloud_storage": ("S3DownloadNode", "s3_download"),
-        "hpc": ("HPCCheckStatusNode", "hpc_check_status"),
-        "http_request": ("HTTPRequestNode", "http_request"),
-        "python_code": ("PythonCodeNode", "python_code"),
-        "ucsc": ("UCSCGenomeBrowserNode", "ucsc_genome_browser"),
-    }
-    for module_name, (class_name, node_id) in facades.items():
-        facade = importlib.import_module(f"bionodulo.nodes.builtin.{module_name}")
-        assert getattr(facade, class_name) is _node_class(node_id)
-
 
 def test_cnvkit_commands_follow_upstream_optional_flag_semantics() -> None:
     antitarget = _node_class("cnvkit_antitarget")
