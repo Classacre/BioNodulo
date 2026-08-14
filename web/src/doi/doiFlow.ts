@@ -4,6 +4,7 @@
 // supplies the workflow/UI primitives via DoiFlowDeps, which also makes the
 // flow unit-testable with mocked fetches.
 import type { ObjectInfo, Workflow, WorkflowNode } from '../types';
+import { dagreLayout } from '../utils/dagreLayout';
 import { matchToolToNodeType, slugify, wireSuggestion, type PlacedNode, type SuggestedNode } from './nodeMatching';
 
 export interface DoiAnalysisPaper {
@@ -44,6 +45,8 @@ export interface DoiFlowDeps {
   setWorkflow: (updater: (wf: Workflow) => Workflow) => void;
   fitView: () => void;
   setUploadRequest: (req: DoiUploadRequest | null) => void;
+  /** Append a line to the translucent progress overlay (empty string clears). */
+  onProgress: (line: string) => void;
   notify: {
     loading: (title: string, id: string) => void;
     success: (title: string, id?: string, message?: string) => void;
@@ -61,6 +64,10 @@ export interface DoiFlowDeps {
 
 const TOAST_ID = 'doi-flow';
 const WEBSITE_API = '/api';
+
+/** Estimated node sizes for dagre (close to the canvas' rendered cards). */
+const NODE_SIZE = { width: 240, height: 110 };
+const NOTE_SIZE = { width: 320, height: 180 };
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -131,17 +138,57 @@ function makeNoteNode(text: string, position: [number, number], idSuffix: string
   };
 }
 
-function gridPosition(index: number): [number, number] {
-  const col = index % 4;
-  const row = Math.floor(index / 4);
-  return [100 + col * 280, 260 + row * 200];
-}
-
 function failureMessageKey(message: string): string {
   if (message === 'network') return 'doiFlow.errorNetwork';
   if (message.startsWith('http-429')) return 'doiFlow.errorQuota';
   if (message.startsWith('http-404')) return 'doiFlow.errorNotFound';
   return 'doiFlow.errorGeneric';
+}
+
+/**
+ * Guarantee connectivity: chain every still-unconnected pipeline node onto the
+ * previous one (suggestion order). Ports are chosen type-compatible first, and
+ * otherwise the first real port pair — note nodes are skipped (no outputs).
+ */
+function ensureConnected(
+  placed: PlacedNode[],
+  edges: Workflow['edges'],
+  objectInfo: ObjectInfo,
+): Workflow['edges'] {
+  const hasEdge = (a: string, b: string) =>
+    edges.some((e) => e.from.node === a && e.to.node === b);
+  const extra: Workflow['edges'] = [];
+  const pipeline = placed.filter((p) => p.node.type !== 'note');
+  for (let i = 1; i < pipeline.length; i++) {
+    const from = pipeline[i - 1].node;
+    const to = pipeline[i].node;
+    if (hasEdge(from.id, to.id)) continue;
+    const fromMeta = objectInfo[from.type];
+    const toMeta = objectInfo[to.type];
+    const outs = (fromMeta?.return_types ?? []).map((type, j) => ({
+      name: fromMeta?.return_names?.[j] || type,
+      type,
+    }));
+    const ins = [
+      ...Object.entries(toMeta?.input_types?.required ?? {}),
+      ...Object.entries(toMeta?.input_types?.optional ?? {}),
+    ].map(([name, spec]) => ({ name, type: String((spec as { type?: unknown })?.type ?? '') }));
+    if (!outs.length || !ins.length) continue;
+    const compatible = outs.flatMap((out) =>
+      ins.filter((inp) => {
+        const a = out.type.toUpperCase();
+        const b = inp.type.toUpperCase();
+        return a === b || a === '*' || b === '*' || a === 'ANY' || b === 'ANY';
+      }).map((inp) => ({ out, inp })),
+    )[0];
+    const pair = compatible ?? { out: outs[0], inp: ins[0] };
+    extra.push({
+      id: `doi-chain-${from.id}-${to.id}`,
+      from: { node: from.id, output: pair.out.name },
+      to: { node: to.id, input: pair.inp.name },
+    });
+  }
+  return [...edges, ...extra];
 }
 
 /**
@@ -151,9 +198,12 @@ function failureMessageKey(message: string): string {
 export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> {
   const { notify, t } = deps;
   const fetchImpl = deps.fetchImpl ?? fetch;
-  const stageDelay = deps.stageDelayMs ?? 450;
+  const stageDelay = deps.stageDelayMs ?? 400;
+  const progress = (key: string, defaultValue: string) =>
+    deps.onProgress(t(key, { defaultValue }));
 
   notify.loading(t('doiFlow.analyzing', { defaultValue: 'Analysing paper…' }), TOAST_ID);
+  progress('doiFlow.stepStart', 'Opening the paper link…');
 
   // --- Tab: DB-backed when signed in (auto-save persists the build), local
   // otherwise, with a persistent sign-in-to-save hint.
@@ -172,15 +222,17 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
   }
 
   // --- Analysis, with the closed-access detour through PDF upload.
+  progress('doiFlow.stepAnalyze', 'Analysing the paper with AI…');
   let outcome = await callAnalyze(fetchImpl, doi);
   if (outcome.kind === 'needsUpload') {
+    progress('doiFlow.stepNeedPdf', 'Full text is closed-access — waiting for the PDF…');
     const uploaded = await new Promise<AnalyzeOutcome>((resolve) => {
       deps.setUploadRequest({
         doi,
         paperTitle: outcome.kind === 'needsUpload' ? outcome.paper.title ?? doi : doi,
         onFile: (file) => {
           deps.setUploadRequest(null);
-          notify.loading(t('doiFlow.analyzingUpload', { defaultValue: 'Analysing uploaded PDF…' }), TOAST_ID);
+          progress('doiFlow.stepAnalyzeUpload', 'Analysing the uploaded PDF…');
           void callUpload(fetchImpl, doi, file).then(resolve);
         },
         onCancel: () => {
@@ -193,6 +245,7 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
   }
 
   if (outcome.kind === 'fail') {
+    deps.onProgress(''); // clear the overlay
     if (outcome.message === 'upload-cancelled') {
       notify.dismiss(TOAST_ID);
       return;
@@ -224,13 +277,14 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
   }
 
   if (outcome.kind !== 'ok') return; // unreachable — 'fail' returns above
-  const analysis = outcome.analysis;
+  const analysis: DoiAnalysis = outcome.analysis;
   const paperTitle = analysis.paper?.title || doi;
-  const suggestion = analysis.workflowSuggestion ?? {};
-  const recommended = suggestion.recommendedNodes ?? [];
+  const suggestion: NonNullable<DoiAnalysis['workflowSuggestion']> = analysis.workflowSuggestion ?? {};
+  const recommended: SuggestedNode[] = suggestion.recommendedNodes ?? [];
 
   // --- Not bioinformatics / nothing to build: say so, visibly, and stop.
   if (analysis.bioinformaticsRelevant === false || recommended.length === 0) {
+    deps.onProgress('');
     const notBio = analysis.bioinformaticsRelevant === false;
     notify.info(
       notBio
@@ -264,9 +318,45 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
     return;
   }
 
-  // --- Build live: title, summary note, staged nodes, staged edges.
+  // --- Build live: title, summary note, staged nodes at dagre positions,
+  // staged edges. Edges and layout are computed UP FRONT so nodes appear
+  // already organised, and every pipeline node ends up connected.
   deps.renameActive(paperTitle);
   notify.loading(t('doiFlow.building', { defaultValue: 'Building workflow…' }), TOAST_ID);
+  progress('doiFlow.stepPlan', 'Planning the pipeline…');
+
+  const planned = recommended.map((rec, i) => {
+    const match = matchToolToNodeType(rec.name, rec.category, deps.objectInfo);
+    const node: WorkflowNode = {
+      id: slugify(rec.name, i),
+      type: match.type,
+      position: [0, 0], // laid out below
+      params: match.fellBackToNote ? { text: `${rec.name}\n\n${rec.reason}` } : {},
+      ...(rec.name ? { ui: { title: rec.name } } : {}),
+    };
+    return { node, label: rec.name } satisfies PlacedNode;
+  });
+
+  const suggestedEdges = wireSuggestion(planned, suggestion.suggestedConnections ?? [], deps.objectInfo);
+  const allEdges = ensureConnected(planned, suggestedEdges, deps.objectInfo);
+
+  const positions = dagreLayout(
+    planned.map((p) => ({ id: p.node.id, ...NODE_SIZE })),
+    allEdges.map((e) => ({ from: e.from.node, to: e.to.node })),
+    { direction: 'LR', nodeSep: 60, rankSep: 140 },
+  );
+  let minX = Infinity;
+  let minY = Infinity;
+  for (const pos of positions.values()) {
+    minX = Math.min(minX, pos.x);
+    minY = Math.min(minY, pos.y);
+  }
+  if (!Number.isFinite(minX)) minX = 100;
+  if (!Number.isFinite(minY)) minY = 260;
+  for (const p of planned) {
+    const pos = positions.get(p.node.id);
+    if (pos) p.node.position = [pos.x, pos.y];
+  }
 
   const summaryText = [
     paperTitle,
@@ -279,35 +369,37 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
   if (summaryText.trim()) {
     deps.setWorkflow((wf) => ({
       ...wf,
-      nodes: [...wf.nodes, makeNoteNode(summaryText, [100, 20], 'summary', t('doiFlow.summaryNoteTitle', { defaultValue: 'Paper summary' }))],
+      nodes: [
+        ...wf.nodes,
+        makeNoteNode(
+          summaryText,
+          [minX, minY - (NOTE_SIZE.height + 60)],
+          'summary',
+          t('doiFlow.summaryNoteTitle', { defaultValue: 'Paper summary' }),
+        ),
+      ],
     }));
     await sleep(stageDelay);
   }
 
-  const placed: PlacedNode[] = [];
-  for (let i = 0; i < recommended.length; i++) {
-    const rec = recommended[i];
-    const match = matchToolToNodeType(rec.name, rec.category, deps.objectInfo);
-    const node: WorkflowNode = {
-      id: slugify(rec.name, i),
-      type: match.type,
-      position: gridPosition(i),
-      params: match.fellBackToNote ? { text: `${rec.name}\n\n${rec.reason}` } : {},
-      ...(rec.name ? { ui: { title: rec.name } } : {}),
-    };
-    placed.push({ node, label: rec.name });
-    deps.setWorkflow((wf) => ({ ...wf, nodes: [...wf.nodes, node] }));
+  for (const p of planned) {
+    // Progress text carries the node name: build it directly, not via t().
+    deps.onProgress(`${t('doiFlow.stepAdding', { defaultValue: 'Adding' })} ${p.label}…`);
+    deps.setWorkflow((wf) => ({ ...wf, nodes: [...wf.nodes, p.node] }));
     await sleep(stageDelay);
   }
   deps.fitView();
 
-  const edges = wireSuggestion(placed, suggestion.suggestedConnections ?? [], deps.objectInfo);
-  for (const edge of edges) {
+  if (allEdges.length) {
+    progress('doiFlow.stepWiring', 'Connecting the nodes…');
+  }
+  for (const edge of allEdges) {
     deps.setWorkflow((wf) => ({ ...wf, edges: [...wf.edges, edge] }));
-    await sleep(Math.max(150, Math.round(stageDelay * 0.7)));
+    await sleep(Math.max(150, Math.round(stageDelay * 0.6)));
   }
 
   deps.fitView();
+  deps.onProgress('');
   notify.success(
     t('doiFlow.doneTitle', { defaultValue: 'Workflow built' }),
     TOAST_ID,

@@ -4,6 +4,15 @@ import { runDoiFlow, type DoiFlowDeps, type DoiUploadRequest } from './doiFlow';
 import type { ObjectInfo } from '../types';
 
 const objectInfo = {
+  fastqc: {
+    id: 'fastqc',
+    display_name: 'FastQC',
+    category: 'qc',
+    search_aliases: ['fastqc'],
+    input_types: { required: { reads: { type: 'FASTQ' } } },
+    return_types: ['HTML'],
+    return_names: ['report'],
+  },
   trim_galore: {
     id: 'trim_galore',
     display_name: 'Trim Galore',
@@ -102,6 +111,7 @@ function makeHarness(fetchImpl: typeof fetch, signedIn = false): Harness {
     setUploadRequest: (r) => {
       uploadReq = r;
     },
+    onProgress: () => {},
     notify: {
       loading: (title) => notices.push({ kind: 'loading', title }),
       success: (title) => notices.push({ kind: 'success', title }),
@@ -170,6 +180,40 @@ describe('runDoiFlow', () => {
 
     expect(calls).toBe(2);
     expect(h.getWf().nodes.map((n) => n.type)).toContain('trim_galore');
+  });
+
+  it('connects every pipeline node even when suggestions omit links', async () => {
+    const h = makeHarness(async () =>
+      jsonResponse(200, {
+        result: {
+          summary: 'A paper.',
+          bioinformaticsRelevant: true,
+          workflowSuggestion: {
+            description: 'x',
+            recommendedNodes: [
+              { name: 'Trim Galore', category: 'qc', reason: 'trim' },
+              { name: 'STAR Aligner', category: 'alignment', reason: 'align' },
+              { name: 'FastQC', category: 'qc', reason: 'qc report' },
+            ],
+            suggestedConnections: [], // nothing suggested at all
+          },
+          paper: { title: 'T', doi: '10.1/y' },
+        },
+      }),
+    );
+
+    await runDoiFlow('10.1/y', h.deps);
+
+    const wf = h.getWf();
+    const pipeline = wf.nodes.filter((n) => n.type !== 'note');
+    expect(pipeline).toHaveLength(3);
+    // Every pipeline node is touched by at least one edge.
+    for (const n of pipeline) {
+      expect(
+        wf.edges.some((e) => e.from.node === n.id || e.to.node === n.id),
+      ).toBe(true);
+    }
+    expect(wf.edges.length).toBeGreaterThanOrEqual(2);
   });
 
   it('informs instead of building when the paper is not bioinformatics', async () => {

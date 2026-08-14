@@ -1,5 +1,6 @@
 import { runDoiFlow, type DoiUploadRequest } from './doi/doiFlow';
 import { DoiUploadOverlay } from './doi/DoiUploadOverlay';
+import { DoiProgressOverlay } from './doi/DoiProgressOverlay';
 import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -462,13 +463,17 @@ export default function App() {
   // ---------------------------------------------------------------------------
   const pendingDoiRef = useRef<string | null>(null);
   const [doiUploadRequest, setDoiUploadRequest] = useState<DoiUploadRequest | null>(null);
+  const [doiProgressLines, setDoiProgressLines] = useState<string[]>([]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const doi = params.get('doi');
     if (!doi) return;
     pendingDoiRef.current = doi;
+    // Keep the DOI visible (and shareable) in the URL without re-triggering
+    // the flow on refresh: doi= is the trigger, from-doi= is informational.
     params.delete('doi');
-    const next = `${window.location.pathname}${params.size ? `?${params}` : ''}${window.location.hash}`;
+    params.set('from-doi', doi);
+    const next = `${window.location.pathname}?${params}${window.location.hash}`;
     window.history.replaceState(null, '', next);
   }, []);
 
@@ -515,6 +520,13 @@ export default function App() {
         requestAnimationFrame(() => requestAnimationFrame(() => canvasRef.current?.fitView()));
       },
       setUploadRequest: setDoiUploadRequest,
+      onProgress: (line) => {
+        if (!line) {
+          setDoiProgressLines([]);
+          return;
+        }
+        setDoiProgressLines((prev) => [...prev, line]);
+      },
       notify: {
         loading: (title, id) => toast.loading(title, { id }),
         success: (title, id, message) => toast.success(title, { id, message }),
@@ -3433,6 +3445,7 @@ export default function App() {
       <TransferWindow />
       <KeyboardShortcutsModal open={showShortcuts} onOpenChange={setShowShortcuts} />
       {doiUploadRequest && <DoiUploadOverlay request={doiUploadRequest} />}
+      <DoiProgressOverlay lines={doiProgressLines} />
 
       {draggingPanelTab && (
         <>
