@@ -1728,7 +1728,7 @@ export default function App() {
             announcedProvisioning = true;
             lastHeartbeatAt = Date.now();
             lifecycleLog(t('console.actions.cloudRunProvisioning', {
-              defaultValue: 'Cloud runner queued — provisioning a machine and starting the engine. This usually takes 1–3 minutes; live progress streams here as soon as the runner is up.',
+              defaultValue: 'Cloud runner queued — provisioning a machine and starting the engine. A warm machine starts in 1–3 minutes; a cold start can take up to ~5 minutes. Live progress streams here as soon as the runner is up.',
             }));
           } else if (Date.now() - lastHeartbeatAt >= 30_000) {
             lastHeartbeatAt = Date.now();
