@@ -4,12 +4,10 @@ on:
   push:
     branches:
       - main
-      - bionodulo-collab
       - "test/**"
   pull_request:
     branches:
       - main
-      - bionodulo-collab
   workflow_dispatch:
 
 permissions:

@@ -332,16 +332,10 @@ const en = {
         console: 'Open console panel',
       },
       canvas: {
-        selectAll: 'Select all nodes',
-        copy: 'Copy selection',
-        paste: 'Paste selection',
-        cut: 'Cut selection',
         undo: 'Undo',
         redo: 'Redo',
         redoAlternate: 'Redo alternate',
         group: 'Group selected nodes',
-        collapse: 'Collapse selected nodes',
-        delete: 'Delete selected nodes',
       },
     },
     categories: {

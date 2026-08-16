@@ -49,10 +49,10 @@ describe('KeyboardShortcutsModal i18n', () => {
     expect(screen.queryByText('Ejecutar workflow')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByRole('textbox'), {
-      target: { value: 'Eliminar nodos' },
+      target: { value: 'Agrupar nodos' },
     });
 
-    expect(screen.getByText('Eliminar nodos seleccionados')).toBeInTheDocument();
+    expect(screen.getByText('Agrupar nodos seleccionados')).toBeInTheDocument();
     expect(screen.queryByText('Abrir paleta de comandos')).not.toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe('KeyboardShortcutsModal i18n', () => {
     render(<KeyboardShortcutsModal open onOpenChange={() => undefined} />);
 
     const globalRow = screen.getByText('Abrir paleta de comandos').closest('.bn-ui-shortcut-row');
-    const canvasRow = screen.getByText('Eliminar nodos seleccionados').closest('.bn-ui-shortcut-row');
+    const canvasRow = screen.getByText('Agrupar nodos seleccionados').closest('.bn-ui-shortcut-row');
 
     expect(globalRow).toHaveTextContent('Global');
     expect(canvasRow).toHaveTextContent('Solo lienzo');

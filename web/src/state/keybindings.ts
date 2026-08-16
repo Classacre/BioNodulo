@@ -53,16 +53,10 @@ export const DEFAULT_KEYBINDINGS: KeybindingDefinition[] = [
   { id: 'rail.hpc', category: 'panels', label: 'Open HPC panel', labelKey: 'shortcuts.actions.rail.hpc', defaultBinding: 'Ctrl+5' },
   { id: 'rail.help', category: 'panels', label: 'Open help panel', labelKey: 'shortcuts.actions.rail.help', defaultBinding: 'Ctrl+6' },
   { id: 'rail.console', category: 'panels', label: 'Open console panel', labelKey: 'shortcuts.actions.rail.console', defaultBinding: 'Ctrl+7' },
-  { id: 'canvas.selectAll', category: 'canvas', scope: 'canvas', label: 'Select all nodes', labelKey: 'shortcuts.actions.canvas.selectAll', defaultBinding: 'Ctrl+A' },
-  { id: 'canvas.copy', category: 'canvas', scope: 'canvas', label: 'Copy selection', labelKey: 'shortcuts.actions.canvas.copy', defaultBinding: 'Ctrl+C' },
-  { id: 'canvas.paste', category: 'canvas', scope: 'canvas', label: 'Paste selection', labelKey: 'shortcuts.actions.canvas.paste', defaultBinding: 'Ctrl+V' },
-  { id: 'canvas.cut', category: 'canvas', scope: 'canvas', label: 'Cut selection', labelKey: 'shortcuts.actions.canvas.cut', defaultBinding: 'Ctrl+X' },
   { id: 'canvas.undo', category: 'canvas', scope: 'canvas', label: 'Undo', labelKey: 'shortcuts.actions.canvas.undo', defaultBinding: 'Ctrl+Z' },
   { id: 'canvas.redo', category: 'canvas', scope: 'canvas', label: 'Redo', labelKey: 'shortcuts.actions.canvas.redo', defaultBinding: 'Ctrl+Y' },
   { id: 'canvas.redoAlternate', category: 'canvas', scope: 'canvas', label: 'Redo alternate', labelKey: 'shortcuts.actions.canvas.redoAlternate', defaultBinding: 'Ctrl+Shift+Z' },
   { id: 'canvas.group', category: 'canvas', scope: 'canvas', label: 'Group selected nodes', labelKey: 'shortcuts.actions.canvas.group', defaultBinding: 'Ctrl+G' },
-  { id: 'canvas.collapse', category: 'canvas', scope: 'canvas', label: 'Collapse selected nodes', labelKey: 'shortcuts.actions.canvas.collapse', defaultBinding: 'Alt+C' },
-  { id: 'canvas.delete', category: 'canvas', scope: 'canvas', label: 'Delete selected nodes', labelKey: 'shortcuts.actions.canvas.delete', defaultBinding: 'Delete' },
 ];
 
 let overrides = loadOverrides();

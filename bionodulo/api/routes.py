@@ -1147,7 +1147,7 @@ async def get_run_logs(
             log_path = node_dir / f"{stream_name}.log"
             if not log_path.exists():
                 continue
-            content, was_truncated = _read_log_tail(log_path, LOG_MAX_BYTES_PER_FILE)
+            content, was_truncated = await asyncio.to_thread(_read_log_tail, log_path, LOG_MAX_BYTES_PER_FILE)
             if was_truncated:
                 truncated_files.append(f"{node_id}/{stream_name}.log")
             try:
@@ -1198,7 +1198,7 @@ async def get_run_report(request: Request, run_id: str) -> PlainTextResponse:
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail=f"Run metadata not found: '{run_id}'")
     try:
-        run_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        run_metadata = json.loads(await asyncio.to_thread(meta_path.read_text, encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning("Could not read run metadata for %s: %s", run_id, exc)
         raise HTTPException(status_code=500, detail="Could not read run metadata") from exc
@@ -1218,7 +1218,7 @@ async def get_run_manifest(request: Request, run_id: str) -> JSONResponse:
     if not meta_path.exists():
         raise HTTPException(status_code=404, detail=f"Run metadata not found: '{run_id}'")
     try:
-        run_metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+        run_metadata = json.loads(await asyncio.to_thread(meta_path.read_text, encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning("Could not read run metadata for %s: %s", run_id, exc)
         raise HTTPException(status_code=500, detail="Could not read run metadata") from exc
@@ -1408,7 +1408,7 @@ async def read_file(request: Request, path: str) -> Any:
 
     suffix = target.suffix.lower()
     try:
-        content = target.read_text(encoding="utf-8")
+        content = await asyncio.to_thread(target.read_text, encoding="utf-8")
     except UnicodeDecodeError:
         return PlainTextResponse("Binary file - cannot display as text.", status_code=415)
 
@@ -2588,71 +2588,105 @@ async def delete_environment(env_id: str, request: Request) -> dict[str, Any]:
 # Workflow Templates
 # ---------------------------------------------------------------------------
 
+# Cache for the workflow-templates listing, keyed by templates directory.
+# Invalidated when the directory fingerprint (entry count, max mtime) changes.
+_workflow_templates_cache: dict[Path, tuple[tuple[int, float], dict[str, Any]]] = {}
+
+
+def _workflow_templates_fingerprint(templates_dir: Path) -> tuple[int, float] | None:
+    """Return ``(entry_count, max_mtime)`` for *templates_dir*, or None if missing."""
+    if not templates_dir.exists():
+        return None
+    entries = list(templates_dir.iterdir())
+    max_mtime = 0.0
+    for entry in entries:
+        try:
+            mtime = entry.stat().st_mtime
+        except OSError:
+            continue
+        if mtime > max_mtime:
+            max_mtime = mtime
+    return len(entries), max_mtime
+
+
+def _scan_workflow_templates(templates_dir: Path) -> dict[str, Any]:
+    """Read and summarize every template JSON in *templates_dir* (blocking)."""
+    templates: list[dict[str, Any]] = []
+
+    for entry in sorted(templates_dir.iterdir()):
+        if entry.suffix.lower() == ".json":
+            try:
+                data = json.loads(entry.read_text(encoding="utf-8"))
+                nodes = data.get("nodes", []) or []
+                if isinstance(nodes, dict):
+                    nodes = list(nodes.values())
+
+                name = data.get("name", entry.stem.replace("_", " ").title())
+                description = data.get("description", "")
+
+                # Use explicit metadata if provided, otherwise auto-derive
+                tools = data.get("tools")
+                if tools is None:
+                    tools = sorted({n.get("type", "") for n in nodes if n.get("type") and n.get("type") != "note"})
+
+                category = data.get("category")
+                if category is None:
+                    category = _derive_category(name, description, tools)
+
+                tags = data.get("tags")
+                if tags is None:
+                    tags = _derive_tags(name, description, tools)
+
+                preview_steps = [
+                    (node.get("ui") or {}).get("title") or str(node.get("type", "")).replace("_", " ")
+                    for node in nodes
+                    if node.get("type") and node.get("type") != "note"
+                ][:5]
+
+                thumbnail_path = entry.with_suffix(".png")
+                thumbnail_url = f"/api/workflow_templates/{entry.name}/thumbnail.png" if thumbnail_path.exists() else None
+
+                templates.append({
+                    "id": entry.stem,
+                    "name": name,
+                    "filename": entry.name,
+                    "description": description,
+                    "node_count": sum(1 for n in nodes if n.get("type") != "note"),
+                    "tools": tools,
+                    "category": category,
+                    "tags": tags,
+                    "preview_steps": preview_steps,
+                    "thumbnail_url": thumbnail_url,
+                })
+            except (json.JSONDecodeError, OSError):
+                templates.append({
+                    "id": entry.stem,
+                    "name": entry.stem.replace("_", " ").title(),
+                    "filename": entry.name,
+                    "description": "",
+                    "node_count": 0,
+                    "tools": [],
+                    "category": "Other",
+                    "tags": [],
+                })
+
+    return {"templates": templates, "count": len(templates)}
+
+
 @router.get("/workflow_templates")
 async def list_workflow_templates(request: Request) -> dict[str, Any]:
     """List available workflow templates."""
     templates_dir = REPO_ROOT / "templates"
-    templates: list[dict[str, Any]] = []
+    fingerprint = await asyncio.to_thread(_workflow_templates_fingerprint, templates_dir)
+    if fingerprint is None:
+        return {"templates": [], "count": 0}
 
-    if templates_dir.exists():
-        for entry in sorted(templates_dir.iterdir()):
-            if entry.suffix.lower() == ".json":
-                try:
-                    data = json.loads(entry.read_text(encoding="utf-8"))
-                    nodes = data.get("nodes", []) or []
-                    if isinstance(nodes, dict):
-                        nodes = list(nodes.values())
-
-                    name = data.get("name", entry.stem.replace("_", " ").title())
-                    description = data.get("description", "")
-
-                    # Use explicit metadata if provided, otherwise auto-derive
-                    tools = data.get("tools")
-                    if tools is None:
-                        tools = sorted({n.get("type", "") for n in nodes if n.get("type") and n.get("type") != "note"})
-
-                    category = data.get("category")
-                    if category is None:
-                        category = _derive_category(name, description, tools)
-
-                    tags = data.get("tags")
-                    if tags is None:
-                        tags = _derive_tags(name, description, tools)
-
-                    preview_steps = [
-                        (node.get("ui") or {}).get("title") or str(node.get("type", "")).replace("_", " ")
-                        for node in nodes
-                        if node.get("type") and node.get("type") != "note"
-                    ][:5]
-
-                    thumbnail_path = entry.with_suffix(".png")
-                    thumbnail_url = f"/api/workflow_templates/{entry.name}/thumbnail.png" if thumbnail_path.exists() else None
-
-                    templates.append({
-                        "id": entry.stem,
-                        "name": name,
-                        "filename": entry.name,
-                        "description": description,
-                        "node_count": sum(1 for n in nodes if n.get("type") != "note"),
-                        "tools": tools,
-                        "category": category,
-                        "tags": tags,
-                        "preview_steps": preview_steps,
-                        "thumbnail_url": thumbnail_url,
-                    })
-                except (json.JSONDecodeError, OSError):
-                    templates.append({
-                        "id": entry.stem,
-                        "name": entry.stem.replace("_", " ").title(),
-                        "filename": entry.name,
-                        "description": "",
-                        "node_count": 0,
-                        "tools": [],
-                        "category": "Other",
-                        "tags": [],
-                    })
-
-    return {"templates": templates, "count": len(templates)}
+    cached = _workflow_templates_cache.get(templates_dir)
+    if cached is None or cached[0] != fingerprint:
+        payload = await asyncio.to_thread(_scan_workflow_templates, templates_dir)
+        cached = (fingerprint, payload)
+        _workflow_templates_cache[templates_dir] = cached
+    return cached[1]
 
 
 @router.get("/workflow_templates/{filename}")
@@ -3030,7 +3064,7 @@ async def get_docs(request: Request, page: str) -> Any:
         if html_file.exists():
             return FileResponse(html_file)
         if md_file.exists():
-            content = md_file.read_text(encoding="utf-8")
+            content = await asyncio.to_thread(md_file.read_text, encoding="utf-8")
             return PlainTextResponse(content)
 
     raise HTTPException(status_code=404, detail=f"Documentation page \\\'{page}\\\' not found")

@@ -335,16 +335,10 @@ const es = {
         console: 'Abrir panel de consola',
       },
       canvas: {
-        selectAll: 'Seleccionar todos los nodos',
-        copy: 'Copiar seleccion',
-        paste: 'Pegar seleccion',
-        cut: 'Cortar seleccion',
         undo: 'Deshacer',
         redo: 'Rehacer',
         redoAlternate: 'Rehacer alternativo',
         group: 'Agrupar nodos seleccionados',
-        collapse: 'Colapsar nodos seleccionados',
-        delete: 'Eliminar nodos seleccionados',
       },
     },
     categories: {

@@ -18,7 +18,6 @@ export {
 export type { CollabUser, AwarenessState, CollabState, AuthUser, CollabRole, LivePresenceUser } from './types';
 export type { SyncPayload, UpdatePayload, AwarenessPayload, CollabMessage } from './types';
 export type { Comment, WorkflowVersion, WorkflowTemplate, AuditEntry, VersionDiffResult } from './types';
-export { default as ForeignCursors } from './ForeignCursors';
 export { default as UserList } from './UserList';
 export { default as ShareDialog } from './ShareDialog';
 export { default as CollabBadge } from './CollabBadge';
@@ -29,4 +28,3 @@ export { default as VersionHistory } from './VersionHistory';
 export { default as VersionDiff } from './VersionDiff';
 export { default as AuditLog } from './AuditLog';
 export { default as TemplateGallery } from './TemplateGallery';
-export { default as FollowUser } from './FollowUser';

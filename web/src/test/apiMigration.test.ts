@@ -9,7 +9,6 @@ const migratedFiles = [
   'src/collab/AuditLog.tsx',
   'src/collab/auth.ts',
   'src/collab/CommentsPanel.tsx',
-  'src/collab/NodeCommentPopover.tsx',
   'src/collab/TemplateGallery.tsx',
   'src/collab/UserList.tsx',
   'src/collab/VersionHistory.tsx',

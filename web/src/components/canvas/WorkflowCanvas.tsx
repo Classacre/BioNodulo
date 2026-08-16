@@ -46,7 +46,6 @@ import { edgeColorForSource } from '../../utils';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
-import { dragCoordinate } from '../../utils/snap';
 import {
   NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor,
   type GraphNode, type WorkflowCanvasRef,
@@ -69,7 +68,7 @@ import NodePropertiesDialog from './NodePropertiesDialog';
 import NodeLogsPopover from './NodeLogsPopover';
 import { captureCanvasThumbnail } from '../../utils/canvasThumbnail';
 import HelperLines from './HelperLines';
-import { getHelperLines } from './helperLines';
+import { getHelperLines } from './helperLineCalc';
 import { BioNodeActionsContext, MultiSelectContext, type BioNodeActions } from './bioNodeActions';
 import { BioEdgeActionsContext, type BioEdgeActions } from './bioEdgeActions';
 
@@ -560,14 +559,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         ax += parent.position.x;
         ay += parent.position.y;
       }
-      const x = dragCoordinate(ax, 0, snapToGrid, gridSize);
-      const y = dragCoordinate(ay, 0, snapToGrid, gridSize);
-      if (wn.position[0] === x && wn.position[1] === y) return wn;
-      return { ...wn, position: [x, y] as [number, number] };
+      if (wn.position[0] === ax && wn.position[1] === ay) return wn;
+      return { ...wn, position: [ax, ay] as [number, number] };
     });
     onNodesChange(updated);
     onPushHistory();
-  }, [rf, onNodesChange, onPushHistory, snapToGrid, gridSize]);
+  }, [rf, onNodesChange, onPushHistory]);
 
   const onConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) return;

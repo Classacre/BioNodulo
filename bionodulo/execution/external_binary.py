@@ -131,6 +131,7 @@ def _download(url: str, destination: Path) -> None:
             capture_output=True,
             text=True,
             check=False,
+            timeout=7200,  # generous for multi-GB downloads, but bounded
         )
         if result.returncode == 0 and destination.is_file() and destination.stat().st_size > 0:
             return
