@@ -8,6 +8,14 @@ export interface AppCollabCopy {
   joinPrompt: () => PromptDialogOptions;
   saveTemplateUnavailableDialog: () => DialogOptions;
   connectedAsRole: (role: string) => string;
+  /** Cloud share-link minted + copied (guests join with edit + run). */
+  cloudShareLinkCopied: () => string;
+  /** Fallback when share-link creation fails — collab still works for the team. */
+  cloudCollabOn: () => string;
+  /** Guest joined a share link as a read-only viewer. */
+  joinedAsViewer: () => string;
+  /** Guest joined a share link with edit + run powers. */
+  joinedAsEditor: () => string;
   workflowFallback: (workflowId: string) => string;
   anonymousUserName: string;
   toast: {
@@ -35,6 +43,18 @@ function roleLabel(t: TFunction, role: string): string {
 
 export function makeAppCollabCopy(t: TFunction): AppCollabCopy {
   return {
+    cloudShareLinkCopied: () => t('collab.cloudShareLinkReady', {
+      defaultValue: 'Share link copied — anyone who opens it joins this workflow (edit + run).',
+    }),
+    cloudCollabOn: () => t('collab.cloudCollabOn', {
+      defaultValue: 'Live collaboration is on. Invite teammates to edit together.',
+    }),
+    joinedAsViewer: () => t('collab.joinedAsViewer', {
+      defaultValue: 'Joined as viewer (read-only).',
+    }),
+    joinedAsEditor: () => t('collab.joinedAsEditor', {
+      defaultValue: 'Joined — you can edit and run this workflow.',
+    }),
     createLinkCopiedMessage: hasPublicBaseUrl => hasPublicBaseUrl
       ? t('collab.appCreateLinkCopiedPublic')
       : t('collab.appCreateLinkCopiedLocal'),

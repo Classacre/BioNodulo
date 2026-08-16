@@ -823,15 +823,13 @@ export default function App() {
         setCloudShareLink(link);
         navigator.clipboard?.writeText(link).catch(() => undefined);
         toast.success(appCollabCopy.toast.linkReady, {
-          message: t('collab.cloudShareLinkReady', {
-            defaultValue: 'Share link copied — anyone who opens it joins this workflow (edit + run).',
-          }),
+          message: appCollabCopy.cloudShareLinkCopied(),
         });
       } catch (err) {
         // Link creation is a bonus, not a gate — collab still works for the team.
         logError('collab.invite.create', err);
         toast.info(appCollabCopy.toast.linkReady, {
-          message: t('collab.cloudCollabOn', { defaultValue: 'Live collaboration is on. Invite teammates to edit together.' }),
+          message: appCollabCopy.cloudCollabOn(),
         });
       }
       setShowInviteDialog(true);
@@ -1033,8 +1031,8 @@ export default function App() {
       setCollabRoomActive(true);
       toast.success(appCollabCopy.toast.joined, {
         message: session.role === 'viewer'
-          ? t('collab.joinedAsViewer', { defaultValue: 'Joined as viewer (read-only).' })
-          : t('collab.joinedAsEditor', { defaultValue: 'Joined — you can edit and run this workflow.' }),
+          ? appCollabCopy.joinedAsViewer()
+          : appCollabCopy.joinedAsEditor(),
       });
     } catch (err) {
       toast.error(appCollabCopy.error.joinFailed, { message: err instanceof Error ? err.message : String(err) });
