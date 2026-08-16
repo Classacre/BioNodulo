@@ -9,7 +9,7 @@
 // brand names (BioNodulo, HPC, FASTQ) or short tokens we want to leave
 // in English for now.
 export const overlay: Record<string, string> = {
-  'Cancel': 'Cancelar', 'Close': 'Cerrar', 'Confirm': 'Confirmar', 'Dismiss': 'Descartar',
+  'Cancel': 'Cancelar', 'Close': 'Cerrar', 'Confirm': 'Confirmar', 'Dismiss': 'Descartar', 'Activity, notifications & stats': 'Actividad, notificaciones y estadísticas',
   'Done': 'Hecho', 'Save': 'Guardar', 'Saved': 'Guardado', 'Saving...': 'Guardando...',
   'Edit': 'Editar', 'Rename': 'Cambiar nombre', 'Duplicate': 'Duplicar', 'Delete': 'Eliminar',
   'Remove': 'Quitar', 'Add': 'Agregar', 'Refresh': 'Actualizar', 'Reset': 'Restablecer',

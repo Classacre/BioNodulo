@@ -153,33 +153,211 @@ body {
 }
 
 /* Workflow stats overlay (bottom-left) */
-.workflow-stats-overlay {
+/* --- Dynamic island (bottom-centre) ---------------------------------------
+   One absolutely-positioned container in three modes: the minimized pill, the
+   event-driven peek card, and the full click-to-open panel. Above the canvas
+   but below rail-panel menus (z-index 40-48). */
+.island {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
-  /* Above the canvas/nodes but below the rail-panel menus (z-index 40-48) so a
-     menu opened over the bottom-left corner is not covered by the stats. */
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 35;
-  padding: 8px 10px;
-  border-radius: 8px;
+  color: var(--text);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  transform-origin: bottom center;
+}
+.island-pill {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
   color: var(--text);
   font-size: 11px;
-  backdrop-filter: blur(4px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  white-space: nowrap;
+}
+.island-pill:hover { border-color: var(--accent, #2dd4bf); transform: translateY(-1px); }
+.island-stats { font-variant-numeric: tabular-nums; }
+.island-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent, #2dd4bf);
+  color: var(--bg, #0b0f14);
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.island-spinner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #2dd4bf);
+  animation: island-pulse 1.1s ease-in-out infinite;
+  flex: none;
+}
+@keyframes island-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Peek: a compact card riding directly above the pill. */
+.island-peek {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: min(360px, calc(100vw - 48px));
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  animation: island-rise 0.22s cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+.island-peek-title { font-weight: 700; font-size: 11px; }
+.island-peek-line {
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.island-peek-progress {
+  align-self: stretch;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--surface-3, rgba(127, 127, 127, 0.18));
+  overflow: hidden;
+  margin-top: 2px;
+}
+.island-peek-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent, #2dd4bf);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.island-chip {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Full panel. */
+.island-full {
+  width: min(440px, calc(100vw - 48px));
+  max-height: min(62vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 140px;
+  animation: island-rise 0.24s cubic-bezier(0.2, 0.9, 0.25, 1);
 }
-.workflow-stats-pill {
-  flex-direction: row;
-  align-items: center;
-  padding: 4px 10px;
-  cursor: pointer;
+@keyframes island-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.island-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* AI build telemetry inside the full panel. */
+.workflow-stats-doi { display: flex; flex-direction: column; gap: 4px; }
+.workflow-stats-doi-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.workflow-stats-doi-title { font-weight: 700; }
+.workflow-stats-doi-lines { display: flex; flex-direction: column; gap: 2px; }
+.workflow-stats-doi-row { display: flex; gap: 6px; align-items: baseline; }
+.workflow-stats-doi-mark { color: var(--accent, #2dd4bf); flex: none; font-size: 9px; }
+.workflow-stats-thinking {
+  margin-top: 4px;
+  max-height: 96px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+/* Notifications inside the full panel — the island is the toast surface. */
+.island-notifications { display: flex; flex-direction: column; gap: 2px; }
+.island-notification {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+}
+.island-notification:last-child { border-bottom: none; }
+.island-notification-mark { font-size: 11px; line-height: 1.4; }
+.island-notification-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.island-notification-title { font-weight: 600; }
+.island-notification-message { color: var(--muted); font-size: 10.5px; }
+.island-notification-progress { margin-top: 3px; }
+.island-notification-actions { display: flex; gap: 6px; margin-top: 3px; }
+.island-notification-actions button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 10px;
   font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+  cursor: pointer;
 }
+.island-notification-actions button:hover { border-color: var(--accent, #2dd4bf); }
+.island-notification-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.island-notification-dismiss:hover { color: var(--text); }
 .workflow-stats-collapse {
   position: absolute;
   top: 4px;

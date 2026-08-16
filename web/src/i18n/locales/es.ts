@@ -477,6 +477,11 @@ const es = {
     emptyWorkflow: '(flujo de trabajo vacio)',
     nodeFallback: 'Nodo',
   },
+    island: {
+      expandTitle: 'Actividad, notificaciones y estadísticas',
+      notificationsTitle: 'Notificaciones',
+      dismissAria: 'Descartar',
+    },
   workflowStats: {
     categoryFallback: 'Otros',
     expandTitle: 'Expandir estadisticas de flujo de trabajo y sistema',

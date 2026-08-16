@@ -1,6 +1,6 @@
 import { runDoiFlow, type DoiUploadRequest } from './doi/doiFlow';
 import { DoiUploadOverlay } from './doi/DoiUploadOverlay';
-import { DoiProgressOverlay } from './doi/DoiProgressOverlay';
+import DynamicIsland, { EMPTY_DOI_TELEMETRY, type DoiTelemetry } from './components/canvas/DynamicIsland';
 import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ import BottomConsole from './components/layout/BottomConsole';
 import RunsDrawer from './components/layout/RunsDrawer';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/WorkflowCanvas';
-import WorkflowStatsOverlay from './components/canvas/WorkflowStatsOverlay';
+
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
 // localStorage key for persisted cloud-editor console logs (survive refresh).
 const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
@@ -47,7 +47,6 @@ import {
   CommandPaletteHost,
   ConfirmDialogHost,
   KeyboardShortcutsModal,
-  NotificationHost,
   Spinner,
   alertDialog,
   confirmDialog,
@@ -463,7 +462,7 @@ export default function App() {
   // ---------------------------------------------------------------------------
   const pendingDoiRef = useRef<string | null>(null);
   const [doiUploadRequest, setDoiUploadRequest] = useState<DoiUploadRequest | null>(null);
-  const [doiProgressLines, setDoiProgressLines] = useState<string[]>([]);
+  const [doiTelemetry, setDoiTelemetry] = useState<DoiTelemetry>(EMPTY_DOI_TELEMETRY);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const doi = params.get('doi');
@@ -522,10 +521,16 @@ export default function App() {
       setUploadRequest: setDoiUploadRequest,
       onProgress: (line) => {
         if (!line) {
-          setDoiProgressLines([]);
+          setDoiTelemetry({ ...EMPTY_DOI_TELEMETRY, startedAt: Date.now() });
           return;
         }
-        setDoiProgressLines((prev) => [...prev, line]);
+        // An empty line is the flow's completion signal: the island keeps the
+        // stage lines visible ("Built from paper") and settles on its own.
+        setDoiTelemetry((prev) =>
+          line
+            ? { ...prev, active: true, lines: [...prev.lines, line] }
+            : { ...prev, active: false },
+        );
       },
       notify: {
         loading: (title, id) => toast.loading(title, { id }),
@@ -3439,13 +3444,11 @@ export default function App() {
       className={appShellClassName}
       style={{ '--right-panel-inset': `${rightPanelInset}px` } as Record<string, string>}
     >
-      <NotificationHost />
       <ConfirmDialogHost />
       <CommandPaletteHost />
       <TransferWindow />
       <KeyboardShortcutsModal open={showShortcuts} onOpenChange={setShowShortcuts} />
       {doiUploadRequest && <DoiUploadOverlay request={doiUploadRequest} />}
-      <DoiProgressOverlay lines={doiProgressLines} />
 
       {draggingPanelTab && (
         <>
@@ -3688,10 +3691,11 @@ export default function App() {
             with nothing put in its place. Its unit test went in the same
             commit, and the e2e suite did not run in CI, so nothing reported
             the loss. */}
-        <WorkflowStatsOverlay
+        <DynamicIsland
           workflow={activeWorkflow}
           hidden={focusMode}
           systemStats={hostFeaturesEnabled}
+          doi={doiTelemetry}
         />
 
         {/* Registered rail panels: docked panels stack from the left edge by

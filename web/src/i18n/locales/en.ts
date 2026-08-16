@@ -473,6 +473,11 @@ const en = {
     emptyWorkflow: '(empty workflow)',
     nodeFallback: 'Node',
   },
+    island: {
+      expandTitle: 'Activity, notifications & stats',
+      notificationsTitle: 'Notifications',
+      dismissAria: 'Dismiss',
+    },
   workflowStats: {
     categoryFallback: 'Other',
     expandTitle: 'Expand workflow + system stats',

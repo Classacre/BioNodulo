@@ -6,8 +6,6 @@ export type { DialogProps } from './Dialog';
 export { FoundationStyles, ensureFoundationStyles, useFoundationStyles } from './FoundationStyles';
 export { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 export type { KeyboardShortcutsModalProps } from './KeyboardShortcutsModal';
-export { NotificationHost } from './NotificationHost';
-export type { NotificationHostProps } from './NotificationHost';
 export { Skeleton, SkeletonCard, SkeletonList } from './Skeleton';
 export type { SkeletonCardProps, SkeletonListProps, SkeletonProps } from './Skeleton';
 export { Spinner } from './Spinner';
