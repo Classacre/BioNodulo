@@ -1,6 +1,6 @@
 [workspace]
 name = "bionodulo"
-version = "0.1.0a24"
+version = "0.1.0a25"
 description = "Visual bioinformatics pipelines, node by node."
 authors = ["BioNodulo Team <team@bionodulo.org>"]
 channels = ["conda-forge", "bioconda"]

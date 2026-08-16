@@ -305,7 +305,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="BioNodulo",
         description="Visual bioinformatics workflow engine",
-        version="0.1.0a24",
+        version="0.1.0a25",
         lifespan=_app_lifespan,
     )
     app.state.limiter = limiter
