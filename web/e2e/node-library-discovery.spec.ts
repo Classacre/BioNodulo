@@ -18495,7 +18495,10 @@ test('node library exposes advanced gap-analysis node families from object_info'
 
   await search.fill('language model');
   await page.getByTitle('Add LLM Prompt').click();
-  await expect(page.getByRole('status')).toContainText('1');
+  // The dynamic island replaces the old overlay — open the pill, assert in the
+  // full panel. (A bare getByRole('status') also matches #bn-boot + the pill.)
+  await page.locator('.island-pill').click();
+  await expect(page.locator('.island-full')).toContainText('1');
   await expect(page.locator('.workflow-stats-cat', { hasText: 'ai' })).toBeVisible();
 });
 
@@ -18518,9 +18521,10 @@ test('BioNodulo built-in nodes render citation metadata in node info', async ({ 
   await search.fill('diamond blastx');
   await page.getByTitle('Add DIAMOND Align').click();
 
-  // Scope to the workflow-stats overlay — the transient `#bn-boot` element also
-  // carries role="status", which makes a bare getByRole('status') ambiguous.
-  await expect(page.locator('.workflow-stats-overlay')).toContainText('1');
+  // The dynamic island replaced the stats overlay — open the pill and assert
+  // inside the full panel (#bn-boot also carries role="status").
+  await page.locator('.island-pill').click();
+  await expect(page.locator('.island-full')).toContainText('1');
   // Right-click the node element itself rather than a guessed pixel offset.
   // The offset assumed the pre-rewrite placement, so after the native React
   // Flow rewrite moved the node it opened the *pane* menu -- which has no

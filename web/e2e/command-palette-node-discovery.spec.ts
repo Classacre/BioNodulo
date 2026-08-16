@@ -88,9 +88,10 @@ test('command palette can add nodes beyond the first 40 object_info entries', as
   await expect(page.getByRole('option', { name: /Add LLM Prompt/ })).toBeVisible();
 
   await page.getByRole('option', { name: /Add LLM Prompt/ }).click();
-  // Scope to the workflow-stats overlay: the app also renders a transient
-  // `#bn-boot` element with role="status" (a status region), so a bare
-  // getByRole('status') is ambiguous under Playwright strict mode.
-  await expect(page.locator('.workflow-stats-overlay')).toContainText('1');
+  // The dynamic island replaced the stats overlay: open the pill (its button
+  // is the only .island-pill) and assert the counts + category chip inside.
+  // (#bn-boot also carries role="status", so role locators stay ambiguous.)
+  await page.locator('.island-pill').click();
+  await expect(page.locator('.island-full')).toContainText('1');
   await expect(page.locator('.workflow-stats-cat', { hasText: 'ai' })).toBeVisible();
 });
