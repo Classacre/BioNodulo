@@ -8,6 +8,13 @@ interface AuthDialogProps {
   isOpen: boolean;
   onLogin: (name: string) => void;
   onClose: () => void;
+  /**
+   * Cloud mode: the name field alone is enough (no local auth backend), and a
+   * "Log in" action may be offered — signing in keeps the user in the same
+   * workflow (in-page Clerk modal), so joining resumes automatically.
+   */
+  cloud?: boolean;
+  onLoginWithAccount?: () => void;
 }
 
 function authTokenErrorMessage(err: unknown, fallbackKey: string, t: TFunction): string {
@@ -20,7 +27,7 @@ function authTokenErrorMessage(err: unknown, fallbackKey: string, t: TFunction):
   return err instanceof Error ? err.message : t(fallbackKey);
 }
 
-const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => {
+const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose, cloud = false, onLoginWithAccount }) => {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -39,22 +46,32 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
     setIsLoading(true);
     setError(null);
     try {
-      const session = await fetchToken(displayName);
-      setAuthSession(session);
-      onLogin(displayName);
+      if (cloud) {
+        // Cloud editor: no local auth backend — the name is the identity and
+        // the caller (App) completes the invite redemption with it.
+        onLogin(displayName);
+      } else {
+        const session = await fetchToken(displayName);
+        setAuthSession(session);
+        onLogin(displayName);
+      }
     } catch (err) {
       logError('collab.auth.join', err);
       setError(authTokenErrorMessage(err, 'collab.authJoinError', t));
     } finally {
       setIsLoading(false);
     }
-  }, [name, onLogin, t]);
+  }, [name, onLogin, t, cloud]);
 
   const handleGuest = useCallback(async () => {
     const guestName = generateGuestName();
     setIsLoading(true);
     setError(null);
     try {
+      if (cloud) {
+        onLogin(guestName);
+        return;
+      }
       const session = await fetchToken(guestName);
       setAuthSession(session);
       onLogin(guestName);
@@ -221,6 +238,29 @@ const AuthDialog: React.FC<AuthDialogProps> = ({ isOpen, onLogin, onClose }) => 
           >
             {t('collab.authContinueAsGuest')}
           </button>
+
+          {cloud && onLoginWithAccount && (
+            <button
+              className="btn"
+              onClick={onLoginWithAccount}
+              disabled={isLoading}
+              style={{
+                width: '100%',
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: '1px solid var(--accent, #2dd4bf)',
+                background: 'transparent',
+                color: 'var(--accent, #2dd4bf)',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.5 : 1,
+                marginTop: 8,
+              }}
+            >
+              {t('collab.authLoginInstead', { defaultValue: 'Log in instead' })}
+            </button>
+          )}
         </div>
 
         <div style={{

@@ -8,6 +8,8 @@ import { useAwareness } from './useAwareness';
 import { getToken } from './auth';
 import { apiGet, apiPost } from '../api/client';
 import { getCollabClientToken } from '../api/website';
+import { useAtomValue } from 'jotai';
+import { cloudInviteSessionAtom } from './cloudInvite';
 import { logError } from '../state/logging';
 import { appWebSocketUrl } from '../utils/appBase';
 import { getCollabRemoteBase } from './remoteBase';
@@ -70,6 +72,11 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
   const [error, setError] = useState<string | null>(null);
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const localSessionIdRef = useRef<string>(newSessionId());
+  // A share-link guest session (see collab/cloudInvite.ts) carries a
+  // pre-minted room token; when present for THIS workflow it replaces the
+  // team mint entirely (guests are not team members).
+  const inviteSession = useAtomValue(cloudInviteSessionAtom);
+  const guestRoom = inviteSession && inviteSession.workflowId === workflowId ? inviteSession : null;
   const providerRef = useRef<WebsocketProvider | null>(null);
 
   const awarenessUser = useMemo(() => ({
@@ -146,19 +153,25 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       let room: string;
       let params: Record<string, string>;
       if (CLOUD_COLLAB) {
-        const ct = await getCollabClientToken(workflowId).catch(err => {
-          logError('collab.token', err);
-          return null;
-        });
-        if (cancelled) return;
-        if (!ct) {
-          setConnecting(false);
-          setError(tRef.current('collab.connectionUnauthorized'));
-          return;
+        if (guestRoom?.roomToken && guestRoom.room && guestRoom.roomExpiresAt && guestRoom.roomExpiresAt > Date.now() + 30_000) {
+          wsUrl = `wss://${guestRoom.roomHost || CLOUD_COLLAB_HOST}/editor`;
+          room = guestRoom.room;
+          params = { token: guestRoom.roomToken, session_id: localSessionIdRef.current };
+        } else {
+          const ct = await getCollabClientToken(workflowId).catch(err => {
+            logError('collab.token', err);
+            return null;
+          });
+          if (cancelled) return;
+          if (!ct) {
+            setConnecting(false);
+            setError(tRef.current('collab.connectionUnauthorized'));
+            return;
+          }
+          wsUrl = `wss://${ct.host || CLOUD_COLLAB_HOST}/editor`;
+          room = ct.room;
+          params = { token: ct.token, session_id: localSessionIdRef.current };
         }
-        wsUrl = `wss://${ct.host || CLOUD_COLLAB_HOST}/editor`;
-        room = ct.room;
-        params = { token: ct.token, session_id: localSessionIdRef.current };
       } else {
         const token = getToken();
         if (cancelled || !token) { setConnecting(false); return; }
@@ -240,7 +253,7 @@ export function useCollab(workflowId: string | null, currentUser: CollabUser): U
       setConnected(false);
       setConnecting(false);
     };
-  }, [workflowId, currentUser.id]);
+  }, [workflowId, currentUser.id, guestRoom?.roomToken, guestRoom?.room]);
 
   useEffect(() => {
     // Cloud collab shares == team membership (no per-workflow share list); the

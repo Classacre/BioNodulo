@@ -103,6 +103,12 @@ import {
   type CollabLinkTarget,
 } from './collab/shareLinks';
 import {
+  cloudInviteSessionAtom,
+  createCloudInvite,
+  joinCloudInvite,
+  storedGuestName,
+} from './collab/cloudInvite';
+import {
   WorkflowYjsBridge, useCollab, workflowToDoc, docToWorkflow,
   CollabBadge,
   getUserColor, getToken, clearToken, AuthDialog,
@@ -556,13 +562,6 @@ export default function App() {
     }
   }, [initialRequestedWorkflowId, requestedWorkflowId, setRequestedWorkflowId]);
 
-  // Collaboration setup
-  const currentUser = useMemo(() => (
-    authUser
-      ? { id: authUser.id, name: authUser.name, color: authUser.color }
-      : { id: 'anonymous', name: appCollabCopy.anonymousUserName, color: getUserColor('anonymous') }
-  ), [appCollabCopy.anonymousUserName, authUser?.color, authUser?.id, authUser?.name]);
-  const pendingWorkflowIdsRef = useRef<WeakMap<Workflow, string>>(new WeakMap());
   const activeWorkflowId = useMemo(() => {
     if (activeWorkflow.id) return activeWorkflow.id;
     const existing = pendingWorkflowIdsRef.current.get(activeWorkflow);
@@ -571,6 +570,32 @@ export default function App() {
     pendingWorkflowIdsRef.current.set(activeWorkflow, id);
     return id;
   }, [activeWorkflow]);
+
+  const cloudInviteSession = useAtomValue(cloudInviteSessionAtom);
+  const setCloudInviteSessionAtom = useSetAtom(cloudInviteSessionAtom);
+  const guestSessionForWorkflow = (
+    cloudInviteSession
+    && cloudInviteSession.workflowId === activeWorkflowId
+  ) ? cloudInviteSession : null;
+  const collabViewerReadOnly = Boolean(
+    guestSessionForWorkflow && !guestSessionForWorkflow.member && guestSessionForWorkflow.role === 'viewer'
+  );
+
+  // Collaboration setup
+    const currentUser = useMemo(() => {
+    if (guestSessionForWorkflow) {
+      return {
+        id: `guest:${guestSessionForWorkflow.name}`,
+        name: guestSessionForWorkflow.name,
+        color: getUserColor(`guest:${guestSessionForWorkflow.name}`),
+      };
+    }
+    if (authUser) {
+      return { id: authUser.id, name: authUser.name, color: getUserColor('anonymous') };
+    }
+    return { id: 'anonymous', name: appCollabCopy.anonymousUserName, color: getUserColor('anonymous') };
+  }, [appCollabCopy.anonymousUserName, authUser?.color, authUser?.id, authUser?.name, guestSessionForWorkflow?.name]);
+  const pendingWorkflowIdsRef = useRef<WeakMap<Workflow, string>>(new WeakMap());
 
   useEffect(() => {
     if (!activeWorkflow.id) {
@@ -588,12 +613,14 @@ export default function App() {
   }, [activeWorkflow.id, activeIndex, effectiveRequestedWorkflowId, updateWorkflow]);
 
   const requestedWorkflowPending = Boolean(effectiveRequestedWorkflowId && activeWorkflow.id !== effectiveRequestedWorkflowId);
+  // Share-link guest session (cloud): carries identity + room access, so it
+  // stands in for authUser in the collab gate below.
   const collabWorkflowId = (
     collabEnabled
     && collabRoomActive
     && settingsReady
     && authReady
-    && Boolean(authUser)
+    && (Boolean(authUser) || Boolean(guestSessionForWorkflow))
     && !requestedWorkflowPending
   ) ? activeWorkflowId : null;
   const collabSessionActive = Boolean(collabWorkflowId);
@@ -784,16 +811,30 @@ export default function App() {
       requestCollabAuth({ type: 'create' });
       return;
     }
-    // Cloud editor: the "room" is the team's workflow (no local FastAPI room /
-    // share-link backend). Turning collaboration on connects to the shared doc;
-    // teammates collaborate by opening the same workflow — prompt to invite one.
+    // Cloud editor: the "room" is the team's workflow. Collaboration on
+    // connects to the shared doc; teammates open the same workflow, and a
+    // SHARE LINK (workflow_invites on the website) lets ANYONE with the link
+    // join as guest — auto-joined, name-or-login, edit/run per the invite role.
     if (CLOUD_COLLAB) {
       set('bionodulo.collab.enabled', true);
       setCollabRoomActive(true);
+      try {
+        const { link } = await createCloudInvite(activeWorkflowId || activeWorkflow.id || '', 'editor');
+        setCloudShareLink(link);
+        navigator.clipboard?.writeText(link).catch(() => undefined);
+        toast.success(appCollabCopy.toast.linkReady, {
+          message: t('collab.cloudShareLinkReady', {
+            defaultValue: 'Share link copied — anyone who opens it joins this workflow (edit + run).',
+          }),
+        });
+      } catch (err) {
+        // Link creation is a bonus, not a gate — collab still works for the team.
+        logError('collab.invite.create', err);
+        toast.info(appCollabCopy.toast.linkReady, {
+          message: t('collab.cloudCollabOn', { defaultValue: 'Live collaboration is on. Invite teammates to edit together.' }),
+        });
+      }
       setShowInviteDialog(true);
-      toast.success(appCollabCopy.toast.linkReady, {
-        message: t('collab.cloudCollabOn', { defaultValue: 'Live collaboration is on. Invite teammates to edit together.' }),
-      });
       return;
     }
     const workflowForRoom = withWorkflowId(activeWorkflow, activeWorkflowId);
@@ -947,6 +988,82 @@ export default function App() {
   }, [authReady, authUser, handleCreateCollabSession, handleJoinCollabSession, pendingCollabAction]);
 
   useDeepLinkJoin({ onJoin: handleJoinCollabSession });
+
+  // ---------------------------------------------------------------------------
+  // AUTO-JOIN. A collaboration link (?workflow=<id>&invite=<token>) connects
+  // without requiring the user to click "Join". Local mode reuses the normal
+  // join handler once settings/auth/config are ready (StrictMode-safe via the
+  // once-ref). The cloud editor redeems share-link invites instead: a stored
+  // guest name goes straight in; otherwise the AuthDialog offers name-or-login
+  // (login keeps the user in this same workflow — the Clerk modal is in-page,
+  // so the join simply resumes with the session established).
+  // ---------------------------------------------------------------------------
+  const autoJoinDoneRef = useRef(false);
+  useEffect(() => {
+    if (autoJoinDoneRef.current || !initialCollabTarget) return;
+    if (!settingsReady || !authReady || !configResolved) return;
+    autoJoinDoneRef.current = true;
+    if (editorMode) return; // cloud invites redeem below
+    void handleJoinCollabSession(initialCollabTarget);
+  }, [initialCollabTarget, settingsReady, authReady, configResolved, editorMode, handleJoinCollabSession]);
+
+  const [cloudInvitePromptOpen, setCloudInvitePromptOpen] = useState(false);
+  const completeCloudInvite = useCallback(async (name: string | null) => {
+    const target = initialCollabTarget;
+    if (!target?.inviteToken) return;
+    try {
+      const { session, workflow } = await joinCloudInvite(target.inviteToken, name);
+      setRequestedWorkflowId(target.workflowId);
+      if (session.member) {
+        // Logged-in member of the owning team: standard team path.
+        set('bionodulo.collab.enabled', true);
+        setCollabRoomActive(true);
+        toast.success(appCollabCopy.toast.joined, { message: t('collab.cloudCollabOn', { defaultValue: 'Live collaboration is on.' }) });
+        return;
+      }
+      // Guest: adopt the shared definition + the pre-minted room session.
+      const definition = workflow.definition as Workflow | undefined;
+      if (definition && Array.isArray(definition.nodes)) {
+        updateWorkflow(activeIndex, { ...definition, id: target.workflowId, name: workflow.name || definition.name });
+      } else {
+        updateWorkflow(activeIndex, { id: target.workflowId, name: workflow.name });
+      }
+      setCloudInviteSessionAtom(session);
+      set('bionodulo.collab.enabled', true);
+      setCollabRoomActive(true);
+      toast.success(appCollabCopy.toast.joined, {
+        message: session.role === 'viewer'
+          ? t('collab.joinedAsViewer', { defaultValue: 'Joined as viewer (read-only).' })
+          : t('collab.joinedAsEditor', { defaultValue: 'Joined — you can edit and run this workflow.' }),
+      });
+    } catch (err) {
+      toast.error(appCollabCopy.error.joinFailed, { message: err instanceof Error ? err.message : String(err) });
+      logError('collab.invite.join', err);
+    }
+  }, [initialCollabTarget, activeIndex, appCollabCopy, set, setCollabRoomActive, setRequestedWorkflowId, t, updateWorkflow]);
+
+  const cloudInviteLoginPendingRef = useRef(false);
+  const cloudInviteUser = useAtomValue(authUserAtom);
+  useEffect(() => {
+    if (!cloudInviteLoginPendingRef.current) return;
+    if (!cloudInviteUser) return;
+    cloudInviteLoginPendingRef.current = false;
+    void completeCloudInvite(null);
+  }, [cloudInviteUser, completeCloudInvite]);
+
+  const cloudInviteAutoRef = useRef(false);
+  const [cloudShareLink, setCloudShareLink] = useState<string | null>(null);
+  useEffect(() => {
+    if (cloudInviteAutoRef.current || !editorMode) return;
+    if (!initialCollabTarget?.inviteToken || !configResolved) return;
+    cloudInviteAutoRef.current = true;
+    const stored = storedGuestName();
+    if (stored) {
+      void completeCloudInvite(stored);
+    } else {
+      setCloudInvitePromptOpen(true);
+    }
+  }, [editorMode, initialCollabTarget?.inviteToken, configResolved, completeCloudInvite]);
 
   const handleLeaveCollabSession = useCallback(() => {
     set('bionodulo.collab.enabled', false);
@@ -3464,6 +3581,7 @@ export default function App() {
       )}
 
       <TopBar
+        runDisabled={collabViewerReadOnly}
         validationValid={validation.valid}
         validationErrors={validation.errors}
         onRun={handleRun}
@@ -3506,7 +3624,7 @@ export default function App() {
             onJoinSession={() => void handleJoinCollabSession(activeCollabJoinTarget)}
             onLeaveSession={handleLeaveCollabSession}
             hasJoinLink={hasPendingJoinLink}
-            shareLink={collabShareLink}
+            shareLink={cloudShareLink || collabShareLink}
             reconnectAttempt={collabReconnectAttempt}
             error={collabError}
             offline={collabOffline}
@@ -3518,9 +3636,25 @@ export default function App() {
       />
 
       <AuthDialog
-        isOpen={showAuthDialog}
-        onLogin={handleAuthLogin}
-        onClose={handleCollabAuthClose}
+        isOpen={showAuthDialog || cloudInvitePromptOpen}
+        cloud={cloudInvitePromptOpen || editorMode}
+        onLogin={cloudInvitePromptOpen
+          ? (name) => { setCloudInvitePromptOpen(false); void completeCloudInvite(name); }
+          : handleAuthLogin}
+        onLoginWithAccount={clerk.clerkEnabled
+          ? () => {
+              // In-page Clerk modal: after sign-in the session cookie is set and
+              // redeeming the invite will classify the user as a team member.
+              setCloudInvitePromptOpen(false);
+              clerk.openSignIn();
+              // The join retries once the Clerk session lands (see effect below).
+              cloudInviteLoginPendingRef.current = true;
+            }
+          : undefined}
+        onClose={() => {
+          if (cloudInvitePromptOpen) setCloudInvitePromptOpen(false);
+          else handleCollabAuthClose();
+        }}
       />
 
       <InviteDialog />

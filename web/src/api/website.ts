@@ -54,7 +54,7 @@ interface WorkflowRow {
   definition: { nodes?: unknown[]; edges?: unknown[] } & Record<string, unknown>;
 }
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, websiteInit(init));
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!res.ok || !body?.success) {
@@ -141,6 +141,32 @@ export function submitCloudRun(
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
   return call('/runs', {
     method: 'POST',
+    body: JSON.stringify({
+      workflowId,
+      ...(compute ?? {}),
+      ...(inputs ? { inputs } : {}),
+      ...(parameters ? { parameters } : {}),
+    }),
+  });
+}
+
+/** Submit a run as a share-link GUEST: the editor invite is the bearer and
+ *  the run bills to the owning (inviting) team. Same-origin cookie auth would
+ *  be meaningless for an anonymous guest, so Authorization is explicit. */
+export function submitCloudGuestRun(
+  runToken: string,
+  guestName: string,
+  workflowId: string,
+  compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } },
+  inputs?: CloudRunInputs,
+  parameters?: Record<string, unknown>,
+): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
+  return call('/runs', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${runToken}`,
+      'x-bionodulo-guest-name': guestName.slice(0, 60),
+    },
     body: JSON.stringify({
       workflowId,
       ...(compute ?? {}),

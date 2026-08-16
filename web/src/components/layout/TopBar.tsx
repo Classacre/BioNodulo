@@ -18,6 +18,8 @@ interface TopBarProps {
   validationValid: boolean;
   validationErrors: string[];
   onRun: () => void;
+  /** Disable Run (e.g. a read-only collaboration viewer). */
+  runDisabled?: boolean;
   hpcStatus: HPCStatus;
   /** When false, the HPC badge is hidden entirely (settings.hpc.enabled is off). */
   hpcEnabled?: boolean;
@@ -80,7 +82,7 @@ const QUEUE_MODE_KEYS: Record<QueueMode, string> = {
 };
 
 export default function TopBar({
-  validationValid, validationErrors, onRun, hpcStatus, hpcEnabled = false,
+  validationValid, validationErrors, onRun, runDisabled = false, hpcStatus, hpcEnabled = false,
   queueCount,
   queueMode = 'manual', onQueueModeChange,
   dryRunPreview = false, onDryRunPreviewChange,
@@ -270,7 +272,7 @@ export default function TopBar({
           <button
             className="btn btn-primary btn-sm run-split-main"
             onClick={onRun}
-            disabled={isRunning}
+            disabled={isRunning || runDisabled}
             title={withShortcut(isRunning ? t('topbar.running') : t('topbar.runWorkflow'), runShortcut)}
             aria-label={withShortcut(isRunning ? t('topbar.running') : t('topbar.runWorkflow'), runShortcut)}
           >
