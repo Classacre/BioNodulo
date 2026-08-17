@@ -206,12 +206,13 @@ class SimplePredictorTrainNode(MLDesignNode):
         predictions_path = output_dir / "predictions.tsv"
         write_json_file(model_path, model_payload)
         write_json_file(metrics_path, metrics)
+        id_name = str(kwargs.get("id_column", "id") or "id").strip()
         write_tsv_file(
             predictions_path,
-            ["id", "target", "prediction", "split"],
+            [id_name, "target", "prediction", "split"],
             [
                 {
-                    "id": identifiers[index],
+                    id_name: identifiers[index],
                     "target": float(y[index]),
                     "prediction": float(predictions[index]),
                     "split": str(splits[index]),

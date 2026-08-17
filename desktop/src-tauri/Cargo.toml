@@ -1,6 +1,6 @@
 [package]
 name = "bionodulo-desktop"
-version = "0.1.0-alpha.38"
+version = "0.1.0-alpha.39"
 description = "BioNodulo Desktop"
 authors = ["BioNodulo"]
 edition = "2021"
