@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
+from bionodulo.nodes.base import path_probe_is_file
 from .adapter import (
     NIM_DEFAULT_RPM,
     NIM_HOSTED_RPM,
@@ -50,7 +51,7 @@ def parse_protein_records(value: str) -> list[dict[str, str]]:
     candidate = text.strip()
     if "\n" not in candidate and "\r" not in candidate:
         path = Path(candidate).expanduser()
-        if path.is_file():
+        if path_probe_is_file(text):
             return parse_protein_records(path.read_text(encoding="utf-8-sig"))
     records = []
     for index, line in enumerate(text.splitlines()):

@@ -121,9 +121,8 @@ def read_sequence_input(value: Any, key: str) -> str:
     text = str(value or "")
     if not text.strip():
         raise ValueError(f"Input '{key}' must be a non-empty sequence or file path")
-    path = Path(text)
-    if path.is_file():
-        text = path.read_text(encoding="utf-8")
+    if path_probe_is_file(text):
+        text = Path(text).read_text(encoding="utf-8")
     pieces: list[str] = []
     for line in text.splitlines():
         stripped = line.strip()

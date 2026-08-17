@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
+from bionodulo.nodes.base import path_probe_is_file
 from .adapter import (
     NIM_DEFAULT_RPM,
     NIM_HOSTED_RPM,
@@ -59,7 +60,7 @@ def parse_sequence_input(value: str) -> tuple[str, str]:
     candidate = text.strip()
     if "\n" not in candidate and "\r" not in candidate:
         path = Path(candidate).expanduser()
-        if path.is_file():
+        if path_probe_is_file(text):
             content = path.read_text(encoding="utf-8-sig")
             return parse_sequence_input(content)
     joined = "".join(line.strip() for line in text.splitlines() if line.strip() and not line.lstrip().startswith(">"))
