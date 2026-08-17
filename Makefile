@@ -11,7 +11,7 @@ WEB := web
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-backend dev-web test test-py test-web lint lint-py \
-        lint-web build build-web typecheck e2e verify install
+        lint-web build build-web typecheck e2e verify install catalog
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -20,6 +20,10 @@ help: ## List available targets
 install: ## Install python (dev) + web dependencies
 	$(PY) -m pip install -e ".[dev]"
 	cd $(WEB) && npm ci
+
+catalog: ## Regenerate node index/metadata + capabilities artifacts
+	$(PY) scripts/gen_node_index.py
+	$(PY) scripts/export_capabilities.py
 
 dev: ## Run the backend on 8765 and Vite on 5173
 	@set -eu; \

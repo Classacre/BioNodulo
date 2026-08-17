@@ -28,6 +28,7 @@ class BiaPyNode(CommandNode):
     RETURN_TYPES = ("DIRECTORY", "DIRECTORY", "DIRECTORY", "DIRECTORY", "DIRECTORY", "YAML")
     RETURN_NAMES = ("predictions_raw", "predictions_post_proc", "test_metrics", "train_charts", "train_logs", "config_file")
     REQUIRED_EXECUTABLES = ["biapy", "ln", "mkdir", "mktemp", "mv", "python3"]
+    REQUIRES_GPU = True
     DOCUMENTATION_URL = "https://biapy.readthedocs.io/"
     CITATION_DOIS = ["10.1038/s41592-025-02699-y"]
     CITATION_URLS = [f"{DOI_URL}10.1038/s41592-025-02699-y"]

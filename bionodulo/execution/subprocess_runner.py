@@ -14,9 +14,18 @@ import signal
 from pathlib import Path
 from typing import Any, Callable
 
+from bionodulo.execution.errors import (
+    NodeCancelledError,
+    NodeExitCodeError,
+    NodeMemoryError,
+    NodeTimeoutError,
+    looks_like_oom,
+)
+
 
 STREAM_CAPTURE_LIMIT = 1024 * 1024
 LOG_BATCH_LINES = 50
+STDERR_TAIL_LIMIT = 4096
 # Grace period between SIGTERM and SIGKILL when terminating a cancelled or
 # timed-out process group.
 TERMINATE_GRACE_SECONDS = 5.0
@@ -81,7 +90,7 @@ def _sanitized_parent_env() -> dict[str, str]:
     }
 
 
-class CommandCancelledError(Exception):
+class CommandCancelledError(NodeCancelledError):
     """Raised when a subprocess is killed because its run was cancelled.
 
     Distinct from :class:`CommandExecutionError` so the executor can record the
@@ -96,7 +105,7 @@ class CommandCancelledError(Exception):
         super().__init__(f"Command cancelled: {cmd}")
 
 
-class CommandExecutionError(Exception):
+class CommandExecutionError(NodeExitCodeError):
     """Raised when a subprocess command exits with a non-zero code.
 
     Attributes:
@@ -104,6 +113,7 @@ class CommandExecutionError(Exception):
         returncode: The exit code returned by the process.
         stdout_path: Path to the captured stdout log file.
         stderr_path: Path to the captured stderr log file.
+        stderr_tail: Bounded in-memory tail of the captured stderr.
     """
 
     def __init__(
@@ -112,16 +122,49 @@ class CommandExecutionError(Exception):
         returncode: int,
         stdout_path: str | Path,
         stderr_path: str | Path,
+        stderr_tail: str = "",
     ) -> None:
         self.cmd = cmd
         self.returncode = returncode
         self.stdout_path = Path(stdout_path)
         self.stderr_path = Path(stderr_path)
-        super().__init__(
-            f"Command failed with exit code {returncode}: {cmd}\n"
-            f"  stdout: {self.stdout_path}\n"
-            f"  stderr: {self.stderr_path}"
+        NodeExitCodeError.__init__(
+            self,
+            exit_code=returncode,
+            stderr_tail=stderr_tail,
+            message=(
+                f"Command failed with exit code {returncode}: {cmd}\n"
+                f"  stdout: {self.stdout_path}\n"
+                f"  stderr: {self.stderr_path}"
+            ),
         )
+
+
+class CommandOOMError(NodeMemoryError, CommandExecutionError):
+    """Non-zero exit that evidence attributes to an out-of-memory condition.
+
+    Subclasses both taxonomy roles: ``NodeMemoryError`` for typed retry
+    dispatch, and ``CommandExecutionError`` so existing handlers that read
+    ``cmd``/``returncode``/log paths keep working.
+    """
+
+    def __init__(
+        self,
+        cmd: str,
+        returncode: int,
+        stdout_path: str | Path,
+        stderr_path: str | Path,
+        stderr_tail: str = "",
+    ) -> None:
+        CommandExecutionError.__init__(
+            self,
+            cmd=cmd,
+            returncode=returncode,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+            stderr_tail=stderr_tail,
+        )
+        self.evidence = stderr_tail
 
 
 class _Cancelled(Exception):
@@ -239,8 +282,11 @@ async def run_subprocess(
 
     Raises:
         CommandCancelledError: If *cancel_event* fires before the process exits.
-        CommandExecutionError: If the process exits with a non-zero code.
-        asyncio.TimeoutError: If the process exceeds *timeout* seconds.
+        CommandOOMError: Non-zero exit attributed to an out-of-memory condition
+            (SIGKILL/137 exit or a known OOM stderr pattern).
+        CommandExecutionError: If the process exits with any other non-zero code.
+        NodeTimeoutError: If the process exceeds *timeout* seconds (also an
+            ``asyncio.TimeoutError`` for backwards compatibility).
     """
     cwd = Path(cwd) if cwd else None
     stdout_path = Path(stdout_path) if stdout_path else None
@@ -374,6 +420,8 @@ async def run_subprocess(
             _emit("error", f"[subprocess] Timeout after {timeout}s")
             await _terminate_process(process)
             await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+            if timeout is not None:
+                raise NodeTimeoutError(timeout_seconds=timeout) from None
             raise
         except _Cancelled:
             _emit("error", "[subprocess] Cancelled; terminating process group")
@@ -397,11 +445,16 @@ async def run_subprocess(
     }
 
     if returncode != 0:
-        raise CommandExecutionError(
-            cmd=cmd_str,
-            returncode=returncode,
-            stdout_path=stdout_path or Path("/dev/null"),
-            stderr_path=stderr_path or Path("/dev/null"),
-        )
+        stderr_tail = (stderr_result[0] or "")[-STDERR_TAIL_LIMIT:]
+        error_kwargs = {
+            "cmd": cmd_str,
+            "returncode": returncode,
+            "stdout_path": stdout_path or Path("/dev/null"),
+            "stderr_path": stderr_path or Path("/dev/null"),
+            "stderr_tail": stderr_tail,
+        }
+        if looks_like_oom(returncode, stderr_tail):
+            raise CommandOOMError(**error_kwargs)
+        raise CommandExecutionError(**error_kwargs)
 
     return result

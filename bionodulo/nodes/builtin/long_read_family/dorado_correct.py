@@ -21,6 +21,7 @@ class DoradoCorrectNode(DoradoCommandNode):
     """Correct one ONT read file and capture Dorado's FASTA stdout."""
 
     NODE_ID = "dorado_correct"
+    REQUIRES_GPU = True
     DISPLAY_NAME = "Dorado Correct"
     DESCRIPTION = "Correct Oxford Nanopore reads with HERRO and an explicit local model"
     SEARCH_ALIASES = [

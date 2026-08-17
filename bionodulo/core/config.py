@@ -10,7 +10,7 @@ import json
 import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
@@ -33,6 +33,16 @@ class ExecutionSettings:
     # How node input files are fingerprinted for the result cache:
     # "fast" (size+mtime), "strong" (sha256 of contents), or "off" (path-only).
     content_hashing: str = "fast"
+    # Recovery behaviour for runs interrupted by a restart:
+    # "manual" (default) keeps today's behaviour — orphans are marked
+    # interrupted and surface in history for the user to retry.
+    # "auto_resume" (BIONODULO_EXECUTION__ON_INTERRUPT=auto_resume) resubmits
+    # checkpointed orphans and re-enqueues never-started pending runs.
+    on_interrupt: Literal["manual", "auto_resume"] = "manual"
+
+    def __post_init__(self) -> None:
+        if self.on_interrupt not in ("manual", "auto_resume"):
+            self.on_interrupt = "manual"
 
 
 @dataclass
@@ -277,6 +287,17 @@ class Settings:
         if "api_secrets" in result:
             result["api_secrets"] = {k: "***" for k in result["api_secrets"]}
         return result
+
+    def effective_dump(self) -> dict[str, Any]:
+        """Resolved settings as a JSON-safe dict with secret-like values redacted.
+
+        Used by ``main.py --dump-config`` and safe to print: values under keys
+        matching the shared secret-key heuristics (token/secret/password/key/
+        credential) are masked with the standard redaction marker.
+        """
+        from bionodulo.core.credentials import redact_tree
+
+        return redact_tree(self.as_effective_config())
 
 
 def load_config(path: Path) -> dict[str, Any]:

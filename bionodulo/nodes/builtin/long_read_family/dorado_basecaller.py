@@ -24,6 +24,7 @@ class DoradoBasecallerNode(DoradoCommandNode):
     """Basecall POD5 data without implicit model downloads or GPU assumptions."""
 
     NODE_ID = "dorado_basecaller"
+    REQUIRES_GPU = True
     DISPLAY_NAME = "Dorado Basecaller"
     DESCRIPTION = "Basecall ONT POD5 data with explicit local Dorado model directories"
     SEARCH_ALIASES = [

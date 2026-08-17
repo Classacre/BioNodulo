@@ -28,6 +28,7 @@ class Cell2LocationNode(PythonScriptNode):
     RETURN_NAMES = ("spatial_deconv", "celltype_map")
     REQUIRED_EXECUTABLES = ["python"]
     REQUIRED_CONDA_PACKAGES: list[str] = []
+    REQUIRES_GPU = True
     VERSION = "0.1.5"
     GIT_URL = "https://github.com/BayraktarLab/cell2location.git"
     GIT_COMMIT = "20afdf2ddbd651434e664129547adb8a204044fc"

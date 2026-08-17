@@ -1,0 +1,5618 @@
+{
+  "Add_a_column1": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "BayeScan": {
+    "required_executables": [
+      "bayescan2"
+    ],
+    "requires_gpu": false
+  },
+  "CoverageReport2": {
+    "required_executables": [
+      "Rscript",
+      "coverageBed",
+      "perl",
+      "samtools",
+      "tectonic"
+    ],
+    "requires_gpu": false
+  },
+  "Extract genomic DNA 1": {
+    "required_executables": [
+      "faToTwoBit",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "abricate": {
+    "required_executables": [
+      "abricate"
+    ],
+    "requires_gpu": false
+  },
+  "abricate_list": {
+    "required_executables": [
+      "abricate"
+    ],
+    "requires_gpu": false
+  },
+  "abricate_summary": {
+    "required_executables": [
+      "abricate"
+    ],
+    "requires_gpu": false
+  },
+  "abritamr": {
+    "required_executables": [
+      "abritamr"
+    ],
+    "requires_gpu": false
+  },
+  "abyss-pe": {
+    "required_executables": [
+      "abyss-pe"
+    ],
+    "requires_gpu": false
+  },
+  "abyss_pe": {
+    "required_executables": [
+      "abyss-pe"
+    ],
+    "requires_gpu": false
+  },
+  "adapter_removal": {
+    "required_executables": [
+      "AdapterRemoval"
+    ],
+    "requires_gpu": false
+  },
+  "addName": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "add_input_name_as_column": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "aegean_canongff3": {
+    "required_executables": [
+      "canon-gff3"
+    ],
+    "requires_gpu": false
+  },
+  "aegean_gaeval": {
+    "required_executables": [
+      "gaeval"
+    ],
+    "requires_gpu": false
+  },
+  "aegean_locuspocus": {
+    "required_executables": [
+      "locuspocus"
+    ],
+    "requires_gpu": false
+  },
+  "aegean_parseval": {
+    "required_executables": [
+      "parseval"
+    ],
+    "requires_gpu": false
+  },
+  "aggregate": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "aggregate_by_group": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_data_extraction": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_embedding": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_image_analysis": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_literature_search": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_pipeline_advisor": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_report_generator": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_sequence_analysis": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_sequence_classification": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ai_variant_interpretation": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "aldex2": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "allegro": {
+    "required_executables": [
+      "allegro"
+    ],
+    "requires_gpu": false
+  },
+  "alphafold": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "alphafold_db": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "alphagenome_interval_predictor": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "alphagenome_ism_scanner": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "alphagenome_sequence_predictor": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "alphagenome_variant_effect": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "alphagenome_variant_scorer": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "amas_concat": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "amas_remove": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "amas_replicate": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "amas_split": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "amas_summary": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "amplican": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampligone": {
+    "required_executables": [
+      "ampligone"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_alpha_diversity": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_boxplot": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_core": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_export_fasta": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_export_otu": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_frequency": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_heatmap": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_load": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_merge_ampvis2": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_mergereplicates": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_octave": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_ordinate": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_otu_network": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_rankabundance": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_rarecurve": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_setmetadata": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_subset_samples": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_subset_taxa": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_timeseries": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "ampvis2_venn": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "amrfinderplus": {
+    "required_executables": [
+      "amrfinder"
+    ],
+    "requires_gpu": false
+  },
+  "ancombc": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "angsd": {
+    "required_executables": [
+      "angsd",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "angsd_contamination": {
+    "required_executables": [
+      "contamination",
+      "python3"
+    ],
+    "requires_gpu": false
+  },
+  "anndata2ri": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "anndata_export": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "anndata_import": {
+    "required_executables": [
+      "gzip",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "anndata_inspect": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "anndata_manipulate": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "annotate_vcf": {
+    "required_executables": [
+      "bcftools",
+      "vcfanno"
+    ],
+    "requires_gpu": false
+  },
+  "annotatemyids": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "annovar": {
+    "required_executables": [
+      "table_annovar.pl"
+    ],
+    "requires_gpu": false
+  },
+  "argnorm": {
+    "required_executables": [
+      "argnorm"
+    ],
+    "requires_gpu": false
+  },
+  "arriba": {
+    "required_executables": [
+      "arriba",
+      "convert_fusions_to_vcf.sh",
+      "draw_fusions.R",
+      "extract_fusion-supporting_alignments.sh",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "arriba_draw_fusions": {
+    "required_executables": [
+      "draw_fusions.R",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "arriba_get_filters": {
+    "required_executables": [
+      "arriba",
+      "cp",
+      "find",
+      "grep"
+    ],
+    "requires_gpu": false
+  },
+  "art_454": {
+    "required_executables": [
+      "art_454"
+    ],
+    "requires_gpu": false
+  },
+  "art_illumina": {
+    "required_executables": [
+      "art_illumina"
+    ],
+    "requires_gpu": false
+  },
+  "art_solid": {
+    "required_executables": [
+      "art_SOLiD"
+    ],
+    "requires_gpu": false
+  },
+  "artic_guppyplex": {
+    "required_executables": [
+      "artic",
+      "bash",
+      "gzip"
+    ],
+    "requires_gpu": false
+  },
+  "artic_minion": {
+    "required_executables": [
+      "artic",
+      "bgzip",
+      "run_clair3.sh",
+      "samtools",
+      "sed",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "assembly_stats": {
+    "required_executables": [
+      "asm2stats.minmaxgc.pl"
+    ],
+    "requires_gpu": false
+  },
+  "astral": {
+    "required_executables": [
+      "astral"
+    ],
+    "requires_gpu": false
+  },
+  "augustus": {
+    "required_executables": [
+      "augustus",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "augustus_training": {
+    "required_executables": [
+      "augustus",
+      "autoAugTrain.pl",
+      "maker2zff",
+      "perl",
+      "tar",
+      "zff2gff3.pl"
+    ],
+    "requires_gpu": false
+  },
+  "autobigs-cli": {
+    "required_executables": [
+      "autoBIGS"
+    ],
+    "requires_gpu": false
+  },
+  "b2btools_single_sequence": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "bakta": {
+    "required_executables": [
+      "bakta",
+      "cp",
+      "ln",
+      "mkdir",
+      "tee"
+    ],
+    "requires_gpu": false
+  },
+  "bam_to_sam": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "bam_to_scidx": {
+    "required_executables": [
+      "java"
+    ],
+    "requires_gpu": false
+  },
+  "bamleftalign": {
+    "required_executables": [
+      "bamleftalign"
+    ],
+    "requires_gpu": false
+  },
+  "bamutil_clip_overlap": {
+    "required_executables": [
+      "bam"
+    ],
+    "requires_gpu": false
+  },
+  "bamutil_diff": {
+    "required_executables": [
+      "bam"
+    ],
+    "requires_gpu": false
+  },
+  "bandage_image": {
+    "required_executables": [
+      "Bandage"
+    ],
+    "requires_gpu": false
+  },
+  "bandage_info": {
+    "required_executables": [
+      "Bandage"
+    ],
+    "requires_gpu": false
+  },
+  "bar_chart": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "barcode_splitter": {
+    "required_executables": [
+      "barcode_splitter"
+    ],
+    "requires_gpu": false
+  },
+  "baredsc_1d": {
+    "required_executables": [
+      "baredSC_1d",
+      "gunzip",
+      "mkdir",
+      "mv"
+    ],
+    "requires_gpu": false
+  },
+  "baredsc_2d": {
+    "required_executables": [
+      "baredSC_2d",
+      "mkdir",
+      "mv"
+    ],
+    "requires_gpu": false
+  },
+  "baredsc_combine_1d": {
+    "required_executables": [
+      "combineMultipleModels_1d",
+      "gunzip",
+      "ln",
+      "mkdir",
+      "mv"
+    ],
+    "requires_gpu": false
+  },
+  "baredsc_combine_2d": {
+    "required_executables": [
+      "combineMultipleModels_2d",
+      "ln",
+      "mkdir",
+      "mv"
+    ],
+    "requires_gpu": false
+  },
+  "barrnap": {
+    "required_executables": [
+      "barrnap"
+    ],
+    "requires_gpu": false
+  },
+  "basil": {
+    "required_executables": [
+      "basil"
+    ],
+    "requires_gpu": false
+  },
+  "batch_submitter": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "bax2bam": {
+    "required_executables": [
+      "bax2bam"
+    ],
+    "requires_gpu": false
+  },
+  "bayescan": {
+    "required_executables": [
+      "bayescan2"
+    ],
+    "requires_gpu": false
+  },
+  "baysor": {
+    "required_executables": [
+      "baysor"
+    ],
+    "requires_gpu": false
+  },
+  "bbgtobigwig": {
+    "required_executables": [
+      "bedGraphToBigWig",
+      "bedtools",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "bbtools_bbduk": {
+    "required_executables": [
+      "bbduk.sh"
+    ],
+    "requires_gpu": false
+  },
+  "bbtools_bbmap": {
+    "required_executables": [
+      "bbmap.sh",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "bbtools_bbmerge": {
+    "required_executables": [
+      "bbmerge.sh"
+    ],
+    "requires_gpu": false
+  },
+  "bbtools_bbnorm": {
+    "required_executables": [
+      "bbnorm.sh"
+    ],
+    "requires_gpu": false
+  },
+  "bbtools_callvariants": {
+    "required_executables": [
+      "callvariants.sh"
+    ],
+    "requires_gpu": false
+  },
+  "bbtools_tadpole": {
+    "required_executables": [
+      "tadpole.sh"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_annotate": {
+    "required_executables": [
+      "bcftools",
+      "bgzip",
+      "tabix"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_call": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_cnv": {
+    "required_executables": [
+      "bcftools",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_concat": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_consensus": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_convert_from_vcf": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_convert_to_vcf": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_csq": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_filter": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_gtcheck": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_index": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_isec": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_merge": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_mpileup": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_norm": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_color_chrs": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_counts": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_dosage": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_fill_an_ac": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_fill_tags": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_fixploidy": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_frameshifts": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_impute_info": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_mendelian": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_missing2ref": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_setgt": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_split_vep": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_plugin_tag2tag": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_query": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_query_list_samples": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_reheader": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_roh": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_stats": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bcftools_view": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "bctools_convert_to_binary_barcode": {
+    "required_executables": [
+      "convert_bc_to_binary_RY.py"
+    ],
+    "requires_gpu": false
+  },
+  "bctools_extract_alignment_ends": {
+    "required_executables": [
+      "extract_aln_ends.py"
+    ],
+    "requires_gpu": false
+  },
+  "bctools_extract_barcodes": {
+    "required_executables": [
+      "extract_bcs.py"
+    ],
+    "requires_gpu": false
+  },
+  "bctools_extract_crosslinked_nucleotides": {
+    "required_executables": [
+      "coords2clnt.py"
+    ],
+    "requires_gpu": false
+  },
+  "bctools_merge_pcr_duplicates": {
+    "required_executables": [
+      "merge_pcr_duplicates.py"
+    ],
+    "requires_gpu": false
+  },
+  "bctools_remove_spurious_events": {
+    "required_executables": [
+      "rm_spurious_events.py"
+    ],
+    "requires_gpu": false
+  },
+  "bctools_remove_tail": {
+    "required_executables": [
+      "remove_tail.py"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_analyses": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_biosamples": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_bracket": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_cnv": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_cohorts": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_csv2xlsx": {
+    "required_executables": [
+      "csv2xlsx"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_datasets": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_gene": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_import": {
+    "required_executables": [
+      "beacon2-import"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_individuals": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_pxf2bff": {
+    "required_executables": [
+      "pxf2bff"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_range": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_runs": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_sequence": {
+    "required_executables": [
+      "beacon2-search"
+    ],
+    "requires_gpu": false
+  },
+  "beacon2_vcf2bff": {
+    "required_executables": [
+      "python",
+      "vcf2bff.pl"
+    ],
+    "requires_gpu": false
+  },
+  "beagle": {
+    "required_executables": [
+      "beagle"
+    ],
+    "requires_gpu": false
+  },
+  "bedops-sort-bed": {
+    "required_executables": [
+      "sort-bed"
+    ],
+    "requires_gpu": false
+  },
+  "bedops_sort_bed": {
+    "required_executables": [
+      "sort-bed"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_annotatebed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_bamtobed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_bed12tobed6": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_bedpetobam": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_bedtobam": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_bedtoigv": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_closest": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_closestbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_clusterbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_complementbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_coverage": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_coveragebed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_expandbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_fisher": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_flankbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_genomecoveragebed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_getfastabed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_groupbybed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_intersect": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_intersectbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_jaccard": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_links": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_makewindowsbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_map": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_maskfastabed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_mergebed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_multicovtbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_multiintersectbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_nucbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_overlapbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_randombed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_reldistbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_shufflebed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_slopbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_sortbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_spacingbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_subtractbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_tagbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_unionbedgraph": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bedtools_windowbed": {
+    "required_executables": [
+      "bedtools"
+    ],
+    "requires_gpu": false
+  },
+  "bellavista_prepare": {
+    "required_executables": [
+      "bash",
+      "cat",
+      "chmod",
+      "cp",
+      "mkdir",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "bellerophon": {
+    "required_executables": [
+      "bellerophon",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "berokka": {
+    "required_executables": [
+      "berokka"
+    ],
+    "requires_gpu": false
+  },
+  "bg_diamond": {
+    "required_executables": [
+      "diamond"
+    ],
+    "requires_gpu": false
+  },
+  "bg_diamond_makedb": {
+    "required_executables": [
+      "diamond"
+    ],
+    "requires_gpu": false
+  },
+  "bg_diamond_view": {
+    "required_executables": [
+      "diamond"
+    ],
+    "requires_gpu": false
+  },
+  "biapy": {
+    "required_executables": [
+      "biapy",
+      "ln",
+      "mkdir",
+      "mktemp",
+      "mv",
+      "python3"
+    ],
+    "requires_gpu": true
+  },
+  "bigscape": {
+    "required_executables": [
+      "bigscape",
+      "hmmpress"
+    ],
+    "requires_gpu": false
+  },
+  "bigwig_outlier_bed": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "bin_refiner": {
+    "required_executables": [
+      "Binning_refiner"
+    ],
+    "requires_gpu": false
+  },
+  "binette": {
+    "required_executables": [
+      "binette"
+    ],
+    "requires_gpu": false
+  },
+  "biobox_add_taxid": {
+    "required_executables": [
+      "biobox_add_taxid.py"
+    ],
+    "requires_gpu": false
+  },
+  "bioext_bam2msa": {
+    "required_executables": [
+      "bam2msa"
+    ],
+    "requires_gpu": false
+  },
+  "bioext_bealign": {
+    "required_executables": [
+      "bealign",
+      "gawk",
+      "samtools",
+      "sed"
+    ],
+    "requires_gpu": false
+  },
+  "biom_add_metadata": {
+    "required_executables": [
+      "biom"
+    ],
+    "requires_gpu": false
+  },
+  "biom_convert": {
+    "required_executables": [
+      "biom"
+    ],
+    "requires_gpu": false
+  },
+  "biom_from_uc": {
+    "required_executables": [
+      "biom"
+    ],
+    "requires_gpu": false
+  },
+  "biom_normalize_table": {
+    "required_executables": [
+      "biom"
+    ],
+    "requires_gpu": false
+  },
+  "biom_subset_table": {
+    "required_executables": [
+      "biom"
+    ],
+    "requires_gpu": false
+  },
+  "biom_summarize_table": {
+    "required_executables": [
+      "biom"
+    ],
+    "requires_gpu": false
+  },
+  "biscot": {
+    "required_executables": [
+      "biscot"
+    ],
+    "requires_gpu": false
+  },
+  "bismark_align": {
+    "required_executables": [
+      "bismark",
+      "bowtie2"
+    ],
+    "requires_gpu": false
+  },
+  "bismark_genome_preparation": {
+    "required_executables": [
+      "bismark_genome_preparation",
+      "bowtie2-build"
+    ],
+    "requires_gpu": false
+  },
+  "bismark_methylation": {
+    "required_executables": [
+      "bismark_methylation_extractor"
+    ],
+    "requires_gpu": false
+  },
+  "bismark_methylation_extractor": {
+    "required_executables": [
+      "bismark_methylation_extractor"
+    ],
+    "requires_gpu": false
+  },
+  "blastxml_to_gapped_gff3": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "bmtagger": {
+    "required_executables": [
+      "bmtagger.sh",
+      "bmtool",
+      "extract_fullseq",
+      "gunzip",
+      "makeblastdb",
+      "srprism"
+    ],
+    "requires_gpu": false
+  },
+  "boolean_primitive": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "bowtie2": {
+    "required_executables": [
+      "bowtie2",
+      "bowtie2-build",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "bowtie2_align": {
+    "required_executables": [
+      "bowtie2"
+    ],
+    "requires_gpu": false
+  },
+  "bowtie2_build": {
+    "required_executables": [
+      "bowtie2-build"
+    ],
+    "requires_gpu": false
+  },
+  "bowtie2_inspect": {
+    "required_executables": [
+      "bowtie2-inspect"
+    ],
+    "requires_gpu": false
+  },
+  "bp_blast": {
+    "required_executables": [
+      "blastn",
+      "blastp",
+      "blastx",
+      "tblastn",
+      "tblastx"
+    ],
+    "requires_gpu": false
+  },
+  "bp_genbank2gff3": {
+    "required_executables": [
+      "bp_genbank2gff3.pl"
+    ],
+    "requires_gpu": false
+  },
+  "bp_msa_view": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "bp_seq_stats": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "bp_seqio_read": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "bp_seqio_write": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "bp_translate": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "bracken": {
+    "required_executables": [
+      "bracken"
+    ],
+    "requires_gpu": false
+  },
+  "break_continue": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "breakpoint": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "breseq": {
+    "required_executables": [
+      "breseq",
+      "gdtools",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "brew3r_r": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "busco": {
+    "required_executables": [
+      "busco"
+    ],
+    "requires_gpu": false
+  },
+  "bwa": {
+    "required_executables": [
+      "bwa",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "bwa_index": {
+    "required_executables": [
+      "bwa"
+    ],
+    "requires_gpu": false
+  },
+  "bwa_index_dir": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "bwa_mem": {
+    "required_executables": [
+      "bwa"
+    ],
+    "requires_gpu": false
+  },
+  "bwa_mem2": {
+    "required_executables": [
+      "bwa-mem2",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "bwa_mem2_idx": {
+    "required_executables": [
+      "bwa-mem2"
+    ],
+    "requires_gpu": false
+  },
+  "bwameth": {
+    "required_executables": [
+      "bwameth.py",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "cache_control": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "cactus_cactus": {
+    "required_executables": [
+      "cactus",
+      "cactus-pangenome"
+    ],
+    "requires_gpu": false
+  },
+  "cactus_export": {
+    "required_executables": [
+      "hal2assemblyHub.py",
+      "hal2maf",
+      "hal2vg",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "calculate_contrast_threshold": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "calculate_numeric_param": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "camera_annotation": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "cami_amber": {
+    "required_executables": [
+      "amber.py"
+    ],
+    "requires_gpu": false
+  },
+  "cami_amber_add": {
+    "required_executables": [
+      "add_length_column.py"
+    ],
+    "requires_gpu": false
+  },
+  "cami_amber_convert": {
+    "required_executables": [
+      "convert_fasta_bins_to_biobox_format.py"
+    ],
+    "requires_gpu": false
+  },
+  "canu": {
+    "required_executables": [
+      "canu"
+    ],
+    "requires_gpu": false
+  },
+  "cas_offinder": {
+    "required_executables": [
+      "cas-offinder"
+    ],
+    "requires_gpu": false
+  },
+  "cat_add_names": {
+    "required_executables": [
+      "CAT",
+      "tabpad.py"
+    ],
+    "requires_gpu": false
+  },
+  "cat_bins": {
+    "required_executables": [
+      "CAT",
+      "tabpad.py"
+    ],
+    "requires_gpu": false
+  },
+  "cat_contigs": {
+    "required_executables": [
+      "CAT",
+      "tabpad.py"
+    ],
+    "requires_gpu": false
+  },
+  "cat_prepare": {
+    "required_executables": [
+      "CAT"
+    ],
+    "requires_gpu": false
+  },
+  "cat_summarise": {
+    "required_executables": [
+      "CAT",
+      "tabpad.py"
+    ],
+    "requires_gpu": false
+  },
+  "cawlign": {
+    "required_executables": [
+      "cawlign"
+    ],
+    "requires_gpu": false
+  },
+  "cd_hit": {
+    "required_executables": [
+      "cd-hit",
+      "cd-hit-2d",
+      "cd-hit-est",
+      "cd-hit-est-2d"
+    ],
+    "requires_gpu": false
+  },
+  "cell2location": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": true
+  },
+  "cello_circuit_design": {
+    "required_executables": [
+      "dot",
+      "java",
+      "python",
+      "yosys"
+    ],
+    "requires_gpu": false
+  },
+  "cellranger_count": {
+    "required_executables": [
+      "cellranger"
+    ],
+    "requires_gpu": false
+  },
+  "cellranger_mkref": {
+    "required_executables": [
+      "cellranger"
+    ],
+    "requires_gpu": false
+  },
+  "celltypist": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "cemitool": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "centrifuge": {
+    "required_executables": [
+      "centrifuge"
+    ],
+    "requires_gpu": false
+  },
+  "charts": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "checkm": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm2": {
+    "required_executables": [
+      "checkm2"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_analyze": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_lineage_set": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_lineage_wf": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_plot": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_qa": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_taxon_set": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_taxonomy_wf": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_tetra": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_tree": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkm_tree_qa": {
+    "required_executables": [
+      "checkm"
+    ],
+    "requires_gpu": false
+  },
+  "checkpoint": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "cherri_eval": {
+    "required_executables": [
+      "cherri",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "cherri_train": {
+    "required_executables": [
+      "cherri",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "chewbbaca_allelecall": {
+    "required_executables": [
+      "chewBBACA.py",
+      "unzip"
+    ],
+    "requires_gpu": false
+  },
+  "chewbbaca_allelecallevaluator": {
+    "required_executables": [
+      "chewBBACA.py",
+      "cp",
+      "mv",
+      "unzip"
+    ],
+    "requires_gpu": false
+  },
+  "chewbbaca_createschema": {
+    "required_executables": [
+      "chewBBACA.py",
+      "zip"
+    ],
+    "requires_gpu": false
+  },
+  "chewbbaca_downloadschema": {
+    "required_executables": [
+      "chewBBACA.py",
+      "mv",
+      "zip"
+    ],
+    "requires_gpu": false
+  },
+  "chewbbaca_extractcgmlst": {
+    "required_executables": [
+      "chewBBACA.py"
+    ],
+    "requires_gpu": false
+  },
+  "chewbbaca_joinprofiles": {
+    "required_executables": [
+      "chewBBACA.py"
+    ],
+    "requires_gpu": false
+  },
+  "chewbbaca_nsstats": {
+    "required_executables": [
+      "chewBBACA.py"
+    ],
+    "requires_gpu": false
+  },
+  "chewbbaca_prepexternalschema": {
+    "required_executables": [
+      "chewBBACA.py",
+      "unzip",
+      "zip"
+    ],
+    "requires_gpu": false
+  },
+  "chira_collapse": {
+    "required_executables": [
+      "chira_collapse.py",
+      "gunzip"
+    ],
+    "requires_gpu": false
+  },
+  "chira_extract": {
+    "required_executables": [
+      "chira_extract.py"
+    ],
+    "requires_gpu": false
+  },
+  "chira_map": {
+    "required_executables": [
+      "chira_map.py"
+    ],
+    "requires_gpu": false
+  },
+  "chira_merge": {
+    "required_executables": [
+      "chira_merge.py"
+    ],
+    "requires_gpu": false
+  },
+  "chira_quantify": {
+    "required_executables": [
+      "chira_quantify.py"
+    ],
+    "requires_gpu": false
+  },
+  "chopin2": {
+    "required_executables": [
+      "chopin2"
+    ],
+    "requires_gpu": false
+  },
+  "chopper": {
+    "required_executables": [
+      "chopper",
+      "gzip"
+    ],
+    "requires_gpu": false
+  },
+  "chopper_filter": {
+    "required_executables": [
+      "chopper"
+    ],
+    "requires_gpu": false
+  },
+  "chromap": {
+    "required_executables": [
+      "chromap"
+    ],
+    "requires_gpu": false
+  },
+  "chromeister": {
+    "required_executables": [
+      "CHROMEISTER",
+      "compute_score-nogrid.R",
+      "compute_score.R",
+      "detect_events.py"
+    ],
+    "requires_gpu": false
+  },
+  "cialign": {
+    "required_executables": [
+      "CIAlign",
+      "gunzip"
+    ],
+    "requires_gpu": false
+  },
+  "circexplorer2": {
+    "required_executables": [
+      "CIRCexplorer2"
+    ],
+    "requires_gpu": false
+  },
+  "circos": {
+    "required_executables": [
+      "circos",
+      "cp",
+      "grep",
+      "head",
+      "ln",
+      "python",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "circos_aln_to_links": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "circos_binlinks": {
+    "required_executables": [
+      "binlinks",
+      "sed"
+    ],
+    "requires_gpu": false
+  },
+  "circos_bundlelinks": {
+    "required_executables": [
+      "bundlelinks",
+      "sed"
+    ],
+    "requires_gpu": false
+  },
+  "circos_gc_skew": {
+    "required_executables": [
+      "ln",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "circos_interval_to_text": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "circos_interval_to_tile": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "circos_plot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "circos_resample": {
+    "required_executables": [
+      "resample",
+      "sed"
+    ],
+    "requires_gpu": false
+  },
+  "circos_tableviewer": {
+    "required_executables": [
+      "circos",
+      "make-conf",
+      "parse-table",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "circos_wiggle_to_scatter": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "circos_wiggle_to_stacked": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "cite_seq_count": {
+    "required_executables": [
+      "CITE-seq-Count",
+      "gunzip"
+    ],
+    "requires_gpu": false
+  },
+  "clair3": {
+    "required_executables": [
+      "run_clair3.sh"
+    ],
+    "requires_gpu": false
+  },
+  "clustalo": {
+    "required_executables": [
+      "clustalo"
+    ],
+    "requires_gpu": false
+  },
+  "clustalw": {
+    "required_executables": [
+      "clustalw2"
+    ],
+    "requires_gpu": false
+  },
+  "clustering_from_distmat": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "cnvkit_access": {
+    "required_executables": [
+      "cnvkit.py"
+    ],
+    "requires_gpu": false
+  },
+  "cnvkit_antitarget": {
+    "required_executables": [
+      "cnvkit.py"
+    ],
+    "requires_gpu": false
+  },
+  "cnvkit_batch": {
+    "required_executables": [
+      "Rscript",
+      "cnvkit.py"
+    ],
+    "requires_gpu": false
+  },
+  "cnvkit_call": {
+    "required_executables": [
+      "cnvkit.py"
+    ],
+    "requires_gpu": false
+  },
+  "cnvkit_plot": {
+    "required_executables": [
+      "cnvkit.py"
+    ],
+    "requires_gpu": false
+  },
+  "cnvkit_target": {
+    "required_executables": [
+      "cnvkit.py"
+    ],
+    "requires_gpu": false
+  },
+  "cnvnator": {
+    "required_executables": [
+      "cnvnator"
+    ],
+    "requires_gpu": false
+  },
+  "colabfold_batch": {
+    "required_executables": [
+      "colabfold_batch"
+    ],
+    "requires_gpu": false
+  },
+  "collect_files": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "collection_column_join": {
+    "required_executables": [
+      "awk",
+      "head",
+      "join",
+      "paste",
+      "sh",
+      "sort",
+      "tail"
+    ],
+    "requires_gpu": false
+  },
+  "collection_element_identifiers": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "column_order_header_sort": {
+    "required_executables": [
+      "gawk",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "column_remove_by_header": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "comebin": {
+    "required_executables": [
+      "run_comebin.sh"
+    ],
+    "requires_gpu": false
+  },
+  "comebin_bam": {
+    "required_executables": [
+      "gen_cov_file.sh"
+    ],
+    "requires_gpu": false
+  },
+  "comet": {
+    "required_executables": [
+      "comet"
+    ],
+    "requires_gpu": false
+  },
+  "compare": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "compare_results": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "compleasm": {
+    "required_executables": [
+      "compleasm"
+    ],
+    "requires_gpu": false
+  },
+  "compose_text_param": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "compress_file": {
+    "required_executables": [
+      "gzip"
+    ],
+    "requires_gpu": false
+  },
+  "constants": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "control_freec": {
+    "required_executables": [
+      "freec"
+    ],
+    "requires_gpu": false
+  },
+  "cooler": {
+    "required_executables": [
+      "cooler"
+    ],
+    "requires_gpu": false
+  },
+  "cooltools_compartments": {
+    "required_executables": [
+      "cooltools"
+    ],
+    "requires_gpu": false
+  },
+  "cooltools_insulation": {
+    "required_executables": [
+      "cooltools"
+    ],
+    "requires_gpu": false
+  },
+  "copasi_simulation": {
+    "required_executables": [
+      "CopasiSE"
+    ],
+    "requires_gpu": false
+  },
+  "counter_accumulator": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "coverage_plot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "cramino": {
+    "required_executables": [
+      "cramino"
+    ],
+    "requires_gpu": false
+  },
+  "crispresso2": {
+    "required_executables": [
+      "CRISPResso",
+      "fastp"
+    ],
+    "requires_gpu": false
+  },
+  "crossmap_bam": {
+    "required_executables": [
+      "CrossMap"
+    ],
+    "requires_gpu": false
+  },
+  "crossmap_bed": {
+    "required_executables": [
+      "CrossMap"
+    ],
+    "requires_gpu": false
+  },
+  "crossmap_bw": {
+    "required_executables": [
+      "CrossMap"
+    ],
+    "requires_gpu": false
+  },
+  "crossmap_gff": {
+    "required_executables": [
+      "CrossMap"
+    ],
+    "requires_gpu": false
+  },
+  "crossmap_region": {
+    "required_executables": [
+      "CrossMap"
+    ],
+    "requires_gpu": false
+  },
+  "crossmap_vcf": {
+    "required_executables": [
+      "CrossMap",
+      "ln"
+    ],
+    "requires_gpu": false
+  },
+  "crossmap_wig": {
+    "required_executables": [
+      "CrossMap"
+    ],
+    "requires_gpu": false
+  },
+  "csv_to_json": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "customize_metaphlan_database": {
+    "required_executables": [
+      "python",
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "cutadapt": {
+    "required_executables": [
+      "cutadapt"
+    ],
+    "requires_gpu": false
+  },
+  "cutesv": {
+    "required_executables": [
+      "cuteSV"
+    ],
+    "requires_gpu": false
+  },
+  "das_tool": {
+    "required_executables": [
+      "DAS_Tool"
+    ],
+    "requires_gpu": false
+  },
+  "data_validator": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "datamash_ops": {
+    "required_executables": [
+      "datamash"
+    ],
+    "requires_gpu": false
+  },
+  "datamash_reverse": {
+    "required_executables": [
+      "datamash"
+    ],
+    "requires_gpu": false
+  },
+  "datamash_transpose": {
+    "required_executables": [
+      "datamash",
+      "paste",
+      "split"
+    ],
+    "requires_gpu": false
+  },
+  "datetime": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "debug": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "deduplicate": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "deeptools_bamcoverage": {
+    "required_executables": [
+      "bamCoverage"
+    ],
+    "requires_gpu": false
+  },
+  "deeptools_compute_matrix": {
+    "required_executables": [
+      "computeMatrix"
+    ],
+    "requires_gpu": false
+  },
+  "deeptools_plot_heatmap": {
+    "required_executables": [
+      "plotHeatmap"
+    ],
+    "requires_gpu": false
+  },
+  "deeptools_plot_profile": {
+    "required_executables": [
+      "plotProfile"
+    ],
+    "requires_gpu": false
+  },
+  "deepvariant": {
+    "required_executables": [
+      "run_deepvariant"
+    ],
+    "requires_gpu": false
+  },
+  "delay_wait": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "delly": {
+    "required_executables": [
+      "delly"
+    ],
+    "requires_gpu": false
+  },
+  "delly_call": {
+    "required_executables": [
+      "bcftools",
+      "delly",
+      "tabix"
+    ],
+    "requires_gpu": false
+  },
+  "deseq2": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "deseq2_analysis": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "dia_nn": {
+    "required_executables": [
+      "diann"
+    ],
+    "requires_gpu": false
+  },
+  "diamond_align": {
+    "required_executables": [
+      "diamond"
+    ],
+    "requires_gpu": false
+  },
+  "diamond_makedb": {
+    "required_executables": [
+      "diamond"
+    ],
+    "requires_gpu": false
+  },
+  "diann": {
+    "required_executables": [
+      "diann"
+    ],
+    "requires_gpu": false
+  },
+  "dictionary": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "dorado_basecaller": {
+    "required_executables": [
+      "dorado"
+    ],
+    "requires_gpu": true
+  },
+  "dorado_correct": {
+    "required_executables": [
+      "dorado"
+    ],
+    "requires_gpu": true
+  },
+  "dorado_demux": {
+    "required_executables": [
+      "dorado"
+    ],
+    "requires_gpu": false
+  },
+  "dorado_duplex": {
+    "required_executables": [
+      "dorado"
+    ],
+    "requires_gpu": true
+  },
+  "drep_compare": {
+    "required_executables": [
+      "dRep"
+    ],
+    "requires_gpu": false
+  },
+  "drep_dereplicate": {
+    "required_executables": [
+      "dRep"
+    ],
+    "requires_gpu": false
+  },
+  "dss_dmr": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "eastr": {
+    "required_executables": [
+      "bowtie2-build",
+      "eastr"
+    ],
+    "requires_gpu": false
+  },
+  "ebi_clustal_omega": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "eggnog_mapper": {
+    "required_executables": [
+      "emapper.py"
+    ],
+    "requires_gpu": false
+  },
+  "embedding_generation": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ensembl_gene_lookup": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ensembl_vep": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "esmfold_predict": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": true
+  },
+  "est_abundance": {
+    "required_executables": [
+      "est_abundance.py"
+    ],
+    "requires_gpu": false
+  },
+  "eukrep": {
+    "required_executables": [
+      "EukRep"
+    ],
+    "requires_gpu": false
+  },
+  "evidencemodeler": {
+    "required_executables": [
+      "EVidenceModeler"
+    ],
+    "requires_gpu": false
+  },
+  "exonerate": {
+    "required_executables": [
+      "exonerate",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "export2graphlan": {
+    "required_executables": [
+      "export2graphlan.py"
+    ],
+    "requires_gpu": false
+  },
+  "extract_columns": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "extract_metaphlan_database": {
+    "required_executables": [
+      "bowtie2-inspect",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "falco": {
+    "required_executables": [
+      "falco"
+    ],
+    "requires_gpu": false
+  },
+  "fargene": {
+    "required_executables": [
+      "fargene",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "fasplit": {
+    "required_executables": [
+      "faSplit"
+    ],
+    "requires_gpu": false
+  },
+  "fasta-stats": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "fasta_regex_finder": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "fasta_to_contig2bin": {
+    "required_executables": [
+      "Fasta_to_Contig2Bin.sh"
+    ],
+    "requires_gpu": false
+  },
+  "fastani": {
+    "required_executables": [
+      "fastANI"
+    ],
+    "requires_gpu": false
+  },
+  "fastp": {
+    "required_executables": [
+      "fastp"
+    ],
+    "requires_gpu": false
+  },
+  "fastqc": {
+    "required_executables": [
+      "fastqc"
+    ],
+    "requires_gpu": false
+  },
+  "fastspar": {
+    "required_executables": [
+      "fastspar"
+    ],
+    "requires_gpu": false
+  },
+  "fastspar_pvalues": {
+    "required_executables": [
+      "fastspar",
+      "fastspar_bootstrap",
+      "fastspar_pvalues",
+      "parallel"
+    ],
+    "requires_gpu": false
+  },
+  "fastspar_reduce": {
+    "required_executables": [
+      "fastspar_reduce"
+    ],
+    "requires_gpu": false
+  },
+  "fasttree": {
+    "required_executables": [
+      "FastTree"
+    ],
+    "requires_gpu": false
+  },
+  "fatovcf": {
+    "required_executables": [
+      "faToVcf"
+    ],
+    "requires_gpu": false
+  },
+  "feature_counts": {
+    "required_executables": [
+      "featureCounts",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "featurecounts": {
+    "required_executables": [
+      "featureCounts",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "file_info": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "filter_rows": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "filter_vcf": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "filtlong": {
+    "required_executables": [
+      "filtlong"
+    ],
+    "requires_gpu": false
+  },
+  "fine_tune_llm": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "flash": {
+    "required_executables": [
+      "flash"
+    ],
+    "requires_gpu": false
+  },
+  "flatten_nested": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "float_primitive": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "flye": {
+    "required_executables": [
+      "flye"
+    ],
+    "requires_gpu": false
+  },
+  "foreach": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "forest_plot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "format_converter": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "fraggenescan": {
+    "required_executables": [
+      "run_FragGeneScan.pl"
+    ],
+    "requires_gpu": false
+  },
+  "fragpipe": {
+    "required_executables": [
+      "fragpipe"
+    ],
+    "requires_gpu": false
+  },
+  "freebayes": {
+    "required_executables": [
+      "freebayes"
+    ],
+    "requires_gpu": false
+  },
+  "freyja_aggregate_plot": {
+    "required_executables": [
+      "freyja"
+    ],
+    "requires_gpu": false
+  },
+  "freyja_boot": {
+    "required_executables": [
+      "freyja"
+    ],
+    "requires_gpu": false
+  },
+  "freyja_demix": {
+    "required_executables": [
+      "freyja",
+      "sed"
+    ],
+    "requires_gpu": false
+  },
+  "freyja_variants": {
+    "required_executables": [
+      "freyja"
+    ],
+    "requires_gpu": false
+  },
+  "funcotate_table": {
+    "required_executables": [
+      "gatk"
+    ],
+    "requires_gpu": false
+  },
+  "funcotator": {
+    "required_executables": [
+      "gatk"
+    ],
+    "requires_gpu": false
+  },
+  "gamma": {
+    "required_executables": [
+      "GAMMA.py"
+    ],
+    "requires_gpu": false
+  },
+  "gamma_s": {
+    "required_executables": [
+      "GAMMA-S.py"
+    ],
+    "requires_gpu": false
+  },
+  "gate": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "gatk_apply_bqsr": {
+    "required_executables": [
+      "gatk"
+    ],
+    "requires_gpu": false
+  },
+  "gatk_base_recalibrator": {
+    "required_executables": [
+      "gatk"
+    ],
+    "requires_gpu": false
+  },
+  "gatk_genotype_gvcfs": {
+    "required_executables": [
+      "gatk"
+    ],
+    "requires_gpu": false
+  },
+  "gatk_haplotype_caller": {
+    "required_executables": [
+      "gatk"
+    ],
+    "requires_gpu": false
+  },
+  "generic_command": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "genomescope": {
+    "required_executables": [
+      "genomescope2"
+    ],
+    "requires_gpu": false
+  },
+  "geo_query": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "gfa_to_fa": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "gffcompare": {
+    "required_executables": [
+      "gffcompare",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "gffread": {
+    "required_executables": [
+      "gffread"
+    ],
+    "requires_gpu": false
+  },
+  "graphlan": {
+    "required_executables": [
+      "graphlan.py"
+    ],
+    "requires_gpu": false
+  },
+  "graphlan_annotate": {
+    "required_executables": [
+      "graphlan_annotate.py"
+    ],
+    "requires_gpu": false
+  },
+  "gridss": {
+    "required_executables": [
+      "gridss"
+    ],
+    "requires_gpu": false
+  },
+  "gtdbtk_classify_wf": {
+    "required_executables": [
+      "gtdbtk"
+    ],
+    "requires_gpu": false
+  },
+  "gtftobed12": {
+    "required_executables": [
+      "genePredToBed",
+      "gtfToGenePred"
+    ],
+    "requires_gpu": false
+  },
+  "guide_rna_design": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "heatmap": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "heinz": {
+    "required_executables": [
+      "heinz"
+    ],
+    "requires_gpu": false
+  },
+  "heinz_bum": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "heinz_scoring": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "heinz_visualization": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "hic_pro": {
+    "required_executables": [
+      "HiC-Pro"
+    ],
+    "requires_gpu": false
+  },
+  "hisat2_align": {
+    "required_executables": [
+      "hisat2"
+    ],
+    "requires_gpu": false
+  },
+  "hisat2_build": {
+    "required_executables": [
+      "hisat2-build"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_alimask": {
+    "required_executables": [
+      "alimask"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_hmmalign": {
+    "required_executables": [
+      "hmmalign"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_hmmbuild": {
+    "required_executables": [
+      "hmmbuild"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_hmmconvert": {
+    "required_executables": [
+      "hmmconvert"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_hmmemit": {
+    "required_executables": [
+      "hmmemit"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_hmmfetch": {
+    "required_executables": [
+      "hmmfetch"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_hmmscan": {
+    "required_executables": [
+      "hmmscan"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_hmmsearch": {
+    "required_executables": [
+      "hmmsearch"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_jackhmmer": {
+    "required_executables": [
+      "jackhmmer"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_nhmmer": {
+    "required_executables": [
+      "nhmmer"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_nhmmscan": {
+    "required_executables": [
+      "nhmmscan"
+    ],
+    "requires_gpu": false
+  },
+  "hmmer_phmmer": {
+    "required_executables": [
+      "phmmer"
+    ],
+    "requires_gpu": false
+  },
+  "hpc_check_status": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "hpc_submit_job": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "html_preview": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "html_report": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "htseq_count": {
+    "required_executables": [
+      "htseq-count",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "http_request": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "humann": {
+    "required_executables": [
+      "humann"
+    ],
+    "requires_gpu": false
+  },
+  "humann_barplot": {
+    "required_executables": [
+      "humann_barplot"
+    ],
+    "requires_gpu": false
+  },
+  "humann_join_tables": {
+    "required_executables": [
+      "humann_join_tables"
+    ],
+    "requires_gpu": false
+  },
+  "humann_reduce_table": {
+    "required_executables": [
+      "humann_reduce_table"
+    ],
+    "requires_gpu": false
+  },
+  "humann_regroup_table": {
+    "required_executables": [
+      "humann_regroup_table"
+    ],
+    "requires_gpu": false
+  },
+  "humann_rename_table": {
+    "required_executables": [
+      "humann_rename_table"
+    ],
+    "requires_gpu": false
+  },
+  "humann_renorm_table": {
+    "required_executables": [
+      "humann_renorm_table"
+    ],
+    "requires_gpu": false
+  },
+  "humann_split_stratified_table": {
+    "required_executables": [
+      "humann_split_stratified_table"
+    ],
+    "requires_gpu": false
+  },
+  "humann_split_table": {
+    "required_executables": [
+      "humann_split_table"
+    ],
+    "requires_gpu": false
+  },
+  "humann_unpack_pathways": {
+    "required_executables": [
+      "humann_unpack_pathways"
+    ],
+    "requires_gpu": false
+  },
+  "hybpiper": {
+    "required_executables": [
+      "hybpiper"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_absrel": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_annotate": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_b_still": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_bgm": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_busted": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_cfel": {
+    "required_executables": [
+      "HYPHYMPI",
+      "mpirun"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_cln": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_conv": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_fade": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_fel": {
+    "required_executables": [
+      "HYPHYMPI",
+      "mpirun"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_fubar": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_gard": {
+    "required_executables": [
+      "HYPHYMPI",
+      "mpirun"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_infer_stasis_clusters": {
+    "required_executables": [
+      "python3"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_meme": {
+    "required_executables": [
+      "HYPHYMPI",
+      "mpirun"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_prime": {
+    "required_executables": [
+      "HYPHYMPI",
+      "mpirun"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_relax": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_slac": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_sm19": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "hyphy_strike_ambigs": {
+    "required_executables": [
+      "hyphy"
+    ],
+    "requires_gpu": false
+  },
+  "ibiosim_model": {
+    "required_executables": [
+      "iBioSim",
+      "java"
+    ],
+    "requires_gpu": false
+  },
+  "if_condition": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "igv_snapshot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "image_preview": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "input_directory": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "input_fasta": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "input_fastq": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "input_file": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "input_gff": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "input_sample_sheet": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "input_vcf": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "integer_primitive": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "interpro": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "interpro_scan": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "interproscan": {
+    "required_executables": [
+      "interproscan.sh"
+    ],
+    "requires_gpu": false
+  },
+  "intersect_genes": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "iqtree": {
+    "required_executables": [
+      "iqtree2"
+    ],
+    "requires_gpu": false
+  },
+  "iuc_pear": {
+    "required_executables": [
+      "pear"
+    ],
+    "requires_gpu": false
+  },
+  "ivar_consensus": {
+    "required_executables": [
+      "ivar",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "ivar_filtervariants": {
+    "required_executables": [
+      "ivar"
+    ],
+    "requires_gpu": false
+  },
+  "ivar_removereads": {
+    "required_executables": [
+      "ivar",
+      "python",
+      "scheme-convert"
+    ],
+    "requires_gpu": false
+  },
+  "ivar_trim": {
+    "required_executables": [
+      "ivar",
+      "samtools",
+      "scheme-convert"
+    ],
+    "requires_gpu": false
+  },
+  "ivar_variants": {
+    "required_executables": [
+      "ivar",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "join_tables": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "json_operations": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "juicer": {
+    "required_executables": [
+      "bwa",
+      "java",
+      "juicer.sh",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "kaiju": {
+    "required_executables": [
+      "kaiju",
+      "kaijup",
+      "kaijux"
+    ],
+    "requires_gpu": false
+  },
+  "kaiju2krona": {
+    "required_executables": [
+      "kaiju2krona"
+    ],
+    "requires_gpu": false
+  },
+  "kaiju2table": {
+    "required_executables": [
+      "kaiju2table"
+    ],
+    "requires_gpu": false
+  },
+  "kaiju_add_taxon_names": {
+    "required_executables": [
+      "kaiju-addTaxonNames"
+    ],
+    "requires_gpu": false
+  },
+  "kaiju_merge_outputs": {
+    "required_executables": [
+      "kaiju-mergeOutputs"
+    ],
+    "requires_gpu": false
+  },
+  "kallisto_index": {
+    "required_executables": [
+      "kallisto"
+    ],
+    "requires_gpu": false
+  },
+  "kallisto_quant": {
+    "required_executables": [
+      "kallisto"
+    ],
+    "requires_gpu": false
+  },
+  "kegg_pathway": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "kleborate": {
+    "required_executables": [
+      "kleborate"
+    ],
+    "requires_gpu": false
+  },
+  "kraken": {
+    "required_executables": [
+      "kraken"
+    ],
+    "requires_gpu": false
+  },
+  "kraken2": {
+    "required_executables": [
+      "kraken2"
+    ],
+    "requires_gpu": false
+  },
+  "kraken2_build": {
+    "required_executables": [
+      "kraken2-build"
+    ],
+    "requires_gpu": false
+  },
+  "kraken_filter": {
+    "required_executables": [
+      "kraken-filter"
+    ],
+    "requires_gpu": false
+  },
+  "kraken_mpa_report": {
+    "required_executables": [
+      "kraken-mpa-report"
+    ],
+    "requires_gpu": false
+  },
+  "kraken_report": {
+    "required_executables": [
+      "kraken-report"
+    ],
+    "requires_gpu": false
+  },
+  "kraken_translate": {
+    "required_executables": [
+      "kraken-translate"
+    ],
+    "requires_gpu": false
+  },
+  "krakentools_alpha_diversity": {
+    "required_executables": [
+      "alpha_diversity.py"
+    ],
+    "requires_gpu": false
+  },
+  "krakentools_beta_diversity": {
+    "required_executables": [
+      "beta_diversity.py"
+    ],
+    "requires_gpu": false
+  },
+  "krakentools_combine_kreports": {
+    "required_executables": [
+      "combine_kreports.py"
+    ],
+    "requires_gpu": false
+  },
+  "krakentools_extract_kraken_reads": {
+    "required_executables": [
+      "extract_kraken_reads.py",
+      "gzip"
+    ],
+    "requires_gpu": false
+  },
+  "krakentools_kreport2krona": {
+    "required_executables": [
+      "kreport2krona.py"
+    ],
+    "requires_gpu": false
+  },
+  "krakentools_kreport2mpa": {
+    "required_executables": [
+      "kreport2mpa.py"
+    ],
+    "requires_gpu": false
+  },
+  "krona": {
+    "required_executables": [
+      "ktImportTaxonomy"
+    ],
+    "requires_gpu": false
+  },
+  "krona_build_taxonomy": {
+    "required_executables": [
+      "perl"
+    ],
+    "requires_gpu": false
+  },
+  "line_chart": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "list_operations": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "llm_decision": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "llm_prompt": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "lofreq_alnqual": {
+    "required_executables": [
+      "lofreq"
+    ],
+    "requires_gpu": false
+  },
+  "lofreq_call": {
+    "required_executables": [
+      "lofreq"
+    ],
+    "requires_gpu": false
+  },
+  "lofreq_filter": {
+    "required_executables": [
+      "lofreq"
+    ],
+    "requires_gpu": false
+  },
+  "lofreq_indelqual": {
+    "required_executables": [
+      "lofreq"
+    ],
+    "requires_gpu": false
+  },
+  "lofreq_viterbi": {
+    "required_executables": [
+      "lofreq",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "ma_plot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "macs2_bdgpeak": {
+    "required_executables": [
+      "macs2"
+    ],
+    "requires_gpu": false
+  },
+  "macs2_callpeak": {
+    "required_executables": [
+      "macs2"
+    ],
+    "requires_gpu": false
+  },
+  "mafft": {
+    "required_executables": [
+      "mafft"
+    ],
+    "requires_gpu": false
+  },
+  "maftoaxt": {
+    "required_executables": [
+      "mafToAxt"
+    ],
+    "requires_gpu": false
+  },
+  "mageck_count": {
+    "required_executables": [
+      "RRA",
+      "mageck",
+      "mageckGSEA"
+    ],
+    "requires_gpu": false
+  },
+  "mageck_test": {
+    "required_executables": [
+      "RRA",
+      "mageck"
+    ],
+    "requires_gpu": false
+  },
+  "magicblast": {
+    "required_executables": [
+      "gunzip",
+      "magicblast",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "manhattan_plot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "manta": {
+    "required_executables": [
+      "configManta.py"
+    ],
+    "requires_gpu": false
+  },
+  "manta_call": {
+    "required_executables": [
+      "configManta.py"
+    ],
+    "requires_gpu": false
+  },
+  "mash_dist": {
+    "required_executables": [
+      "mash"
+    ],
+    "requires_gpu": false
+  },
+  "mash_paste": {
+    "required_executables": [
+      "mash"
+    ],
+    "requires_gpu": false
+  },
+  "mash_screen": {
+    "required_executables": [
+      "mash"
+    ],
+    "requires_gpu": false
+  },
+  "mash_sketch": {
+    "required_executables": [
+      "mash"
+    ],
+    "requires_gpu": false
+  },
+  "mashmap": {
+    "required_executables": [
+      "mashmap"
+    ],
+    "requires_gpu": false
+  },
+  "math": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "math_expression": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "maxbin": {
+    "required_executables": [
+      "run_MaxBin.pl"
+    ],
+    "requires_gpu": false
+  },
+  "maxquant": {
+    "required_executables": [
+      "maxquant"
+    ],
+    "requires_gpu": false
+  },
+  "medaka": {
+    "required_executables": [
+      "medaka_consensus"
+    ],
+    "requires_gpu": false
+  },
+  "medaka_consensus": {
+    "required_executables": [
+      "medaka_consensus"
+    ],
+    "requires_gpu": false
+  },
+  "megahit": {
+    "required_executables": [
+      "megahit"
+    ],
+    "requires_gpu": false
+  },
+  "megahit_contig2fastg": {
+    "required_executables": [
+      "megahit_toolkit"
+    ],
+    "requires_gpu": false
+  },
+  "melt_mobile_elements": {
+    "required_executables": [
+      "java"
+    ],
+    "requires_gpu": false
+  },
+  "memoize": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "merge": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "merge_metaphlan_tables": {
+    "required_executables": [
+      "merge_metaphlan_tables.py"
+    ],
+    "requires_gpu": false
+  },
+  "merge_tables": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "merge_vcf": {
+    "required_executables": [
+      "bcftools"
+    ],
+    "requires_gpu": false
+  },
+  "metabat2": {
+    "required_executables": [
+      "metabat2"
+    ],
+    "requires_gpu": false
+  },
+  "metabat2_jgi_summarize_bam_contig_depths": {
+    "required_executables": [
+      "jgi_summarize_bam_contig_depths"
+    ],
+    "requires_gpu": false
+  },
+  "metaboanalyst_stats": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "metaphlan": {
+    "required_executables": [
+      "metaphlan"
+    ],
+    "requires_gpu": false
+  },
+  "metaphlan_build_index": {
+    "required_executables": [
+      "bowtie2-build",
+      "bunzip2"
+    ],
+    "requires_gpu": false
+  },
+  "methyldackel": {
+    "required_executables": [
+      "MethylDackel"
+    ],
+    "requires_gpu": false
+  },
+  "minia": {
+    "required_executables": [
+      "minia"
+    ],
+    "requires_gpu": false
+  },
+  "miniasm": {
+    "required_executables": [
+      "miniasm"
+    ],
+    "requires_gpu": false
+  },
+  "minigraph": {
+    "required_executables": [
+      "minigraph"
+    ],
+    "requires_gpu": false
+  },
+  "minigraph_cactus": {
+    "required_executables": [
+      "cactus-pangenome"
+    ],
+    "requires_gpu": false
+  },
+  "minimap2_align": {
+    "required_executables": [
+      "minimap2"
+    ],
+    "requires_gpu": false
+  },
+  "minimap2_index": {
+    "required_executables": [
+      "minimap2"
+    ],
+    "requires_gpu": false
+  },
+  "mlst": {
+    "required_executables": [
+      "mlst"
+    ],
+    "requires_gpu": false
+  },
+  "mlst_list": {
+    "required_executables": [
+      "mlst"
+    ],
+    "requires_gpu": false
+  },
+  "mmseqs2_easy_cluster": {
+    "required_executables": [
+      "mmseqs"
+    ],
+    "requires_gpu": false
+  },
+  "mmseqs2_easy_linclust_clustering": {
+    "required_executables": [
+      "mmseqs"
+    ],
+    "requires_gpu": false
+  },
+  "mmseqs2_easy_linsearch": {
+    "required_executables": [
+      "mmseqs"
+    ],
+    "requires_gpu": false
+  },
+  "mmseqs2_easy_rbh": {
+    "required_executables": [
+      "mmseqs"
+    ],
+    "requires_gpu": false
+  },
+  "mmseqs2_easy_search": {
+    "required_executables": [
+      "mmseqs"
+    ],
+    "requires_gpu": false
+  },
+  "mmseqs2_easy_taxonomy": {
+    "required_executables": [
+      "mmseqs"
+    ],
+    "requires_gpu": false
+  },
+  "mmseqs2_taxonomy_assignment": {
+    "required_executables": [
+      "mmseqs"
+    ],
+    "requires_gpu": false
+  },
+  "model_inference": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "modeltest_ng": {
+    "required_executables": [
+      "modeltest-ng"
+    ],
+    "requires_gpu": false
+  },
+  "modify_loom": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "modkit_dmr": {
+    "required_executables": [
+      "modkit"
+    ],
+    "requires_gpu": false
+  },
+  "modkit_pileup": {
+    "required_executables": [
+      "modkit"
+    ],
+    "requires_gpu": false
+  },
+  "mosdepth": {
+    "required_executables": [
+      "mosdepth"
+    ],
+    "requires_gpu": false
+  },
+  "mothur_taxonomy_to_krona": {
+    "required_executables": [
+      "cat",
+      "cut",
+      "sed",
+      "tail"
+    ],
+    "requires_gpu": false
+  },
+  "msdial_processing": {
+    "required_executables": [
+      "mono"
+    ],
+    "requires_gpu": false
+  },
+  "msfragger": {
+    "required_executables": [
+      "msfragger"
+    ],
+    "requires_gpu": false
+  },
+  "multiqc": {
+    "required_executables": [
+      "multiqc"
+    ],
+    "requires_gpu": false
+  },
+  "mummer4_delta_filter": {
+    "required_executables": [
+      "delta-filter"
+    ],
+    "requires_gpu": false
+  },
+  "mummer4_dnadiff": {
+    "required_executables": [
+      "delta-filter",
+      "dnadiff",
+      "nucmer",
+      "show-coords",
+      "show-diff",
+      "show-snps"
+    ],
+    "requires_gpu": false
+  },
+  "mummer4_mummer": {
+    "required_executables": [
+      "mummer"
+    ],
+    "requires_gpu": false
+  },
+  "mummer4_mummerplot": {
+    "required_executables": [
+      "delta-filter",
+      "gnuplot",
+      "mummerplot",
+      "show-coords",
+      "show-snps"
+    ],
+    "requires_gpu": false
+  },
+  "mummer4_nucmer": {
+    "required_executables": [
+      "nucmer"
+    ],
+    "requires_gpu": false
+  },
+  "mummer4_show_coords": {
+    "required_executables": [
+      "show-coords"
+    ],
+    "requires_gpu": false
+  },
+  "muscle": {
+    "required_executables": [
+      "muscle"
+    ],
+    "requires_gpu": false
+  },
+  "mutect2": {
+    "required_executables": [
+      "gatk"
+    ],
+    "requires_gpu": false
+  },
+  "mzmine_batch_processing": {
+    "required_executables": [
+      "mzmine"
+    ],
+    "requires_gpu": false
+  },
+  "nanoplot": {
+    "required_executables": [
+      "NanoPlot"
+    ],
+    "requires_gpu": false
+  },
+  "ncbi_blast": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ncbi_blast_parse": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ncbi_efetch": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ncbi_esearch": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "nonpareil": {
+    "required_executables": [
+      "NonpareilCurves.R",
+      "nonpareil"
+    ],
+    "requires_gpu": false
+  },
+  "normalize_data": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "note": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "notification": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "odgi_build": {
+    "required_executables": [
+      "bash",
+      "odgi"
+    ],
+    "requires_gpu": false
+  },
+  "odgi_stats": {
+    "required_executables": [
+      "bash",
+      "odgi"
+    ],
+    "requires_gpu": false
+  },
+  "odgi_view": {
+    "required_executables": [
+      "odgi"
+    ],
+    "requires_gpu": false
+  },
+  "odgi_visualize": {
+    "required_executables": [
+      "bash",
+      "odgi"
+    ],
+    "requires_gpu": false
+  },
+  "odgi_viz": {
+    "required_executables": [
+      "odgi"
+    ],
+    "requires_gpu": false
+  },
+  "openms_feature": {
+    "required_executables": [
+      "FeatureFinderCentroided"
+    ],
+    "requires_gpu": false
+  },
+  "openms_feature_finder": {
+    "required_executables": [
+      "FeatureFinderCentroided"
+    ],
+    "requires_gpu": false
+  },
+  "opentargets": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "pangenome_gene": {
+    "required_executables": [
+      "panaroo"
+    ],
+    "requires_gpu": false
+  },
+  "pangenome_stats": {
+    "required_executables": [
+      "panacus"
+    ],
+    "requires_gpu": false
+  },
+  "pangenome_sv": {
+    "required_executables": [
+      "bcftools",
+      "bgzip",
+      "tabix",
+      "vg"
+    ],
+    "requires_gpu": false
+  },
+  "parallel_for": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "path_operations": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "pause_resume": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "pbsv": {
+    "required_executables": [
+      "pbsv"
+    ],
+    "requires_gpu": false
+  },
+  "pdb_download": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "pdb_retrieve": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "pdf_report": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "percolator": {
+    "required_executables": [
+      "percolator"
+    ],
+    "requires_gpu": false
+  },
+  "pggb": {
+    "required_executables": [
+      "bash",
+      "cp",
+      "pggb",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "pggb_build": {
+    "required_executables": [
+      "bash",
+      "cp",
+      "pggb",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "phylo_tree_viewer": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "phylogenetic_tree_builder": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "phylogenetic_tree_viewer": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "phylot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "phyml": {
+    "required_executables": [
+      "phyml"
+    ],
+    "requires_gpu": false
+  },
+  "pivot_table": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "plasclass": {
+    "required_executables": [
+      "classify_fasta.py"
+    ],
+    "requires_gpu": false
+  },
+  "plasflow": {
+    "required_executables": [
+      "PlasFlow.py"
+    ],
+    "requires_gpu": false
+  },
+  "plasmidfinder": {
+    "required_executables": [
+      "plasmidfinder.py"
+    ],
+    "requires_gpu": false
+  },
+  "platypus": {
+    "required_executables": [
+      "Platypus.py"
+    ],
+    "requires_gpu": false
+  },
+  "preseq_c_curve": {
+    "required_executables": [
+      "preseq"
+    ],
+    "requires_gpu": false
+  },
+  "preseq_lc_extrap": {
+    "required_executables": [
+      "preseq"
+    ],
+    "requires_gpu": false
+  },
+  "prinseq": {
+    "required_executables": [
+      "prinseq-lite.pl"
+    ],
+    "requires_gpu": false
+  },
+  "prodigal": {
+    "required_executables": [
+      "prodigal"
+    ],
+    "requires_gpu": false
+  },
+  "prokka": {
+    "required_executables": [
+      "prokka"
+    ],
+    "requires_gpu": false
+  },
+  "proteinmpnn_design": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "provenance": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "python_code": {
+    "required_executables": [
+      "bwrap",
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "qc_dashboard": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "qq_manhattan": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "qualimap": {
+    "required_executables": [
+      "java",
+      "qualimap"
+    ],
+    "requires_gpu": false
+  },
+  "qualimap_bamqc": {
+    "required_executables": [
+      "java",
+      "qualimap"
+    ],
+    "requires_gpu": false
+  },
+  "quast": {
+    "required_executables": [
+      "quast"
+    ],
+    "requires_gpu": false
+  },
+  "quicktree": {
+    "required_executables": [
+      "esl-reformat",
+      "quicktree"
+    ],
+    "requires_gpu": false
+  },
+  "r_biostrings_stats": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "r_dataframe_builder": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "r_pheatmap": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "r_plot": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "r_script": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "random_seed": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "range_list": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "rapidnj": {
+    "required_executables": [
+      "rapidnj"
+    ],
+    "requires_gpu": false
+  },
+  "rasusa": {
+    "required_executables": [
+      "rasusa",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "raven": {
+    "required_executables": [
+      "raven"
+    ],
+    "requires_gpu": false
+  },
+  "raxml": {
+    "required_executables": [
+      "raxmlHPC-PTHREADS"
+    ],
+    "requires_gpu": false
+  },
+  "raxml_ng": {
+    "required_executables": [
+      "raxml-ng"
+    ],
+    "requires_gpu": false
+  },
+  "read_file": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "recentrifuge": {
+    "required_executables": [
+      "rcf"
+    ],
+    "requires_gpu": false
+  },
+  "red": {
+    "required_executables": [
+      "Red"
+    ],
+    "requires_gpu": false
+  },
+  "regex_extract": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "replace_text": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "reroute": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "reshape_table": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "resource_monitor": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "retry": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "roary": {
+    "required_executables": [
+      "roary"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_bam2wig": {
+    "required_executables": [
+      "bam2wig.py",
+      "wigToBigWig"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_bam_stat": {
+    "required_executables": [
+      "bam_stat.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_clipping_profile": {
+    "required_executables": [
+      "Rscript",
+      "clipping_profile.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_deletion_profile": {
+    "required_executables": [
+      "Rscript",
+      "deletion_profile.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_fpkm_count": {
+    "required_executables": [
+      "FPKM_count.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_gene_body_coverage": {
+    "required_executables": [
+      "Rscript",
+      "geneBody_coverage.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_gene_body_coverage2": {
+    "required_executables": [
+      "Rscript",
+      "geneBody_coverage2.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_infer_experiment": {
+    "required_executables": [
+      "infer_experiment.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_inner_distance": {
+    "required_executables": [
+      "Rscript",
+      "inner_distance.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_insertion_profile": {
+    "required_executables": [
+      "Rscript",
+      "insertion_profile.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_junction_annotation": {
+    "required_executables": [
+      "Rscript",
+      "junction_annotation.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_junction_saturation": {
+    "required_executables": [
+      "Rscript",
+      "junction_saturation.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_mismatch_profile": {
+    "required_executables": [
+      "Rscript",
+      "mismatch_profile.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_read_distribution": {
+    "required_executables": [
+      "read_distribution.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_read_duplication": {
+    "required_executables": [
+      "Rscript",
+      "read_duplication.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_read_gc": {
+    "required_executables": [
+      "Rscript",
+      "read_GC.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_read_hexamer": {
+    "required_executables": [
+      "read_hexamer.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_read_nvc": {
+    "required_executables": [
+      "Rscript",
+      "read_NVC.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_read_quality": {
+    "required_executables": [
+      "Rscript",
+      "read_quality.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_rna_fragment_size": {
+    "required_executables": [
+      "RNA_fragment_size.py"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_rpkm_saturation": {
+    "required_executables": [
+      "RPKM_saturation.py",
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "rseqc_tin": {
+    "required_executables": [
+      "tin.py"
+    ],
+    "requires_gpu": false
+  },
+  "s3_download": {
+    "required_executables": [
+      "aws"
+    ],
+    "requires_gpu": false
+  },
+  "s3_upload": {
+    "required_executables": [
+      "aws"
+    ],
+    "requires_gpu": false
+  },
+  "sage_search": {
+    "required_executables": [
+      "sage"
+    ],
+    "requires_gpu": false
+  },
+  "salmon_index": {
+    "required_executables": [
+      "salmon"
+    ],
+    "requires_gpu": false
+  },
+  "salmon_quant": {
+    "required_executables": [
+      "salmon"
+    ],
+    "requires_gpu": false
+  },
+  "sam_to_bam": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samblaster": {
+    "required_executables": [
+      "samblaster",
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "sample_subset": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "samtools_ampliconclip": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_bam_to_cram": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_bam_to_sam": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_bedcov": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_calmd": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_collate": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_consensus": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_coverage": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_cram_to_bam": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_depth": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_faidx": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_fastx": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_fixmate": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_flagstat": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_idxstats": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_index": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_markdup": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_merge": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_mpileup": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_phase": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_reheader": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_sam_to_bam": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_slice_bam": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_sort": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_split": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_stats": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "samtools_view": {
+    "required_executables": [
+      "samtools"
+    ],
+    "requires_gpu": false
+  },
+  "sbol_design_import": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "scanpy_spatial": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "scanpy_umap": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "scatter_plot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "seed": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "select_from_list": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "seqkit_fx2tab": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_grep": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_head": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_locate": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_sort": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_split2": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_stats": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_translate": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqsero2": {
+    "required_executables": [
+      "SeqSero2_package.py"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_comp": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_cutN": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_dropse": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_fqchk": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_hety": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_listhet": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_mergefa": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_mergepe": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_mutfa": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_randbase": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_sample": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_seq": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_subseq": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_telo": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "seqtk_trimfq": {
+    "required_executables": [
+      "seqtk"
+    ],
+    "requires_gpu": false
+  },
+  "set_fields": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "seurat_spatial": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "shovill": {
+    "required_executables": [
+      "shovill"
+    ],
+    "requires_gpu": false
+  },
+  "sirius_formula_id": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "sleep": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "smoove": {
+    "required_executables": [
+      "smoove"
+    ],
+    "requires_gpu": false
+  },
+  "sniffles2": {
+    "required_executables": [
+      "sniffles"
+    ],
+    "requires_gpu": false
+  },
+  "sniffles2_call": {
+    "required_executables": [
+      "sniffles"
+    ],
+    "requires_gpu": false
+  },
+  "snippy": {
+    "required_executables": [
+      "snippy",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "snippy_clean_full_aln": {
+    "required_executables": [
+      "snippy-clean_full_aln"
+    ],
+    "requires_gpu": false
+  },
+  "snippy_core": {
+    "required_executables": [
+      "snippy-core",
+      "tar"
+    ],
+    "requires_gpu": false
+  },
+  "snpeff": {
+    "required_executables": [
+      "java",
+      "snpEff"
+    ],
+    "requires_gpu": false
+  },
+  "snpeff_build": {
+    "required_executables": [
+      "java",
+      "snpEff"
+    ],
+    "requires_gpu": false
+  },
+  "som.py": {
+    "required_executables": [
+      "hap.py",
+      "samtools",
+      "som.py"
+    ],
+    "requires_gpu": false
+  },
+  "sort_file": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "spaceranger": {
+    "required_executables": [
+      "spaceranger"
+    ],
+    "requires_gpu": false
+  },
+  "spaceranger_count": {
+    "required_executables": [
+      "spaceranger"
+    ],
+    "requires_gpu": false
+  },
+  "spades": {
+    "required_executables": [
+      "spades.py"
+    ],
+    "requires_gpu": false
+  },
+  "split_file": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "squidpy": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "squidpy_qc": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "sra_download": {
+    "required_executables": [
+      "fasterq-dump",
+      "prefetch"
+    ],
+    "requires_gpu": false
+  },
+  "sra_fetch": {
+    "required_executables": [
+      "fasterq-dump",
+      "prefetch"
+    ],
+    "requires_gpu": false
+  },
+  "star_align": {
+    "required_executables": [
+      "STAR"
+    ],
+    "requires_gpu": false
+  },
+  "star_index": {
+    "required_executables": [
+      "STAR"
+    ],
+    "requires_gpu": false
+  },
+  "staramr_search": {
+    "required_executables": [
+      "staramr"
+    ],
+    "requires_gpu": false
+  },
+  "starsolo_count": {
+    "required_executables": [
+      "STAR"
+    ],
+    "requires_gpu": false
+  },
+  "strelka2": {
+    "required_executables": [
+      "configureStrelkaGermlineWorkflow.py"
+    ],
+    "requires_gpu": false
+  },
+  "string_db": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "string_format": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "string_operations": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "string_primitive": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "stringtie": {
+    "required_executables": [
+      "stringtie"
+    ],
+    "requires_gpu": false
+  },
+  "sub_workflow": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "survivor_merge": {
+    "required_executables": [
+      "SURVIVOR"
+    ],
+    "requires_gpu": false
+  },
+  "sv_stats": {
+    "required_executables": [
+      "python"
+    ],
+    "requires_gpu": false
+  },
+  "svim": {
+    "required_executables": [
+      "svim"
+    ],
+    "requires_gpu": false
+  },
+  "switch": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "table_preview": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "taxonkit_name2taxid": {
+    "required_executables": [
+      "tar",
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonkit_profile2cami": {
+    "required_executables": [
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonomy_krona_chart": {
+    "required_executables": [
+      "ktImportGalaxy",
+      "ktImportText"
+    ],
+    "requires_gpu": false
+  },
+  "taxpasta": {
+    "required_executables": [
+      "taxpasta"
+    ],
+    "requires_gpu": false
+  },
+  "text_preview": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "text_template": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "timer": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "tracy_align": {
+    "required_executables": [
+      "bgzip",
+      "tracy"
+    ],
+    "requires_gpu": false
+  },
+  "tracy_assemble": {
+    "required_executables": [
+      "tracy"
+    ],
+    "requires_gpu": false
+  },
+  "tracy_basecall": {
+    "required_executables": [
+      "tracy"
+    ],
+    "requires_gpu": false
+  },
+  "tracy_decompose": {
+    "required_executables": [
+      "bgzip",
+      "tracy"
+    ],
+    "requires_gpu": false
+  },
+  "transpose_table": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "trim_galore": {
+    "required_executables": [
+      "cutadapt",
+      "fastqc",
+      "trim_galore"
+    ],
+    "requires_gpu": false
+  },
+  "trimal": {
+    "required_executables": [
+      "trimal"
+    ],
+    "requires_gpu": false
+  },
+  "trimmomatic": {
+    "required_executables": [
+      "java",
+      "trimmomatic"
+    ],
+    "requires_gpu": false
+  },
+  "trimn": {
+    "required_executables": [
+      "clip_regions_DNAnexus.py",
+      "remove_fake_cut_sites_DNAnexus.py",
+      "trim_Ns_DNAnexus.py"
+    ],
+    "requires_gpu": false
+  },
+  "trimns": {
+    "required_executables": [
+      "clip_regions_DNAnexus.py",
+      "remove_fake_cut_sites_DNAnexus.py",
+      "trim_Ns_DNAnexus.py"
+    ],
+    "requires_gpu": false
+  },
+  "try_catch": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "tsv_to_fasta": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "type_cast": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ucsc-twobittofa": {
+    "required_executables": [
+      "twoBitToFa"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_axtchain": {
+    "required_executables": [
+      "axtChain",
+      "gzip"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_axtomaf": {
+    "required_executables": [
+      "axtToMaf"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_chainantirepeat": {
+    "required_executables": [
+      "chainAntiRepeat"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_chainnet": {
+    "required_executables": [
+      "chainNet"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_chainprenet": {
+    "required_executables": [
+      "chainPreNet"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_chainsort": {
+    "required_executables": [
+      "chainSort"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_chainswap": {
+    "required_executables": [
+      "chainSwap"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_genome_browser": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "ucsc_mafaddirows": {
+    "required_executables": [
+      "mafAddIRows"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_mafcoverage": {
+    "required_executables": [
+      "mafCoverage"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_maffetch": {
+    "required_executables": [
+      "mafFetch"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_maffilter": {
+    "required_executables": [
+      "mafFilter"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_maffrag": {
+    "required_executables": [
+      "mafFrag"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_maffrags": {
+    "required_executables": [
+      "mafFrags"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_mafgene": {
+    "required_executables": [
+      "mafGene"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_netchainsubset": {
+    "required_executables": [
+      "netChainSubset"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_netfilter": {
+    "required_executables": [
+      "netFilter"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_netsyntenic": {
+    "required_executables": [
+      "netSyntenic"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_nettoaxt": {
+    "required_executables": [
+      "netToAxt"
+    ],
+    "requires_gpu": false
+  },
+  "ucsc_wigtobigwig": {
+    "required_executables": [
+      "grep",
+      "wigToBigWig"
+    ],
+    "requires_gpu": false
+  },
+  "unicycler": {
+    "required_executables": [
+      "unicycler"
+    ],
+    "requires_gpu": false
+  },
+  "uniprot_retrieve": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "uniprot_search": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "vcf_comparison": {
+    "required_executables": [
+      "rtg"
+    ],
+    "requires_gpu": false
+  },
+  "vcf_decompose": {
+    "required_executables": [
+      "bgzip",
+      "tabix",
+      "vcfallelicprimitives",
+      "vcfwave"
+    ],
+    "requires_gpu": false
+  },
+  "vcf_stats_chart": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "vcftools_filter": {
+    "required_executables": [
+      "vcftools"
+    ],
+    "requires_gpu": false
+  },
+  "vep": {
+    "required_executables": [
+      "vep"
+    ],
+    "requires_gpu": false
+  },
+  "vep_annotate": {
+    "required_executables": [
+      "vep"
+    ],
+    "requires_gpu": false
+  },
+  "vg_call": {
+    "required_executables": [
+      "vg"
+    ],
+    "requires_gpu": false
+  },
+  "vg_construct": {
+    "required_executables": [
+      "vg"
+    ],
+    "requires_gpu": false
+  },
+  "vg_index": {
+    "required_executables": [
+      "vg"
+    ],
+    "requires_gpu": false
+  },
+  "vg_map": {
+    "required_executables": [
+      "vg"
+    ],
+    "requires_gpu": false
+  },
+  "view_text_file": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "volcano_plot": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "vsearch_alignment": {
+    "required_executables": [
+      "vsearch"
+    ],
+    "requires_gpu": false
+  },
+  "vsearch_chimera_detection": {
+    "required_executables": [
+      "vsearch"
+    ],
+    "requires_gpu": false
+  },
+  "vsearch_cluster": {
+    "required_executables": [
+      "vsearch"
+    ],
+    "requires_gpu": false
+  },
+  "vsearch_dereplication": {
+    "required_executables": [
+      "vsearch"
+    ],
+    "requires_gpu": false
+  },
+  "vsearch_masking": {
+    "required_executables": [
+      "vsearch"
+    ],
+    "requires_gpu": false
+  },
+  "vsearch_search": {
+    "required_executables": [
+      "vsearch"
+    ],
+    "requires_gpu": false
+  },
+  "vsearch_shuffling": {
+    "required_executables": [
+      "vsearch"
+    ],
+    "requires_gpu": false
+  },
+  "vsearch_sorting": {
+    "required_executables": [
+      "vsearch"
+    ],
+    "requires_gpu": false
+  },
+  "wait_for": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "while_loop": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "workflow_trigger": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "write_file": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "xcms_peak_detection": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "xcms_retention_correction": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "yaml_operations": {
+    "required_executables": [],
+    "requires_gpu": false
+  }
+}

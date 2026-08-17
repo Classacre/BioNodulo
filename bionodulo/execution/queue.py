@@ -77,6 +77,11 @@ class RunQueue:
         self.max_history = max(1, int(max_history))
         self.emit = emit or (lambda _evt, _data: None)
         self._store = store
+        # Thread the durable store into the executor (same handle the queue
+        # persists run records through) so per-node events reach run_events.
+        if store is not None and isinstance(self.executor, WorkflowExecutor):
+            if getattr(self.executor, "run_store", None) is None:
+                self.executor.run_store = store
 
         self._pending: asyncio.Queue[RunRequest] = asyncio.Queue()
         self._pending_items: list[RunRequest] = []
@@ -130,33 +135,79 @@ class RunQueue:
         except Exception:
             logger.exception("Failed to delete run %s from store", run_id)
 
+    def _persist_event(self, run_id: str, event_type: str, payload: dict[str, Any]) -> None:
+        """Mirror a queue-level event into the durable run-event log."""
+        if self._store is None:
+            return
+        try:
+            self._store.append_event(run_id, event_type, payload)
+        except Exception:
+            logger.exception("Failed to persist run event %s for run %s", event_type, run_id)
+
+    def get_run_events(self, run_id: str, limit: int = 1000) -> list[dict[str, Any]] | None:
+        """Return a run's durable events, or None when no store is configured."""
+        if self._store is None:
+            return None
+        try:
+            return self._store.get_events(run_id, limit)
+        except Exception:
+            logger.exception("Failed to read run events for %s", run_id)
+            return []
+
+    def _on_interrupt_policy(self) -> str:
+        """Recovery mode from ``settings.execution.on_interrupt``."""
+        settings = getattr(self.executor, "settings", None)
+        execution = getattr(settings, "execution", None)
+        policy = str(getattr(execution, "on_interrupt", "manual") or "manual").lower()
+        return policy if policy in ("manual", "auto_resume") else "manual"
+
     def recover(self) -> dict[str, Any]:
         """Reconcile persisted runs at startup.
 
         Runs left non-terminal by a dead process are marked ``interrupted``;
         all persisted runs are loaded back into history so the UI keeps showing
-        them. Returns a summary dict with the interrupted run_ids and the count
-        restored into history.
+        them. With ``execution.on_interrupt == "auto_resume"`` (see
+        docs/decisions/0001) interrupted runs that have a locatable checkpoint
+        are resubmitted with ``resume_checkpoint`` set and metadata tagged
+        ``resumed_after_interrupt``; runs that were still pending are re-enqueued
+        instead of only becoming history. Returns a summary dict with the
+        interrupted run_ids, the count restored into history, and the run_ids
+        auto-resumed / re-enqueued.
         """
         if self._store is None:
             return {"interrupted": [], "restored": 0}
 
+        auto_resume = self._on_interrupt_policy() == "auto_resume"
         try:
+            # Snapshot BEFORE marking orphans so pending runs are still
+            # distinguishable from runs that were actually executing.
+            snapshot = self._store.load_all()
             orphan_ids = self._store.mark_orphans_interrupted()
-            records = self._store.load_all()
+            records = snapshot if auto_resume else self._store.load_all()
         except Exception:
             logger.exception("Run store recovery failed")
             return {"interrupted": [], "restored": 0}
 
+        resumed_ids: list[str] = []
+        requeued_ids: list[str] = []
         restored = 0
         for rec in records:
+            run_id = str(rec["run_id"])
             status_value = str(rec.get("status", "interrupted"))
             try:
                 status = RunStatus(status_value)
             except ValueError:
                 status = RunStatus.INTERRUPTED
+            if auto_resume and status not in (
+                RunStatus.PENDING,
+                RunStatus.COMPLETED,
+                RunStatus.FAILED,
+                RunStatus.CANCELLED,
+                RunStatus.INTERRUPTED,
+            ):
+                status = RunStatus.INTERRUPTED
             req = RunRequest(
-                run_id=str(rec["run_id"]),
+                run_id=run_id,
                 workflow=rec.get("workflow", {}) or {},
                 options=rec.get("options", {}) or {},
                 force=bool(rec.get("force", False)),
@@ -168,8 +219,41 @@ class RunQueue:
                 started_at=rec.get("started_at"),
                 finished_at=rec.get("finished_at"),
             )
+
+            if auto_resume and status is RunStatus.PENDING:
+                # Never-started run: re-enqueue under its original id instead
+                # of only restoring it as (interrupted) history.
+                if self._enqueue_recovered(req, event_type="queue_requeued"):
+                    requeued_ids.append(run_id)
+                continue
+
             self._record_history(req)
             restored += 1
+
+            # Only runs orphaned by THIS restart auto-resume; older
+            # ``interrupted`` rows stay manual so restarts cannot loop.
+            if not auto_resume or run_id not in orphan_ids:
+                continue
+            checkpoint = self._latest_checkpoint_for_run(run_id)
+            if checkpoint is None:
+                continue
+            resume_id = f"{run_id}_resume_{uuid.uuid4().hex[:6]}"
+            metadata = dict(req.metadata)
+            metadata["resumed_after_interrupt"] = True
+            metadata["interrupted_run_id"] = run_id
+            metadata.setdefault("name", f"{run_id} resume")
+            options = dict(req.options)
+            options["resume_checkpoint"] = checkpoint
+            resume_req = RunRequest(
+                run_id=resume_id,
+                workflow=req.workflow,
+                options=options,
+                force=req.force,
+                force_nodes=set(req.force_nodes),
+                metadata=metadata,
+            )
+            if self._enqueue_recovered(resume_req, event_type="queue_submit", auto_resume=True):
+                resumed_ids.append(resume_id)
 
         if orphan_ids:
             logger.warning(
@@ -177,7 +261,44 @@ class RunQueue:
                 len(orphan_ids),
                 ", ".join(orphan_ids),
             )
-        return {"interrupted": orphan_ids, "restored": restored}
+        return {
+            "interrupted": orphan_ids,
+            "restored": restored,
+            "resumed": resumed_ids,
+            "requeued": requeued_ids,
+        }
+
+    def _enqueue_recovered(self, req: RunRequest, event_type: str, auto_resume: bool = False) -> bool:
+        """Persist + enqueue a recovered request from a sync recovery context.
+
+        Returns True when the request reached the pending queue. The worker is
+        started on the running loop when one exists; otherwise it starts on the
+        next submit.
+        """
+        req.status = RunStatus.PENDING
+        self._pending_items.append(req)
+        try:
+            self._pending.put_nowait(req)
+        except Exception:
+            self._pending_items.remove(req)
+            logger.exception("Failed to enqueue recovered run %s", req.run_id)
+            return False
+        self._persist(req)
+        self._persist_event(
+            req.run_id,
+            event_type,
+            {"status": "pending", **({"auto_resume": True} if auto_resume else {})},
+        )
+        self._ensure_worker_when_idle()
+        return True
+
+    def _ensure_worker_when_idle(self) -> None:
+        """Start the worker task if an event loop is already running."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        loop.create_task(self._ensure_worker())
 
     # ------------------------------------------------------------------
     # Public API
@@ -209,6 +330,7 @@ class RunQueue:
         async with self._lock:
             self._pending_items.append(request)
         self._persist(request)
+        self._persist_event(rid, "queue_submit", {"status": "pending"})
         await self._pending.put(request)
         self.emit("queue_submit", {"run_id": rid, "status": "pending"})
         await self._emit_queue()
@@ -441,6 +563,7 @@ class RunQueue:
             "finished_at": r.finished_at,
             "execution_plan": self._execution_plan_for_request(r),
             "node_statuses": [],
+            "event_count": self._event_count(r.run_id),
         }
         if include_result and r.result:
             entry["previews"] = {
@@ -460,6 +583,15 @@ class RunQueue:
                     for nid, ninfo in meta["nodes"].items()
                 ]
         return entry
+
+    def _event_count(self, run_id: str) -> int:
+        """Durable event count for a run (0 when no store is configured)."""
+        if self._store is None:
+            return 0
+        try:
+            return self._store.event_count(run_id)
+        except Exception:
+            return 0
 
     @staticmethod
     def _execution_plan_for_request(r: RunRequest) -> list[str]:
@@ -693,6 +825,7 @@ class RunQueue:
             request.started_at = time.time()
 
         self._persist(request)
+        self._persist_event(request.run_id, "queue_start", {"status": "running"})
         self.emit("queue_start", {"run_id": request.run_id})
         await self._emit_queue()
 
@@ -726,6 +859,7 @@ class RunQueue:
             if request.status not in (RunStatus.CANCELLED, RunStatus.INTERRUPTED):
                 request.status = RunStatus.FAILED
             self.emit("queue_error", {"run_id": request.run_id, "error": str(exc)})
+            self._persist_event(request.run_id, "queue_error", {"error": str(exc)})
 
         request.finished_at = time.time()
 
@@ -734,6 +868,11 @@ class RunQueue:
             self._record_history(active)
 
         self._persist(request)
+        self._persist_event(
+            request.run_id,
+            "queue_finish",
+            {"status": request.status.value},
+        )
         self.emit(
             "queue_finish",
             {

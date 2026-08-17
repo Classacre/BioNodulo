@@ -634,6 +634,7 @@ def _to_node_info(
         "visual_only": node_class.VISUAL_ONLY,
         "experimental": node_class.EXPERIMENTAL,
         "requires_external_tools": getattr(node_class, "REQUIRES_EXTERNAL_TOOLS", True),
+        "requires_gpu": getattr(node_class, "REQUIRES_GPU", False),
         "version": node_class.VERSION,
         "deprecated": node_class.DEPRECATED,
         "deprecation_message": node_class.DEPRECATION_MESSAGE,

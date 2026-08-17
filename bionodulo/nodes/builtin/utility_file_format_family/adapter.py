@@ -626,7 +626,7 @@ class _WriteFileContract(UtilityFileFormatNode):
 
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(output, encoding=encoding)
+        path.write_text(output, encoding=encoding, newline="\n")
         return (str(path), len(output.encode(encoding)))
 
 

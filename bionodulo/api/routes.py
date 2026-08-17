@@ -1045,6 +1045,20 @@ async def get_run_details(request: Request, run_id: str) -> dict[str, Any]:
     raise HTTPException(status_code=404, detail=f"Run \\\'{run_id}\\\' not found")
 
 
+@router.get("/runs/{run_id}/events")
+async def get_run_events(request: Request, run_id: str, limit: int = 1000) -> dict[str, Any]:
+    """Durable run-event log for a run, ordered by per-run sequence."""
+    queue = _get_queue(request)
+    if not hasattr(queue, "get_run_events"):
+        raise HTTPException(status_code=501, detail="Run event log is not available")
+    if hasattr(queue, "get_run") and queue.get_run(run_id) is None:
+        raise HTTPException(status_code=404, detail=f"Run \\\'{run_id}\\\' not found")
+    events = queue.get_run_events(run_id, limit)
+    if events is None:
+        events = []
+    return {"run_id": run_id, "events": events, "event_count": len(events)}
+
+
 @router.post("/runs/{run_id}/retry")
 async def retry_run(request: Request, run_id: str) -> dict[str, Any]:
     """Retry a stored pending, running, or historic run."""

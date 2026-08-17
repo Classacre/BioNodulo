@@ -26,6 +26,7 @@ class BaseNode(abc.ABC):
     VISUAL_ONLY: ClassVar[bool] = False
     EXPERIMENTAL: ClassVar[bool] = False
     REQUIRES_EXTERNAL_TOOLS: ClassVar[bool] = True
+    REQUIRES_GPU: ClassVar[bool] = False
     REQUIRED_EXECUTABLES: ClassVar[list[str]] = []
     REQUIRED_CONDA_PACKAGES: ClassVar[list[str]] = []
     REQUIRED_R_PACKAGES: ClassVar[list[str]] = []
@@ -117,6 +118,7 @@ class BaseNode(abc.ABC):
             "output_node": cls.OUTPUT_NODE,
             "experimental": cls.EXPERIMENTAL,
             "requires_external_tools": cls.REQUIRES_EXTERNAL_TOOLS,
+            "requires_gpu": cls.REQUIRES_GPU,
             "required_executables": cls.REQUIRED_EXECUTABLES,
             "required_conda_packages": cls.REQUIRED_CONDA_PACKAGES,
             "required_r_packages": cls.REQUIRED_R_PACKAGES,

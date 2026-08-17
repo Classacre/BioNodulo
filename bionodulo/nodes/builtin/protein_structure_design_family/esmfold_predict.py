@@ -28,6 +28,7 @@ class ESMFoldPredictNode(PythonScriptNode):
     RETURN_NAMES = ("pdb_dir",)
     REQUIRED_EXECUTABLES = ["python"]
     REQUIRED_CONDA_PACKAGES: list[str] = []
+    REQUIRES_GPU = True
     CONDA_PACKAGE_CONSTRAINTS = {"python": "<=3.9", "fair-esm": "2.0.0", "pytorch": "1.12.*"}
     VERSION = "2.0.0"
     GIT_URL = "https://github.com/facebookresearch/esm.git"

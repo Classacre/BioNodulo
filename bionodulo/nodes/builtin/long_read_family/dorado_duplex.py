@@ -24,6 +24,7 @@ class DoradoDuplexNode(DoradoCommandNode):
     """Run stereo duplex basecalling without implicit model downloads."""
 
     NODE_ID = "dorado_duplex"
+    REQUIRES_GPU = True
     DISPLAY_NAME = "Dorado Duplex"
     DESCRIPTION = "Run ONT duplex basecalling with explicit simplex and stereo model directories"
     SEARCH_ALIASES = [

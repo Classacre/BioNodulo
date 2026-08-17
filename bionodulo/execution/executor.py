@@ -37,6 +37,11 @@ from bionodulo.environments.manifest import (
 )
 from bionodulo.execution import head_preview as head_preview_mod
 from bionodulo.execution.cache import CacheStore
+from bionodulo.execution.errors import (
+    NodeExitCodeError,
+    NodeMemoryError,
+    NodeTimeoutError,
+)
 from bionodulo.execution.subprocess_runner import CommandCancelledError, run_subprocess
 from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
 
@@ -202,6 +207,7 @@ class WorkflowExecutor:
         registry: Any | None = None,
         settings: Any | None = None,
         hpc_backend: Any | None = None,
+        run_store: Any | None = None,
     ) -> None:
         self.workspace_dir = Path(workspace_dir)
         self.cache = CacheStore(cache_dir or self.workspace_dir / "cache")
@@ -209,6 +215,17 @@ class WorkflowExecutor:
         self.registry = registry
         self.settings = settings
         self.hpc_backend = hpc_backend
+        self.run_store = run_store
+
+    def _record_run_event(self, run_id: str, event_type: str, payload: dict[str, Any]) -> None:
+        """Best-effort durable run-event persistence (no-op without a store)."""
+        store = getattr(self, "run_store", None)
+        if store is None:
+            return
+        try:
+            store.append_event(run_id, event_type, payload)
+        except Exception:
+            logger.exception("Failed to persist run event %s for run %s", event_type, run_id)
 
     def _api_secrets_for_options(self, options: dict[str, Any]) -> dict[str, str]:
         configured = getattr(self.settings, "api_secrets", {}) if self.settings is not None else {}
@@ -884,6 +901,16 @@ class WorkflowExecutor:
                             "traceback": tb,
                         },
                     )
+                    self._record_run_event(
+                        run_id,
+                        "node_error",
+                        {
+                            "node_id": node_id,
+                            "error": msg,
+                            "error_code": self._error_code(exc),
+                            "attempts": attempts,
+                        },
+                    )
                     error_outputs = self._error_outputs(
                         node=node,
                         error=exc,
@@ -919,6 +946,34 @@ class WorkflowExecutor:
             cancel_event=cancel_event,
             max_parallel=self._max_parallel_nodes(),
         )
+
+        # No node may be left statusless after a terminal run state: planned
+        # nodes the scheduler never dispatched (or dispatched but cancelled
+        # before their body started) get an explicit terminal status distinct
+        # from the in-flight "cancelled" of nodes that actually ran.
+        for unstarted_id in execution_order:
+            if unstarted_id in node_results or unstarted_id in run_metadata["nodes"]:
+                continue
+            node_type = nodes.get(unstarted_id, {}).get("type", "unknown")
+            node_results[unstarted_id] = {"status": "skipped_cancelled"}
+            run_metadata["nodes"][unstarted_id] = {
+                "type": node_type,
+                "status": "skipped_cancelled",
+                "cache_key": None,
+            }
+            emit(
+                "node_skip",
+                {
+                    "run_id": run_id,
+                    "node_id": unstarted_id,
+                    "reason": "skipped_cancelled",
+                },
+            )
+            self._record_run_event(
+                run_id,
+                "node_skipped_cancelled",
+                {"node_id": unstarted_id, "node_type": node_type},
+            )
 
         if cancel_event.is_set():
             # Persist what ran so logs/report endpoints and crash recovery can
@@ -1030,11 +1085,18 @@ class WorkflowExecutor:
         node_outputs: dict[str, dict[str, Any]] = {}
         node_cache_keys: dict[str, str | None] = {}
         plan_nodes: list[dict[str, Any]] = []
+        gpu_nodes: list[str] = []
+        executables: set[str] = set()
 
         for node_id in execution_order:
             node = nodes[node_id]
             node_type = str(node.get("type", "unknown"))
             node_class = self._node_class_for(node)
+            node_executables = list(getattr(node_class, "REQUIRED_EXECUTABLES", []) or []) if node_class else []
+            node_requires_gpu = bool(getattr(node_class, "REQUIRES_GPU", False)) if node_class else False
+            executables.update(str(item) for item in node_executables)
+            if node_requires_gpu:
+                gpu_nodes.append(node_id)
             if resume_checkpoint and node_id == resume_node_id:
                 node_outputs[node_id] = resume_outputs
                 node_cache_keys[node_id] = None
@@ -1049,7 +1111,8 @@ class WorkflowExecutor:
                         "command": None,
                         "shell": False,
                         "env_prefix": self._env_prefix_for_node(node, workflow),
-                        "required_executables": list(getattr(node_class, "REQUIRED_EXECUTABLES", []) or []),
+                        "requires_gpu": node_requires_gpu,
+                        "required_executables": node_executables,
                         "required_conda_packages": list(getattr(node_class, "REQUIRED_CONDA_PACKAGES", []) or []),
                         "planned_outputs": resume_outputs,
                         "cache": {
@@ -1113,7 +1176,8 @@ class WorkflowExecutor:
                     "command": self._redact_command(command, resolved_params),
                     "shell": bool(getattr(node_class, "SHELL", False)) if node_class else False,
                     "env_prefix": self._env_prefix_for_node(node, workflow),
-                    "required_executables": list(getattr(node_class, "REQUIRED_EXECUTABLES", []) or []),
+                    "requires_gpu": node_requires_gpu,
+                    "required_executables": node_executables,
                     "required_conda_packages": list(getattr(node_class, "REQUIRED_CONDA_PACKAGES", []) or []),
                     "planned_outputs": planned_outputs,
                     "cache": {
@@ -1132,6 +1196,11 @@ class WorkflowExecutor:
             "workflow_parameters": workflow_parameters,
             "execution_order": execution_order,
             "nodes": plan_nodes,
+            "requirements": {
+                "gpu": bool(gpu_nodes),
+                "gpu_nodes": sorted(gpu_nodes),
+                "executables": sorted(executables),
+            },
             "will_execute": False,
             **({"resume_checkpoint": resume_checkpoint} if resume_checkpoint else {}),
         }
@@ -3050,6 +3119,18 @@ class WorkflowExecutor:
                         "max_attempts": max_attempts,
                     },
                 )
+                self._record_run_event(
+                    ctx.run_id,
+                    "node_retry",
+                    {
+                        "node_id": ctx.node_id,
+                        "attempt": next_attempt,
+                        "max_attempts": max_attempts,
+                        "error_code": self._error_code(exc),
+                    },
+                )
+                if isinstance(exc, NodeMemoryError):
+                    self._apply_memory_escalation(ctx, policy, next_attempt, emit)
                 delay = self._retry_delay(policy, attempts)
                 if delay > 0:
                     await asyncio.sleep(delay)
@@ -3058,6 +3139,65 @@ class WorkflowExecutor:
             setattr(last_exc, "attempts", attempts)
             raise last_exc
         raise RuntimeError(f"Retry execution failed for {ctx.node_id}")
+
+    def _apply_memory_escalation(
+        self,
+        ctx: ExecutionContext,
+        policy: dict[str, Any] | None,
+        attempt: int,
+        emit: Callable[[str, dict[str, Any]], None],
+    ) -> None:
+        """Record (and where possible apply) a memory escalation on OOM retry.
+
+        The multiplier is only honoured where the engine can actually deliver
+        it today: nodes exposing a ``memory`` directive parameter (the
+        ``hpc_submit_job`` family feeds it straight into the scheduler's mem
+        directive, so the resubmission carries the bumped value). Nodes without
+        such a parameter record the escalation intent only — no fake bumps.
+        """
+        escalate = policy.get("escalate") if isinstance(policy, dict) else None
+        multiplier = 1.0
+        if isinstance(escalate, dict):
+            try:
+                multiplier = max(1.0, float(escalate.get("memory_multiplier", 1.0) or 1.0))
+            except (TypeError, ValueError):
+                multiplier = 1.0
+        elif escalate is None:
+            return
+        applied = False
+        bumped = ""
+        current = ctx.params.get("memory")
+        if multiplier > 1.0 and isinstance(current, str) and current:
+            bumped = self._bump_memory_directive(current, multiplier)
+            if bumped and bumped != current:
+                ctx.params["memory"] = bumped
+                applied = True
+        record = {
+            "node_id": ctx.node_id,
+            "attempt": attempt,
+            "memory_multiplier": multiplier,
+            "applied": applied,
+        }
+        if applied:
+            record["memory"] = bumped
+        ctx.run_metadata.setdefault("escalations", []).append(record)
+        emit("node_escalate", {"run_id": ctx.run_id, **record})
+        self._record_run_event(ctx.run_id, "node_escalate", record)
+
+    @staticmethod
+    def _bump_memory_directive(value: str, multiplier: float) -> str:
+        """Scale a scheduler memory directive (``"32G"``, ``"512M"``, ``"16000"``)."""
+        match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([KMGTP]?)(?:i?B)?\s*", value, re.IGNORECASE)
+        if match is None:
+            return value
+        amount = float(match.group(1))
+        unit = match.group(2).upper()
+        scaled = max(1, int(round(amount * multiplier)))
+        return f"{scaled}{unit or ''}"
+
+    @staticmethod
+    def _error_code(exc: Exception) -> str:
+        return getattr(exc, "code", "") or ""
 
     def _retry_policy_for_node(
         self,
@@ -3087,6 +3227,16 @@ class WorkflowExecutor:
         retry_on = str(policy.get("retry_on", "all") or "all").lower()
         if retry_on == "all":
             return True
+        # Typed dispatch first: the taxonomy carries the failure class. Memory
+        # is checked before exit code because OOM failures surface as non-zero
+        # exits too and the memory diagnosis is the more specific match.
+        if isinstance(exc, NodeMemoryError):
+            return retry_on == "memory"
+        if isinstance(exc, NodeTimeoutError):
+            return retry_on == "timeout"
+        if isinstance(exc, NodeExitCodeError):
+            return retry_on == "exit_code"
+        # Fallback for third-party node errors raising generic exceptions.
         message = str(exc).lower()
         if retry_on == "timeout":
             return isinstance(exc, TimeoutError) or "timeout" in message or "timed out" in message

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 
@@ -15,6 +16,14 @@ try:
     import uvloop
 except ImportError:
     uvloop = None  # type: ignore
+
+
+def dump_effective_config() -> None:
+    """Print the resolved settings as redacted JSON; server never starts."""
+    from bionodulo.core.config import Settings
+
+    settings = Settings.from_env()
+    print(json.dumps(settings.effective_dump(), indent=2, sort_keys=True))
 
 
 def main() -> None:
@@ -29,6 +38,7 @@ def main() -> None:
     parser.add_argument("--tls-certfile", type=Path, default=None, help="Path to TLS certificate file for HTTPS")
     parser.add_argument("--cors-origins", type=str, default="*", help="CORS allowed origins (comma-separated, default: *)")
     parser.add_argument("--multi-user", action="store_true", help="Enable per-user storage isolation")
+    parser.add_argument("--dump-config", action="store_true", help="Print resolved settings (secrets redacted) and exit")
     args = parser.parse_args()
 
     project_dir = Path(__file__).resolve().parent
@@ -41,6 +51,10 @@ def main() -> None:
     os.environ["BIONODULO_HOST"] = args.host
     os.environ["BIONODULO_PORT"] = str(args.port)
     os.environ["BIONODULO_CORS_ORIGINS"] = args.cors_origins
+
+    if args.dump_config:
+        dump_effective_config()
+        return
 
     # Ensure project root exists
     root = ensure_workspace_root(project_dir)

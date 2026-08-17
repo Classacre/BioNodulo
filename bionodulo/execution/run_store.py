@@ -25,6 +25,9 @@ from typing import Any
 # when the previous process died.
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
 
+# Durable run-event log retention: at most this many events are kept per run.
+RUN_EVENT_RETENTION = 1000
+
 
 class RunStore:
     """Persist run records to a SQLite database."""
@@ -54,11 +57,52 @@ class RunStore:
             )
             """
         )
+        # Idempotent so an existing runs.db upgrades in place on first open.
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS run_events (
+                run_id  TEXT NOT NULL,
+                seq     INTEGER NOT NULL,
+                ts      REAL NOT NULL,
+                type    TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                PRIMARY KEY (run_id, seq)
+            )
+            """
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_run_events_run_seq ON run_events (run_id, seq)"
+        )
         self._conn.commit()
 
     # ------------------------------------------------------------------
     # Writes
     # ------------------------------------------------------------------
+
+    def append_event(self, run_id: str, event_type: str, payload: Any) -> int:
+        """Append one durable run event; returns its per-run sequence number.
+
+        Events are numbered per run (dense ``seq`` starting at 1) and pruned to
+        the last ``RUN_EVENT_RETENTION`` entries so a chatty run cannot grow
+        the database without bound.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) FROM run_events WHERE run_id = ?",
+                (str(run_id),),
+            ).fetchone()
+            seq = int(row[0]) + 1
+            self._conn.execute(
+                "INSERT INTO run_events (run_id, seq, ts, type, payload) VALUES (?, ?, ?, ?, ?)",
+                (str(run_id), seq, time.time(), str(event_type), _dumps(payload or {})),
+            )
+            if seq > RUN_EVENT_RETENTION:
+                self._conn.execute(
+                    "DELETE FROM run_events WHERE run_id = ? AND seq <= ?",
+                    (str(run_id), seq - RUN_EVENT_RETENTION),
+                )
+            self._conn.commit()
+            return seq
 
     def upsert(self, record: dict[str, Any]) -> None:
         """Insert or update a run record. ``record`` mirrors ``RunRequest``."""
@@ -158,6 +202,23 @@ class RunStore:
             ).fetchone()
         return _row_to_record(row) if row is not None else None
 
+    def get_events(self, run_id: str, limit: int = RUN_EVENT_RETENTION) -> list[dict[str, Any]]:
+        """Return a run's most recent events ordered by ascending ``seq``."""
+        limit = max(1, min(int(limit), RUN_EVENT_RETENTION))
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM run_events WHERE run_id = ? ORDER BY seq DESC LIMIT ?",
+                (str(run_id), limit),
+            ).fetchall()
+        return [_row_to_event(row) for row in reversed(rows)]
+
+    def event_count(self, run_id: str) -> int:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) FROM run_events WHERE run_id = ?", (str(run_id),)
+            ).fetchone()
+        return int(row[0])
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()
@@ -192,4 +253,14 @@ def _row_to_record(row: sqlite3.Row) -> dict[str, Any]:
         "created_at": row["created_at"],
         "started_at": row["started_at"],
         "finished_at": row["finished_at"],
+    }
+
+
+def _row_to_event(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "run_id": row["run_id"],
+        "seq": int(row["seq"]),
+        "ts": row["ts"],
+        "type": row["type"],
+        "payload": _loads(row["payload"], {}),
     }
