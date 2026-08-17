@@ -1,0 +1,1497 @@
+{
+  "version": "2.0",
+  "app": "bionodulo",
+  "name": "ROBUST Designer",
+  "description": "Closed-loop mRNA optimisation (GRPO-style group-relative policy updates over synonymous codons) plus a direct-RNA nanopore multi-omics arm that learns per-transcript modification features. Arm A iterates sample/evaluate/score/optimize inside a while-loop; Arm B basecalls RNA004 POD5 with Dorado (GPU), aligns with minimap2 splice settings, pileups modifications with modkit, and trains a tiny regressor on a documented synthetic stability label.",
+  "category": "AI/ML",
+  "tags": [
+    "mrna",
+    "rna-therapeutics",
+    "multi-objective",
+    "grpo-like",
+    "nanopore",
+    "direct-rna",
+    "ai",
+    "design-loop"
+  ],
+  "tools": [
+    "input_file",
+    "input_directory",
+    "input_fasta",
+    "note",
+    "candidate_generator",
+    "policy_sampler",
+    "immune_motif_scanner",
+    "codon_metrics",
+    "rnafold_mfe",
+    "rnafold_partition",
+    "multi_objective_scorer",
+    "best_so_far",
+    "group_relative_optimizer",
+    "counter_accumulator",
+    "while_loop",
+    "try_catch",
+    "codon_optimizer",
+    "utr_feature_builder",
+    "mirna_seed_scanner",
+    "samtools_faidx",
+    "samtools_fastx",
+    "samtools_sort",
+    "samtools_index",
+    "dorado_basecaller",
+    "chopper_filter",
+    "minimap2_align",
+    "modkit_pileup",
+    "bedmethyl_feature_builder",
+    "Add_a_column1",
+    "simple_predictor_train",
+    "nim_test",
+    "nim_evo2_score",
+    "llm_prompt",
+    "join_tables",
+    "table_preview",
+    "checkpoint"
+  ],
+  "nodes": [
+    {
+      "id": "note_framing",
+      "type": "note",
+      "position": [
+        -560,
+        0
+      ],
+      "params": {
+        "text": "ROBUST Designer: closed-loop mRNA optimisation + direct-RNA multi-omics.\n\nROBUST/ACRTC framing: ROBUST-style design loops treat the reward as an ENSEMBLE of cheap, reproducible evaluators rather than one oracle. ACRTC (Adaptive Candidate Refinement with Transparent Controls) is the operating pattern used here: candidates are refined by a group-relative update, every round is checkpointed, and every reward component stays inspectable on disk.\n\nReward-ensemble table (Arm A, per candidate batch):\n  scores_1  multi_objective_scorer prior table (inline JSON; see note_grpo)  maximize\n  telemetry immune_motif_scanner batch burden (per-round context)            minimize (reported)\n  telemetry codon_metrics CAI/GC/Nc of the batch (per-round context)         reported\n  structure rnafold_mfe per-record MFE on the candidate FASTA (ViennaRNA)     iteration artifact\n\nGRPO citations: arXiv 2402.03300 (DeepSeekMath GRPO); arXiv 2605.01513 (MO-GRPO mRNA codon-policy antecedent). The group_relative_optimizer node implements the group z-score advantage A_i=(r_i-mean)/std, advantage-weighted codon counts, softmax temperature, epsilon probability floor and ref_strength mixing toward the reference table (the KL-to-reference analogue).\n\nArm B data: direct-RNA RNA004 POD5 (13 MB example) and its transcriptome reference from the BioinfoSZU/Coral repo, pinned at commit c9be6ecd09117a2555c41fd4eb2af97981500bfa. Dorado RNA004 model rna004_130bps_hac@v5.1.0 from the ONT CDN."
+      },
+      "ui": {
+        "title": "ROBUST/ACRTC Framing",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "note_grpo",
+      "type": "note",
+      "position": [
+        -560,
+        640
+      ],
+      "params": {
+        "text": "How the design loop is wired (and its honest limits).\n\nMechanics: while_loop 'design_loop' runs exactly max_iterations=5 rounds. The condition (file_not_exists) is deliberately never re-checked (check_frequency=100 >= max_iterations), so the loop is iteration-count driven; set check_frequency=1 with a sentinel-file condition for convergence-style stopping.\n\nCross-iteration state: the platform's while-loop body re-runs a FLAT node list and only the loop's single 'value' slot crosses iterations. The codon policy and the running-best therefore ride the counter_accumulator loop-state channel (keys: codon_policy, best_candidate, design_round), exactly as the flow-control family prescribes.\n\nGRPO analogy: loop_round -> policy_sampler (pi) samples N=24 synonymous variants -> evaluators -> multi_objective_scorer z-normalises rewards across the GROUP -> group_relative_optimizer computes group advantages and updates the categorical codon policy (softmax + epsilon floor + ref mixing) -> best_so_far tracks the argmax across rounds.\n\nHONEST LIMITS (read before production use): (1) the in-loop evaluators codon_metrics / immune_motif_scanner are single-sequence contracts, so inside the loop they read the whole candidate FASTA as one concatenated batch and act as per-round telemetry, not per-candidate rewards; (2) the per-candidate reward table feeding multi_objective_scorer.scores_1 is therefore a FIXED demo prior over the stable candidate ids (cand_0000..cand_0023) - swap it for live per-candidate evaluator tables when per-candidate reward producers are available; (3) rnafold_mfe in the loop is an iteration artifact (its per-record energies.json lands under runs/<run>/design_loop/iterations/); with the demo prior the composite is constant by construction and the observable learning signal is the policy sharpening (entropy decline in policy_table.json per iteration) and the batch telemetry drift. (4) Platform loops are single-level: no foreach/try_catch INSIDE the while body, which is why the structure evaluators live in the post-loop ensemble under try_catch."
+      },
+      "ui": {
+        "title": "GRPO Loop Notes",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "input_mirna_seeds",
+      "type": "input_file",
+      "position": [
+        220,
+        40
+      ],
+      "params": {
+        "file": "templates/data/mirna_seeds_hsa_top20.tsv"
+      },
+      "ui": {
+        "title": "miRNA Seed Table (bundled)",
+        "validation": {
+          "outputs": {
+            "file": {
+              "expected_format": "text",
+              "min_size_bytes": 100,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "note_target",
+      "type": "note",
+      "position": [
+        220,
+        320
+      ],
+      "params": {
+        "text": "Target ORF: a 720-nt (240-codon) codon-diverse GFP-derived demo CDS, embedded as an inline literal because while-loop body nodes resolve inputs only from the loop node, other body nodes, or their own params (outside edges into a loop body are dropped by the executor). To design your own construct: paste a stop-codon-free, in-frame ACGT CDS (multiple of 3, no terminal stop) into loop_sampler.base_cds, seed_generator.base_cds, and ref_designer.cds. The bundled miRNA seed table (templates/data/mirna_seeds_hsa_top20.tsv) holds 20 hand-curated hsa seed families - the 7mer seed (mature nucleotides 2-8, U-based) transcribed from the corresponding miRBase v22.1 mature sequences (e.g. hsa-let-7a-5p MIMAT0000062, hsa-miR-21-5p MIMAT0000076, hsa-miR-124-3p MIMAT0000422); one row per seed family so ids stay unique, TSV columns mirna_id/seed/weight as required by mirna_seed_scanner."
+      },
+      "ui": {
+        "title": "Target & Seeds",
+        "color": "#f59e0b"
+      }
+    },
+    {
+      "id": "seed_generator",
+      "type": "candidate_generator",
+      "position": [
+        220,
+        560
+      ],
+      "params": {
+        "base_cds": "ATGGCATCTAAAGGCGAAGAATTGTTTACCGGCGTGGTGCCTATACTAGTGGAGCTTGATGGAGATGTTAATGGTCATAAATTTTCAGTCTCTGGTGAAGGTGAAGGGGATGCGACGTATGGAAAGCTAACACTGAAATTTATCTGCACAACGGGCAAATTGCCAGTGCCATGGCCCACGCTGGTGACAACTTTTAGTTATGGGGTGCAATGTTTCAGCCGATACCCCGACCATATGAAGCAGCACGACTTCTTTAAATCAGCGATGCCCGAAGGGTATGTGCAAGAGCGTACAATCTTTTTCAAGGACGACGGTAACTATAAAACACGCGCTGAGGTTAAGTTCGAGGGAGATACTCTGGTGAATAGAATTGAACTGAAAGGAATCGACTTCAAGGAGGATGGCAACATTTTGGGCCACAAGCTAGAATATAATTATAATAGCCACAACGTCTACATCATGGCAGATAAGCAGAAAAATGGGATTAAAGTAAACTTCAAAATCAGACACAACATCGAGGACGGTTCTGTTCAATTGGCAGACCACTACCAACAGAATACGCCGATTGGCGACGGCCCCGTTTTGTTACCTGACAACCATTACTTATCAACACAATCGGCACTGAGCAAGGACCCTAACGAAAAACGTGACCATATGGTCTTACTGGAGTTTGTCACGGCCGCGGGTATAACGCATGGTATGGATGAACTCTATAAAGGT",
+        "n_candidates": 24,
+        "seed": 7,
+        "strategy": "synonymous_uniform",
+        "id_prefix": "cand"
+      },
+      "ui": {
+        "title": "Seed Batch (pi_0 reference)"
+      }
+    },
+    {
+      "id": "design_loop",
+      "type": "while_loop",
+      "position": [
+        -560,
+        1040
+      ],
+      "params": {
+        "condition_mode": "file_not_exists",
+        "max_iterations": 5,
+        "check_frequency": 100
+      },
+      "meta": {
+        "continueOnFail": true
+      },
+      "ui": {
+        "title": "Design Loop (5 rounds)"
+      }
+    },
+    {
+      "id": "loop_policy_read",
+      "type": "counter_accumulator",
+      "position": [
+        -240,
+        1000
+      ],
+      "params": {
+        "operation": "set",
+        "access_mode": "read_only",
+        "accumulator_key": "codon_policy",
+        "initial_value": ""
+      },
+      "ui": {
+        "title": "Read Codon Policy"
+      }
+    },
+    {
+      "id": "loop_best_read",
+      "type": "counter_accumulator",
+      "position": [
+        -240,
+        1220
+      ],
+      "params": {
+        "operation": "set",
+        "access_mode": "read_only",
+        "accumulator_key": "best_candidate",
+        "initial_value": ""
+      },
+      "ui": {
+        "title": "Read Best Candidate"
+      }
+    },
+    {
+      "id": "loop_round",
+      "type": "counter_accumulator",
+      "position": [
+        -240,
+        1440
+      ],
+      "params": {
+        "operation": "increment",
+        "accumulator_key": "design_round",
+        "initial_value": 0
+      },
+      "ui": {
+        "title": "Round Counter"
+      }
+    },
+    {
+      "id": "loop_sampler",
+      "type": "policy_sampler",
+      "position": [
+        60,
+        1060
+      ],
+      "params": {
+        "base_cds": "ATGGCATCTAAAGGCGAAGAATTGTTTACCGGCGTGGTGCCTATACTAGTGGAGCTTGATGGAGATGTTAATGGTCATAAATTTTCAGTCTCTGGTGAAGGTGAAGGGGATGCGACGTATGGAAAGCTAACACTGAAATTTATCTGCACAACGGGCAAATTGCCAGTGCCATGGCCCACGCTGGTGACAACTTTTAGTTATGGGGTGCAATGTTTCAGCCGATACCCCGACCATATGAAGCAGCACGACTTCTTTAAATCAGCGATGCCCGAAGGGTATGTGCAAGAGCGTACAATCTTTTTCAAGGACGACGGTAACTATAAAACACGCGCTGAGGTTAAGTTCGAGGGAGATACTCTGGTGAATAGAATTGAACTGAAAGGAATCGACTTCAAGGAGGATGGCAACATTTTGGGCCACAAGCTAGAATATAATTATAATAGCCACAACGTCTACATCATGGCAGATAAGCAGAAAAATGGGATTAAAGTAAACTTCAAAATCAGACACAACATCGAGGACGGTTCTGTTCAATTGGCAGACCACTACCAACAGAATACGCCGATTGGCGACGGCCCCGTTTTGTTACCTGACAACCATTACTTATCAACACAATCGGCACTGAGCAAGGACCCTAACGAAAAACGTGACCATATGGTCTTACTGGAGTTTGTCACGGCCGCGGGTATAACGCATGGTATGGATGAACTCTATAAAGGT",
+        "n_candidates": 24,
+        "temperature": 1.0,
+        "id_prefix": "cand"
+      },
+      "ui": {
+        "title": "Policy Sampler (pi)",
+        "promotedInputs": [
+          "seed"
+        ]
+      }
+    },
+    {
+      "id": "loop_eval_immune",
+      "type": "immune_motif_scanner",
+      "position": [
+        420,
+        1000
+      ],
+      "params": {
+        "u_run_threshold": 4
+      },
+      "ui": {
+        "title": "Innate-Immune Telemetry",
+        "promotedInputs": [
+          "sequence"
+        ]
+      }
+    },
+    {
+      "id": "loop_eval_codon",
+      "type": "codon_metrics",
+      "position": [
+        420,
+        1220
+      ],
+      "params": {
+        "window": 30
+      },
+      "ui": {
+        "title": "Codon-Usage Telemetry",
+        "promotedInputs": [
+          "cds"
+        ]
+      }
+    },
+    {
+      "id": "loop_fold",
+      "type": "rnafold_mfe",
+      "position": [
+        420,
+        1440
+      ],
+      "params": {
+        "no_lp": true,
+        "temperature": 37.0
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "RNAfold MFE (iteration artifact)"
+      }
+    },
+    {
+      "id": "loop_scorer",
+      "type": "multi_objective_scorer",
+      "position": [
+        820,
+        1060
+      ],
+      "params": {
+        "scores_1": "[{\"id\":\"cand_0000\",\"score\":2.4},{\"id\":\"cand_0001\",\"score\":2.2},{\"id\":\"cand_0002\",\"score\":2.0},{\"id\":\"cand_0003\",\"score\":1.8},{\"id\":\"cand_0004\",\"score\":1.6},{\"id\":\"cand_0005\",\"score\":1.4},{\"id\":\"cand_0006\",\"score\":1.2},{\"id\":\"cand_0007\",\"score\":1.0},{\"id\":\"cand_0008\",\"score\":0.8},{\"id\":\"cand_0009\",\"score\":0.6},{\"id\":\"cand_0010\",\"score\":0.4},{\"id\":\"cand_0011\",\"score\":0.2},{\"id\":\"cand_0012\",\"score\":0.0},{\"id\":\"cand_0013\",\"score\":-0.2},{\"id\":\"cand_0014\",\"score\":-0.4},{\"id\":\"cand_0015\",\"score\":-0.6},{\"id\":\"cand_0016\",\"score\":-0.8},{\"id\":\"cand_0017\",\"score\":-1.0},{\"id\":\"cand_0018\",\"score\":-1.2},{\"id\":\"cand_0019\",\"score\":-1.4},{\"id\":\"cand_0020\",\"score\":-1.6},{\"id\":\"cand_0021\",\"score\":-1.8},{\"id\":\"cand_0022\",\"score\":-2.0},{\"id\":\"cand_0023\",\"score\":-2.2}]",
+        "weights": "{\"scores_1\": 1.0}",
+        "modes": "{\"scores_1\": \"maximize\"}"
+      },
+      "ui": {
+        "title": "Multi-Objective Scorer"
+      }
+    },
+    {
+      "id": "loop_best",
+      "type": "best_so_far",
+      "position": [
+        820,
+        1300
+      ],
+      "params": {
+        "mode": "maximize",
+        "key": "composite"
+      },
+      "ui": {
+        "title": "Best So Far",
+        "promotedInputs": [
+          "incoming",
+          "current"
+        ]
+      }
+    },
+    {
+      "id": "loop_optimizer",
+      "type": "group_relative_optimizer",
+      "position": [
+        1180,
+        1060
+      ],
+      "params": {
+        "top_k": 8,
+        "learning_rate": 2.0,
+        "temperature": 1.0,
+        "epsilon": 0.01,
+        "ref_strength": 0.1
+      },
+      "ui": {
+        "title": "Group Relative Optimizer",
+        "promotedInputs": [
+          "previous_best_composite"
+        ]
+      }
+    },
+    {
+      "id": "loop_policy_write",
+      "type": "counter_accumulator",
+      "position": [
+        1540,
+        1000
+      ],
+      "params": {
+        "operation": "set",
+        "accumulator_key": "codon_policy"
+      },
+      "ui": {
+        "title": "Store Codon Policy"
+      }
+    },
+    {
+      "id": "loop_best_write",
+      "type": "counter_accumulator",
+      "position": [
+        1540,
+        1200
+      ],
+      "params": {
+        "operation": "set",
+        "accumulator_key": "best_candidate"
+      },
+      "ui": {
+        "title": "Store Best Candidate"
+      }
+    },
+    {
+      "id": "note_ensemble",
+      "type": "note",
+      "position": [
+        -560,
+        1710
+      ],
+      "params": {
+        "text": "Evaluator Ensemble (post-loop). The GRPO loop's winning artifacts live under runs/<run_id>/design_loop/iterations/NNNN/ (policy_table.json, elites.json, best.json per round; while_loop.results carries the per-round paths). This group deep-evaluates ONE deterministic reference design produced by codon_optimizer (LinearDesign-inspired balanced recoding of the same ORF) with the single-sequence evaluators in their designed roles: codon_metrics (CAI/GC/Nc), immune_motif_scanner, mirna_seed_scanner against the bundled hsa seed table, utr_feature_builder on demo UTR literals, and the ViennaRNA nodes (rnafold_mfe + rnafold_partition) under a try_catch guard so missing RNAfold binaries degrade to succeeded=false instead of killing the run. Env requirements: RNAfold and RNAplfold from ViennaRNA >= 2.6 on PATH for the structure nodes; everything else in this group is pure Python."
+      },
+      "ui": {
+        "title": "Ensemble Notes",
+        "color": "#10b981"
+      }
+    },
+    {
+      "id": "ref_designer",
+      "type": "codon_optimizer",
+      "position": [
+        220,
+        1760
+      ],
+      "params": {
+        "cds": "ATGGCATCTAAAGGCGAAGAATTGTTTACCGGCGTGGTGCCTATACTAGTGGAGCTTGATGGAGATGTTAATGGTCATAAATTTTCAGTCTCTGGTGAAGGTGAAGGGGATGCGACGTATGGAAAGCTAACACTGAAATTTATCTGCACAACGGGCAAATTGCCAGTGCCATGGCCCACGCTGGTGACAACTTTTAGTTATGGGGTGCAATGTTTCAGCCGATACCCCGACCATATGAAGCAGCACGACTTCTTTAAATCAGCGATGCCCGAAGGGTATGTGCAAGAGCGTACAATCTTTTTCAAGGACGACGGTAACTATAAAACACGCGCTGAGGTTAAGTTCGAGGGAGATACTCTGGTGAATAGAATTGAACTGAAAGGAATCGACTTCAAGGAGGATGGCAACATTTTGGGCCACAAGCTAGAATATAATTATAATAGCCACAACGTCTACATCATGGCAGATAAGCAGAAAAATGGGATTAAAGTAAACTTCAAAATCAGACACAACATCGAGGACGGTTCTGTTCAATTGGCAGACCACTACCAACAGAATACGCCGATTGGCGACGGCCCCGTTTTGTTACCTGACAACCATTACTTATCAACACAATCGGCACTGAGCAAGGACCCTAACGAAAAACGTGACCATATGGTCTTACTGGAGTTTGTCACGGCCGCGGGTATAACGCATGGTATGGATGAACTCTATAAAGGT",
+        "organism": "human",
+        "strategy": "balanced",
+        "gc_target": 0.5,
+        "output_alphabet": "dna"
+      },
+      "ui": {
+        "title": "Reference Designer (balanced)",
+        "promotedInputs": [
+          "cds"
+        ]
+      }
+    },
+    {
+      "id": "ens_codon",
+      "type": "codon_metrics",
+      "position": [
+        620,
+        1760
+      ],
+      "params": {
+        "window": 30
+      },
+      "ui": {
+        "title": "Codon Metrics (final)",
+        "promotedInputs": [
+          "cds"
+        ]
+      }
+    },
+    {
+      "id": "ens_immune",
+      "type": "immune_motif_scanner",
+      "position": [
+        620,
+        1980
+      ],
+      "params": {
+        "u_run_threshold": 4
+      },
+      "ui": {
+        "title": "Immune Scan (final)",
+        "promotedInputs": [
+          "sequence"
+        ]
+      }
+    },
+    {
+      "id": "ens_mirna",
+      "type": "mirna_seed_scanner",
+      "position": [
+        620,
+        2200
+      ],
+      "params": {
+        "context_length": 10
+      },
+      "ui": {
+        "title": "miRNA Seed Scan (final)",
+        "promotedInputs": [
+          "target"
+        ]
+      }
+    },
+    {
+      "id": "ens_utr",
+      "type": "utr_feature_builder",
+      "position": [
+        220,
+        2200
+      ],
+      "params": {
+        "five_utr": "TTGGGCCAAGTTGGCACGGGTCTAG",
+        "three_utr": "AAGGCACGGTACGTTTAGTGCACCTGATCTGAGACCTGTCAGTGAATTGACCTAGCAT",
+        "poly_u_min": 6
+      },
+      "ui": {
+        "title": "UTR Feature Vector (demo UTRs)"
+      }
+    },
+    {
+      "id": "ens_guard",
+      "type": "try_catch",
+      "position": [
+        220,
+        2480
+      ],
+      "params": {
+        "max_retries": 0,
+        "catch_errors": "",
+        "pass_input_to_catch": true,
+        "pass_error_to_catch": true
+      },
+      "ui": {
+        "title": "Structure Ensemble Guard"
+      }
+    },
+    {
+      "id": "ens_fold_mfe",
+      "type": "rnafold_mfe",
+      "position": [
+        620,
+        2480
+      ],
+      "params": {
+        "no_lp": true,
+        "temperature": 37.0
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "RNAfold MFE (guarded)"
+      }
+    },
+    {
+      "id": "ens_fold_partition",
+      "type": "rnafold_partition",
+      "position": [
+        620,
+        2700
+      ],
+      "params": {
+        "temperature": 37.0
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "RNAfold Partition (guarded)"
+      }
+    },
+    {
+      "id": "note_armb",
+      "type": "note",
+      "position": [
+        -560,
+        3110
+      ],
+      "params": {
+        "text": "Arm B: direct-RNA multi-omics ( cleanly separable - delete this group and Arm A still runs).\n\nData: direct-RNA RNA004 example POD5 (13.1 MB) + matching transcriptome reference from BioinfoSZU/Coral, pinned at commit c9be6ecd09117a2555c41fd4eb2af97981500bfa. Dorado simplex model rna004_130bps_hac@v5.1.0 (15.7 MB) from the ONT CDN.\n\nREQUIRES GPU: dorado_basecaller needs a CUDA device and STAGED local model directories (per the dorado node contract, model names/auto-download are intentionally not accepted). The input_directory nodes stage the model zips/POD5 exactly like the ONT long-read template. Note: without an m6A-aware modified-base model staged, MM/ML tags are sparse and the modkit pileup is a plumbing demo; stage an m6A model directory for real m6A calls.\n\nAlignment: minimap2_align uses the 'splice' preset (direct-RNA aware). The canonical direct-RNA refinements -uf -k14 are not exposed by this node's parameter surface (preset + threads only); note them for the wrapped minimap2 path if needed.\n\nLABEL HONESTY: there is no public per-transcript half-life ground truth matched to this demo transcriptome. The half_life_hours column is a SYNTHETIC, deterministic function of the per-transcript features (2.0 + 3.0*mean_mod_fraction + 0.1*mean_coverage) added by the Galaxy Compute-on-rows tool; simple_predictor_train therefore demonstrates the plumbing (features -> join -> train -> metrics), NOT biology. Keep it reproducible or replace the column with real labels."
+      },
+      "ui": {
+        "title": "Arm B: Direct-RNA Notes (GPU)",
+        "color": "#8b5cf6"
+      }
+    },
+    {
+      "id": "drna_pod5",
+      "type": "input_directory",
+      "position": [
+        220,
+        3160
+      ],
+      "params": {
+        "directory": "https://raw.githubusercontent.com/BioinfoSZU/Coral/c9be6ecd09117a2555c41fd4eb2af97981500bfa/example/rna004/pod5/example.pod5",
+        "source": "url"
+      },
+      "ui": {
+        "title": "Direct-RNA POD5 (RNA004)",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "drna_model",
+      "type": "input_directory",
+      "position": [
+        220,
+        3380
+      ],
+      "params": {
+        "directory": "https://cdn.oxfordnanoportal.com/software/analysis/dorado/rna004_130bps_hac@v5.1.0.zip",
+        "source": "url"
+      },
+      "ui": {
+        "title": "Dorado RNA004 Simplex Model",
+        "validation": {
+          "outputs": {
+            "directory": {
+              "expected_format": "directory",
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "drna_ref",
+      "type": "input_fasta",
+      "position": [
+        220,
+        3600
+      ],
+      "params": {
+        "reference": "https://raw.githubusercontent.com/BioinfoSZU/Coral/c9be6ecd09117a2555c41fd4eb2af97981500bfa/example/rna004/ref/ref.fa",
+        "source": "url"
+      },
+      "ui": {
+        "title": "dRNA Reference FASTA",
+        "validation": {
+          "outputs": {
+            "reference": {
+              "expected_format": "fasta",
+              "min_records": 1,
+              "min_size_bytes": 1,
+              "fail_on_error": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "drna_ref_sidecars",
+      "type": "samtools_faidx",
+      "position": [
+        620,
+        3600
+      ],
+      "params": {
+        "threads": 1
+      },
+      "ui": {
+        "title": "Reference FAI + Dictionary"
+      }
+    },
+    {
+      "id": "drna_dorado",
+      "type": "dorado_basecaller",
+      "position": [
+        980,
+        3260
+      ],
+      "params": {
+        "trim": "all",
+        "min_qscore": 9,
+        "device": "auto"
+      },
+      "ui": {
+        "title": "Dorado Basecaller (RNA004, GPU)"
+      }
+    },
+    {
+      "id": "drna_fastx",
+      "type": "samtools_fastx",
+      "position": [
+        1340,
+        3260
+      ],
+      "params": {
+        "threads": 4,
+        "output_format": "fastq",
+        "outputs": [
+          "other"
+        ]
+      },
+      "ui": {
+        "title": "Basecalled BAM to FASTQ"
+      }
+    },
+    {
+      "id": "drna_chopper",
+      "type": "chopper_filter",
+      "position": [
+        1340,
+        3480
+      ],
+      "params": {
+        "min_quality": 7,
+        "min_length": 200,
+        "headcrop": 0,
+        "tailcrop": 0,
+        "threads": 4
+      },
+      "ui": {
+        "title": "Chopper Filter"
+      }
+    },
+    {
+      "id": "drna_align",
+      "type": "minimap2_align",
+      "position": [
+        1340,
+        3700
+      ],
+      "params": {
+        "preset": "splice",
+        "threads": 8
+      },
+      "ui": {
+        "title": "minimap2 splice Alignment"
+      }
+    },
+    {
+      "id": "drna_sort",
+      "type": "samtools_sort",
+      "position": [
+        1340,
+        3920
+      ],
+      "params": {
+        "threads": 4
+      },
+      "ui": {
+        "title": "Sort BAM"
+      }
+    },
+    {
+      "id": "drna_index",
+      "type": "samtools_index",
+      "position": [
+        1340,
+        4140
+      ],
+      "params": {
+        "threads": 2
+      },
+      "ui": {
+        "title": "Index BAM"
+      }
+    },
+    {
+      "id": "drna_modkit",
+      "type": "modkit_pileup",
+      "position": [
+        980,
+        4140
+      ],
+      "params": {
+        "threads": 4,
+        "cpg": true,
+        "combine_strands": true,
+        "with_header": true,
+        "region": ""
+      },
+      "ui": {
+        "title": "Modkit Pileup"
+      }
+    },
+    {
+      "id": "drna_features",
+      "type": "bedmethyl_feature_builder",
+      "position": [
+        620,
+        4140
+      ],
+      "params": {
+        "mod_codes": "m",
+        "min_coverage": 1,
+        "min_percent_modified": 10.0,
+        "percent_scale": "100"
+      },
+      "ui": {
+        "title": "bedMethyl Feature Builder"
+      }
+    },
+    {
+      "id": "drna_label",
+      "type": "Add_a_column1",
+      "position": [
+        220,
+        4140
+      ],
+      "params": {
+        "column_types": "str,str,float,float,float,float,float,float,float,float",
+        "auto_col_types": true,
+        "header_lines_select": "yes",
+        "avoid_scientific_notation": false,
+        "fail_on_non_existent_columns": true,
+        "non_computable_action": "--fail-on-non-computable",
+        "expressions": [
+          {
+            "cond": "2.0 + 3.0*c6 + 0.1*c8",
+            "mode": "",
+            "pos": "",
+            "new_column_name": "half_life_hours"
+          }
+        ]
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "Synthetic Stability Label"
+      }
+    },
+    {
+      "id": "drna_train",
+      "type": "simple_predictor_train",
+      "position": [
+        220,
+        4380
+      ],
+      "params": {
+        "target_column": "half_life_hours",
+        "id_column": "transcript_id",
+        "model": "ridge",
+        "l2": 1.0,
+        "val_fraction": 0.2,
+        "seed": 0
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "Simple Predictor Train"
+      }
+    },
+    {
+      "id": "note_learn",
+      "type": "note",
+      "position": [
+        -560,
+        4710
+      ],
+      "params": {
+        "text": "Learn & Export.\n\nNIM nodes ship with fixture_mode=true (deterministic, NON-SCIENTIFIC values hashed from the input; zero network). For live scoring set fixture_mode=false and export BIONODULO_NIM_API_KEY (optional BIONODULO_NIM_BASE_URL) in the run environment; nim_test checks connectivity first.\n\nLLM design critic: provider 'custom' with api_base/model left empty resolves env defaults BIONODULO_LLM_BASE_URL (absolute http(s) URL, required for provider=custom), BIONODULO_LLM_MODEL, and the provider key env; set json_mode=false for free-form critique. The critic has no live data edges by design - it is a final report step over the documented artifacts (loop results, ensemble metrics), because wiring per-round context through the loop's single value slot would starve the policy channel.\n\nEverything in this group is continue-on-fail so a missing API key or offline environment degrades to an error output instead of a dead run."
+      },
+      "ui": {
+        "title": "Learn & Export Notes",
+        "color": "#ef4444"
+      }
+    },
+    {
+      "id": "nim_health",
+      "type": "nim_test",
+      "position": [
+        220,
+        4760
+      ],
+      "params": {
+        "fixture_mode": true
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "NIM Connectivity (fixture)"
+      }
+    },
+    {
+      "id": "evo2_score",
+      "type": "nim_evo2_score",
+      "position": [
+        220,
+        4980
+      ],
+      "params": {
+        "fixture_mode": true,
+        "continuation_tokens": 10,
+        "temperature": 0.7
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "Evo 2 Score (fixture)",
+        "promotedInputs": [
+          "sequence"
+        ]
+      }
+    },
+    {
+      "id": "llm_critic",
+      "type": "llm_prompt",
+      "position": [
+        620,
+        4760
+      ],
+      "params": {
+        "prompt": "You are the design critic for a ROBUST mRNA optimisation run. Summarise: (1) the GRPO-style design loop (5 rounds, group z-score advantages over 24 synonymous candidates, codon-policy softmax updates with epsilon floor and reference mixing); (2) the evaluator ensemble (codon metrics, innate-immune motifs, miRNA seed matches, ViennaRNA structure under try_catch); (3) the direct-RNA multi-omics arm (Dorado RNA004 GPU basecalling, minimap2 splice alignment, modkit pileup, per-transcript modification features, ridge predictor on a documented synthetic stability label). Return strict JSON with keys overall_assessment, strengths, risks, next_experiments.",
+        "system_prompt": "You are a rigorous, skeptical mRNA therapeutic design reviewer.",
+        "provider": "custom",
+        "model": "",
+        "api_base": "",
+        "temperature": 0.2,
+        "max_tokens": 1024,
+        "json_mode": true,
+        "timeout": 15.0
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "LLM Design Critic (json_mode)"
+      }
+    },
+    {
+      "id": "join_features_predictions",
+      "type": "join_tables",
+      "position": [
+        620,
+        4980
+      ],
+      "params": {
+        "join_keys": "transcript_id",
+        "how": "left"
+      },
+      "continueOnFail": true,
+      "ui": {
+        "title": "Join Features + Predictions"
+      }
+    },
+    {
+      "id": "view_joined",
+      "type": "table_preview",
+      "position": [
+        980,
+        4980
+      ],
+      "params": {},
+      "ui": {
+        "title": "View: features x predictions"
+      }
+    },
+    {
+      "id": "export_checkpoint",
+      "type": "checkpoint",
+      "position": [
+        980,
+        4760
+      ],
+      "params": {
+        "checkpoint_name": "robust_designer_loop_results",
+        "include_upstream_metadata": true,
+        "compression": true
+      },
+      "ui": {
+        "title": "Checkpoint Loop Results"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_loop_iter",
+      "from": {
+        "node": "design_loop",
+        "output": "iteration"
+      },
+      "to": {
+        "node": "loop_round",
+        "input": "operand"
+      }
+    },
+    {
+      "id": "e_round_seed",
+      "from": {
+        "node": "loop_round",
+        "output": "value"
+      },
+      "to": {
+        "node": "loop_sampler",
+        "input": "seed"
+      }
+    },
+    {
+      "id": "e_policy_read_sampler",
+      "from": {
+        "node": "loop_policy_read",
+        "output": "value"
+      },
+      "to": {
+        "node": "loop_sampler",
+        "input": "policy_table"
+      }
+    },
+    {
+      "id": "e_sampler_immune",
+      "from": {
+        "node": "loop_sampler",
+        "output": "fasta"
+      },
+      "to": {
+        "node": "loop_eval_immune",
+        "input": "sequence"
+      }
+    },
+    {
+      "id": "e_sampler_codon",
+      "from": {
+        "node": "loop_sampler",
+        "output": "fasta"
+      },
+      "to": {
+        "node": "loop_eval_codon",
+        "input": "cds"
+      }
+    },
+    {
+      "id": "e_sampler_fold",
+      "from": {
+        "node": "loop_sampler",
+        "output": "fasta"
+      },
+      "to": {
+        "node": "loop_fold",
+        "input": "fasta"
+      }
+    },
+    {
+      "id": "e_sampler_scorer",
+      "from": {
+        "node": "loop_sampler",
+        "output": "candidates"
+      },
+      "to": {
+        "node": "loop_scorer",
+        "input": "candidates"
+      }
+    },
+    {
+      "id": "e_scorer_best",
+      "from": {
+        "node": "loop_scorer",
+        "output": "ranked"
+      },
+      "to": {
+        "node": "loop_best",
+        "input": "incoming"
+      }
+    },
+    {
+      "id": "e_best_read_best",
+      "from": {
+        "node": "loop_best_read",
+        "output": "value"
+      },
+      "to": {
+        "node": "loop_best",
+        "input": "current"
+      }
+    },
+    {
+      "id": "e_best_score_opt",
+      "from": {
+        "node": "loop_best",
+        "output": "score"
+      },
+      "to": {
+        "node": "loop_optimizer",
+        "input": "previous_best_composite"
+      }
+    },
+    {
+      "id": "e_scorer_opt",
+      "from": {
+        "node": "loop_scorer",
+        "output": "ranked"
+      },
+      "to": {
+        "node": "loop_optimizer",
+        "input": "ranked"
+      }
+    },
+    {
+      "id": "e_sampler_opt",
+      "from": {
+        "node": "loop_sampler",
+        "output": "candidates"
+      },
+      "to": {
+        "node": "loop_optimizer",
+        "input": "candidates"
+      }
+    },
+    {
+      "id": "e_policy_read_opt",
+      "from": {
+        "node": "loop_policy_read",
+        "output": "value"
+      },
+      "to": {
+        "node": "loop_optimizer",
+        "input": "policy_table"
+      }
+    },
+    {
+      "id": "e_opt_policy_write",
+      "from": {
+        "node": "loop_optimizer",
+        "output": "policy_table"
+      },
+      "to": {
+        "node": "loop_policy_write",
+        "input": "operand"
+      }
+    },
+    {
+      "id": "e_best_bestwrite",
+      "from": {
+        "node": "loop_best",
+        "output": "best"
+      },
+      "to": {
+        "node": "loop_best_write",
+        "input": "operand"
+      }
+    },
+    {
+      "id": "e_best_loopvalue",
+      "from": {
+        "node": "loop_best",
+        "output": "best"
+      },
+      "to": {
+        "node": "design_loop",
+        "input": "value"
+      }
+    },
+    {
+      "id": "e_seeds_mirna",
+      "from": {
+        "node": "input_mirna_seeds",
+        "output": "file"
+      },
+      "to": {
+        "node": "ens_mirna",
+        "input": "seed_file"
+      }
+    },
+    {
+      "id": "e_designer_codon",
+      "from": {
+        "node": "ref_designer",
+        "output": "optimized_cds"
+      },
+      "to": {
+        "node": "ens_codon",
+        "input": "cds"
+      }
+    },
+    {
+      "id": "e_designer_immune",
+      "from": {
+        "node": "ref_designer",
+        "output": "optimized_cds"
+      },
+      "to": {
+        "node": "ens_immune",
+        "input": "sequence"
+      }
+    },
+    {
+      "id": "e_designer_mirna",
+      "from": {
+        "node": "ref_designer",
+        "output": "optimized_cds"
+      },
+      "to": {
+        "node": "ens_mirna",
+        "input": "target"
+      }
+    },
+    {
+      "id": "e_designer_guard",
+      "from": {
+        "node": "ref_designer",
+        "output": "optimized_cds"
+      },
+      "to": {
+        "node": "ens_guard",
+        "input": "try_input"
+      }
+    },
+    {
+      "id": "e_guard_fold_mfe",
+      "from": {
+        "node": "ens_guard",
+        "output": "try"
+      },
+      "to": {
+        "node": "ens_fold_mfe",
+        "input": "fasta"
+      }
+    },
+    {
+      "id": "e_guard_fold_part",
+      "from": {
+        "node": "ens_guard",
+        "output": "try"
+      },
+      "to": {
+        "node": "ens_fold_partition",
+        "input": "fasta"
+      }
+    },
+    {
+      "id": "e_pod5_dorado",
+      "from": {
+        "node": "drna_pod5",
+        "output": "directory"
+      },
+      "to": {
+        "node": "drna_dorado",
+        "input": "pod5_dir"
+      }
+    },
+    {
+      "id": "e_model_dorado",
+      "from": {
+        "node": "drna_model",
+        "output": "directory"
+      },
+      "to": {
+        "node": "drna_dorado",
+        "input": "model"
+      }
+    },
+    {
+      "id": "e_ref_sidecars",
+      "from": {
+        "node": "drna_ref",
+        "output": "reference"
+      },
+      "to": {
+        "node": "drna_ref_sidecars",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e_sidecars_dorado",
+      "from": {
+        "node": "drna_ref_sidecars",
+        "output": "reference"
+      },
+      "to": {
+        "node": "drna_dorado",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e_dorado_fastx",
+      "from": {
+        "node": "drna_dorado",
+        "output": "basecalled_bam"
+      },
+      "to": {
+        "node": "drna_fastx",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e_fastx_chopper",
+      "from": {
+        "node": "drna_fastx",
+        "output": "reads"
+      },
+      "to": {
+        "node": "drna_chopper",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e_chopper_align",
+      "from": {
+        "node": "drna_chopper",
+        "output": "filtered_reads"
+      },
+      "to": {
+        "node": "drna_align",
+        "input": "reads"
+      }
+    },
+    {
+      "id": "e_sidecars_align",
+      "from": {
+        "node": "drna_ref_sidecars",
+        "output": "reference"
+      },
+      "to": {
+        "node": "drna_align",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e_align_sort",
+      "from": {
+        "node": "drna_align",
+        "output": "alignment"
+      },
+      "to": {
+        "node": "drna_sort",
+        "input": "alignment"
+      }
+    },
+    {
+      "id": "e_sort_index",
+      "from": {
+        "node": "drna_sort",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "drna_index",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e_sort_modkit",
+      "from": {
+        "node": "drna_index",
+        "output": "indexed_bam"
+      },
+      "to": {
+        "node": "drna_modkit",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e_index_modkit",
+      "from": {
+        "node": "drna_index",
+        "output": "bai"
+      },
+      "to": {
+        "node": "drna_modkit",
+        "input": "bam_index"
+      }
+    },
+    {
+      "id": "e_sidecars_modkit_ref",
+      "from": {
+        "node": "drna_ref_sidecars",
+        "output": "reference"
+      },
+      "to": {
+        "node": "drna_modkit",
+        "input": "reference"
+      }
+    },
+    {
+      "id": "e_sidecars_modkit_fai",
+      "from": {
+        "node": "drna_ref_sidecars",
+        "output": "fai_index"
+      },
+      "to": {
+        "node": "drna_modkit",
+        "input": "reference_index"
+      }
+    },
+    {
+      "id": "e_modkit_features",
+      "from": {
+        "node": "drna_modkit",
+        "output": "bedmethyl"
+      },
+      "to": {
+        "node": "drna_features",
+        "input": "bedmethyl"
+      }
+    },
+    {
+      "id": "e_features_label",
+      "from": {
+        "node": "drna_features",
+        "output": "features"
+      },
+      "to": {
+        "node": "drna_label",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e_label_train",
+      "from": {
+        "node": "drna_label",
+        "output": "out_file1"
+      },
+      "to": {
+        "node": "drna_train",
+        "input": "feature_table"
+      }
+    },
+    {
+      "id": "e_features_join",
+      "from": {
+        "node": "drna_features",
+        "output": "features"
+      },
+      "to": {
+        "node": "join_features_predictions",
+        "input": "table_a"
+      }
+    },
+    {
+      "id": "e_train_join",
+      "from": {
+        "node": "drna_train",
+        "output": "predictions"
+      },
+      "to": {
+        "node": "join_features_predictions",
+        "input": "table_b"
+      }
+    },
+    {
+      "id": "e_join_view",
+      "from": {
+        "node": "join_features_predictions",
+        "output": "joined_table"
+      },
+      "to": {
+        "node": "view_joined",
+        "input": "file"
+      }
+    },
+    {
+      "id": "e_loop_checkpoint",
+      "from": {
+        "node": "design_loop",
+        "output": "results"
+      },
+      "to": {
+        "node": "export_checkpoint",
+        "input": "input"
+      }
+    },
+    {
+      "id": "e_designer_evo2",
+      "from": {
+        "node": "ref_designer",
+        "output": "optimized_cds"
+      },
+      "to": {
+        "node": "evo2_score",
+        "input": "sequence"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "id": "g1_target_context",
+      "name": "1 · Target & Context",
+      "position": [
+        -600,
+        -40
+      ],
+      "width": 1160,
+      "height": 1030,
+      "color": "#f59e0b",
+      "collapsed": false
+    },
+    {
+      "id": "g2_design_loop",
+      "name": "2 · Design Loop (GRPO-style)",
+      "position": [
+        -600,
+        1010
+      ],
+      "width": 2400,
+      "height": 700,
+      "color": "#3b82f6",
+      "collapsed": false
+    },
+    {
+      "id": "g3_evaluator_ensemble",
+      "name": "3 · Evaluator Ensemble",
+      "position": [
+        -600,
+        1710
+      ],
+      "width": 1600,
+      "height": 1380,
+      "color": "#10b981",
+      "collapsed": false
+    },
+    {
+      "id": "g4_drna_multiomics",
+      "name": "4 · Direct-RNA Multi-omics (Arm B)",
+      "position": [
+        -600,
+        3110
+      ],
+      "width": 1800,
+      "height": 1600,
+      "color": "#8b5cf6",
+      "collapsed": false
+    },
+    {
+      "id": "g5_learn_export",
+      "name": "5 · Learn & Export",
+      "position": [
+        -600,
+        4710
+      ],
+      "width": 1400,
+      "height": 900,
+      "color": "#ef4444",
+      "collapsed": false
+    }
+  ],
+  "outputs": {
+    "seed_batch": "seed_generator",
+    "best_candidate": "design_loop",
+    "policy_table": "design_loop",
+    "loop_results": "design_loop",
+    "loop_iterations": "design_loop",
+    "loop_converged": "design_loop",
+    "reference_design_cds": "ref_designer",
+    "optimized_cds_metrics": "ens_codon",
+    "immune_scan": "ens_immune",
+    "mirna_seed_scan": "ens_mirna",
+    "utr_features": "ens_utr",
+    "evo2_scores": "evo2_score",
+    "llm_critique": "llm_critic",
+    "drna_bedmethyl": "drna_modkit",
+    "drna_features": "drna_features",
+    "predictor_model": "drna_train",
+    "predictor_metrics": "drna_train",
+    "predictor_predictions": "drna_train",
+    "joined_features_predictions": "join_features_predictions",
+    "loop_checkpoint": "export_checkpoint"
+  }
+}

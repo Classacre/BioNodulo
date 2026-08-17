@@ -54,6 +54,33 @@ POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
         # Cell Ranger is BYOL (403 to any unattended fetch, redistributable
         # by no conda channel), so single-cell counting needs an open node.
         "starsolo_count",
+        # Pure-Python iterative mRNA design loop (GRPO-style codon-policy
+        # optimization) plus the direct-RNA multi-omics feature builder.
+        "candidate_generator",
+        "multi_objective_scorer",
+        "group_relative_optimizer",
+        "best_so_far",
+        "policy_sampler",
+        "bedmethyl_feature_builder",
+        "simple_predictor_train",
+        "simple_predictor_score",
+        # On-tree post-baseline families: ml_design, codon design, and RNA
+        # structure nodes authored after the ledger was sealed.
+        "codon_metrics",
+        "codon_optimizer",
+        "immune_motif_scanner",
+        "mirna_seed_scanner",
+        "rnaeval_energy",
+        "rnafold_mfe",
+        "rnafold_partition",
+        "rnaplfold_accessibility",
+        "utr_feature_builder",
+        # NVIDIA NIM biology inference family (Evo 2 / ESM 2 / Boltz-2).
+        "nim_boltz2_predict",
+        "nim_esm2_embed",
+        "nim_evo2_generate",
+        "nim_evo2_score",
+        "nim_test",
     }
 )
 EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)

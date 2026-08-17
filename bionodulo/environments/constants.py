@@ -17,6 +17,9 @@ CONDA_PACKAGE_ALIASES: dict[str, str] = {
     "pillow": "pillow",
     "bio": "biopython",
     "biopython-bio": "biopython",
+    # ViennaRNA ships as the bioconda package "viennarna"; the RNA structure
+    # nodes declare the hyphenated upstream project name.
+    "vienna-rna": "viennarna",
 }
 
 
@@ -213,6 +216,10 @@ EXECUTABLE_TO_CONDA_PACKAGE: dict[str, str] = {
     "CopasiSE": "",
     "iBioSim": "",
     "ibiosim": "",
+    # ViennaRNA executables all ship inside the bioconda "viennarna" package.
+    "RNAfold": "viennarna",
+    "RNAplfold": "viennarna",
+    "RNAeval": "viennarna",
 }
 
 # Mapping of R packages to conda package names.
@@ -294,6 +301,8 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "control-freec": ">=11.6",
     "ont-modkit": "0.4.3",
     "chopper": "0.9.2",
+    "vienna-rna": ">=2.7.0",
+    "viennarna": ">=2.7.0",
     "nanoplot": "1.44.1",
     "medaka": "2.0.1",
     "fastp": "0.24.0",

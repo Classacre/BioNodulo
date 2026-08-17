@@ -131,6 +131,7 @@ bionodulo-v2/
 │   ├── proteomics_sage_percolator_pipeline.json
 │   ├── r_visualization_pipeline.json
 │   ├── rna_seq_pipeline.json
+│   ├── robust_designer.json
 │   ├── single_cell_pipeline.json
 │   ├── spatial_transcriptomics_qc_clustering.json
 │   ├── synthetic_biology_design_simulation.json

@@ -1072,6 +1072,10 @@
     ],
     "requires_gpu": false
   },
+  "bedmethyl_feature_builder": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "bedops-sort-bed": {
     "required_executables": [
       "sort-bed"
@@ -1346,6 +1350,10 @@
     "required_executables": [
       "berokka"
     ],
+    "requires_gpu": false
+  },
+  "best_so_far": {
+    "required_executables": [],
     "requires_gpu": false
   },
   "bg_diamond": {
@@ -1703,6 +1711,10 @@
     "required_executables": [
       "convert_fasta_bins_to_biobox_format.py"
     ],
+    "requires_gpu": false
+  },
+  "candidate_generator": {
+    "required_executables": [],
     "requires_gpu": false
   },
   "canu": {
@@ -2197,6 +2209,14 @@
     "required_executables": [
       "cnvnator"
     ],
+    "requires_gpu": false
+  },
+  "codon_metrics": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "codon_optimizer": {
+    "required_executables": [],
     "requires_gpu": false
   },
   "colabfold_batch": {
@@ -2954,6 +2974,10 @@
     ],
     "requires_gpu": false
   },
+  "group_relative_optimizer": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "gtdbtk_classify_wf": {
     "required_executables": [
       "gtdbtk"
@@ -3317,6 +3341,10 @@
     "requires_gpu": false
   },
   "image_preview": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "immune_motif_scanner": {
     "required_executables": [],
     "requires_gpu": false
   },
@@ -3871,6 +3899,10 @@
     ],
     "requires_gpu": false
   },
+  "mirna_seed_scanner": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "mlst": {
     "required_executables": [
       "mlst"
@@ -3980,6 +4012,10 @@
     ],
     "requires_gpu": false
   },
+  "multi_objective_scorer": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "multiqc": {
     "required_executables": [
       "multiqc"
@@ -4068,6 +4104,26 @@
     "requires_gpu": false
   },
   "ncbi_esearch": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "nim_boltz2_predict": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "nim_esm2_embed": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "nim_evo2_generate": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "nim_evo2_score": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "nim_test": {
     "required_executables": [],
     "requires_gpu": false
   },
@@ -4264,6 +4320,10 @@
     ],
     "requires_gpu": false
   },
+  "policy_sampler": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "preseq_c_curve": {
     "required_executables": [
       "preseq"
@@ -4453,6 +4513,30 @@
   },
   "retry": {
     "required_executables": [],
+    "requires_gpu": false
+  },
+  "rnaeval_energy": {
+    "required_executables": [
+      "RNAeval"
+    ],
+    "requires_gpu": false
+  },
+  "rnafold_mfe": {
+    "required_executables": [
+      "RNAfold"
+    ],
+    "requires_gpu": false
+  },
+  "rnafold_partition": {
+    "required_executables": [
+      "RNAfold"
+    ],
+    "requires_gpu": false
+  },
+  "rnaplfold_accessibility": {
+    "required_executables": [
+      "RNAplfold"
+    ],
     "requires_gpu": false
   },
   "roary": {
@@ -5007,6 +5091,14 @@
     ],
     "requires_gpu": false
   },
+  "simple_predictor_score": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "simple_predictor_train": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "sirius_formula_id": {
     "required_executables": [],
     "requires_gpu": false
@@ -5463,6 +5555,10 @@
     "requires_gpu": false
   },
   "uniprot_search": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "utr_feature_builder": {
     "required_executables": [],
     "requires_gpu": false
   },

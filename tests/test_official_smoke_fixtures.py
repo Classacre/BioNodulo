@@ -31,6 +31,7 @@ TEMPLATES = ROOT / "templates"
 # upstream sources; these do not.
 ALLOWED_LOCAL_INPUTS = {
     "templates/data/deseq2_gene_sets.json",
+    "templates/data/mirna_seeds_hsa_top20.tsv",
     "templates/data/smoke/coding_sequences.fasta",
     "templates/data/smoke/counts.csv",
     "templates/data/smoke/heatmap_annotation.csv",
@@ -114,7 +115,7 @@ def test_remote_inputs_are_pinned_to_an_immutable_ref() -> None:
 
 
 def test_template_count_is_pinned() -> None:
-    assert len(_templates()) == 22
+    assert len(_templates()) == 23
 
 
 def test_bundled_template_data_is_not_used_beyond_the_allow_list() -> None:

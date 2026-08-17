@@ -119,6 +119,8 @@ def validate_workflow(
                 )
 
     # Check 2: Edges reference valid nodes
+    loop_executors = _loop_executor_nodes(nodes, registry_lookup)
+    internal_nodes = _control_body_nodes(nodes, edges, registry_lookup)
     for edge in edges:
         src = edge_source(edge)
         dst = edge_target(edge)
@@ -143,17 +145,46 @@ def validate_workflow(
             output_names = source_meta.get("output_name", source_meta.get("return_names", []))
         else:
             output_names = getattr(source_meta, "RETURN_NAMES", ()) if source_meta else ()
+        # Loop control nodes drive their body through a virtual ``iteration``
+        # output the executor provides at run time; it is not part of the
+        # node's declared RETURN_NAMES, so exempt it here.
+        if src in loop_executors and source_port == "iteration":
+            output_names = ()
         if output_names and source_port not in {str(name) for name in output_names}:
             errors.append(
                 f"Edge from node '{src}' ({source_type}) references unknown "
                 f"output port '{source_port}'"
             )
 
-    # Check 3: No cycles
+    # Check 3: No cycles.
+    #
+    # Loop and try/catch control nodes own their bodies: the executor
+    # re-runs body nodes inside the control node and rewires a feedback edge
+    # (body -> control node) into loop state, so those nodes and edges never
+    # form part of the outer DAG. Validate the outer graph and each control
+    # body as separate DAGs, mirroring the executor's own discovery.
+    outer_nodes = {nid: node for nid, node in nodes.items() if nid not in internal_nodes}
+    outer_workflow = {"nodes": outer_nodes, "edges": [
+        edge
+        for edge in edges
+        if edge_source(edge) in outer_nodes and edge_target(edge) in outer_nodes
+    ]}
     try:
-        sorted_order = topological_sort(workflow)
+        sorted_order = topological_sort(outer_workflow)
     except ValueError as exc:
         errors.append(f"Cycle detected: {exc}")
+
+    bodies = _control_bodies(nodes, edges, registry_lookup)
+    for control_id, body_ids in sorted(bodies.items()):
+        body_workflow = {"nodes": {nid: nodes[nid] for nid in body_ids if nid in nodes}, "edges": [
+            edge
+            for edge in edges
+            if edge_source(edge) in body_ids and edge_target(edge) in body_ids
+        ]}
+        try:
+            sorted_order.extend(topological_sort(body_workflow))
+        except ValueError as exc:
+            errors.append(f"Cycle detected inside control body of '{control_id}': {exc}")
 
     # Check 4: Required inputs connected
     connected_inputs: dict[str, set[str]] = {nid: set() for nid in nodes}
@@ -232,6 +263,87 @@ def _spec_has_default(spec: Any) -> bool:
         if len(spec) >= 2 and isinstance(spec[1], dict):
             return "default" in spec[1]
     return False
+
+
+def _node_executes_loop_body(meta: Any) -> bool:
+    if isinstance(meta, dict):
+        return bool(meta.get("executes_loop_body"))
+    return bool(getattr(meta, "EXECUTES_LOOP_BODY", False))
+
+
+def _node_executes_try_catch_branches(meta: Any) -> bool:
+    if isinstance(meta, dict):
+        return bool(meta.get("executes_try_catch_branches"))
+    return bool(getattr(meta, "EXECUTES_TRY_CATCH_BRANCHES", False))
+
+
+def _loop_executor_nodes(
+    nodes: dict[str, Any],
+    registry_lookup: Any,
+) -> set[str]:
+    """IDs of nodes whose class re-runs a loop body (while/foreach/parallel_for)."""
+    executors: set[str] = set()
+    for node_id, node in nodes.items():
+        node_type = str(node.get("type", "") if isinstance(node, dict) else getattr(node, "type", ""))
+        if _node_executes_loop_body(registry_lookup(node_type)):
+            executors.add(node_id)
+    return executors
+
+
+def _control_bodies(
+    nodes: dict[str, Any],
+    edges: list[Any],
+    registry_lookup: Any,
+) -> dict[str, set[str]]:
+    """Map each control node to its body node IDs.
+
+    Mirrors the executor's discovery: loop bodies are downstream of the loop's
+    virtual ``iteration`` output; try/catch branches hang off its ``try`` and
+    ``catch`` outputs. Traversal stops at the control node itself, so feedback
+    edges (body -> control node) never pull the control node into its own body.
+    """
+    control_ports: dict[str, tuple[str, ...]] = {}
+    for node_id, node in nodes.items():
+        node_type = str(node.get("type", "") if isinstance(node, dict) else getattr(node, "type", ""))
+        meta = registry_lookup(node_type)
+        if _node_executes_loop_body(meta):
+            control_ports[node_id] = ("iteration",)
+        elif _node_executes_try_catch_branches(meta):
+            control_ports[node_id] = ("try", "catch")
+    bodies: dict[str, set[str]] = {}
+    for control_id, ports in control_ports.items():
+        body: set[str] = set()
+        queue: list[str] = []
+        for edge in edges:
+            if edge_source(edge) != control_id or edge_source_port(edge) not in ports:
+                continue
+            target = edge_target(edge)
+            if target in nodes and target != control_id and target not in body:
+                body.add(target)
+                queue.append(target)
+        while queue:
+            current = queue.pop()
+            for edge in edges:
+                if edge_source(edge) != current:
+                    continue
+                nxt = edge_target(edge)
+                if nxt in nodes and nxt != control_id and nxt not in body:
+                    body.add(nxt)
+                    queue.append(nxt)
+        bodies[control_id] = body
+    return bodies
+
+
+def _control_body_nodes(
+    nodes: dict[str, Any],
+    edges: list[Any],
+    registry_lookup: Any,
+) -> set[str]:
+    """Union of every control node's body nodes."""
+    union: set[str] = set()
+    for body in _control_bodies(nodes, edges, registry_lookup).values():
+        union.update(body)
+    return union
 
 
 def _saved_node_version(node: Any) -> str:

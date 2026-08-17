@@ -1857,8 +1857,8 @@ class _WhileLoopContract(FlowControlNode):
     CATEGORY = "flow_control"
     DESCRIPTION = "Repeat a loop body while a condition remains true, with a mandatory max-iteration limit."
     SEARCH_ALIASES = ["while", "until", "repeat", "convergence", "iterate"]
-    RETURN_TYPES = ("ANY", "INT", "BOOLEAN")
-    RETURN_NAMES = ("results", "iterations", "converged")
+    RETURN_TYPES = ("ANY", "ANY", "INT", "BOOLEAN")
+    RETURN_NAMES = ("iteration", "results", "iterations", "converged")
     REQUIRES_EXTERNAL_TOOLS = False
     ROUTES_FLOW = True
     EXECUTES_LOOP_BODY = True
@@ -2056,13 +2056,21 @@ class _WhileLoopContract(FlowControlNode):
         loop_state: dict[str, Any],
         inactive: list[str],
     ) -> dict[str, Any]:
+        # ``iteration`` mirrors foreach's declared body-driving output: the
+        # executor materialises it as the loop-carried value for body nodes
+        # (edges from while_loop.'iteration' define the body), so it is always
+        # declared but never carries a value from run() itself.
+        inactive_outputs = list(inactive)
+        if "iteration" not in inactive_outputs:
+            inactive_outputs.append("iteration")
         return {
             "outputs": {
+                "iteration": None,
                 "results": results,
                 "iterations": iterations,
                 "converged": converged,
             },
-            "inactive_outputs": inactive,
+            "inactive_outputs": inactive_outputs,
             "flow_control": {
                 "type": "while_loop",
                 "phase": phase,

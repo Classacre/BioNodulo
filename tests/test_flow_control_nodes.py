@@ -79,8 +79,8 @@ def test_flow_control_nodes_are_registered_for_frontend_discovery() -> None:
     assert info["parallel_for"]["output"] == ["ANY", "INT", "BOOLEAN", "ANY"]
     assert info["while_loop"]["display_name"] == "While Loop"
     assert info["while_loop"]["category"] == "flow_control"
-    assert info["while_loop"]["output_name"] == ["results", "iterations", "converged"]
-    assert info["while_loop"]["output"] == ["ANY", "INT", "BOOLEAN"]
+    assert info["while_loop"]["output_name"] == ["iteration", "results", "iterations", "converged"]
+    assert info["while_loop"]["output"] == ["ANY", "ANY", "INT", "BOOLEAN"]
 
     sleep_inputs = info["sleep"]["input"]
     assert set(sleep_inputs["required"]) == {"seconds"}
@@ -1562,8 +1562,8 @@ async def test_while_loop_initial_condition_false_converges_without_iteration(tm
 
     result = await node.run(condition_mode="file_not_exists", value=str(marker), max_iterations=5)
 
-    assert result["outputs"] == {"results": [], "iterations": 0, "converged": True}
-    assert result["inactive_outputs"] == []
+    assert result["outputs"] == {"iteration": None, "results": [], "iterations": 0, "converged": True}
+    assert result["inactive_outputs"] == ["iteration"]
     assert result["flow_control"]["phase"] == "completed"
     assert result["flow_control"]["is_complete"] is True
 
@@ -1574,8 +1574,8 @@ async def test_while_loop_initial_condition_true_requests_iteration() -> None:
 
     result = await node.run(condition_mode="numeric_less", value=1, compare_to="3", max_iterations=5)
 
-    assert result["outputs"] == {"results": [], "iterations": 0, "converged": False}
-    assert result["inactive_outputs"] == ["results", "iterations", "converged"]
+    assert result["outputs"] == {"iteration": None, "results": [], "iterations": 0, "converged": False}
+    assert result["inactive_outputs"] == ["results", "iterations", "converged", "iteration"]
     assert result["flow_control"]["phase"] == "iterating"
     assert result["flow_control"]["is_complete"] is False
     assert result["flow_control"]["loop_state"]["iteration"] == 0
@@ -1598,11 +1598,12 @@ async def test_while_loop_iteration_accumulates_result_and_converges() -> None:
     )
 
     assert result["outputs"] == {
+        "iteration": None,
         "results": [{"iteration": 1, "score": 4}],
         "iterations": 1,
         "converged": True,
     }
-    assert result["inactive_outputs"] == []
+    assert result["inactive_outputs"] == ["iteration"]
     assert result["flow_control"]["phase"] == "completed"
     assert result["flow_control"]["is_complete"] is True
 
@@ -1629,11 +1630,12 @@ async def test_while_loop_honors_check_frequency_between_condition_checks() -> N
     )
 
     assert first_iteration["outputs"] == {
+        "iteration": None,
         "results": [{"iteration": 1, "score": 4}],
         "iterations": 1,
         "converged": False,
     }
-    assert first_iteration["inactive_outputs"] == ["results", "iterations", "converged"]
+    assert first_iteration["inactive_outputs"] == ["results", "iterations", "converged", "iteration"]
     assert first_iteration["flow_control"]["phase"] == "iterating"
     assert first_iteration["flow_control"]["is_complete"] is False
 
@@ -1647,6 +1649,7 @@ async def test_while_loop_honors_check_frequency_between_condition_checks() -> N
     )
 
     assert second_iteration["outputs"] == {
+        "iteration": None,
         "results": [
             {"iteration": 1, "score": 4},
             {"iteration": 2, "score": 4},
@@ -1672,8 +1675,8 @@ async def test_while_loop_stops_at_max_iterations_without_convergence() -> None:
         _body_result="round-1",
     )
 
-    assert result["outputs"] == {"results": ["round-1"], "iterations": 1, "converged": False}
-    assert result["inactive_outputs"] == []
+    assert result["outputs"] == {"iteration": None, "results": ["round-1"], "iterations": 1, "converged": False}
+    assert result["inactive_outputs"] == ["iteration"]
     assert result["flow_control"]["phase"] == "max_iterations"
     assert result["flow_control"]["is_complete"] is True
 

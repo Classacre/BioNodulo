@@ -13,7 +13,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 
 - **Visual Node Editor** — Drag-and-drop canvas for building workflows with 800+ built-in bioinformatics nodes
 - **800+ Bioinformatics Nodes** — Covering QC, alignment, variant calling, assembly, RNA-Seq, metagenomics, phylogenetics, ChIP-Seq, single-cell analysis, BioPython integration, R scripting, and more
-- **22 Pre-built Templates** — FASTQ QC Pipeline, RNA-Seq Pipeline, Variant Calling Pipeline, WGS Variant Pipeline, Genome Assembly, Metagenomics Profiling, Phylogenetics Pipeline, ChIP-Seq Pipeline, Single Cell RNA-Seq, DESeq2 Differential Expression, Transcript Quantification, Biopython Analysis Pipeline, R Visualization Pipeline, ONT Long-Read Sequencing, Proteomics Sage-Percolator Search, Protein Structure Database Workflow, WGBS Methylation Profiling, CRISPR Editing and Screen Analysis, Pangenomics Graph QC and Visualization, Metabolomics LC-MS Workflow, Spatial Transcriptomics QC and Clustering, Synthetic Biology Design and Simulation
+- **23 Pre-built Templates** — FASTQ QC Pipeline, RNA-Seq Pipeline, Variant Calling Pipeline, WGS Variant Pipeline, Genome Assembly, Metagenomics Profiling, Phylogenetics Pipeline, ChIP-Seq Pipeline, Single Cell RNA-Seq, DESeq2 Differential Expression, Transcript Quantification, Biopython Analysis Pipeline, R Visualization Pipeline, ONT Long-Read Sequencing, Proteomics Sage-Percolator Search, Protein Structure Database Workflow, WGBS Methylation Profiling, CRISPR Editing and Screen Analysis, Pangenomics Graph QC and Visualization, Metabolomics LC-MS Workflow, Spatial Transcriptomics QC and Clustering, Synthetic Biology Design and Simulation, ROBUST Designer
 - **HPC Integration** — Submit workflows to SLURM, PBS/Torque, or SGE clusters with a single toggle
 - **Workflow Converters** — Import and export workflows between SnakeMake, NextFlow, CWL, Galaxy, and BioNodulo JSON formats
 - **Settings System** — Per-user settings with categories for appearance, canvas, execution, LLM, and files
@@ -162,7 +162,7 @@ bionodulo-v2/
 │   ├── provenance/            # Workflow embedding, reports
 │   └── ai/                    # AI assistant
 ├── custom_nodes/              # Your custom nodes
-├── templates/                 # 22 pre-built workflow templates
+├── templates/                 # 23 pre-built workflow templates
 ├── envs/                      # Generated per-workflow environments (ignored)
 ├── examples/workflows/        # Example workflows
 ├── cache/                     # Runtime cache
