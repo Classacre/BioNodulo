@@ -725,7 +725,8 @@
         "combine_strands": false,
         "with_header": true,
         "region": "",
-        "modified_bases": "6mA"
+        "modified_bases": "6mA",
+        "no_filtering": true
       },
       "ui": {
         "title": "Modkit Pileup"
