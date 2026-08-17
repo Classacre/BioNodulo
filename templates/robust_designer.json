@@ -866,6 +866,9 @@
       "continueOnFail": true,
       "ui": {
         "title": "LLM Design Critic (json_mode)"
+      },
+      "meta": {
+        "continue_on_fail": true
       }
     },
     {
@@ -1413,7 +1416,7 @@
   "groups": [
     {
       "id": "g1_target_context",
-      "name": "1 · Target & Context",
+      "name": "1 \u00b7 Target & Context",
       "position": [
         -600,
         -40
@@ -1425,7 +1428,7 @@
     },
     {
       "id": "g2_design_loop",
-      "name": "2 · Design Loop (GRPO-style)",
+      "name": "2 \u00b7 Design Loop (GRPO-style)",
       "position": [
         -600,
         1010
@@ -1437,7 +1440,7 @@
     },
     {
       "id": "g3_evaluator_ensemble",
-      "name": "3 · Evaluator Ensemble",
+      "name": "3 \u00b7 Evaluator Ensemble",
       "position": [
         -600,
         1710
@@ -1449,7 +1452,7 @@
     },
     {
       "id": "g4_drna_multiomics",
-      "name": "4 · Direct-RNA Multi-omics (Arm B)",
+      "name": "4 \u00b7 Direct-RNA Multi-omics (Arm B)",
       "position": [
         -600,
         3110
@@ -1461,7 +1464,7 @@
     },
     {
       "id": "g5_learn_export",
-      "name": "5 · Learn & Export",
+      "name": "5 \u00b7 Learn & Export",
       "position": [
         -600,
         4710
