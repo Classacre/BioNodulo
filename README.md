@@ -34,7 +34,7 @@ For an ephemeral notebook-based trial, launch the Colab notebook:
 
 [Open BioNodulo in Google Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb)
 
-The notebook checks out `origin/protobionodulo`, prints the active branch and commit with `git status -sb` and `git log -1 --oneline --decorate`, installs the backend dependencies, builds the web frontend, starts BioNodulo in the Colab runtime, and prints a temporary Cloudflare Tunnel URL while the launch cell keeps running.
+The notebook checks out `origin/main`, prints the active branch and commit with `git status -sb` and `git log -1 --oneline --decorate`, installs the backend dependencies, builds the web frontend, starts BioNodulo in the Colab runtime, and prints a temporary Cloudflare Tunnel URL while the launch cell keeps running.
 
 If Colab still shows an older BioNodulo version, restart or delete the Colab runtime and rerun the setup cell. The printed Git commit should match the latest `main` commit in this repository.
 
