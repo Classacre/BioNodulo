@@ -743,38 +743,11 @@
         "mod_codes": "a",
         "min_coverage": 1,
         "min_percent_modified": 10.0,
-        "percent_scale": "100"
+        "percent_scale": "100",
+        "synthetic_label": true
       },
       "ui": {
         "title": "bedMethyl Feature Builder"
-      }
-    },
-    {
-      "id": "drna_label",
-      "type": "Add_a_column1",
-      "position": [
-        220,
-        4140
-      ],
-      "params": {
-        "column_types": "str,str,float,float,float,float,float,float,float,float",
-        "auto_col_types": true,
-        "header_lines_select": "yes",
-        "avoid_scientific_notation": false,
-        "fail_on_non_existent_columns": true,
-        "non_computable_action": "--fail-on-non-computable",
-        "expressions": [
-          {
-            "cond": "2.0 + 3.0*c6 + 0.1*c8",
-            "mode": "",
-            "pos": "",
-            "new_column_name": "half_life_hours"
-          }
-        ]
-      },
-      "continueOnFail": true,
-      "ui": {
-        "title": "Synthetic Stability Label"
       }
     },
     {
@@ -785,7 +758,7 @@
         4380
       ],
       "params": {
-        "target_column": "half_life_hours",
+        "target_column": "label",
         "id_column": "transcript_id",
         "model": "ridge",
         "l2": 1.0,
@@ -1340,28 +1313,6 @@
       }
     },
     {
-      "id": "e_features_label",
-      "from": {
-        "node": "drna_features",
-        "output": "features"
-      },
-      "to": {
-        "node": "drna_label",
-        "input": "input"
-      }
-    },
-    {
-      "id": "e_label_train",
-      "from": {
-        "node": "drna_label",
-        "output": "out_file1"
-      },
-      "to": {
-        "node": "drna_train",
-        "input": "feature_table"
-      }
-    },
-    {
       "id": "e_features_join",
       "from": {
         "node": "drna_features",
@@ -1458,6 +1409,28 @@
       "to": {
         "node": "drna_modkit",
         "input": "bam_index"
+      }
+    },
+    {
+      "id": "e_features_train",
+      "from": {
+        "node": "drna_features",
+        "output": "features"
+      },
+      "to": {
+        "node": "drna_train",
+        "input": "feature_table"
+      }
+    },
+    {
+      "id": "e_features_join",
+      "from": {
+        "node": "drna_features",
+        "output": "features"
+      },
+      "to": {
+        "node": "join_features_predictions",
+        "input": "table_a"
       }
     }
   ],

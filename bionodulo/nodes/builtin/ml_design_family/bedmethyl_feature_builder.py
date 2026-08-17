@@ -84,6 +84,17 @@ class BedmethylFeatureBuilderNode(MLDesignNode):
                 "min_coverage": ("INT", {"default": 1, "min": 0, "max": 1000000000}),
                 "min_percent_modified": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 100.0}),
                 "percent_scale": ("STRING", {"default": "100", "options": ["100", "1000"]}),
+                "synthetic_label": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "description": (
+                            "Append a deterministic demo target column (label = 0.6*min(1,mean_coverage/50) "
+                            "+ 0.4*mean_mod_fraction) so predictor nodes can be exercised end-to-end; "
+                            "replace with measured half-life labels in real campaigns"
+                        ),
+                    },
+                ),
             },
             "hidden": {},
         }
@@ -156,10 +167,20 @@ class BedmethylFeatureBuilderNode(MLDesignNode):
                 }
             )
 
+        columns = list(FEATURE_COLUMNS)
+        if bool(kwargs.get("synthetic_label", False)):
+            columns.append("label")
+            for row in rows:
+                row["label"] = round(
+                    0.6 * min(1.0, float(row["mean_coverage"] or 0.0) / 50.0)
+                    + 0.4 * float(row["mean_mod_fraction"] or 0.0),
+                    6,
+                )
+
         output_dir = node_output_dir(self, context)
         tsv_path = output_dir / "features.tsv"
         json_path = output_dir / "summary.json"
-        write_tsv_file(tsv_path, FEATURE_COLUMNS, rows)
+        write_tsv_file(tsv_path, columns, rows)
         write_json_file(
             json_path,
             {
