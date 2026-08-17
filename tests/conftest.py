@@ -14,7 +14,9 @@ behaviour that cannot be meaningfully exercised on Windows.
 
 from __future__ import annotations
 
+import importlib.util
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -120,8 +122,19 @@ _WINDOWS_SKIP_TESTS = {
         "parametrized ID exceeds Windows env var length limit",
 }
 
+# Bulk inventory generated from a Windows full-suite run (see
+# tests/windows_skip_inventory.py header for the regeneration contract).
+_inv_path = Path(__file__).parent / "windows_skip_inventory.py"
+if _inv_path.is_file():
+    _spec = importlib.util.spec_from_file_location("windows_skip_inventory", _inv_path)
+    _inv = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_inv)
+    _WINDOWS_SKIP_MODULES.update(_inv.WINDOWS_SKIP_MODULES)
+    _WINDOWS_SKIP_TESTS.update(_inv.WINDOWS_SKIP_TESTS)
+
 
 # Modules to skip entirely when an optional import is unavailable (the
+
 # system `scripts` package can shadow the repo's scripts/ directory on some
 # Python installs, pulling in gguf → sentencepiece, which is not installed).
 try:
