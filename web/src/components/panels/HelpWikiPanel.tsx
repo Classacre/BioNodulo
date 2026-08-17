@@ -161,7 +161,7 @@ function highlightQuery(text: string, query: string): string {
   // regex wraps the escaped form's match.
   const escaped = escapeHtml(text);
   if (!query.trim()) return escaped;
-  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\]/g, '\$&')})`, 'gi');
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   return escaped.replace(re, '<mark class="bg-primary/30 rounded px-0.5">$1</mark>');
 }
 
