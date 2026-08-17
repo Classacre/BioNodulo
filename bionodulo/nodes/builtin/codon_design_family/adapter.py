@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any, ClassVar
 
-from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.base import BaseNode, path_probe_is_file
 
 
 CODON_USAGE_SOURCE = (
@@ -144,7 +144,7 @@ def validate_sequence_literal(
     text = str(value or "")
     if not text.strip():
         return f"Input '{key}' must be a non-empty sequence or file path"
-    if Path(text).is_file() or text.startswith((">", ";")):
+    if path_probe_is_file(text) or text.startswith((">", ";")):
         return True
     sequence = "".join(text.split()).upper()
     if alphabet is DNA_ALPHABET:

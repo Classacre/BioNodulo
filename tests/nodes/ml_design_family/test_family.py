@@ -693,3 +693,23 @@ async def test_predictor_rejects_missing_columns_and_params_out_of_bounds(tmp_pa
     trimmed.write_text("id\tf1\nr0\t1.0\n", encoding="utf-8")
     with pytest.raises(ValueError, match="missing 1 model feature column"):
         await SimplePredictorScoreNode().run(model=model, feature_table=trimmed, context=context)
+
+
+def test_path_or_inline_probes_survive_long_inline_payloads() -> None:
+    from bionodulo.nodes.builtin.ml_design_family.adapter import load_json_or_table, read_sequence_text
+
+    huge_json = json.dumps({"cds": "ATG" * 600})
+    payload, table = load_json_or_table(huge_json, "candidates")
+    assert table is None and payload["cds"].startswith("ATG")
+    cds = "ATG" * 600
+    assert read_sequence_text(cds, "cds") == cds
+
+
+def test_rna_structure_validate_accepts_long_inline_sequence() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    node = registry.get("rnafold_mfe")
+    assert node is not None
+    long_sequence = "A" * 5000
+    result = node.VALIDATE_INPUTS({"sequence": long_sequence})
+    assert result is True

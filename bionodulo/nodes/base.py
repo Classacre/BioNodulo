@@ -11,6 +11,22 @@ from typing import Any, ClassVar, Optional, Union
 from bionodulo.nodes.types import file_extension_for
 
 
+def path_probe_is_file(value: object) -> bool:
+    """Probe whether a value is an existing file without raising.
+
+    Path-or-inline inputs carry arbitrary payloads (sequences, JSON blobs);
+    ``Path(x).is_file()`` raises ENAMETOOLONG on Linux for long inline
+    strings, so every probe must go through this guard.
+    """
+    text = str(value) if value is not None else ""
+    if not text or len(text) > 4096 or "\n" in text:
+        return False
+    try:
+        return Path(text).expanduser().is_file()
+    except OSError:
+        return False
+
+
 class BaseNode(abc.ABC):
     """Abstract base class for all BioNodulo workflow nodes."""
 

@@ -7,6 +7,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, ClassVar
 
+from bionodulo.nodes.base import path_probe_is_file
 from bionodulo.nodes.command_node import CommandNode
 
 
@@ -252,7 +253,7 @@ class RNAStructureCommandNode(CommandNode):
             return f"Provide exactly one of '{names}'"
         for key in provided:
             value = inputs.get(key)
-            if Path(str(value)).is_file():
+            if path_probe_is_file(value):
                 continue
             validation = validate_sequence_string(value, key)
             if validation is not True:
@@ -268,7 +269,7 @@ class RNAStructureCommandNode(CommandNode):
                 continue
             text = str(value)
             source = Path(text)
-            if source.is_file():
+            if path_probe_is_file(text):
                 return str(source), source.read_text(encoding="utf-8")
             sequence = normalize_sequence(text)
             validation = validate_sequence_string(text, key)
@@ -286,7 +287,7 @@ class RNAStructureCommandNode(CommandNode):
             return Path(str(staged))
         for key in cls.REQUIRED_SEQUENCE_INPUTS:
             value = inputs.get(key)
-            if value not in (None, "") and Path(str(value)).is_file():
+            if value not in (None, "") and path_probe_is_file(value):
                 return Path(str(value))
         output = str(inputs.get("output", inputs.get("output_dir", ".")))
         return Path(output) / cls.NODE_ID / STAGING_FILENAME

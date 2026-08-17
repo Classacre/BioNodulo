@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 from typing import Any, ClassVar
 
-from bionodulo.nodes.base import BaseNode
+from bionodulo.nodes.base import BaseNode, path_probe_is_file
 
 PYTHON_VERSION = "3.12"
 STRATEGIES = ("synonymous_uniform", "synonymous_weighted", "gc_jitter")
@@ -70,7 +70,7 @@ def existing_file(value: Any, key: str) -> Path:
     if not text:
         raise ValueError(f"Input '{key}' must be a non-empty path-like value")
     resolved = Path(text).expanduser()
-    if not resolved.is_file():
+    if not path_probe_is_file(text):
         raise ValueError(f"Input file does not exist: {resolved}")
     return resolved
 
@@ -80,7 +80,7 @@ def read_sequence_text(value: Any, key: str) -> str:
     if not text:
         return ""
     candidate = Path(text).expanduser()
-    if candidate.is_file():
+    if path_probe_is_file(text):
         text = candidate.read_text(encoding="utf-8")
     return re.sub(r"\s+", "", re.sub(r"^>.*$", "", text, flags=re.MULTILINE)).upper()
 
@@ -117,7 +117,7 @@ def load_json_or_table(value: Any, key: str) -> tuple[Any, tuple[list[str], list
     if not text:
         return None, None
     candidate = Path(text).expanduser()
-    if candidate.is_file():
+    if path_probe_is_file(text):
         content = candidate.read_text(encoding="utf-8").lstrip()
         if content.startswith(("{", "[")):
             try:
@@ -136,7 +136,7 @@ def load_json_payload(value: Any, key: str) -> Any:
     if not text:
         return None
     candidate = Path(text).expanduser()
-    if candidate.is_file():
+    if path_probe_is_file(text):
         try:
             return json.loads(candidate.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
