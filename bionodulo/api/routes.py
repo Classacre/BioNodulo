@@ -1694,7 +1694,7 @@ def _sync_s3_get(tid: str, url: str, save_path: Path) -> None:
     info = _CLOUD_TRANSFERS[tid]
     try:
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        with httpx.Client(timeout=None, follow_redirects=True) as client:
+        with httpx.Client(timeout=None, follow_redirects=False) as client:
             with client.stream("GET", url) as resp:
                 if resp.status_code // 100 != 2:
                     info["status"] = "error"
@@ -1961,7 +1961,7 @@ def _validate_clerk_url(url: str) -> None:
     ok = p.scheme == "https" and (
         host.endswith(".clerk.accounts.dev")
         or host.endswith(".clerk.com")
-        or host.startswith("clerk.")  # custom prod FAPI, e.g. clerk.bionodulo.com
+        or host.endswith(".clerk.com") or host.endswith(".clerk.accounts.dev")  # custom prod FAPI, e.g. clerk.bionodulo.com
     )
     if not ok:
         raise HTTPException(status_code=400, detail="URL is not a Clerk endpoint")

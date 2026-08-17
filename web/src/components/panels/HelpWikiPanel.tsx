@@ -155,9 +155,14 @@ function stripHtml(html: string): string {
 }
 
 function highlightQuery(text: string, query: string): string {
-  if (!query.trim()) return text;
-  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  return text.replace(re, '<mark style="background:#fde047;color:#000;padding:0 2px;border-radius:2px;">$1</mark>');
+  // SECURITY: escape the text before wrapping matches in <mark> — the raw
+  // text can carry HTML from node-registry metadata (display_name, snippet),
+  // and injecting it unescaped is a stored XSS sink. Escape first, then the
+  // regex wraps the escaped form's match.
+  const escaped = escapeHtml(text);
+  if (!query.trim()) return escaped;
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\]/g, '\$&')})`, 'gi');
+  return escaped.replace(re, '<mark class="bg-primary/30 rounded px-0.5">$1</mark>');
 }
 
 function nodeSearchText(meta: NodeMetadata): string {

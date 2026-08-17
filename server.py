@@ -62,7 +62,15 @@ class ProxyPrefixMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] in {"http", "websocket"}:
+        if scope["type"] in {"http", "websocket",
+    "/api/manager/ensure-workflow-env",
+    "/api/manager/create-workflow-env",
+    "/api/manager/environments",
+    "/api/host_status/install-pixi",
+    "/api/workspace/root",
+    "/api/workspace/cloud-download",
+    "/api/workspace/cloud-upload",
+}:
             path = str(scope.get("path", ""))
             normalised = self._normalise_path(path)
             if normalised != path:
@@ -143,10 +151,17 @@ _EDITOR_FORBIDDEN_PREFIXES = (
     "/api/workspace/upload",
     "/api/workspace/delete",
     "/api/workspace/file-operation",
+    "/api/workspace/root",
+    "/api/workspace/cloud-download",
+    "/api/workspace/cloud-upload",
     "/api/manager/reload",
     "/api/manager/install-git",
     "/api/manager/update",
     "/api/manager/remove",
+    "/api/manager/ensure-workflow-env",
+    "/api/manager/create-workflow-env",
+    "/api/manager/environments",
+    "/api/host_status/install-pixi",
     "/api/cache/clear",
     "/api/hpc",
 )
@@ -177,7 +192,15 @@ class EditorLockdownMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] in {"http", "websocket"} and _is_editor_forbidden(
+        if scope["type"] in {"http", "websocket",
+    "/api/manager/ensure-workflow-env",
+    "/api/manager/create-workflow-env",
+    "/api/manager/environments",
+    "/api/host_status/install-pixi",
+    "/api/workspace/root",
+    "/api/workspace/cloud-download",
+    "/api/workspace/cloud-upload",
+} and _is_editor_forbidden(
             str(scope.get("path", ""))
         ):
             if scope["type"] == "websocket":
