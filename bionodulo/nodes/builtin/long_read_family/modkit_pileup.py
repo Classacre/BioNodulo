@@ -40,11 +40,11 @@ class ModkitPileupNode(LongReadCommandNode):
     REQUIRED_PATH_INPUTS = ("bam", "bam_index")
     REQUIRED_EXECUTABLES = ["modkit"]
     REQUIRED_CONDA_PACKAGES = ["ont-modkit"]
-    PACKAGE_CONSTRAINT = "ont-modkit = 0.4.3"
-    VERSION = "0.4.3"
+    PACKAGE_CONSTRAINT = "ont-modkit = 0.6.4"
+    VERSION = "0.6.4"
     GIT_URL = "https://github.com/nanoporetech/modkit.git"
-    GIT_COMMIT = "d13b97db2d221afc4a1db3616a7eccdc6858a313"
-    SOURCE_TAG = "v0.4.3"
+    GIT_COMMIT = "cd85862f71d3bfc289f12adc1052a2e574c95e0f"
+    SOURCE_TAG = "v0.6.4"
     DOCUMENTATION_URL = "https://nanoporetech.github.io/modkit/intro_pileup.html"
     UPSTREAM_SOURCE = "src/pileup/subcommand.rs; src/fasta.rs; src/bin/main.rs"
     SOURCE_AUTHORITIES = {
@@ -183,6 +183,7 @@ class ModkitPileupNode(LongReadCommandNode):
             inputs,
             "modkit",
             "pileup",
+            "--high-depth",
             str(inputs["bam"]),
             f"{output}/bedmethyl.bed",
             "--threads",

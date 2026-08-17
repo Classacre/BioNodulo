@@ -36,7 +36,7 @@ def test_pinned_source_authorities_and_direct_argv_metadata() -> None:
     assert DoradoBasecallerNode.PACKAGE_CONSTRAINT.startswith("official Dorado 0.9.6 binary")
     assert DoradoBasecallerNode.REQUIRED_CONDA_PACKAGES == []
     assert DoradoBasecallerNode.LINUX_X64_BINARY_URL.endswith("dorado-0.9.6-linux-x64.tar.gz")
-    assert ModkitPileupNode.GIT_COMMIT == "d13b97db2d221afc4a1db3616a7eccdc6858a313"
+    assert ModkitPileupNode.GIT_COMMIT == "cd85862f71d3bfc289f12adc1052a2e574c95e0f"
     assert ModkitPileupNode.REQUIRED_CONDA_PACKAGES == ["ont-modkit"]
     assert NanoPlotQCNode.SOURCE_SHA256 == ("c9d6b3c807d46fb3eb293bc826a94b699d17f50fb7fd0dcc3f17f56b0cee8e57")
     assert {node.NODE_ID for node in FAMILY} == {
@@ -496,6 +496,7 @@ def test_modkit_pileup_renders_indexed_cpg_bedmethyl_argv() -> None:
     assert command == [
         "modkit",
         "pileup",
+        "--high-depth",
         "/data/calls.sorted.bam",
         "/tmp/run/modkit_pileup/bedmethyl.bed",
         "--threads",
