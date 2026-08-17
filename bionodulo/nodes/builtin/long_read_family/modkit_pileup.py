@@ -98,7 +98,7 @@ class ModkitPileupNode(LongReadCommandNode):
                         "default": "",
                         "description": (
                             "Comma-separated modified-base codes passed to --modified-bases "
-                            "(e.g. 'm' for 5mC, 'a' for m6A). Empty omits the flag; non-5mC "
+                            "(long names: '5mC', '6mA', 'pseU'. Empty omits the flag; non-5mC "
                             "mods are only reported when declared"
                         ),
                     },

@@ -333,11 +333,11 @@ def test_modkit_pileup_declares_modified_base_codes() -> None:
             "bam": "/inputs/sample.bam",
             "bam_index": "/inputs/sample.bam.bai",
             "threads": 4,
-            "modified_bases": "a",
+            "modified_bases": "6mA",
             "with_header": True,
         }
     )
-    assert argv[argv.index("--modified-bases") + 1] == "a"
+    assert argv[argv.index("--modified-bases") + 1] == "6mA"
     assert "--high-depth" in argv
     argv_default = node.render_command(
         {"bam": "/inputs/sample.bam", "bam_index": "/inputs/sample.bam.bai"}
