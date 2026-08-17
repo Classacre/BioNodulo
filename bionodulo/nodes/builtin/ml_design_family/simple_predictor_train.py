@@ -51,6 +51,17 @@ class SimplePredictorTrainNode(MLDesignNode):
             "required": {
                 "feature_table": ("FILE", {"description": "Headered CSV/TSV with id, numeric features, and target columns"}),
                 "target_column": ("STRING", {"description": "Column predicted by the model"}),
+                "feature_columns": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "description": (
+                            "Comma/newline-separated allowlist of numeric feature columns; empty uses "
+                            "every non-id, non-target column (all of which must be numeric)"
+                        ),
+                    },
+                ),
             },
             "optional": {
                 "id_column": ("STRING", {"default": "id"}),
@@ -107,7 +118,16 @@ class SimplePredictorTrainNode(MLDesignNode):
         for column in (id_column, target_column):
             if column not in fieldnames:
                 raise ValueError(f"Input 'feature_table' header must contain a '{column}' column")
-        feature_columns = [name for name in fieldnames if name not in (id_column, target_column)]
+        allowed = [
+            token.strip()
+            for token in str(kwargs.get("feature_columns", "") or "").replace("\n", ",").split(",")
+            if token.strip()
+        ]
+        feature_columns = [
+            name
+            for name in fieldnames
+            if name not in (id_column, target_column) and (not allowed or name in allowed)
+        ]
         if not feature_columns:
             raise ValueError("Input 'feature_table' must contain at least one feature column")
 

@@ -763,7 +763,8 @@
         "model": "ridge",
         "l2": 1.0,
         "val_fraction": 0.2,
-        "seed": 0
+        "seed": 0,
+        "feature_columns": "n_sites,n_covered_sites,n_mod_sites,mean_mod_fraction,mod_sites_per_kb,mean_coverage,length_bp"
       },
       "continueOnFail": true,
       "ui": {
