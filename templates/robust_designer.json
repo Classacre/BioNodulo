@@ -916,6 +916,30 @@
       "ui": {
         "title": "Checkpoint Loop Results"
       }
+    },
+    {
+      "id": "drna_mod_sort",
+      "type": "samtools_sort",
+      "position": [
+        520,
+        4140
+      ],
+      "params": {},
+      "ui": {
+        "title": "Sort dorado modBAM"
+      }
+    },
+    {
+      "id": "drna_mod_index",
+      "type": "samtools_index",
+      "position": [
+        750,
+        4140
+      ],
+      "params": {},
+      "ui": {
+        "title": "Index dorado modBAM"
+      }
     }
   ],
   "edges": [
@@ -1283,28 +1307,6 @@
       }
     },
     {
-      "id": "e_sort_modkit",
-      "from": {
-        "node": "drna_index",
-        "output": "indexed_bam"
-      },
-      "to": {
-        "node": "drna_modkit",
-        "input": "bam"
-      }
-    },
-    {
-      "id": "e_index_modkit",
-      "from": {
-        "node": "drna_index",
-        "output": "bai"
-      },
-      "to": {
-        "node": "drna_modkit",
-        "input": "bam_index"
-      }
-    },
-    {
       "id": "e_sidecars_modkit_ref",
       "from": {
         "node": "drna_ref_sidecars",
@@ -1412,6 +1414,50 @@
       "to": {
         "node": "evo2_score",
         "input": "sequence"
+      }
+    },
+    {
+      "id": "e_dorado_modsort",
+      "from": {
+        "node": "drna_dorado",
+        "output": "basecalled_bam"
+      },
+      "to": {
+        "node": "drna_mod_sort",
+        "input": "alignment"
+      }
+    },
+    {
+      "id": "e_modsort_modidx",
+      "from": {
+        "node": "drna_mod_sort",
+        "output": "sorted_bam"
+      },
+      "to": {
+        "node": "drna_mod_index",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e_modidx_modkit_bam",
+      "from": {
+        "node": "drna_mod_index",
+        "output": "indexed_bam"
+      },
+      "to": {
+        "node": "drna_modkit",
+        "input": "bam"
+      }
+    },
+    {
+      "id": "e_modidx_modkit_bai",
+      "from": {
+        "node": "drna_mod_index",
+        "output": "bai"
+      },
+      "to": {
+        "node": "drna_modkit",
+        "input": "bam_index"
       }
     }
   ],
