@@ -92,6 +92,17 @@ class ModkitPileupNode(LongReadCommandNode):
                     {"default": 0.1, "min": 0.0, "max": 1.0},
                 ),
                 "with_header": ("BOOLEAN", {"default": False}),
+                "modified_bases": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": (
+                            "Comma-separated modified-base codes passed to --modified-bases "
+                            "(e.g. 'm' for 5mC, 'a' for m6A). Empty omits the flag; non-5mC "
+                            "mods are only reported when declared"
+                        ),
+                    },
+                ),
             },
             "hidden": {"output": ("STRING", {})},
         }
@@ -198,4 +209,7 @@ class ModkitPileupNode(LongReadCommandNode):
             command.append("--combine-strands")
         if option_value(inputs, "with_header", False):
             command.append("--header")
+        modified_bases = str(option_value(inputs, "modified_bases", "") or "").strip()
+        if modified_bases:
+            command.extend(["--modified-bases", *modified_bases.replace(" ", "").split(",")])
         return command

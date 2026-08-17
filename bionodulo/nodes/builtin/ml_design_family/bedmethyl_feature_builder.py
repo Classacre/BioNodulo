@@ -42,7 +42,7 @@ class BedmethylFeatureBuilderNode(MLDesignNode):
         "transcript BED (chrom, tx_start, tx_end, transcript_id[, biotype]); without it "
         "sites group by chromosome and length_bp is the grouped site span. mod_codes "
         "filters the raw 4th-column values (modkit single-letter/ChEBI codes; 'm,CG,0' "
-        "matches code 'm', aliases m6A/5mC map to 'm'). percent_scale selects the modkit "
+        "matches code 'm'; modBAM short codes: 'm'=5mC, 'a'=m6A, so filter m6A sites with mod_codes 'a'). percent_scale selects the modkit "
         "0-100 percent convention or the bedMethyl 0-1000 score convention."
     )
     SEARCH_ALIASES = [

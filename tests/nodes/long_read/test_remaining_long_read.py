@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from bionodulo.nodes.registry import NodeRegistry
+
 from bionodulo.nodes.builtin.long_read_family import (
     DoradoCorrectNode,
     DoradoDuplexNode,
@@ -319,3 +321,24 @@ async def test_medaka_consensus_checks_the_documented_consensus_fasta(tmp_path: 
     expected = tmp_path / "medaka_consensus" / "consensus.fasta"
     assert expected.read_text(encoding="ascii") == ">draft\nACGT\n"
     assert result == (str(expected),)
+
+
+def test_modkit_pileup_declares_modified_base_codes() -> None:
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    node = registry.get("modkit_pileup")
+    assert node is not None
+    argv = node.render_command(
+        {
+            "bam": "/inputs/sample.bam",
+            "bam_index": "/inputs/sample.bam.bai",
+            "threads": 4,
+            "modified_bases": "a",
+            "with_header": True,
+        }
+    )
+    assert argv[argv.index("--modified-bases") + 1] == "a"
+    argv_default = node.render_command(
+        {"bam": "/inputs/sample.bam", "bam_index": "/inputs/sample.bam.bai"}
+    )
+    assert "--modified-bases" not in argv_default
