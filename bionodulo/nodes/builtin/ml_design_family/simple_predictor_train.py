@@ -51,6 +51,8 @@ class SimplePredictorTrainNode(MLDesignNode):
             "required": {
                 "feature_table": ("FILE", {"description": "Headered CSV/TSV with id, numeric features, and target columns"}),
                 "target_column": ("STRING", {"description": "Column predicted by the model"}),
+            },
+            "optional": {
                 "feature_columns": (
                     "STRING",
                     {
@@ -62,8 +64,6 @@ class SimplePredictorTrainNode(MLDesignNode):
                         ),
                     },
                 ),
-            },
-            "optional": {
                 "id_column": ("STRING", {"default": "id"}),
                 "model": ("STRING", {"default": "ridge", "options": list(MODELS)}),
                 "n_stumps": ("INT", {"default": 50, "min": 1, "max": 200}),
