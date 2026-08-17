@@ -2862,7 +2862,7 @@ class MyToolNode(CommandNode):
       parseFormat: 'No se pudo analizar el flujo de trabajo. Asegurate de que el formato sea correcto.',
       parse: 'No se pudo analizar el flujo de trabajo.',
       noPngWorkflowTitle: 'No se encontro ningun flujo de trabajo',
-      noPngWorkflowMessage: 'Este PNG no contiene un fragmento tEXt de flujo de trabajo de BioNodulo. Exporta con la opcion "PNG (flujo de trabajo incrustado)" para generar uno.',
+      noPngWorkflowMessage: 'Este PNG no contiene un fragmento tEXt de flujo de trabajo de BioNodulo. Exporta con la opcion "PNG / JSON" para generar uno.',
       pngReadFailedTitle: 'No se pudo leer el PNG',
       pngReadFailedMessage: 'No se pudo leer el PNG del flujo de trabajo. Exporta el flujo de trabajo de nuevo o importa el archivo JSON.',
     },
@@ -2870,12 +2870,12 @@ class MyToolNode(CommandNode):
   exportModal: {
     title: 'Exportar flujo de trabajo',
     formats: {
-      png: 'PNG (flujo de trabajo incrustado)',
-      json: 'JSON de BioNodulo',
+      png: 'PNG / JSON',
       snakemake: 'SnakeMake',
       nextflow: 'NextFlow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
+      references: 'Referencias',
     },
     pngHelp: 'El PNG lleva el JSON completo del flujo de trabajo en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.',
     transparentBackground: 'Fondo transparente',
@@ -2893,6 +2893,13 @@ class MyToolNode(CommandNode):
     regenerate: 'Regenerar',
     converterFallbackTitle: 'Exportacion {{format}}',
     converterFallbackMessage: 'El conversor del backend no esta disponible ({{status}})',
+    references: {
+      formatRis: 'RIS',
+      formatBibtex: 'BibTeX',
+      formatCsv: 'CSV',
+      description: 'Reune las citas asociadas a los nodos de este flujo de trabajo en un archivo de bibliografia.',
+      empty: 'No se encontraron referencias: ningun nodo de este flujo de trabajo declara metadatos de citacion.',
+    },
   },
   htmlPreview: {
     downloadHtml: 'Descargar HTML',

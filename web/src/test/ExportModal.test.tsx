@@ -114,8 +114,9 @@ describe('ExportModal i18n', () => {
     expect(screen.getByText('Exportar flujo de trabajo')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'Exportar workflow' })).not.toBeInTheDocument();
     expect(screen.queryByText('Exportar workflow')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'PNG (flujo de trabajo incrustado)' })).toHaveClass('active');
-    expect(screen.queryByRole('button', { name: 'PNG (workflow incrustado)' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'PNG / JSON' })).toHaveClass('active');
+    expect(screen.queryByRole('button', { name: 'PNG (flujo de trabajo incrustado)' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'JSON de BioNodulo' })).not.toBeInTheDocument();
     expect(screen.getByText('El PNG lleva el JSON completo del flujo de trabajo en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.')).toBeInTheDocument();
     expect(screen.queryByText('El PNG lleva el JSON completo del workflow en un fragmento tEXt; arrastralo de vuelta al lienzo para restaurar el grafo.')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Fondo transparente')).toBeInTheDocument();
@@ -128,14 +129,13 @@ describe('ExportModal i18n', () => {
     await waitFor(() => expect(screen.getByRole('img', { name: 'Vista previa de miniatura del flujo de trabajo' })).toBeInTheDocument());
     expect(screen.queryByRole('img', { name: 'Vista previa de miniatura del workflow' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'JSON de BioNodulo' }));
-    expect(screen.getByRole('button', { name: 'Generar' })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Generar' }));
+    fireEvent.click(screen.getByLabelText('Solo JSON (omitir contenedor PNG)'));
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument());
     expect(screen.getByRole('button', { name: 'Copiar al portapapeles' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Regenerar' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Vista previa de miniatura del flujo de trabajo' })).not.toBeInTheDocument();
+    expect(apiMocks.apiPost).not.toHaveBeenCalled();
   });
 
   it('uses the active locale for unnamed workflow download filenames', async () => {
@@ -146,8 +146,7 @@ describe('ExportModal i18n', () => {
 
     render(<ExportModal workflow={workflow({ name: '' })} onClose={() => undefined} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'JSON de BioNodulo' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Generar' }));
+    fireEvent.click(screen.getByLabelText('Solo JSON (omitir contenedor PNG)'));
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument());
 
@@ -156,7 +155,7 @@ describe('ExportModal i18n', () => {
     expect(utilsMocks.saveToFile).toHaveBeenCalledWith(
       expect.stringContaining('"version": "2.0"'),
       'workflow-sin-titulo.json',
-      'text/plain',
+      'application/json',
     );
   });
 
@@ -220,6 +219,80 @@ describe('ExportModal i18n', () => {
     expect(await screen.findByText('No se pudieron incrustar los metadatos del flujo de trabajo en el PNG')).toBeInTheDocument();
     expect(screen.queryByText('metadata write failed')).not.toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('exportModal.downloadPng', downloadError);
+  });
+
+  it('renders the references tab and generates RIS automatically on open', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    const risContent = 'TY  - JOUR\nTI  - A genome-scan method\nER  - \n';
+    apiMocks.apiPost.mockResolvedValueOnce({ format: 'ris', content: risContent });
+
+    render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'References' }));
+
+    await waitFor(() => expect(apiMocks.apiPost).toHaveBeenCalledWith('/workflow/export', {
+      workflow: expect.objectContaining({ name: 'Export example' }),
+      format: 'ris',
+    }));
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(risContent));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+
+    expect(utilsMocks.saveToFile).toHaveBeenCalledWith(
+      risContent,
+      'Export example.ris',
+      'application/x-research-info-systems',
+    );
+  });
+
+  it('regenerates references when the sub-format switches', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    apiMocks.apiPost
+      .mockResolvedValueOnce({ format: 'ris', content: 'TY  - JOUR\n' })
+      .mockResolvedValueOnce({ format: 'bibtex', content: '@misc{bionodulo_ab12cd34,\n}' })
+      .mockResolvedValueOnce({ format: 'csv', content: 'node_id\n' });
+
+    render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'References' }));
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('TY  - JOUR\n'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'BibTeX' }));
+    await waitFor(() => expect(apiMocks.apiPost).toHaveBeenCalledWith('/workflow/export', {
+      workflow: expect.anything(),
+      format: 'bibtex',
+    }));
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('@misc{bionodulo_ab12cd34,\n}'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }));
+    await waitFor(() => expect(apiMocks.apiPost).toHaveBeenCalledWith('/workflow/export', {
+      workflow: expect.anything(),
+      format: 'csv',
+    }));
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('node_id\n'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+
+    expect(utilsMocks.saveToFile).toHaveBeenCalledWith(
+      'node_id\n',
+      'Export example.csv',
+      'text/csv',
+    );
+  });
+
+  it('shows a friendly empty state when the references export has no content', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    apiMocks.apiPost.mockResolvedValueOnce({ format: 'ris', content: '' });
+
+    render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'References' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('No references found: none of the nodes in this workflow declares citation metadata.')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
   it('keeps ExportModal on the shared Dialog primitive', () => {

@@ -4,12 +4,14 @@ from bionodulo.converter.nextflow_converter import (
     export_to_nextflow,
     import_from_nextflow,
 )
+from bionodulo.converter.references import export_references
 from bionodulo.converter.snakemake_converter import (
     export_to_snakemake,
     import_from_snakemake,
 )
 
 __all__ = [
+    "export_references",
     "export_to_cwl",
     "export_to_galaxy",
     "export_to_nextflow",

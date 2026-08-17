@@ -216,7 +216,7 @@ describe('ImportModal i18n', () => {
 
     await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith({
       title: 'No se encontro ningun flujo de trabajo',
-      message: 'Este PNG no contiene un fragmento tEXt de flujo de trabajo de BioNodulo. Exporta con la opcion "PNG (flujo de trabajo incrustado)" para generar uno.',
+      message: 'Este PNG no contiene un fragmento tEXt de flujo de trabajo de BioNodulo. Exporta con la opcion "PNG / JSON" para generar uno.',
     }));
     expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith(expect.objectContaining({
       title: 'No se encontro ningun workflow',

@@ -2793,13 +2793,14 @@ async def workflow_extract(request: Request, body: WorkflowExtractRequest) -> di
 
 @router.post("/workflow/export")
 async def workflow_export(request: Request, body: WorkflowExportRequest) -> Any:
-    """Export a workflow to various formats (snakemake, nextflow, cwl, galaxy)."""
+    """Export a workflow to various formats (snakemake, nextflow, cwl, galaxy, ris, bibtex, csv)."""
     try:
         content = await asyncio.to_thread(
             export_workflow,
             workflow=body.workflow,
             fmt=body.format,
             name=body.name,
+            registry=_get_registry(request),
         )
         return {"format": body.format, "content": content, "filename": f"{body.name}.{body.format}"}
     except ValueError as exc:

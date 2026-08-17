@@ -1,6 +1,8 @@
-"""Workflow export to various pipeline formats.
+"""
+Workflow export to various pipeline formats.
 
-Delegates to converter modules for SnakeMake, NextFlow, CWL, and Galaxy.
+Delegates to converter modules for SnakeMake, NextFlow, CWL, Galaxy, and
+bibliography formats (RIS / BibTeX / CSV) built from node citations.
 """
 
 from __future__ import annotations
@@ -12,13 +14,17 @@ def export_workflow(
     workflow: dict[str, Any],
     fmt: str,
     name: str = "workflow",
+    registry: Any = None,
 ) -> str:
     """Export a workflow to the specified format.
 
     Args:
         workflow: Workflow dictionary to export.
-        fmt: Target format - "snakemake", "nextflow", "cwl", "galaxy", or "json".
+        fmt: Target format - "snakemake", "nextflow", "cwl", "galaxy", "json",
+            "ris", "bibtex", or "csv".
         name: Base name for the output file.
+        registry: Node registry used to resolve citation metadata for the
+            reference formats (ris/bibtex/csv).
 
     Returns:
         String content of the exported workflow.
@@ -32,6 +38,10 @@ def export_workflow(
     if fmt == "json":
         import json as _json
         return _json.dumps(workflow, indent=2, ensure_ascii=False, default=str)
+
+    if fmt in {"ris", "bibtex", "csv"}:
+        from bionodulo.converter.references import export_references
+        return export_references(workflow, registry, fmt)
 
     if fmt == "snakemake":
         try:
@@ -64,7 +74,7 @@ def export_workflow(
 
     raise ValueError(
         f"Unsupported export format: '{fmt}'. "
-        f"Supported: snakemake, nextflow, cwl, galaxy, json"
+        f"Supported: snakemake, nextflow, cwl, galaxy, json, ris, bibtex, csv"
     )
 
 

@@ -13,15 +13,22 @@ interface ExportModalProps {
   onClose: () => void;
 }
 
-type ExportFormat = 'png' | 'json' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy';
+type ExportFormat = 'png' | 'snakemake' | 'nextflow' | 'cwl' | 'galaxy' | 'references';
+type ReferenceFormat = 'ris' | 'bibtex' | 'csv';
 
 const FORMATS: { id: ExportFormat; labelKey: string; ext: string }[] = [
   { id: 'png', labelKey: 'exportModal.formats.png', ext: '.png' },
-  { id: 'json', labelKey: 'exportModal.formats.json', ext: '.json' },
   { id: 'snakemake', labelKey: 'exportModal.formats.snakemake', ext: '.smk' },
   { id: 'nextflow', labelKey: 'exportModal.formats.nextflow', ext: '.nf' },
   { id: 'cwl', labelKey: 'exportModal.formats.cwl', ext: '.cwl' },
   { id: 'galaxy', labelKey: 'exportModal.formats.galaxy', ext: '.ga' },
+  { id: 'references', labelKey: 'exportModal.formats.references', ext: '.ris' },
+];
+
+const REFERENCE_FORMATS: { id: ReferenceFormat; labelKey: string; ext: string; mime: string }[] = [
+  { id: 'ris', labelKey: 'exportModal.references.formatRis', ext: '.ris', mime: 'application/x-research-info-systems' },
+  { id: 'bibtex', labelKey: 'exportModal.references.formatBibtex', ext: '.bib', mime: 'application/x-bibtex' },
+  { id: 'csv', labelKey: 'exportModal.references.formatCsv', ext: '.csv', mime: 'text/csv' },
 ];
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -40,8 +47,10 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
   // PNG is now the default because (a) it carries the workflow in a tEXt
   // chunk so it doubles as both share image and importable artifact, and
   // (b) the user can always tick "JSON only" to fall back to a plain .json
-  // payload without re-selecting the format.
+  // payload without re-selecting the format. The JSON export lives inside
+  // this tab — there is no separate JSON tab anymore.
   const [format, setFormat] = useState<ExportFormat>('png');
+  const [referenceFormat, setReferenceFormat] = useState<ReferenceFormat>('ris');
   const [content, setContent] = useState('');
   const [generating, setGenerating] = useState(false);
   const [pngPreview, setPngPreview] = useState<string | null>(null);
@@ -64,7 +73,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
     setGenerating(true);
     setError(null);
     try {
-      if (format === 'json' || (format === 'png' && pngJsonOnly)) {
+      if (format === 'png' && pngJsonOnly) {
         setContent(JSON.stringify(workflow, null, 2));
         setPngPreview(null);
       } else if (format === 'png') {
@@ -77,7 +86,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
       } else {
         const data = await apiPost<{ content?: string; workflow?: string }>(
           '/workflow/export',
-          { workflow, format },
+          { workflow, format: format === 'references' ? referenceFormat : format },
         );
         setContent(data.content || data.workflow || '');
         setPngPreview(null);
@@ -119,6 +128,37 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transparentBg, pngQuality, pngJsonOnly, format]);
 
+  // References generate as soon as the tab opens or the sub-format changes —
+  // the payload is tiny and users expect a ready-to-copy bibliography.
+  useEffect(() => {
+    if (format !== 'references') return;
+    let cancelled = false;
+    (async () => {
+      setGenerating(true);
+      setError(null);
+      try {
+        const data = await apiPost<{ content?: string; workflow?: string }>(
+          '/workflow/export',
+          { workflow, format: referenceFormat },
+        );
+        if (!cancelled) {
+          setContent(data.content || data.workflow || '');
+          setPngPreview(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          logError('exportModal.generate', err);
+          setError(err instanceof Error ? err.message : String(err));
+          setContent('');
+        }
+      } finally {
+        if (!cancelled) setGenerating(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [format, referenceFormat]);
+
   const download = () => {
     const fmt = FORMATS.find(f => f.id === format);
     const baseName = workflow.name?.trim() || t('exportModal.defaultFilename');
@@ -136,8 +176,15 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
       saveToFile(JSON.stringify(workflow, null, 2), `${baseName}.json`, 'application/json');
       return;
     }
+    if (format === 'references') {
+      const refFmt = REFERENCE_FORMATS.find(f => f.id === referenceFormat);
+      saveToFile(content, `${baseName}${refFmt?.ext || '.txt'}`, refFmt?.mime || 'text/plain');
+      return;
+    }
     saveToFile(content, `${baseName}${fmt?.ext || '.txt'}`, 'text/plain');
   };
+
+  const referencesEmpty = format === 'references' && !content && !generating && !error;
 
   return (
     <Dialog
@@ -213,7 +260,41 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
         </div>
       )}
 
-      {!content && !pngPreview && (
+      {format === 'references' && (
+        <div
+          style={{
+            background: 'var(--surface-2)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            padding: 10,
+            marginBottom: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+            {t('exportModal.references.description')}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {REFERENCE_FORMATS.map(f => (
+              <button
+                key={f.id}
+                className={`env-type-tab ${referenceFormat === f.id ? 'active' : ''}`}
+                onClick={() => {
+                  setReferenceFormat(f.id);
+                  resetState();
+                }}
+                type="button"
+              >
+                {t(f.labelKey)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!content && !pngPreview && !referencesEmpty && (
         <button className="btn btn-primary" onClick={generate} disabled={generating}>
           {generating ? t('exportModal.generating') : format === 'png' && !pngJsonOnly ? t('exportModal.renderThumbnail') : t('exportModal.generate')}
         </button>
@@ -221,6 +302,21 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
 
       {error && (
         <div style={{ color: 'var(--danger, #dc3545)', fontSize: 12, marginBottom: 8 }}>{error}</div>
+      )}
+
+      {referencesEmpty && (
+        <div
+          style={{
+            border: '1px dashed var(--border)',
+            borderRadius: 8,
+            padding: 24,
+            textAlign: 'center',
+            color: 'var(--muted)',
+            fontSize: 12,
+          }}
+        >
+          {t('exportModal.references.empty')}
+        </div>
       )}
 
       {pngPreview && (

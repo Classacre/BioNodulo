@@ -2856,7 +2856,7 @@ class MyToolNode(CommandNode):
       parseFormat: 'Could not parse the workflow. Ensure the format is correct.',
       parse: 'Could not parse the workflow.',
       noPngWorkflowTitle: 'No workflow found',
-      noPngWorkflowMessage: 'This PNG does not contain a BioNodulo workflow tEXt chunk. Export with the "PNG (workflow embedded)" option to produce one.',
+      noPngWorkflowMessage: 'This PNG does not contain a BioNodulo workflow tEXt chunk. Export with the "PNG / JSON" option to produce one.',
       pngReadFailedTitle: 'PNG read failed',
       pngReadFailedMessage: 'Could not read the workflow PNG. Export the workflow again or import the JSON file instead.',
     },
@@ -2864,12 +2864,12 @@ class MyToolNode(CommandNode):
   exportModal: {
     title: 'Export workflow',
     formats: {
-      png: 'PNG (workflow embedded)',
-      json: 'BioNodulo JSON',
+      png: 'PNG / JSON',
       snakemake: 'SnakeMake',
       nextflow: 'NextFlow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
+      references: 'References',
     },
     pngHelp: 'The PNG carries the full workflow JSON in a tEXt chunk; drag it back into the canvas to restore the graph.',
     transparentBackground: 'Transparent background',
@@ -2887,6 +2887,13 @@ class MyToolNode(CommandNode):
     regenerate: 'Regenerate',
     converterFallbackTitle: '{{format}} export',
     converterFallbackMessage: 'Backend converter not available ({{status}})',
+    references: {
+      formatRis: 'RIS',
+      formatBibtex: 'BibTeX',
+      formatCsv: 'CSV',
+      description: 'Collect the citations attached to the nodes in this workflow into a bibliography file.',
+      empty: 'No references found: none of the nodes in this workflow declares citation metadata.',
+    },
   },
   htmlPreview: {
     downloadHtml: 'Download HTML',

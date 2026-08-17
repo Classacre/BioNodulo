@@ -101,7 +101,7 @@ class WorkflowExportRequest(BaseModel):
     """Request body for POST /workflow/export."""
 
     workflow: dict[str, Any] = Field(..., description="Workflow JSON to export")
-    format: Literal["snakemake", "nextflow", "cwl", "galaxy", "json"] = Field(
+    format: Literal["snakemake", "nextflow", "cwl", "galaxy", "json", "ris", "bibtex", "csv"] = Field(
         ..., description="Target export format"
     )
     name: str = Field("workflow", description="Output filename base")
