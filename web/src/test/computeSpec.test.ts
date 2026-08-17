@@ -66,11 +66,29 @@ describe('computeCapsForPlan unlimited (paid)', () => {
 });
 
 describe('QUICK_SIZES + specToRunBody', () => {
-  it('quick sizes cover XS..XXL', () => {
-    expect(QUICK_SIZES.map(q => q.label)).toEqual(['XS', 'S', 'M', 'L', 'XL', 'XXL']);
+  it('quick sizes cover XS..XXL with the GPU (T4) preset between L and XL', () => {
+    expect(QUICK_SIZES.map(q => q.label)).toEqual(['XS', 'S', 'M', 'L', 'GPU (T4)', 'XL', 'XXL']);
+    const gpu = QUICK_SIZES.find(q => q.profile === 'gpu');
+    expect(gpu).toMatchObject({ vcpu: 4, ramGb: 16, profile: 'gpu' });
   });
-  it('always serializes to a custom compute body', () => {
+  it('serializes CPU sizes to a custom compute body', () => {
     expect(specToRunBody({ kind: 'custom', vcpu: 8, ramGb: 64 })).toEqual({ compute: { vcpu: 8, ramGb: 64 } });
     expect(specToRunBody({ kind: 'profile', profile: 'large' })).toEqual({ compute: { vcpu: 16, ramGb: 128 } });
+  });
+  it('serializes the GPU preset as a named resourceProfile', () => {
+    // An accelerator cannot be expressed as {vcpu, ramGb}; the GPU preset must
+    // submit by name so the server provisions (and bills) the T4.
+    expect(specToRunBody({ kind: 'profile', profile: 'gpu' })).toEqual({ resourceProfile: 'gpu' });
+  });
+});
+
+describe('GPU preset (mirror of the server gpu profile)', () => {
+  it('is accelerator-priced, not CPU/RAM-formula priced', () => {
+    // 0.01061 credits/s -> 38 credits/hr; the 4/16 formula would quote 18.
+    expect(specCreditsPerHour({ kind: 'profile', profile: 'gpu' })).toBe(38);
+  });
+  it('labels with its T4, while legacy CPU profiles label by dims', () => {
+    expect(specLabel({ kind: 'profile', profile: 'gpu' })).toBe('4 vCPU / 16 GB · T4 GPU');
+    expect(specLabel({ kind: 'profile', profile: 'medium' })).toBe('8 vCPU / 64 GB');
   });
 });

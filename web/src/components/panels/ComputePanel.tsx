@@ -9,10 +9,12 @@ import {
   specCreditsPerHour,
   specLabel,
   specDims,
+  specCreditPerSecond,
   customComputeRate,
   sizeAllowed,
   MIN_GB_PER_VCPU,
 } from '../../utils/computeSpec';
+import type { QuickSize } from '../../utils/computeSpec';
 
 interface ComputePanelProps {
   onClose: () => void;
@@ -52,9 +54,30 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
     setSpec({ kind: 'custom', vcpu: clampedVcpu, ramGb: clampedRam });
   };
 
-  const pickSize = (vcpu: number, ramGb: number) => setCustom(vcpu, ramGb);
-  const isActiveSize = (vcpu: number, ramGb: number) =>
-    current.vcpu === vcpu && current.ramGb === ramGb;
+  const pickSize = (q: QuickSize) => {
+    // The GPU shortcut is a named preset (an accelerator cannot be expressed as
+    // CPU/RAM), so it is submitted as resourceProfile: 'gpu' — see computeSpec.
+    if (q.profile) {
+      setSpec({ kind: 'profile', profile: q.profile });
+      return;
+    }
+    setCustom(q.vcpu, q.ramGb);
+  };
+  const isActiveSize = (q: QuickSize) => {
+    if (q.profile) return spec.kind === 'profile' && spec.profile === q.profile;
+    // The GPU preset shares its dims (4/16) with 'S'; only one may highlight.
+    if (spec.kind === 'profile' && spec.profile === 'gpu') return false;
+    return current.vcpu === q.vcpu && current.ramGb === q.ramGb;
+  };
+  /** Live cr/hr quote for a quick size (the GPU preset is accelerator-priced). */
+  const sizeCreditsPerHour = (q: QuickSize) =>
+    Math.round(
+      specCreditPerSecond(
+        q.profile
+          ? { kind: 'profile', profile: q.profile }
+          : { kind: 'custom', vcpu: q.vcpu, ramGb: q.ramGb },
+      ) * 3600,
+    );
 
   return (
     <div className="rail-panel">
@@ -90,12 +113,12 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
               return (
                 <button
                   key={q.label}
-                  className={`btn btn-sm ${isActiveSize(q.vcpu, q.ramGb) ? 'btn-primary' : ''}`}
+                  className={`btn btn-sm ${isActiveSize(q) ? 'btn-primary' : ''}`}
                   disabled={!allowed}
                   title={allowed
-                    ? `${q.vcpu} vCPU / ${q.ramGb} GB · ${Math.round(customComputeRate(q.vcpu, q.ramGb) * 3600)} cr/hr`
+                    ? `${q.vcpu} vCPU / ${q.ramGb} GB${q.profile ? ' · T4' : ''} · ${sizeCreditsPerHour(q)} cr/hr`
                     : t('compute.lockedSize', { defaultValue: 'Upgrade your plan to use this size' })}
-                  onClick={() => pickSize(q.vcpu, q.ramGb)}
+                  onClick={() => pickSize(q)}
                 >
                   {q.label}
                 </button>

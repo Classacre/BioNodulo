@@ -2971,3 +2971,32 @@ async def test_executor_foreach_body_honors_inactive_branch_outputs(tmp_path: Pa
         "true_body:S2",
         "false_body:S3",
     ]
+
+
+def test_file_conditions_treat_non_path_values_as_non_files(tmp_path: Path) -> None:
+    from bionodulo.nodes.builtin.flow_control_family.adapter import _safe_file_exists
+
+    real = tmp_path / "marker.json"
+    real.write_text("{}", encoding="utf-8")
+    assert _safe_file_exists(str(real)) is True
+    assert _safe_file_exists("A" * 5000) is False
+    blob = '{"cds": "' + "ATG" * 400 + '"}'
+    assert _safe_file_exists(blob) is False
+    assert _safe_file_exists(None) is False
+    assert _safe_file_exists("") is False
+
+
+@pytest.mark.asyncio
+async def test_while_loop_survives_non_path_feedback_value(tmp_path: Path) -> None:
+    from bionodulo.nodes.builtin.flow_control_family.adapter import _WhileLoopContract
+
+    blob = '{"best": "' + "ATG" * 400 + '"}'
+    node = _WhileLoopContract()
+    result = await node.run(
+        value=blob,
+        condition_mode="file_not_exists",
+        max_iterations=3,
+        check_frequency=1,
+    )
+    outputs = result["outputs"]
+    assert outputs["converged"] is False

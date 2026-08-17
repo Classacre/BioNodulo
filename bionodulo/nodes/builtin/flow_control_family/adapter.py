@@ -110,6 +110,24 @@ def _bool_value(value: Any) -> bool:
     return True
 
 
+def _safe_file_exists(value: Any) -> bool:
+    """Path check that treats non-path values as non-files instead of raising.
+
+    Loop feedback ports carry arbitrary payloads (JSON blobs, sequences); a
+    raw ``Path(str(value)).exists()`` raises ENAMETOOLONG on Linux for long
+    strings, killing the whole run at the condition gate.
+    """
+    if value is None or value == "":
+        return False
+    text = str(value)
+    if len(text) > 4096 or "\n" in text:
+        return False
+    try:
+        return Path(text).exists()
+    except OSError:
+        return False
+
+
 def _as_float(value: Any) -> float:
     if isinstance(value, bool):
         return float(int(value))
@@ -304,7 +322,7 @@ class _IfConditionContract(FlowControlNode):
         if mode == "boolean":
             return _bool_value(value)
         if mode == "file_exists":
-            return bool(value) and Path(str(value)).exists()
+            return _safe_file_exists(value)
         if mode == "is_empty":
             if value is None:
                 return True
@@ -933,9 +951,9 @@ class _GateContract(FlowControlNode):
         if mode == "always_fail":
             return False
         if mode == "file_exists":
-            return bool(value) and Path(str(value)).exists()
+            return _safe_file_exists(value)
         if mode == "file_not_exists":
-            return not bool(value) or not Path(str(value)).exists()
+            return not _safe_file_exists(value)
         if mode == "is_empty":
             if value is None:
                 return True
@@ -1997,9 +2015,9 @@ class _WhileLoopContract(FlowControlNode):
     @classmethod
     def _evaluate_condition(cls, value: Any, mode: str, compare_to: Any) -> bool:
         if mode == "file_exists":
-            return bool(value) and Path(str(value)).exists()
+            return _safe_file_exists(value)
         if mode == "file_not_exists":
-            return not (bool(value) and Path(str(value)).exists())
+            return not _safe_file_exists(value)
         if mode == "boolean_is_true":
             return _bool_value(value) is True
         if mode == "boolean_is_false":
