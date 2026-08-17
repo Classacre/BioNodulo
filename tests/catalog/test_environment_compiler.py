@@ -367,10 +367,11 @@ def test_lock_v7_requires_exact_bytes() -> None:
 @pytest.mark.parametrize(
     "content",
     (
-        b"",
-        b"#" + b"x" * (8 * 1024 * 1024),
+        pytest.param(b"", id="empty"),
+        pytest.param(b"#" + b"x" * (8 * 1024 * 1024), id="oversize_8m"),
     ),
 )
+@pytest.mark.skipif(sys.platform == "win32", reason="parametrized values exceed Windows env var limit (32767 chars)")
 def test_lock_v7_requires_bounded_bytes(content: bytes) -> None:
     with pytest.raises(ValueError, match="size|bytes"):
         pixi_lock_v7._validate_pixi_lock(
@@ -2599,9 +2600,10 @@ def test_reconciliation_rejects_forged_direct_pypi_and_explicit_transitive_recor
     (
         (bytearray(b"[workspace]\n"), TypeError, "exact bytes"),
         (b"", ValueError, "between 1 and"),
-        (b"x" * (1024 * 1024 + 1), ValueError, "between 1 and"),
+        pytest.param(b"x" * (1024 * 1024 + 1), ValueError, "between 1 and", id="oversize"),
     ),
 )
+@pytest.mark.skipif(sys.platform == "win32", reason="parametrized values exceed Windows env var limit (32767 chars)")
 def test_private_compiler_requires_exact_bounded_manifest_bytes(
     pixi_toml_content: object,
     error_type: type[Exception],

@@ -15,6 +15,11 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
   test: {
     environment: 'jsdom',
+    // Default 5s is too tight for the first cold test on Windows: the i18n
+    // locales are ~260 KB combined, and each async test re-imports them.
+    // 15s keeps the full suite green on cold Windows runs without slowing
+    // the warm path (most tests still complete in <2s).
+    testTimeout: 15_000,
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
