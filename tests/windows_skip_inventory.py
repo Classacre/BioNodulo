@@ -10,7 +10,6 @@ WINDOWS_SKIP_MODULES = {
 }
 
 WINDOWS_SKIP_TESTS = {
-    "tests/catalog/test_compile_catalog.py::test_cli_check_does_not_change_forensic_baseline": "POSIX path assertion (Windows path separators)",
     "tests/catalog/test_parameters.py::test_json_accepts_128_nested_containers_across_recursive_operations[array]": "pydantic serialization depth behaves differently on Windows",
     "tests/catalog/test_parameters.py::test_json_accepts_128_nested_containers_across_recursive_operations[object]": "pydantic serialization depth behaves differently on Windows",
     "tests/catalog/test_repository_worker_lock.py::test_boto3_stack_guard_uses_packaging_floor_marker_signature": "LF pinned bytes; Windows CRLF checkout",
@@ -186,7 +185,6 @@ WINDOWS_SKIP_TESTS = {
     "tests/test_bam_cram_utility_nodes.py::test_bamutil_diff_renders_selective_sam_diff_command_and_outputs": "POSIX path assertion (Windows path separators)",
     "tests/test_bam_cram_utility_nodes.py::test_cramino_renders_optional_qc_outputs": "POSIX path assertion (Windows path separators)",
     "tests/test_cloud_storage_nodes.py::test_s3_download_executes_aws_cli_and_writes_metadata": "POSIX path assertion (Windows path separators)",
-    "tests/test_cloud_template_input_staging.py::test_editor_cloud_upload_finishes_before_lambda_response": "requires live cloud credentials/environment",
     "tests/test_cnv_nodes.py::test_cnvkit_batch_plans_complete_result_directory_and_reference": "POSIX path assertion (Windows path separators)",
     "tests/test_cnv_nodes.py::test_cnvkit_batch_renders_complete_batch_command": "POSIX path assertion (Windows path separators)",
     "tests/test_cnv_nodes.py::test_cnvkit_batch_renders_documented_flat_wgs_reference_mode": "POSIX path assertion (Windows path separators)",

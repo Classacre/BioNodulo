@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
@@ -58,14 +59,13 @@ def test_cloud_relay_accepts_production_r2_without_widening_ssrf_allowlist() -> 
         _validate_s3_url(f"https://{_R2_HOST}.example.com/uploads/example")
 
 
-def test_editor_cloud_upload_finishes_before_lambda_response(
+def test_cloud_upload_blocked_in_editor_mode_and_relays_in_full_mode(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     import bionodulo.api.routes as routes
     from server import create_app
 
-    _editor_env(monkeypatch, tmp_path)
     source = tmp_path / "tiny.fastq"
     source.write_bytes(b"@read\nACGT\n+\n!!!!\n")
     completed: list[Path] = []
@@ -88,6 +88,26 @@ def test_editor_cloud_upload_finishes_before_lambda_response(
     monkeypatch.setattr(routes, "_sync_s3_put", fake_put)
     routes._CLOUD_TRANSFERS.clear()
 
+    # Editor mode (audit C2): the workspace->S3 relay is hard-blocked; the
+    # hosted editor stages inputs browser-direct via presigned PUTs instead.
+    _editor_env(monkeypatch, tmp_path)
+    with TestClient(create_app()) as client:
+        editor_response = client.post(
+            "/api/workspace/cloud-upload",
+            headers=_HEADERS,
+            json={
+                "path": "tiny.fastq",
+                "url": f"https://{_R2_HOST}/uploads/tiny.fastq",
+                "content_type": "application/octet-stream",
+                "expected_size": source.stat().st_size,
+            },
+        )
+
+    assert editor_response.status_code == 403
+
+    # Full mode (desktop / Colab / self-host) keeps the relay, transferring
+    # in a tracked background task.
+    monkeypatch.delenv("BIONODULO_EDITOR_MODE")
     with TestClient(create_app()) as client:
         response = client.post(
             "/api/workspace/cloud-upload",
@@ -101,5 +121,10 @@ def test_editor_cloud_upload_finishes_before_lambda_response(
         )
 
     assert response.status_code == 200
-    assert response.json()["status"] == "done"
+    transfer_id = response.json()["transfer_id"]
+    deadline = time.monotonic() + 5.0
+    while not completed and time.monotonic() < deadline:
+        if routes._CLOUD_TRANSFERS[transfer_id]["status"] == "error":
+            break
+        time.sleep(0.01)
     assert completed == [source]
