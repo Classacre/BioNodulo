@@ -721,8 +721,8 @@
       ],
       "params": {
         "threads": 4,
-        "cpg": true,
-        "combine_strands": true,
+        "cpg": false,
+        "combine_strands": false,
         "with_header": true,
         "region": "",
         "modified_bases": "6mA"
