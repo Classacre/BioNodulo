@@ -82,7 +82,11 @@ def _provider_api_key(provider: str) -> str:
     if provider == "openrouter":
         return os.environ.get("OPENROUTER_API_KEY", "")
     if provider in {"custom", "litellm", "mock"}:
-        return os.environ.get("LITELLM_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+        return (
+            os.environ.get("BIONODULO_LLM_API_KEY", "")
+            or os.environ.get("LITELLM_API_KEY", "")
+            or os.environ.get("OPENAI_API_KEY", "")
+        )
     return os.environ.get("OPENAI_API_KEY", "")
 
 
