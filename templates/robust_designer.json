@@ -832,12 +832,12 @@
         "prompt": "You are the design critic for a ROBUST mRNA optimisation run. Summarise: (1) the GRPO-style design loop (5 rounds, group z-score advantages over 24 synonymous candidates, codon-policy softmax updates with epsilon floor and reference mixing); (2) the evaluator ensemble (codon metrics, innate-immune motifs, miRNA seed matches, ViennaRNA structure under try_catch); (3) the direct-RNA multi-omics arm (Dorado RNA004 GPU basecalling, minimap2 splice alignment, modkit pileup, per-transcript modification features, ridge predictor on a documented synthetic stability label). Return strict JSON with keys overall_assessment, strengths, risks, next_experiments.",
         "system_prompt": "You are a rigorous, skeptical mRNA therapeutic design reviewer.",
         "provider": "custom",
-        "model": "",
-        "api_base": "",
-        "temperature": 0.2,
-        "max_tokens": 1024,
+        "model": "kimi-k3",
+        "api_base": "https://api.kimi.com/coding/v1",
+        "temperature": 0.3,
+        "max_tokens": 4096,
         "json_mode": true,
-        "timeout": 15.0
+        "timeout": 120.0
       },
       "continueOnFail": true,
       "ui": {
