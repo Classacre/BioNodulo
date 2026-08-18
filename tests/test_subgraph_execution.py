@@ -107,11 +107,39 @@ class HeavyNode:
         return {"outputs": {"out": "heavy"}}
 
 
+class IncrementNode:
+    NODE_ID = "increment"
+    RETURN_NAMES = ("value",)
+    RETURN_TYPES = ("ANY",)
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:
+        return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+    async def run(self, context: Any, value: Any) -> dict[str, Any]:
+        return {"outputs": {"value": int(value) + 1}}
+
+
+class BoolFlipNode:
+    NODE_ID = "bool_flip"
+    RETURN_NAMES = ("value",)
+    RETURN_TYPES = ("ANY",)
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:
+        return {"required": {"value": ("ANY", {})}, "optional": {}, "hidden": {}}
+
+    async def run(self, context: Any, value: Any) -> dict[str, Any]:
+        return {"outputs": {"value": not bool(value)}}
+
+
 STUB_CLASSES = {
     "constant": ConstantNode,
     "recorder": RecorderNode,
     "sentinel": SentinelNode,
     "heavy": HeavyNode,
+    "increment": IncrementNode,
+    "bool_flip": BoolFlipNode,
 }
 
 
@@ -702,3 +730,166 @@ async def test_dry_run_recurses_into_real_inner_workflow(tmp_path: Path) -> None
         str(path).startswith(sub_root)
         for path in entries["sub/gen"]["planned_outputs"].values()
     )
+
+
+# ---------------------------------------------------------------------------
+# (g) loop x subgraph composition
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_subgraph_inside_while_loop_body_runs_each_iteration(tmp_path: Path) -> None:
+    """A subgraph node inside a while_loop body executes once per iteration."""
+    registry = _HybridRegistry(STUB_CLASSES, base=_loaded_registry())
+    inner = {
+        "nodes": [
+            {"id": "inc", "type": "increment", "outputs": {"value": {}}},
+            {"id": "marker", "type": "sentinel", "params": {"payload": "inner"}, "outputs": {"out": {}}},
+        ],
+        "edges": [
+            {"source_node": "inc", "target_node": "marker", "source_output": "value", "target_input": "payload"},
+        ],
+    }
+    subgraph = _subgraph_node(
+        "sub",
+        inner,
+        input_ports=[{"name": "in__inc__value", "type": "ANY", "innerNodeId": "inc", "innerSlot": "value"}],
+        output_ports=[{"name": "out__inc__value", "type": "ANY", "innerNodeId": "inc", "innerSlot": "value"}],
+    )
+    workflow = {
+        "nodes": [
+            {"id": "init", "type": "constant", "params": {"value": 1}, "outputs": {"value": {}}},
+            {
+                "id": "wl",
+                "type": "while_loop",
+                "params": {"condition_mode": "numeric_less", "compare_to": "3", "max_iterations": 10},
+                "outputs": {"iteration": {}, "results": {}, "iterations": {}, "converged": {}},
+            },
+            subgraph,
+        ],
+        "edges": [
+            {"source_node": "init", "target_node": "wl", "source_output": "value", "target_input": "value"},
+            {"source_node": "wl", "target_node": "sub", "source_output": "iteration", "target_input": "in__inc__value"},
+            {"source_node": "sub", "target_node": "wl", "source_output": "out__inc__value", "target_input": "value"},
+        ],
+    }
+    SentinelNode.executions = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=registry)
+
+    result = await executor.execute("while-sub-run", workflow, emit=lambda *_: None)
+
+    assert result["status"] == "completed", result["node_results"]
+    wl_result = result["node_results"]["wl"]
+    assert wl_result["outputs"]["iterations"] == 2
+    assert wl_result["outputs"]["converged"] is True
+    assert len(wl_result["outputs"]["results"]) == 2
+    # The inner sentinel ran once per while iteration, nested under the loop's
+    # iteration directory, and the subgraph mapped the loop-carried value out.
+    for iteration in (1, 2):
+        marker = (
+            tmp_path / "runs" / "while-sub-run" / "wl" / "iterations" / f"{iteration:04d}"
+            / "sub" / "marker" / "sentinel.txt"
+        )
+        assert marker.is_file(), marker
+    assert SentinelNode.executions == [
+        "while-sub-run/marker",
+        "while-sub-run/marker",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_while_loop_inside_foreach_body_executes_nested(tmp_path: Path) -> None:
+    """A while_loop node inside a foreach body iterates per foreach item."""
+    registry = _HybridRegistry(STUB_CLASSES, base=_loaded_registry())
+    workflow = {
+        "nodes": [
+            {
+                "id": "fe",
+                "type": "foreach",
+                "params": {"items": [True, False]},
+                "outputs": {"iteration": {}, "results": {}, "count": {}, "all_succeeded": {}},
+            },
+            {
+                "id": "wl",
+                "type": "while_loop",
+                "params": {"condition_mode": "boolean_is_true", "max_iterations": 5},
+                "outputs": {"iteration": {}, "results": {}, "iterations": {}, "converged": {}},
+            },
+            {"id": "flip", "type": "bool_flip", "outputs": {"value": {}}},
+        ],
+        "edges": [
+            {"source_node": "fe", "target_node": "wl", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "wl", "target_node": "flip", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "flip", "target_node": "wl", "source_output": "value", "target_input": "value"},
+        ],
+    }
+    validation = validate_workflow(workflow, registry)
+    assert validation.valid is True, validation.errors
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=registry)
+
+    result = await executor.execute("fe-while-run", workflow, emit=lambda *_: None)
+
+    assert result["status"] == "completed", result["node_results"]
+    fe_result = result["node_results"]["fe"]
+    assert fe_result["outputs"]["count"] == 2
+    assert len(fe_result["outputs"]["results"]) == 2
+    # Item True: the nested while ran its body exactly once before the flip
+    # completed it; the body node lives under the foreach iteration directory.
+    first_flip = (
+        tmp_path / "runs" / "fe-while-run" / "fe" / "iterations" / "0001" / "wl"
+        / "iterations" / "0001" / "flip"
+    )
+    assert first_flip.is_dir(), first_flip
+    # Item False: the nested while completed immediately with zero iterations.
+    assert not (tmp_path / "runs" / "fe-while-run" / "fe" / "iterations" / "0002" / "wl" / "iterations").exists()
+
+
+@pytest.mark.asyncio
+async def test_subgraph_inside_foreach_body_runs_per_item(tmp_path: Path) -> None:
+    """A subgraph node inside a foreach body executes once per item."""
+    registry = _HybridRegistry(STUB_CLASSES, base=_loaded_registry())
+    inner = {
+        "nodes": [
+            {"id": "maker", "type": "sentinel", "outputs": {"out": {}},
+             "params": {"payload": "built"}},
+        ],
+        "edges": [],
+    }
+    subgraph = _subgraph_node(
+        "sub",
+        inner,
+        input_ports=[{"name": "in__maker__payload", "type": "ANY", "innerNodeId": "maker", "innerSlot": "payload"}],
+        output_ports=[{"name": "out__maker__out", "type": "ANY", "innerNodeId": "maker", "innerSlot": "out"}],
+    )
+    workflow = {
+        "nodes": [
+            {
+                "id": "fe",
+                "type": "foreach",
+                "params": {"items": ["a", "b", "c"]},
+                "outputs": {"iteration": {}, "results": {}, "count": {}, "all_succeeded": {}},
+            },
+            subgraph,
+        ],
+        "edges": [
+            {"source_node": "fe", "target_node": "sub", "source_output": "iteration",
+             "target_input": "in__maker__payload"},
+        ],
+    }
+    SentinelNode.executions = []
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=registry)
+
+    result = await executor.execute("fe-sub-run", workflow, emit=lambda *_: None)
+
+    assert result["status"] == "completed", result["node_results"]
+    assert result["node_results"]["fe"]["outputs"]["count"] == 3
+    assert len(result["node_results"]["fe"]["outputs"]["results"]) == 3
+    for index, item in enumerate(("a", "b", "c"), start=1):
+        marker = (
+            tmp_path / "runs" / "fe-sub-run" / "fe" / "iterations" / f"{index:04d}"
+            / "sub" / "maker" / "sentinel.txt"
+        )
+        assert marker.is_file(), marker
+        payload = json.loads(marker.read_text(encoding="utf-8").splitlines()[0])["payload"]
+        assert payload == item
+    assert len(SentinelNode.executions) == 3

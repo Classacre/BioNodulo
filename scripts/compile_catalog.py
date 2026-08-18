@@ -87,6 +87,9 @@ POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
         "pod5_subset",
         "m6a_validation_metrics",
         "accession_gate",
+        # Third design-loop wave: LinearDesign wrapper (run-time clone; the
+        # upstream license forbids bundling the code).
+        "lineardesign_optimize",
     }
 )
 EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)

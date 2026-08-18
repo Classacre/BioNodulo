@@ -15,11 +15,14 @@ from .adapter import (
     effective_number_of_codons,
     gc_by_codon_position,
     gc_fraction,
-    read_sequence_input,
+    read_fasta_records,
     require_dna_cds,
     validate_sequence_literal,
     write_json,
+    write_record_table,
 )
+
+PER_RECORD_COLUMNS = ["id", "cai", "gc", "gc_window_max_dev", "n_codons"]
 
 
 class CodonMetricsNode(CodonDesignNode):
@@ -42,9 +45,9 @@ class CodonMetricsNode(CodonDesignNode):
         "GC3",
         "codon pair score",
     ]
-    RETURN_TYPES = ("JSON", "TSV")
-    RETURN_NAMES = ("metrics", "metrics_table")
-    OUTPUT_FILENAMES = ("metrics.json", "metrics.tsv")
+    RETURN_TYPES = ("JSON", "TSV", "TSV", "JSON")
+    RETURN_NAMES = ("metrics", "metrics_table", "per_record", "per_record_json")
+    OUTPUT_FILENAMES = ("metrics.json", "metrics.tsv", "per_record.tsv", "per_record.json")
     DOCUMENTATION_URL = "https://www.kazusa.or.jp/codon/"
     CITATION_DOIS = ["10.1093/nar/15.3.1281", "10.1016/0378-1119(90)90491-9", "10.1093/nar/28.1.292"]
     CITATION_URLS = [
@@ -86,12 +89,16 @@ class CodonMetricsNode(CodonDesignNode):
             return validation
         return cls.validate_int(inputs.get("window", 30), "window", minimum=3, maximum=10000)
 
-    async def run(self, **kwargs: Any) -> tuple[str, str]:
+    async def run(self, **kwargs: Any) -> tuple[str, str, str, str]:
         validation = self.VALIDATE_INPUTS(kwargs)
         if validation is not True:
             raise ValueError(str(validation))
         context = kwargs.get("context")
-        cds = require_dna_cds(read_sequence_input(kwargs.get("cds"), "cds"), "cds")
+        records = [
+            (record_id, require_dna_cds(sequence, "cds"))
+            for record_id, sequence in read_fasta_records(kwargs.get("cds"), "cds")
+        ]
+        cds = "".join(sequence for _, sequence in records)
         window = int(kwargs.get("window", 30))
 
         codon_list = codons_of(cds)
@@ -140,4 +147,26 @@ class CodonMetricsNode(CodonDesignNode):
         lines = ["metric\tvalue"]
         lines.extend(f"{key}\t{value}" for key, value in scalar_rows)
         tsv_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return (str(json_path), str(tsv_path))
+
+        per_record_rows = [self._record_row(record_id, sequence, window) for record_id, sequence in records]
+        per_record_tsv = self.node_output_path(context, "per_record.tsv")
+        write_record_table(per_record_tsv, PER_RECORD_COLUMNS, per_record_rows)
+        per_record_json = self.node_output_path(context, "per_record.json")
+        write_json(per_record_json, per_record_rows)
+        return (str(json_path), str(tsv_path), str(per_record_tsv), str(per_record_json))
+
+    @staticmethod
+    def _record_row(record_id: str, sequence: str, window: int) -> dict[str, Any]:
+        overall_gc = gc_fraction(sequence)
+        window_gc_values = [
+            gc_fraction(sequence[offset:offset + window])
+            for offset in range(0, len(sequence), window)
+            if sequence[offset:offset + window]
+        ]
+        return {
+            "id": record_id,
+            "cai": cai_score(sequence),
+            "gc": overall_gc,
+            "gc_window_max_dev": max((abs(value - overall_gc) for value in window_gc_values), default=0.0),
+            "n_codons": len(codons_of(sequence)),
+        }

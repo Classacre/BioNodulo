@@ -366,6 +366,130 @@ async def test_m6a_metrics_rejects_missing_columns_and_bad_rows(tmp_path: Path) 
     ) == "Input 'percent_scale' must be one of: 100, 1000, fraction"
 
 
+EXTRACT_HEADER = (
+    "read_id\tforward_read_position\tref_position\tchrom\tmod_strand\tref_strand\tref_mod_strand\t"
+    "fw_soft_clipped_start\tfw_soft_clipped_end\talignment_start\talignment_end\tread_length\t"
+    "mod_qual\tmod_code\tbase_qual\tref_kmer\tquery_kmer\tcanonical_base\tmodified_primary_base\t"
+    "inferred\tflag"
+)
+
+
+def _extract_row(read_id: str, chrom: str, pos: int, strand: str, mod_qual: int, canonical: str = "A") -> str:
+    return (
+        f"{read_id}\t0\t{pos}\t{chrom}\tf\t{strand}\t{strand}\t0\t0\t{max(pos - 10, 0)}\t{pos + 10}\t"
+        f"100\t{mod_qual}\tm\t20\tACGTA\tACGTA\t{canonical}\tA\tfalse\t0"
+    )
+
+
+@pytest.mark.asyncio
+async def test_m6a_metrics_aggregates_raw_modkit_extract_table(tmp_path: Path) -> None:
+    extract = _write(
+        tmp_path / "extract.tsv",
+        "\n".join(
+            [
+                EXTRACT_HEADER,
+                _extract_row("r1", "chr1", 999, "+", 255),
+                _extract_row("r2", "chr1", 999, "+", 255),
+                _extract_row("r3", "chr1", 999, "+", 0),
+                _extract_row("r4", "chr1", 999, "+", 127),
+                _extract_row("r5", "chr1", 1999, "+", 0),
+                _extract_row("r6", "chr1", 1999, "+", 0),
+                _extract_row("r7", "chr1", 1999, "+", 0),
+                _extract_row("r8", "chr2", 4999, "-", 255),
+                _extract_row("r9", "chr2", 4999, "-", 255),
+                _extract_row("r10", "chr2", 4999, "-", 255),
+                _extract_row("r11", ".", -1, ".", 200),
+            ]
+        )
+        + "\n",
+    )
+    glori = _write(
+        tmp_path / "glori.csv",
+        "\n".join(
+            [
+                GLORI_HEADER,
+                "1,1000,+,G,T,0,50,50,1.0,0.62,0.62,0.01,0.01,S",
+                "1,2000,+,G,T,0,50,50,1.0,0.0,0.0,0.9,0.9,S",
+                "2,5000,-,G,T,0,50,50,1.0,0.9,0.9,0.01,0.01,S",
+            ]
+        )
+        + "\n",
+    )
+    node = M6AValidationMetricsNode()
+    result = await node.run(
+        sites_tsv=extract, glori_csv=glori, min_coverage=1, ratio_threshold=0.3, context=_context(tmp_path)
+    )
+    summary = _summary(result)
+    assert summary["input_mode_used"] == "extract_raw"
+    assert summary["params"]["input_mode"] == "auto"
+    assert summary["n_ours_input_rows"] == 11
+    assert summary["n_ours_sites"] == 3
+    assert summary["n_joined"] == 3
+    rows = _rows(result[0])
+    by_site = {(row["chrom"], row["pos"], row["strand"]): row for row in rows}
+    hot = by_site[("chr1", "1000", "+")]
+    assert int(hot["coverage"]) == 4
+    assert float(hot["our_ratio"]) == pytest.approx((255 + 255 + 0 + 127) / 4 / 255)
+    assert hot["classification"] == "TP"
+    cold = by_site[("chr1", "2000", "+")]
+    assert int(cold["coverage"]) == 3
+    assert float(cold["our_ratio"]) == pytest.approx(0.0)
+    assert cold["classification"] == "TN"
+    minus = by_site[("chr2", "5000", "-")]
+    assert float(minus["our_ratio"]) == pytest.approx(1.0)
+    assert minus["classification"] == "TP"
+
+
+@pytest.mark.asyncio
+async def test_m6a_metrics_reads_gz_inputs_and_forced_modes(tmp_path: Path) -> None:
+    import gzip
+
+    extract_text = "\n".join(
+        [
+            EXTRACT_HEADER,
+            _extract_row("r1", "chr1", 999, "+", 255),
+            _extract_row("r2", "chr1", 999, "+", 0),
+        ]
+    ) + "\n"
+    sites_gz = tmp_path / "extract.tsv.gz"
+    sites_gz.write_bytes(gzip.compress(extract_text.encode("utf-8")))
+    glori_text = (
+        GLORI_HEADER + "\n1,1000,+,G,T,0,50,50,1.0,0.5,0.5,0.01,0.01,S\n"
+    )
+    glori_gz = tmp_path / "glori.csv.gz"
+    glori_gz.write_bytes(gzip.compress(glori_text.encode("utf-8")))
+
+    node = M6AValidationMetricsNode()
+    result = await node.run(
+        sites_tsv=str(sites_gz), glori_csv=str(glori_gz), min_coverage=1, context=_context(tmp_path)
+    )
+    summary = _summary(result)
+    assert summary["input_mode_used"] == "extract_raw"
+    assert summary["n_joined"] == 1
+    rows = _rows(result[0])
+    assert float(rows[0]["our_ratio"]) == pytest.approx(0.5)
+
+    forced = await node.run(
+        sites_tsv=str(sites_gz),
+        glori_csv=str(glori_gz),
+        input_mode="extract_raw",
+        min_coverage=1,
+        context=_context(tmp_path),
+    )
+    assert _summary(forced)["input_mode_used"] == "extract_raw"
+
+    with pytest.raises(ValueError, match="missing required column"):
+        await node.run(
+            sites_tsv=str(sites_gz),
+            glori_csv=str(glori_gz),
+            input_mode="per_site",
+            context=_context(tmp_path),
+        )
+    assert M6AValidationMetricsNode.VALIDATE_INPUTS(
+        {"sites_tsv": "s", "glori_csv": "g", "input_mode": "sniff"}
+    ) == "Input 'input_mode' must be one of: auto, per_site, extract_raw"
+
+
 MANIFEST_HEADER = "accession\tresolved_version\tfeature_used\tfetch_date\tsha256\tfile\tnotes"
 
 

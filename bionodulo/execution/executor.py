@@ -1849,6 +1849,10 @@ class WorkflowExecutor:
 
         while queue:
             current = queue.popleft()
+            # Nested loop nodes own their own bodies; stop the outer body at
+            # the nested node so its feedback edges stay out of this graph.
+            if current != loop_node_id and self._executes_loop_body(self._node_class_for(nodes.get(current, {}))):
+                continue
             for edge in edges:
                 if edge_source(edge) != current:
                     continue
@@ -2135,6 +2139,35 @@ class WorkflowExecutor:
             return str(cwd_path)
         return path_str
 
+    async def _execute_body_node(
+        self,
+        *,
+        ctx: ExecutionContext,
+        node: dict[str, Any],
+        inputs: dict[str, Any],
+        all_nodes: dict[str, dict[str, Any]],
+        edges: list[dict[str, Any]],
+        node_outputs: dict[str, dict[str, Any]],
+        options: dict[str, Any],
+        workflow: dict[str, Any],
+        emit: Callable[[str, dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        """Execute one loop-body node, recursing into nested loop nodes."""
+        if self._executes_loop_body(self._node_class_for(node)):
+            return await self._execute_loop_node(
+                ctx=ctx,
+                node=node,
+                inputs=inputs,
+                all_nodes=all_nodes,
+                edges=edges,
+                body_node_ids=self._find_loop_body(str(node.get("id", "")), edges, all_nodes),
+                node_outputs=node_outputs,
+                options=options,
+                workflow=workflow,
+                emit=emit,
+            )
+        return await self._execute_node(ctx, node, inputs)
+
     async def _execute_loop_node(
         self,
         *,
@@ -2269,10 +2302,7 @@ class WorkflowExecutor:
                     if "_iteration" in hidden_inputs:
                         body_params["_iteration"] = iteration_index
                     body_dir = (
-                        self.workspace_dir
-                        / "runs"
-                        / ctx.run_id
-                        / ctx.node_id
+                        ctx.node_dir
                         / "iterations"
                         / f"{visible_iteration:04d}"
                         / body_node_id
@@ -2294,7 +2324,17 @@ class WorkflowExecutor:
                         registry=ctx.registry if ctx.registry is not None else self.registry,
                         hpc_backend=ctx.hpc_backend,
                     )
-                    body_result = await self._execute_node(body_ctx, body_node, body_inputs)
+                    body_result = await self._execute_body_node(
+                        ctx=body_ctx,
+                        node=body_node,
+                        inputs=body_inputs,
+                        all_nodes=all_nodes,
+                        edges=edges,
+                        node_outputs=combined_outputs,
+                        options=options,
+                        workflow=workflow,
+                        emit=emit,
+                    )
                     outputs = body_result.get("outputs", {})
                     inactive_outputs = self._inactive_output_ports(
                         body_result,
@@ -2452,10 +2492,7 @@ class WorkflowExecutor:
                 if "_iteration" in hidden_inputs:
                     body_params["_iteration"] = visible_iteration - 1
                 body_dir = (
-                    self.workspace_dir
-                    / "runs"
-                    / ctx.run_id
-                    / ctx.node_id
+                    ctx.node_dir
                     / "iterations"
                     / f"{visible_iteration:04d}"
                     / body_node_id
@@ -2477,7 +2514,17 @@ class WorkflowExecutor:
                     registry=ctx.registry if ctx.registry is not None else self.registry,
                     hpc_backend=ctx.hpc_backend,
                 )
-                body_result = await self._execute_node(body_ctx, body_node, body_inputs)
+                body_result = await self._execute_body_node(
+                    ctx=body_ctx,
+                    node=body_node,
+                    inputs=body_inputs,
+                    all_nodes=all_nodes,
+                    edges=edges,
+                    node_outputs=combined_outputs,
+                    options=options,
+                    workflow=workflow,
+                    emit=emit,
+                )
                 outputs = body_result.get("outputs", {})
                 inactive_outputs = self._inactive_output_ports(body_result, outputs, body_class)
                 if inactive_outputs:

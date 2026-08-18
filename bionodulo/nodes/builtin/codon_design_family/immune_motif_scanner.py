@@ -7,11 +7,12 @@ from typing import Any
 
 from .adapter import (
     CodonDesignNode,
-    validate_sequence_literal,
-    read_sequence_input,
+    read_fasta_records,
     to_dna,
     to_rna,
+    validate_sequence_literal,
     write_json,
+    write_record_table,
 )
 
 
@@ -19,6 +20,7 @@ DEFAULT_AU_WEIGHTS = "AUUA:1.0,UUUA:0.8,AUUU:0.6,UUUU:1.0,UAUU:0.5"
 DEFAULT_TLR7_8_MOTIFS = "GUCCUUCAACU,UGUGUU,GUUGUU"
 DEFAULT_TLR9_CPG_MOTIFS = "GTCGTT,AACGTT"
 RNA_ALPHABET = frozenset("ACGU")
+PER_RECORD_COLUMNS = ["id", "immune_burden_per_kb", "u_run_count", "cpg_count"]
 
 
 def parse_weighted_motifs(value: str) -> dict[str, float]:
@@ -49,6 +51,62 @@ def scan_motif(sequence: str, motif: str) -> list[dict[str, int]]:
     ]
 
 
+def scan_immune_features(
+    rna: str,
+    u_threshold: int,
+    au_weights: dict[str, float],
+    tlr78_motifs: list[str],
+    tlr9_motifs: list[str],
+) -> tuple[list[tuple[str, str, int, int]], dict[str, Any]]:
+    dna = to_dna(rna)
+    rows: list[tuple[str, str, int, int]] = []
+    u_runs = scan_runs(rna, "U", u_threshold)
+    for run in u_runs:
+        rows.append(("u_run", "U" * run["length"], run["start"], run["end"]))
+    au_hits = {motif: scan_motif(rna, motif) for motif in au_weights}
+    au_counts = {motif: len(hits) for motif, hits in au_hits.items()}
+    for motif, hits in au_hits.items():
+        for hit in hits:
+            rows.append(("au_rich_4mer", motif, hit["start"], hit["end"]))
+    cpg_hits = scan_motif(dna, "CG")
+    for hit in cpg_hits:
+        rows.append(("cpg_dinucleotide", "CG", hit["start"], hit["end"]))
+    tlr78_hits = {motif: scan_motif(rna, motif) for motif in tlr78_motifs}
+    for motif, hits in tlr78_hits.items():
+        for hit in hits:
+            rows.append(("tlr7_8_motif", motif, hit["start"], hit["end"]))
+    tlr9_hits = {motif: scan_motif(dna, motif) for motif in tlr9_motifs}
+    for motif, hits in tlr9_hits.items():
+        for hit in hits:
+            rows.append(("tlr9_cpg_motif", motif, hit["start"], hit["end"]))
+
+    au_weighted = sum(weight * au_counts[motif] for motif, weight in au_weights.items())
+
+    def per_kb(count: float) -> float:
+        return count * 1000 / len(rna) if rna else 0.0
+
+    summary = {
+        "length_nt": len(rna),
+        "u_run_threshold": u_threshold,
+        "u_run_count": len(u_runs),
+        "u_runs_per_kb": per_kb(len(u_runs)),
+        "max_u_run_length": max((run["length"] for run in u_runs), default=0),
+        "u_fraction": (rna.count("U") / len(rna)) if rna else 0.0,
+        "au_rich_4mer_counts": au_counts,
+        "au_rich_weighted_score": au_weighted,
+        "au_rich_weighted_per_kb": per_kb(au_weighted),
+        "cpg_dinucleotide_count": len(cpg_hits),
+        "cpg_per_kb": per_kb(len(cpg_hits)),
+        "tlr7_8_motif_counts": {motif: len(hits) for motif, hits in tlr78_hits.items()},
+        "tlr9_cpg_motif_counts": {motif: len(hits) for motif, hits in tlr9_hits.items()},
+        "motif_hit_total": len(rows),
+        "summary_score_heuristic": per_kb(
+            len(u_runs) + au_weighted + len(cpg_hits) + sum(len(hits) for hits in tlr78_hits.values())
+        ),
+    }
+    return rows, summary
+
+
 class ImmuneMotifScannerNode(CodonDesignNode):
     """Scan RNA for U-rich, AU-rich, CpG, and TLR-agonist motifs."""
 
@@ -73,9 +131,9 @@ class ImmuneMotifScannerNode(CodonDesignNode):
         "immunogenicity",
         "mRNA design",
     ]
-    RETURN_TYPES = ("JSON", "TSV")
-    RETURN_NAMES = ("summary", "positions")
-    OUTPUT_FILENAMES = ("immune_motifs.json", "immune_motifs.tsv")
+    RETURN_TYPES = ("JSON", "TSV", "TSV", "JSON")
+    RETURN_NAMES = ("summary", "positions", "per_record", "per_record_json")
+    OUTPUT_FILENAMES = ("immune_motifs.json", "immune_motifs.tsv", "per_record.tsv", "per_record.json")
     CITATION_DOIS = ["10.1016/j.immuni.2005.06.015", "10.1126/science.1093620"]
     CITATION_URLS = [
         "https://doi.org/10.1016/j.immuni.2005.06.015",
@@ -132,19 +190,20 @@ class ImmuneMotifScannerNode(CodonDesignNode):
                     return f"Input '{key}' motifs must use {allowed} characters: {motif}"
         return True
 
-    async def run(self, **kwargs: Any) -> tuple[str, str]:
+    async def run(self, **kwargs: Any) -> tuple[str, str, str, str]:
         validation = self.VALIDATE_INPUTS(kwargs)
         if validation is not True:
             raise ValueError(str(validation))
         context = kwargs.get("context")
-        raw = read_sequence_input(kwargs.get("sequence"), "sequence")
-        invalid = set(raw) - set("ACGTUN")
-        if invalid:
-            raise ValueError(
-                f"Input 'sequence' contains non-RNA characters: {''.join(sorted(invalid))}"
-            )
+        records = read_fasta_records(kwargs.get("sequence"), "sequence")
+        for _, raw_record in records:
+            invalid = set(raw_record) - set("ACGTUN")
+            if invalid:
+                raise ValueError(
+                    f"Input 'sequence' contains non-RNA characters: {''.join(sorted(invalid))}"
+                )
+        raw = "".join(sequence for _, sequence in records)
         rna = to_rna(raw)
-        dna = to_dna(raw)
         u_threshold = int(kwargs.get("u_run_threshold", 4))
         au_weights = parse_weighted_motifs(
             str(kwargs.get("au_rich_weights") if kwargs.get("au_rich_weights") is not None else DEFAULT_AU_WEIGHTS)
@@ -167,51 +226,21 @@ class ImmuneMotifScannerNode(CodonDesignNode):
             if set(motif) - set("ACGT"):
                 raise ValueError(f"Input 'tlr9_cpg_motifs' motifs must use ACGT characters: {motif}")
 
-        rows: list[tuple[str, str, int, int]] = []
-        u_runs = scan_runs(rna, "U", u_threshold)
-        for run in u_runs:
-            rows.append(("u_run", "U" * run["length"], run["start"], run["end"]))
-        au_hits = {motif: scan_motif(rna, motif) for motif in au_weights}
-        au_counts = {motif: len(hits) for motif, hits in au_hits.items()}
-        for motif, hits in au_hits.items():
-            for hit in hits:
-                rows.append(("au_rich_4mer", motif, hit["start"], hit["end"]))
-        cpg_hits = scan_motif(dna, "CG")
-        for hit in cpg_hits:
-            rows.append(("cpg_dinucleotide", "CG", hit["start"], hit["end"]))
-        tlr78_hits = {motif: scan_motif(rna, motif) for motif in tlr78_motifs}
-        for motif, hits in tlr78_hits.items():
-            for hit in hits:
-                rows.append(("tlr7_8_motif", motif, hit["start"], hit["end"]))
-        tlr9_hits = {motif: scan_motif(dna, motif) for motif in tlr9_motifs}
-        for motif, hits in tlr9_hits.items():
-            for hit in hits:
-                rows.append(("tlr9_cpg_motif", motif, hit["start"], hit["end"]))
+        rows, summary = scan_immune_features(rna, u_threshold, au_weights, tlr78_motifs, tlr9_motifs)
 
-        au_weighted = sum(weight * au_counts[motif] for motif, weight in au_weights.items())
-
-        def per_kb(count: float) -> float:
-            return count * 1000 / len(rna) if rna else 0.0
-
-        summary = {
-            "length_nt": len(rna),
-            "u_run_threshold": u_threshold,
-            "u_run_count": len(u_runs),
-            "u_runs_per_kb": per_kb(len(u_runs)),
-            "max_u_run_length": max((run["length"] for run in u_runs), default=0),
-            "u_fraction": (rna.count("U") / len(rna)) if rna else 0.0,
-            "au_rich_4mer_counts": au_counts,
-            "au_rich_weighted_score": au_weighted,
-            "au_rich_weighted_per_kb": per_kb(au_weighted),
-            "cpg_dinucleotide_count": len(cpg_hits),
-            "cpg_per_kb": per_kb(len(cpg_hits)),
-            "tlr7_8_motif_counts": {motif: len(hits) for motif, hits in tlr78_hits.items()},
-            "tlr9_cpg_motif_counts": {motif: len(hits) for motif, hits in tlr9_hits.items()},
-            "motif_hit_total": len(rows),
-            "summary_score_heuristic": per_kb(
-                len(u_runs) + au_weighted + len(cpg_hits) + sum(len(hits) for hits in tlr78_hits.values())
-            ),
-        }
+        per_record_rows: list[dict[str, Any]] = []
+        for record_id, raw_record in records:
+            _, record_summary = scan_immune_features(
+                to_rna(raw_record), u_threshold, au_weights, tlr78_motifs, tlr9_motifs
+            )
+            per_record_rows.append(
+                {
+                    "id": record_id,
+                    "immune_burden_per_kb": record_summary["summary_score_heuristic"],
+                    "u_run_count": record_summary["u_run_count"],
+                    "cpg_count": record_summary["cpg_dinucleotide_count"],
+                }
+            )
 
         json_path = self.node_output_path(context, "immune_motifs.json")
         write_json(json_path, summary)
@@ -219,4 +248,8 @@ class ImmuneMotifScannerNode(CodonDesignNode):
         lines = ["feature\tmotif\tstart\tend"]
         lines.extend(f"{feature}\t{motif}\t{start}\t{end}" for feature, motif, start, end in sorted(rows, key=lambda row: row[2]))
         tsv_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return (str(json_path), str(tsv_path))
+        per_record_tsv = self.node_output_path(context, "per_record.tsv")
+        write_record_table(per_record_tsv, PER_RECORD_COLUMNS, per_record_rows)
+        per_record_json = self.node_output_path(context, "per_record.json")
+        write_json(per_record_json, per_record_rows)
+        return (str(json_path), str(tsv_path), str(per_record_tsv), str(per_record_json))

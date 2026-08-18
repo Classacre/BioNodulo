@@ -216,7 +216,11 @@ async def test_rnafold_mfe_run_parses_stdout_into_artifacts(tmp_path: Path, regi
         str(node_out / "fold_stdout.txt"),
         str(node_out / "structure.dbn"),
         str(node_out / "energies.json"),
+        str(node_out / "per_record.tsv"),
     )
+    per_record = (node_out / "per_record.tsv").read_text(encoding="utf-8").splitlines()
+    assert per_record[0] == "id\tmfe"
+    assert per_record[1].startswith("query\t-23.1")
     dbn = (node_out / "structure.dbn").read_text(encoding="utf-8").splitlines()
     assert dbn[0] == ">query"
     assert dbn[1] == QUERY

@@ -1,6 +1,6 @@
 {
   "name": "@bionodulo/desktop",
-  "version": "0.1.0-alpha.44",
+  "version": "0.1.0-alpha.45",
   "private": true,
   "description": "BioNodulo Desktop \u2014 Node-based bioinformatics workflows (Tauri shell)",
   "author": "BioNodulo",

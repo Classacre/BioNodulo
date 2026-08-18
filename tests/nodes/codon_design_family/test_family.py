@@ -320,6 +320,111 @@ async def test_utr_feature_builder_reads_utr_files(tmp_path: Path) -> None:
     assert "three_utr" not in features
 
 
+def _read_tsv(path: str) -> tuple[list[str], list[dict[str, str]]]:
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    header = lines[0].split("\t")
+    rows = [dict(zip(header, line.split("\t"), strict=True)) for line in lines[1:]]
+    return header, rows
+
+
+@pytest.mark.asyncio
+async def test_codon_metrics_per_record_table_for_multi_record_fasta(tmp_path: Path) -> None:
+    fasta = tmp_path / "candidates.fasta"
+    fasta.write_text(
+        ">cand_0000\nATGGGCTAA\n>cand_0001\nATGGGCTGA\n>cand_0002\nATGTGCCCCTGA\n",
+        encoding="utf-8",
+    )
+    result = await CodonMetricsNode().run(context=context_at(tmp_path), cds=str(fasta), window=3)
+    assert len(result) == 4
+    header, rows = _read_tsv(result[2])
+    assert header == ["id", "cai", "gc", "gc_window_max_dev", "n_codons"]
+    assert [row["id"] for row in rows] == ["cand_0000", "cand_0001", "cand_0002"]
+    by_id = {row["id"]: row for row in rows}
+    assert float(by_id["cand_0000"]["cai"]) == pytest.approx(1.0)
+    assert float(by_id["cand_0000"]["gc"]) == pytest.approx(4 / 9)
+    assert int(by_id["cand_0000"]["n_codons"]) == 3
+    assert float(by_id["cand_0002"]["gc"]) == pytest.approx(7 / 12)
+    assert int(by_id["cand_0002"]["n_codons"]) == 4
+    # ATG TGC CCC TGA windows with window=3: GC 1/3, 2/3, 1.0, 1/3 around mean 7/12.
+    assert float(by_id["cand_0002"]["gc_window_max_dev"]) == pytest.approx(1.0 - 7 / 12)
+    payload = json.loads(Path(result[3]).read_text(encoding="utf-8"))
+    assert [entry["id"] for entry in payload] == ["cand_0000", "cand_0001", "cand_0002"]
+    assert payload[1]["n_codons"] == 3
+    aggregate = json.loads(Path(result[0]).read_text(encoding="utf-8"))
+    assert aggregate["length_nt"] == 30
+
+
+@pytest.mark.asyncio
+async def test_immune_motif_scanner_per_record_burden(tmp_path: Path) -> None:
+    fasta = tmp_path / "batch.fasta"
+    hot = "UUUU" + "AACGTTAACGTT"
+    cold = "GCCGCCGCCACC"
+    fasta.write_text(f">cand_0000\n{hot}\n>cand_0001\n{cold}\n", encoding="utf-8")
+    result = await ImmuneMotifScannerNode().run(context=context_at(tmp_path), sequence=str(fasta))
+    assert len(result) == 4
+    header, rows = _read_tsv(result[2])
+    assert header == ["id", "immune_burden_per_kb", "u_run_count", "cpg_count"]
+    by_id = {row["id"]: row for row in rows}
+    assert int(by_id["cand_0000"]["u_run_count"]) == 1
+    assert int(by_id["cand_0000"]["cpg_count"]) == 2
+    # u_runs(1) + weighted 4-mers UUUU(1.0) + UUUA(0.8) + CpG(2), normalised per kb.
+    assert float(by_id["cand_0000"]["immune_burden_per_kb"]) == pytest.approx((1 + 1.8 + 2) * 1000 / len(hot))
+    assert int(by_id["cand_0001"]["u_run_count"]) == 0
+    assert int(by_id["cand_0001"]["cpg_count"]) == 2
+    assert float(by_id["cand_0001"]["immune_burden_per_kb"]) == pytest.approx(2 * 1000 / len(cold))
+    payload = json.loads(Path(result[3]).read_text(encoding="utf-8"))
+    assert [entry["id"] for entry in payload] == ["cand_0000", "cand_0001"]
+    assert payload[0]["cpg_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_mirna_seed_scanner_per_record_weighted_hits(tmp_path: Path) -> None:
+    seed_file = tmp_path / "seeds.tsv"
+    seed_file.write_text("mirna_id\tseed\tweight\nlet-7a\tGAGGTAG\t2.0\n", encoding="utf-8")
+    fasta = tmp_path / "targets.fasta"
+    hit_target = "GG" + "CUACCUC" + "AA" + "ACUACCUC" + "GG"
+    miss_target = "GGGGGGGGGGGGGGGG"
+    fasta.write_text(f">cand_0000\n{hit_target}\n>cand_0001\n{miss_target}\n", encoding="utf-8")
+    result = await MiRNASeedScannerNode().run(
+        context=context_at(tmp_path), target=str(fasta), seed_file=str(seed_file)
+    )
+    assert len(result) == 4
+    header, rows = _read_tsv(result[2])
+    assert header == ["id", "weighted_hits", "n_hits"]
+    by_id = {row["id"]: row for row in rows}
+    assert float(by_id["cand_0000"]["weighted_hits"]) == pytest.approx(4.0)
+    assert int(by_id["cand_0000"]["n_hits"]) == 2
+    assert float(by_id["cand_0001"]["weighted_hits"]) == pytest.approx(0.0)
+    assert int(by_id["cand_0001"]["n_hits"]) == 0
+    payload = json.loads(Path(result[3]).read_text(encoding="utf-8"))
+    assert payload[0]["n_hits"] == 2
+
+
+@pytest.mark.asyncio
+async def test_utr_feature_builder_per_record_rows_for_multi_record_utr_fasta(tmp_path: Path) -> None:
+    fasta = tmp_path / "utrs.fasta"
+    fasta.write_text(
+        ">cand_0000\nGCCGCCACC\n>cand_0001\nUUUUUUUUUU\n",
+        encoding="utf-8",
+    )
+    result = await UTRFeatureBuilderNode().run(context=context_at(tmp_path), five_utr=str(fasta))
+    assert len(result) == 3
+    header, rows = _read_tsv(result[1])
+    assert header == ["id", "kozak", "uorf_count", "gc", "length"]
+    by_id = {row["id"]: row for row in rows}
+    assert float(by_id["cand_0000"]["kozak"]) == pytest.approx(1.0)
+    assert int(by_id["cand_0000"]["uorf_count"]) == 0
+    assert float(by_id["cand_0000"]["gc"]) == pytest.approx(8 / 9)
+    assert int(by_id["cand_0000"]["length"]) == 9
+    assert float(by_id["cand_0001"]["kozak"]) == pytest.approx(0.0)
+    assert float(by_id["cand_0001"]["gc"]) == pytest.approx(0.0)
+    assert int(by_id["cand_0001"]["length"]) == 10
+    payload = json.loads(Path(result[2]).read_text(encoding="utf-8"))
+    assert [entry["id"] for entry in payload] == ["cand_0000", "cand_0001"]
+    features = json.loads(Path(result[0]).read_text(encoding="utf-8"))
+    assert features["five_utr"]["length_nt"] == 19
+
+
 def test_codon_design_ids_are_owned_by_focused_modules() -> None:
     index = build_index()
     family = {node_id: module for node_id, module in index.items() if node_id in FAMILY_IDS}

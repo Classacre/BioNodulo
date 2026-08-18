@@ -8,16 +8,56 @@ from typing import Any
 
 from .adapter import (
     CodonDesignNode,
-    read_sequence_input,
+    read_fasta_records,
     reverse_complement_rna,
     to_rna,
     validate_sequence_literal,
     write_json,
+    write_record_table,
 )
 
 
 RNA_ALPHABET = frozenset("ACGU")
 SEED_LENGTH = 7
+PER_RECORD_COLUMNS = ["id", "weighted_hits", "n_hits"]
+
+
+def scan_seed_hits(target: str, seeds: list[dict[str, Any]], context_length: int) -> list[dict[str, Any]]:
+    hits: list[dict[str, Any]] = []
+    for entry in seeds:
+        seed = entry["seed"]
+        match = reverse_complement_rna(seed)
+        prefix_match = reverse_complement_rna(seed[:6])
+        for offset in range(0, max(0, len(target) - SEED_LENGTH + 1)):
+            full = target[offset:offset + SEED_LENGTH] == match
+            with_anchor = offset > 0 and target[offset - 1] == "A"
+            if full and with_anchor:
+                seed_type = "8mer"
+                start = offset - 1
+                end = offset + SEED_LENGTH
+            elif full:
+                seed_type = "7mer-m8"
+                start = offset
+                end = offset + SEED_LENGTH
+            elif with_anchor and target[offset:offset + 6] == prefix_match:
+                seed_type = "7mer-A1"
+                start = offset - 1
+                end = offset + 6
+            else:
+                continue
+            hits.append(
+                {
+                    "mirna_id": entry["mirna_id"],
+                    "seed": seed,
+                    "seed_type": seed_type,
+                    "start": start + 1,
+                    "end": end,
+                    "site": target[start:end],
+                    "context": target[max(0, start - context_length):min(len(target), end + context_length)],
+                    "weight": entry["weight"],
+                }
+            )
+    return hits
 
 
 def parse_seed_file(path: Path) -> list[dict[str, Any]]:
@@ -75,9 +115,9 @@ class MiRNASeedScannerNode(CodonDesignNode):
         "8mer",
         "target prediction",
     ]
-    RETURN_TYPES = ("TSV", "JSON")
-    RETURN_NAMES = ("hits", "summary")
-    OUTPUT_FILENAMES = ("mirna_seed_hits.tsv", "mirna_seed_summary.json")
+    RETURN_TYPES = ("TSV", "JSON", "TSV", "JSON")
+    RETURN_NAMES = ("hits", "summary", "per_record", "per_record_json")
+    OUTPUT_FILENAMES = ("mirna_seed_hits.tsv", "mirna_seed_summary.json", "per_record.tsv", "per_record.json")
     DOCUMENTATION_URL = "https://www.targetscan.org/"
     CITATION_DOIS = ["10.1016/j.molcel.2005.07.016", "10.1016/j.molcel.2015.06.018"]
     CITATION_URLS = [
@@ -123,53 +163,32 @@ class MiRNASeedScannerNode(CodonDesignNode):
             return "Input 'seed_file' must be a non-empty path"
         return cls.validate_int(inputs.get("context_length", 10), "context_length", minimum=0, maximum=100)
 
-    async def run(self, **kwargs: Any) -> tuple[str, str]:
+    async def run(self, **kwargs: Any) -> tuple[str, str, str, str]:
         validation = self.VALIDATE_INPUTS(kwargs)
         if validation is not True:
             raise ValueError(str(validation))
         context = kwargs.get("context")
-        target = read_sequence_input(kwargs.get("target"), "target")
-        invalid = set(target) - set("ACGTUN")
-        if invalid:
-            raise ValueError(f"Input 'target' contains non-RNA characters: {''.join(sorted(invalid))}")
-        target = to_rna(target)
+        records = read_fasta_records(kwargs.get("target"), "target")
+        for _, raw_record in records:
+            invalid = set(raw_record) - set("ACGTUN")
+            if invalid:
+                raise ValueError(f"Input 'target' contains non-RNA characters: {''.join(sorted(invalid))}")
+        target = to_rna("".join(sequence for _, sequence in records))
         seeds = parse_seed_file(Path(str(kwargs["seed_file"])))
         context_length = int(kwargs.get("context_length", 10))
 
-        hits: list[dict[str, Any]] = []
-        for entry in seeds:
-            seed = entry["seed"]
-            match = reverse_complement_rna(seed)
-            prefix_match = reverse_complement_rna(seed[:6])
-            for offset in range(0, max(0, len(target) - SEED_LENGTH + 1)):
-                full = target[offset:offset + SEED_LENGTH] == match
-                with_anchor = offset > 0 and target[offset - 1] == "A"
-                if full and with_anchor:
-                    seed_type = "8mer"
-                    start = offset - 1
-                    end = offset + SEED_LENGTH
-                elif full:
-                    seed_type = "7mer-m8"
-                    start = offset
-                    end = offset + SEED_LENGTH
-                elif with_anchor and target[offset:offset + 6] == prefix_match:
-                    seed_type = "7mer-A1"
-                    start = offset - 1
-                    end = offset + 6
-                else:
-                    continue
-                hits.append(
-                    {
-                        "mirna_id": entry["mirna_id"],
-                        "seed": seed,
-                        "seed_type": seed_type,
-                        "start": start + 1,
-                        "end": end,
-                        "site": target[start:end],
-                        "context": target[max(0, start - context_length):min(len(target), end + context_length)],
-                        "weight": entry["weight"],
-                    }
-                )
+        hits = scan_seed_hits(target, seeds, context_length)
+
+        per_record_rows: list[dict[str, Any]] = []
+        for record_id, raw_record in records:
+            record_hits = scan_seed_hits(to_rna(raw_record), seeds, context_length)
+            per_record_rows.append(
+                {
+                    "id": record_id,
+                    "weighted_hits": sum(float(hit["weight"]) for hit in record_hits),
+                    "n_hits": len(record_hits),
+                }
+            )
 
         by_type: dict[str, int] = {}
         by_mirna: dict[str, int] = {}
@@ -197,4 +216,8 @@ class MiRNASeedScannerNode(CodonDesignNode):
         tsv_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         json_path = self.node_output_path(context, "mirna_seed_summary.json")
         write_json(json_path, summary)
-        return (str(tsv_path), str(json_path))
+        per_record_tsv = self.node_output_path(context, "per_record.tsv")
+        write_record_table(per_record_tsv, PER_RECORD_COLUMNS, per_record_rows)
+        per_record_json = self.node_output_path(context, "per_record.json")
+        write_json(per_record_json, per_record_rows)
+        return (str(tsv_path), str(json_path), str(per_record_tsv), str(per_record_json))

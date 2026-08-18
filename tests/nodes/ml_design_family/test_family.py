@@ -665,6 +665,69 @@ async def test_predictor_train_learns_linear_relation(tmp_path: Path, model_name
 
 
 @pytest.mark.asyncio
+async def test_predictor_train_k_fold_cross_validation(tmp_path: Path) -> None:
+    table = _feature_table(tmp_path, n_rows=200)
+    context = _context(tmp_path, "cv")
+    model, metrics, predictions = await SimplePredictorTrainNode().run(
+        feature_table=table,
+        target_column="target",
+        model="ridge",
+        n_folds=5,
+        seed=7,
+        context=context,
+    )
+    payload = json.loads(Path(metrics).read_text(encoding="utf-8"))
+    assert payload["n_folds"] == 5
+    assert payload["val_r2"] > 0.9
+    assert payload["val_r2_std"] is not None and payload["val_r2_std"] < 0.05
+    assert payload["val_rmse"] < 1.0 and payload["val_rmse_std"] is not None
+    assert payload["val_spearman"] > 0.95 and payload["val_spearman_std"] is not None
+    assert len(payload["fold_val_r2"]) == 5
+    assert len(payload["fold_val_rmse"]) == 5
+    assert len(payload["fold_val_spearman"]) == 5
+    assert all(value > 0.9 for value in payload["fold_val_r2"])
+    assert payload["n_train"] == 200 and payload["n_val"] == 200
+
+    lines = Path(predictions).read_text(encoding="utf-8").splitlines()
+    assert lines[0].split("\t") == ["id", "target", "prediction", "split", "fold"]
+    assert len(lines) == 201
+    folds = {line.split("\t")[4] for line in lines[1:]}
+    assert folds == {"0", "1", "2", "3", "4"}
+
+    model_payload = json.loads(Path(model).read_text(encoding="utf-8"))
+    assert model_payload["model"] == "ridge"
+
+    repeat = await SimplePredictorTrainNode().run(
+        feature_table=table, target_column="target", model="ridge", n_folds=5, seed=7,
+        context=_context(tmp_path, "cv2"),
+    )
+    assert Path(repeat[1]).read_text(encoding="utf-8") == Path(metrics).read_text(encoding="utf-8")
+    assert Path(repeat[2]).read_text(encoding="utf-8") == Path(predictions).read_text(encoding="utf-8")
+    other_seed = await SimplePredictorTrainNode().run(
+        feature_table=table, target_column="target", model="ridge", n_folds=5, seed=8,
+        context=_context(tmp_path, "cv3"),
+    )
+    assert Path(other_seed[1]).read_text(encoding="utf-8") != Path(metrics).read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_predictor_train_k_fold_rejects_more_folds_than_rows(tmp_path: Path) -> None:
+    table = _feature_table(tmp_path, n_rows=4)
+    with pytest.raises(ValueError, match="n_folds' must be smaller"):
+        await SimplePredictorTrainNode().run(
+            feature_table=table, target_column="target", n_folds=4, context=_context(tmp_path)
+        )
+    validation = SimplePredictorTrainNode.VALIDATE_INPUTS(
+        {"feature_table": table, "target_column": "target", "n_folds": 1}
+    )
+    assert "n_folds' must be at least 0" not in str(validation)
+    validation = SimplePredictorTrainNode.VALIDATE_INPUTS(
+        {"feature_table": table, "target_column": "target", "n_folds": 101}
+    )
+    assert "n_folds' must be at most 100" in str(validation)
+
+
+@pytest.mark.asyncio
 async def test_predictor_rejects_missing_columns_and_params_out_of_bounds(tmp_path: Path) -> None:
     table = _feature_table(tmp_path, n_rows=20)
     context = _context(tmp_path)

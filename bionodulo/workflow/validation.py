@@ -480,6 +480,16 @@ def _control_bodies(
                 queue.append(target)
         while queue:
             current = queue.pop()
+            # Nested control nodes own their own bodies: the outer body stops
+            # at the nested node itself so feedback edges inside the nested
+            # body cannot form a cycle in the outer body's graph.
+            current_node = nodes.get(current)
+            current_type = str(
+                current_node.get("type", "") if isinstance(current_node, dict) else getattr(current_node, "type", "")
+            )
+            current_meta = registry_lookup(current_type)
+            if _node_executes_loop_body(current_meta) or _node_executes_try_catch_branches(current_meta):
+                continue
             for edge in edges:
                 if edge_source(edge) != current:
                     continue

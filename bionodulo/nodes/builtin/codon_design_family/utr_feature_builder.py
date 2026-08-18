@@ -8,15 +8,17 @@ from typing import Any
 from .adapter import (
     CodonDesignNode,
     gc_fraction,
-    read_sequence_input,
+    read_fasta_records,
     to_rna,
     validate_sequence_literal,
     write_json,
+    write_record_table,
 )
 
 
 KOZAK_CONSENSUS_MINUS6_TO_MINUS1 = "GCCRCC"
 STOP_CODONS_RNA = ("UAA", "UAG", "UGA")
+PER_RECORD_COLUMNS = ["id", "kozak", "uorf_count", "gc", "length"]
 
 
 def poly_u_runs(sequence: str, minimum: int) -> list[dict[str, int]]:
@@ -108,9 +110,9 @@ class UTRFeatureBuilderNode(CodonDesignNode):
         "translation efficiency",
         "mRNA design",
     ]
-    RETURN_TYPES = ("JSON",)
-    RETURN_NAMES = ("features",)
-    OUTPUT_FILENAMES = ("utr_features.json",)
+    RETURN_TYPES = ("JSON", "TSV", "JSON")
+    RETURN_NAMES = ("features", "per_record", "per_record_json")
+    OUTPUT_FILENAMES = ("utr_features.json", "per_record.tsv", "per_record.json")
     CITATION_DOIS = ["10.1016/0092-8674(86)90762-2"]
     CITATION_URLS = ["https://doi.org/10.1016/0092-8674(86)90762-2"]
     CITATION_TEXT = "Point mutations define a sequence flanking the AUG initiator codon that modulates translation."
@@ -148,7 +150,7 @@ class UTRFeatureBuilderNode(CodonDesignNode):
                 return validation
         return cls.validate_int(inputs.get("poly_u_min", 6), "poly_u_min", minimum=1, maximum=100)
 
-    async def run(self, **kwargs: Any) -> tuple[str]:
+    async def run(self, **kwargs: Any) -> tuple[str, str, str]:
         validation = self.VALIDATE_INPUTS(kwargs)
         if validation is not True:
             raise ValueError(str(validation))
@@ -156,22 +158,42 @@ class UTRFeatureBuilderNode(CodonDesignNode):
         poly_u_min = int(kwargs.get("poly_u_min", 6))
 
         features: dict[str, Any] = {}
-        five_utr = ""
+        five_records: list[tuple[str, str]] = []
         if str(kwargs.get("five_utr") or "").strip():
-            five_utr = to_rna(read_sequence_input(kwargs.get("five_utr"), "five_utr"))
-            invalid = set(five_utr) - set("ACGUN")
-            if invalid:
-                raise ValueError(f"Input 'five_utr' contains non-RNA characters: {''.join(sorted(invalid))}")
+            five_records = read_fasta_records(kwargs.get("five_utr"), "five_utr")
+            for _, raw_record in five_records:
+                invalid = set(raw_record) - set("ACGTUN")
+                if invalid:
+                    raise ValueError(f"Input 'five_utr' contains non-RNA characters: {''.join(sorted(invalid))}")
+            five_utr = to_rna("".join(sequence for _, sequence in five_records))
             features["five_utr"] = utr_composition(five_utr, poly_u_min)
             features["five_utr"]["uorf_count"] = count_uorfs(five_utr)
             features["kozak"] = kozak_features(five_utr)
+        three_records: list[tuple[str, str]] = []
         if str(kwargs.get("three_utr") or "").strip():
-            three_utr = to_rna(read_sequence_input(kwargs.get("three_utr"), "three_utr"))
-            invalid = set(three_utr) - set("ACGUN")
-            if invalid:
-                raise ValueError(f"Input 'three_utr' contains non-RNA characters: {''.join(sorted(invalid))}")
+            three_records = read_fasta_records(kwargs.get("three_utr"), "three_utr")
+            for _, raw_record in three_records:
+                invalid = set(raw_record) - set("ACGTUN")
+                if invalid:
+                    raise ValueError(f"Input 'three_utr' contains non-RNA characters: {''.join(sorted(invalid))}")
+            three_utr = to_rna("".join(sequence for _, sequence in three_records))
             features["three_utr"] = utr_composition(three_utr, poly_u_min)
         features["mfe_note"] = "Secondary-structure MFE intentionally not computed; use the rnafold nodes."
+
+        per_record_rows = [
+            {
+                "id": record_id,
+                "kozak": kozak_features(to_rna(sequence))["score_partial"],
+                "uorf_count": count_uorfs(to_rna(sequence)),
+                "gc": gc_fraction(sequence),
+                "length": len(sequence),
+            }
+            for record_id, sequence in (five_records or three_records)
+        ]
         json_path = self.node_output_path(context, "utr_features.json")
         write_json(json_path, features)
-        return (str(json_path),)
+        per_record_tsv = self.node_output_path(context, "per_record.tsv")
+        write_record_table(per_record_tsv, PER_RECORD_COLUMNS, per_record_rows)
+        per_record_json = self.node_output_path(context, "per_record.json")
+        write_json(per_record_json, per_record_rows)
+        return (str(json_path), str(per_record_tsv), str(per_record_json))

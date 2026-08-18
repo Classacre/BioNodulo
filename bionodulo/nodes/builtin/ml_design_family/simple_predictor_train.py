@@ -9,6 +9,7 @@ from .adapter import (
     existing_file,
     node_output_dir,
     read_table,
+    spearman,
     validate_choice_input,
     validate_float_input,
     validate_int_input,
@@ -70,6 +71,15 @@ class SimplePredictorTrainNode(MLDesignNode):
                 "learning_rate": ("FLOAT", {"default": 0.1, "min": 0.001, "max": 1.0}),
                 "l2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1000000.0, "description": "Ridge penalty (ridge only)"}),
                 "val_fraction": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 0.5}),
+                "n_folds": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 100,
+                        "description": "Repeated K-fold cross-validation fold count; 0 keeps the single split",
+                    },
+                ),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
             },
             "hidden": {},
@@ -89,6 +99,7 @@ class SimplePredictorTrainNode(MLDesignNode):
             return validation
         for key, default, minimum, maximum in (
             ("n_stumps", 50, 1, 200),
+            ("n_folds", 0, 0, 100),
             ("seed", 0, 0, 2147483647),
         ):
             validation = validate_int_input(inputs.get(key, default), key, minimum=minimum, maximum=maximum)
@@ -164,9 +175,23 @@ class SimplePredictorTrainNode(MLDesignNode):
         model_type = str(kwargs.get("model", "ridge"))
         val_fraction = float(kwargs.get("val_fraction", 0.2))
         seed = int(kwargs.get("seed", 0))
+        n_folds = int(kwargs.get("n_folds", 0))
+        rng = np.random.default_rng(seed)
+        if n_folds >= 2:
+            return await self._run_k_fold(
+                np=np,
+                context=context,
+                kwargs=kwargs,
+                identifiers=identifiers,
+                x=x,
+                y=y,
+                feature_columns=feature_columns,
+                model_type=model_type,
+                n_folds=n_folds,
+                seed=seed,
+            )
         n_val = int(round(len(y) * val_fraction))
         n_val = min(max(n_val, 0), len(y) - 1) if len(y) > 1 else 0
-        rng = np.random.default_rng(seed)
         permutation = rng.permutation(len(y))
         val_indices = np.sort(permutation[:n_val]) if n_val else np.array([], dtype=int)
         train_indices = np.sort(permutation[n_val:]) if n_val else np.arange(len(y))
@@ -216,6 +241,95 @@ class SimplePredictorTrainNode(MLDesignNode):
                     "target": float(y[index]),
                     "prediction": float(predictions[index]),
                     "split": str(splits[index]),
+                }
+                for index in range(len(y))
+            ],
+        )
+        return (str(model_path), str(metrics_path), str(predictions_path))
+
+    async def _run_k_fold(
+        self,
+        *,
+        np: Any,
+        context: Any,
+        kwargs: dict[str, Any],
+        identifiers: list[str],
+        x: Any,
+        y: Any,
+        feature_columns: list[str],
+        model_type: str,
+        n_folds: int,
+        seed: int,
+    ) -> tuple[str, str, str]:
+        if n_folds >= len(y):
+            raise ValueError(f"Input 'n_folds' must be smaller than the row count ({len(y)})")
+        permutation = np.random.default_rng(seed).permutation(len(y))
+        fold_index = np.empty(len(y), dtype=int)
+        for fold, rows in enumerate(np.array_split(permutation, n_folds)):
+            fold_index[rows] = fold
+
+        fold_r2: list[float | None] = []
+        fold_rmse: list[float | None] = []
+        fold_spearman: list[float | None] = []
+        for fold in range(n_folds):
+            val_rows = np.where(fold_index == fold)[0]
+            train_rows = np.where(fold_index != fold)[0]
+            fold_model = self._fit(np, model_type, x[train_rows], y[train_rows], feature_columns, kwargs)
+            val_prediction = self._apply(np, fold_model, x[val_rows])
+            fold_r2.append(self._r2(np, y[val_rows], val_prediction))
+            fold_rmse.append(self._rmse(np, y[val_rows], val_prediction))
+            fold_spearman.append(spearman(y[val_rows], val_prediction))
+
+        model_payload = self._fit(np, model_type, x, y, feature_columns, kwargs)
+        predictions = self._apply(np, model_payload, x)
+
+        def _summarise(values: list[float | None]) -> tuple[float | None, float | None]:
+            usable = [float(value) for value in values if value is not None and np.isfinite(value)]
+            if not usable:
+                return None, None
+            mean = sum(usable) / len(usable)
+            variance = sum((value - mean) ** 2 for value in usable) / len(usable)
+            return mean, variance**0.5
+
+        r2_mean, r2_std = _summarise(fold_r2)
+        rmse_mean, rmse_std = _summarise(fold_rmse)
+        spearman_mean, spearman_std = _summarise(fold_spearman)
+        metrics = {
+            "model": model_type,
+            "n": int(len(y)),
+            "n_train": int(len(y)),
+            "n_val": int(len(y)),
+            "n_folds": n_folds,
+            "train_r2": self._r2(np, y, predictions),
+            "train_rmse": self._rmse(np, y, predictions),
+            "val_r2": r2_mean,
+            "val_rmse": rmse_mean,
+            "val_r2_std": r2_std,
+            "val_rmse_std": rmse_std,
+            "val_spearman": spearman_mean,
+            "val_spearman_std": spearman_std,
+            "fold_val_r2": fold_r2,
+            "fold_val_rmse": fold_rmse,
+            "fold_val_spearman": fold_spearman,
+        }
+
+        output_dir = node_output_dir(self, context)
+        model_path = output_dir / "model.json"
+        metrics_path = output_dir / "metrics.json"
+        predictions_path = output_dir / "predictions.tsv"
+        write_json_file(model_path, model_payload)
+        write_json_file(metrics_path, metrics)
+        id_name = str(kwargs.get("id_column", "id") or "id").strip()
+        write_tsv_file(
+            predictions_path,
+            [id_name, "target", "prediction", "split", "fold"],
+            [
+                {
+                    id_name: identifiers[index],
+                    "target": float(y[index]),
+                    "prediction": float(predictions[index]),
+                    "split": "val",
+                    "fold": int(fold_index[index]),
                 }
                 for index in range(len(y))
             ],

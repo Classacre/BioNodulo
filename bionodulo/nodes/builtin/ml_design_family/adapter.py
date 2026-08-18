@@ -296,6 +296,36 @@ def softmax(values: list[float], temperature: float) -> list[float]:
     return [value / total for value in exponentials]
 
 
+def average_ranks(values: Any) -> Any:
+    """Fractional (1-based) ranks with ties averaged; works on numpy arrays."""
+    order = values.argsort(kind="mergesort")
+    ranks = values.astype(float).copy()
+    sorted_values = values[order]
+    index = 0
+    total = len(values)
+    while index < total:
+        stop = index
+        while stop + 1 < total and sorted_values[stop + 1] == sorted_values[index]:
+            stop += 1
+        ranks[order[index : stop + 1]] = 0.5 * (index + stop) + 1.0
+        index = stop + 1
+    return ranks
+
+
+def spearman(x: Any, y: Any) -> float | None:
+    """Spearman correlation as Pearson on fractional (average) ranks."""
+    if len(x) < 2:
+        return None
+    rank_x = average_ranks(x)
+    rank_y = average_ranks(y)
+    rank_x = rank_x - rank_x.mean()
+    rank_y = rank_y - rank_y.mean()
+    denominator = float(((rank_x**2).sum() * (rank_y**2).sum()) ** 0.5)
+    if denominator == 0.0:
+        return None
+    return float((rank_x * rank_y).sum() / denominator)
+
+
 def validate_int_input(
     value: Any,
     key: str,

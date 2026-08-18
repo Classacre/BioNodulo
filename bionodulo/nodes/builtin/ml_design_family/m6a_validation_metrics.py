@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import gzip
 import re
 from pathlib import Path
 from typing import Any, ClassVar
 
 from .adapter import (
     MLDesignNode,
+    average_ranks,
     existing_file,
     node_output_dir,
+    spearman,
     validate_choice_input,
     validate_float_input,
     validate_int_input,
@@ -28,6 +31,12 @@ SCALE_DIVISORS = {"100": 100.0, "1000": 1000.0, "fraction": 1.0}
 FDR_COLUMNS = ("P_adjust", "Pvalue")
 GLORI_POS_COL = "Sites"
 METAGENE_BINS = 50
+INPUT_MODES = ("auto", "per_site", "extract_raw")
+EXTRACT_CHROM_ALIASES = ("chrom", "chrm", "chr", "chromosome")
+EXTRACT_POS_ALIASES = ("ref_position", "pos_on_chrm", "pos", "position")
+EXTRACT_STRAND_ALIASES = ("ref_mod_strand", "ref_strand", "strand")
+EXTRACT_QUAL_ALIASES = ("mod_qual", "qual", "mod_prob")
+EXTRACT_CANONICAL_ALIASES = ("canonical_base", "canonical", "ref_base")
 JOINED_COLUMNS = [
     "chrom",
     "pos",
@@ -57,19 +66,7 @@ def normalise_chrom(name: str) -> str:
     return text
 
 
-def _average_ranks(values: Any) -> Any:
-    order = values.argsort(kind="mergesort")
-    ranks = values.astype(float).copy()
-    sorted_values = values[order]
-    index = 0
-    total = len(values)
-    while index < total:
-        stop = index
-        while stop + 1 < total and sorted_values[stop + 1] == sorted_values[index]:
-            stop += 1
-        ranks[order[index : stop + 1]] = 0.5 * (index + stop) + 1.0
-        index = stop + 1
-    return ranks
+_average_ranks = average_ranks
 
 
 def mann_whitney_auroc(labels: Any, scores: Any) -> float | None:
@@ -83,20 +80,6 @@ def mann_whitney_auroc(labels: Any, scores: Any) -> float | None:
     rank_sum = float(ranks[labels].sum())
     u1 = rank_sum - n_pos * (n_pos + 1) / 2.0
     return u1 / (n_pos * n_neg)
-
-
-def spearman(x: Any, y: Any) -> float | None:
-    """Spearman correlation as Pearson on fractional (average) ranks."""
-    if len(x) < 2:
-        return None
-    rank_x = _average_ranks(x)
-    rank_y = _average_ranks(y)
-    rank_x = rank_x - rank_x.mean()
-    rank_y = rank_y - rank_y.mean()
-    denominator = float(((rank_x**2).sum() * (rank_y**2).sum()) ** 0.5)
-    if denominator == 0.0:
-        return None
-    return float((rank_x * rank_y).sum() / denominator)
 
 
 def precision_at_recall(labels: Any, scores: Any, target_recall: float = 0.5) -> dict[str, float] | None:
@@ -127,6 +110,22 @@ def _pick_column(fieldnames: list[str], aliases: tuple[str, ...], fallback: str 
         if alias in fieldnames:
             return alias
     return fallback
+
+
+def _read_table_text(path: Path) -> str:
+    """Read plain or gzip-compressed table text transparently."""
+    if path.name.lower().endswith(".gz"):
+        with gzip.open(path, "rt", encoding="utf-8") as handle:
+            return handle.read()
+    return path.read_text(encoding="utf-8")
+
+
+def _table_delimiter(path: Path) -> str:
+    return "," if path.name.lower().removesuffix(".gz").endswith(".csv") else "\t"
+
+
+def _looks_like_extract_raw(fieldnames: list[str]) -> bool:
+    return "read_id" in fieldnames and any(name in fieldnames for name in EXTRACT_POS_ALIASES)
 
 
 def _parse_float(text: str) -> float | None:
@@ -250,7 +249,10 @@ class M6AValidationMetricsNode(MLDesignNode):
         "Ensembl GTF annotates our positive sites with 5UTR/CDS/3UTR region and fractional transcript "
         "position (50-bin metagene). drach_filter (default true) keeps only A-canonical sites using the "
         "canonical_base column of our extract TSV when present; motif-context filtering beyond the "
-        "canonical base is out of scope."
+        "canonical base is out of scope. sites_tsv may instead be the raw per-read output of "
+        "`modkit extract full` (input_mode auto-sniffs read_id + ref_position columns and aggregates "
+        "per chrom/pos/strand site: valid_coverage = read count, percent_modified = mean mod_qual, "
+        "with 0-255 mod_qual scaling handled); .gz inputs for both tables are read transparently."
     )
     SEARCH_ALIASES = [
         "m6A",
@@ -295,6 +297,14 @@ class M6AValidationMetricsNode(MLDesignNode):
                     "BOOLEAN",
                     {"default": True, "description": "Keep only A-canonical sites via the canonical_base column when present"},
                 ),
+                "input_mode": (
+                    "STRING",
+                    {
+                        "default": "auto",
+                        "options": list(INPUT_MODES),
+                        "description": "Read sites_tsv as a per-site table, a raw modkit-extract table, or auto-sniff the header",
+                    },
+                ),
             },
             "hidden": {},
         }
@@ -302,6 +312,9 @@ class M6AValidationMetricsNode(MLDesignNode):
     @classmethod
     def VALIDATE_INPUTS(cls, inputs: dict[str, Any]) -> bool | str:
         validation = super().VALIDATE_INPUTS(inputs)
+        if validation is not True:
+            return validation
+        validation = validate_choice_input(inputs.get("input_mode", "auto"), "input_mode", INPUT_MODES)
         if validation is not True:
             return validation
         for key in ("percent_scale", "fdr_col"):
@@ -342,8 +355,11 @@ class M6AValidationMetricsNode(MLDesignNode):
         glori_fdr_threshold = float(kwargs.get("glori_fdr_threshold", 0.05))
         fdr_col = str(kwargs.get("fdr_col", "P_adjust") or "P_adjust")
         drach_filter = bool(kwargs.get("drach_filter", True))
+        input_mode = str(kwargs.get("input_mode", "auto") or "auto")
 
-        sites, columns_used, n_rows_total = self._load_our_sites(kwargs["sites_tsv"], scale, drach_filter)
+        sites, columns_used, n_rows_total, mode_used = self._load_our_sites(
+            kwargs["sites_tsv"], scale, drach_filter, input_mode
+        )
         sites = [site for site in sites if site["coverage"] >= min_coverage]
         glori, n_glori_rows = self._load_glori(kwargs["glori_csv"], fdr_col, glori_ratio_threshold, glori_fdr_threshold)
 
@@ -470,6 +486,7 @@ class M6AValidationMetricsNode(MLDesignNode):
             "n_ours_input_rows": n_rows_total,
             "n_ours_sites": len(sites),
             "n_ours_called": n_ours_called,
+            "input_mode_used": mode_used,
             "n_glori_rows": n_glori_rows,
             "n_glori_sites": len(glori),
             "n_glori_positive": n_glori_positive,
@@ -500,6 +517,7 @@ class M6AValidationMetricsNode(MLDesignNode):
                 "fdr_col": fdr_col,
                 "drach_filter": drach_filter,
                 "drach_filter_applied": columns_used["canonical_base"] is not None,
+                "input_mode": input_mode,
             },
         }
         write_json_file(summary_path, summary)
@@ -510,13 +528,30 @@ class M6AValidationMetricsNode(MLDesignNode):
         value: Any,
         scale: float,
         drach_filter: bool,
-    ) -> tuple[list[dict[str, Any]], dict[str, str | None], int]:
+        input_mode: str,
+    ) -> tuple[list[dict[str, Any]], dict[str, str | None], int, str]:
         path = existing_file(value, "sites_tsv")
-        delimiter = "," if path.suffix.lower() == ".csv" else "\t"
-        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        delimiter = _table_delimiter(path)
+        lines = [line for line in _read_table_text(path).splitlines() if line.strip()]
         if not lines:
             raise ValueError(f"Input 'sites_tsv' is empty: {path}")
         fieldnames = [name.strip() for name in lines[0].split(delimiter)]
+        use_extract_raw = input_mode == "extract_raw" or (
+            input_mode == "auto" and _looks_like_extract_raw(fieldnames)
+        )
+        if use_extract_raw:
+            return (*self._load_extract_raw(lines, delimiter, drach_filter), "extract_raw")
+        sites, picks, n_rows = self._load_per_site(lines, delimiter, fieldnames, scale, drach_filter)
+        return sites, picks, n_rows, "per_site"
+
+    def _load_per_site(
+        self,
+        lines: list[str],
+        delimiter: str,
+        fieldnames: list[str],
+        scale: float,
+        drach_filter: bool,
+    ) -> tuple[list[dict[str, Any]], dict[str, str | None], int]:
         picks = {
             "chrom": _pick_column(fieldnames, CHROM_ALIASES),
             "pos": _pick_column(fieldnames, POS_ALIASES),
@@ -563,8 +598,91 @@ class M6AValidationMetricsNode(MLDesignNode):
                 }
             )
         if not sites:
-            raise ValueError(f"Input 'sites_tsv' contains no usable site rows: {path}")
+            raise ValueError("Input 'sites_tsv' contains no usable site rows")
         return sites, dict(picks), len(lines) - 1
+
+    def _load_extract_raw(
+        self,
+        lines: list[str],
+        delimiter: str,
+        drach_filter: bool,
+    ) -> tuple[list[dict[str, Any]], dict[str, str | None], int]:
+        fieldnames = [name.strip() for name in lines[0].split(delimiter)]
+        picks = {
+            "chrom": _pick_column(fieldnames, EXTRACT_CHROM_ALIASES),
+            "pos": _pick_column(fieldnames, EXTRACT_POS_ALIASES),
+            "strand": _pick_column(fieldnames, EXTRACT_STRAND_ALIASES),
+            "coverage": "n_reads",
+            "value": _pick_column(fieldnames, EXTRACT_QUAL_ALIASES),
+            "canonical_base": _pick_column(fieldnames, EXTRACT_CANONICAL_ALIASES),
+        }
+        missing = [key for key in ("chrom", "pos", "strand", "value") if picks[key] is None]
+        if missing:
+            raise ValueError(
+                f"Input 'sites_tsv' does not look like a modkit-extract table: missing column(s) "
+                f"{', '.join(missing)} (found: {', '.join(fieldnames)})"
+            )
+        raw_rows: list[dict[str, str]] = []
+        for line_number, line in enumerate(lines[1:], start=2):
+            values = [item.strip() for item in line.split(delimiter)]
+            if len(values) != len(fieldnames):
+                raise ValueError(
+                    f"Input 'sites_tsv' row {line_number} has {len(values)} fields; expected {len(fieldnames)}"
+                )
+            raw_rows.append(dict(zip(fieldnames, values, strict=True)))
+        if not raw_rows:
+            raise ValueError("Input 'sites_tsv' contains no read-level rows to aggregate")
+
+        chrom_column = picks["chrom"] or ""
+        pos_column = picks["pos"] or ""
+        strand_column = picks["strand"] or ""
+        qual_column = picks["value"] or ""
+        canonical_column = picks["canonical_base"]
+        grouped: dict[tuple[str, int, str], dict[str, Any]] = {}
+        probabilities: list[float] = []
+        parsed: list[tuple[str, int, str, float, str]] = []
+        for row in raw_rows:
+            try:
+                position = int(row[pos_column])
+                quality = float(row[qual_column])
+            except ValueError as exc:
+                raise ValueError(f"Input 'sites_tsv' has a non-numeric extract field: {exc}") from exc
+            if position < 0 or row[chrom_column] in {".", ""}:
+                continue
+            strand = row.get(strand_column, "")
+            if strand == "." or not strand:
+                strand = row.get("ref_strand", "+")
+            canonical = row.get(canonical_column or "", "").strip() if canonical_column else ""
+            if drach_filter and canonical_column and canonical and canonical.upper() != "A":
+                continue
+            parsed.append((row[chrom_column], position, strand, quality, canonical))
+            probabilities.append(quality)
+        if not parsed:
+            raise ValueError("Input 'sites_tsv' contains no usable mapped extract rows")
+        divisor = 255.0 if max(probabilities) > 1.0 else 1.0
+        for chrom, position, strand, quality, canonical in parsed:
+            key = (normalise_chrom(chrom), position + 1, strand)
+            entry = grouped.get(key)
+            if entry is None:
+                entry = {"chrom": chrom, "pos": position + 1, "strand": strand, "quals": [], "canonical": canonical}
+                grouped[key] = entry
+            entry["quals"].append(quality / divisor)
+            if not entry["canonical"] and canonical:
+                entry["canonical"] = canonical
+        sites = [
+            {
+                "chrom": entry["chrom"],
+                "chrom_norm": key[0],
+                "pos": entry["pos"],
+                "pos1": entry["pos"],
+                "strand": key[2],
+                "coverage": len(entry["quals"]),
+                "ratio": min(max(sum(entry["quals"]) / len(entry["quals"]), 0.0), 1.0),
+                "canonical": entry["canonical"],
+            }
+            for key, entry in sorted(grouped.items())
+        ]
+        return sites, dict(picks), len(raw_rows)
 
     def _load_glori(
         self,
@@ -574,8 +692,8 @@ class M6AValidationMetricsNode(MLDesignNode):
         fdr_threshold: float,
     ) -> tuple[dict[tuple[str, int, str], dict[str, Any]], int]:
         path = existing_file(value, "glori_csv")
-        delimiter = "," if path.suffix.lower() == ".csv" else "\t"
-        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        delimiter = _table_delimiter(path)
+        lines = [line for line in _read_table_text(path).splitlines() if line.strip()]
         if not lines:
             raise ValueError(f"Input 'glori_csv' is empty: {path}")
         fieldnames = [name.strip() for name in lines[0].split(delimiter)]

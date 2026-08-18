@@ -116,20 +116,42 @@ def reverse_complement_rna(sequence: str) -> str:
     return sequence.translate(RNA_COMPLEMENT)[::-1]
 
 
-def read_sequence_input(value: Any, key: str) -> str:
-    """Read one sequence from a literal string or a FASTA/plain-text file path."""
+def read_fasta_records(value: Any, key: str) -> list[tuple[str, str]]:
+    """Read (id, sequence) records from a literal string or a FASTA/plain-text file path."""
     text = str(value or "")
     if not text.strip():
         raise ValueError(f"Input '{key}' must be a non-empty sequence or file path")
     if path_probe_is_file(text):
         text = Path(text).read_text(encoding="utf-8")
-    pieces: list[str] = []
+    records: list[tuple[str, str]] = []
+    identifier = ""
+    chunks: list[str] = []
+
+    def flush() -> None:
+        sequence = "".join(chunks).upper().replace(" ", "").replace("-", "")
+        if identifier or sequence:
+            records.append((identifier or f"record_{len(records) + 1}", sequence))
+
     for line in text.splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith(">") or stripped.startswith(";"):
+        if not stripped or stripped.startswith(";"):
             continue
-        pieces.append(stripped)
-    return "".join(pieces).upper().replace(" ", "").replace("-", "")
+        if stripped.startswith(">"):
+            flush()
+            parts = stripped[1:].strip().split()
+            identifier = parts[0] if parts else ""
+            chunks = []
+            continue
+        chunks.append(stripped)
+    flush()
+    if not records:
+        raise ValueError(f"Input '{key}' contains no sequence records")
+    return records
+
+
+def read_sequence_input(value: Any, key: str) -> str:
+    """Read one sequence from a literal string or a FASTA/plain-text file path."""
+    return "".join(sequence for _, sequence in read_fasta_records(value, key))
 
 
 def validate_sequence_literal(
@@ -283,6 +305,22 @@ def wrap_sequence(sequence: str, width: int) -> list[str]:
 
 def write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def format_table_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:.6f}"
+    return str(value)
+
+
+def write_record_table(path: Path, columns: list[str], rows: list[dict[str, Any]]) -> None:
+    lines = ["\t".join(columns)]
+    lines.extend("\t".join(format_table_cell(row.get(column)) for column in columns) for row in rows)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 class CodonDesignNode(BaseNode):

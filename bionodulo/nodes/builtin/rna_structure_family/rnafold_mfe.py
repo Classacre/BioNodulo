@@ -29,9 +29,9 @@ class RNAfoldMFENode(RNAStructureCommandNode):
         "dot-bracket",
         "mRNA structure",
     ]
-    RETURN_TYPES = ("STRING", "STRING", "JSON")
-    RETURN_NAMES = ("structure", "raw_output", "energies")
-    OUTPUT_FILENAMES = ("fold_stdout.txt", "structure.dbn", "energies.json")
+    RETURN_TYPES = ("STRING", "STRING", "JSON", "TSV")
+    RETURN_NAMES = ("structure", "raw_output", "energies", "per_record")
+    OUTPUT_FILENAMES = ("fold_stdout.txt", "structure.dbn", "energies.json", "per_record.tsv")
     STDOUT_OUTPUT_INDEX = 0
     REQUIRED_SEQUENCE_INPUTS = ("fasta", "sequence")
     REQUIRED_EXECUTABLES = ["RNAfold"]
@@ -121,4 +121,7 @@ class RNAfoldMFENode(RNAStructureCommandNode):
             "records": json_records,
         }
         outputs[2].write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        per_record_lines = ["id\tmfe"]
+        per_record_lines.extend(f"{record['id']}\t{record['mfe_kcal_mol']}" for record in json_records)
+        outputs[3].write_text("\n".join(per_record_lines) + "\n", encoding="utf-8")
         return tuple(str(path) for path in outputs)
