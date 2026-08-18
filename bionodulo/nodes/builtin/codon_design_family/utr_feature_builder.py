@@ -140,8 +140,10 @@ class UTRFeatureBuilderNode(CodonDesignNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        if inputs.get("five_utr", "") in (None, "") and inputs.get("three_utr", "") in (None, ""):
-            return "Provide at least one of 'five_utr' or 'three_utr'"
+        # CDS-only campaigns legitimately have no UTR to evaluate; an empty
+        # per-record table is emitted rather than a hard error so the shared
+        # evaluator subgraph stays usable across E1 (CDS design), E2
+        # (baselines), and E3 (PERSIST constructs with real UTRs).
         for key in ("five_utr", "three_utr"):
             if inputs.get(key, "") in (None, ""):
                 continue

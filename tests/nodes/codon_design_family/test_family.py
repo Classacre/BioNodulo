@@ -82,7 +82,7 @@ def test_family_contract_metadata(registry: NodeRegistry, node_id: str) -> None:
         ("immune_motif_scanner", {"sequence": "AUGCGU", "tlr9_cpg_motifs": "GTXXT"}, "must use ACGT characters"),
         ("mirna_seed_scanner", {"target": "AUGCGU", "seed_file": ""}, "Input 'seed_file' must be a non-empty path"),
         ("mirna_seed_scanner", {"target": "", "seed_file": "s.tsv"}, "Input 'target' must be a non-empty sequence or file path"),
-        ("utr_feature_builder", {}, "Provide at least one of 'five_utr' or 'three_utr'"),
+        ("utr_feature_builder", {"five_utr": "INVALID!"}, "contains invalid characters"),
         ("utr_feature_builder", {"five_utr": "AUGCUA", "poly_u_min": 0}, "Input 'poly_u_min' must be at least 1"),
     ],
 )
