@@ -89,7 +89,7 @@
       ],
       "params": {
         "require_files_exist": true,
-        "fail_closed": false,
+        "fail_closed": true,
         "base_dir": ""
       },
       "outputs": {
@@ -98,25 +98,6 @@
       },
       "ui": {
         "title": "Accession Gate (fail-open -> route)"
-      }
-    },
-    {
-      "id": "gate_if",
-      "type": "if_condition",
-      "position": [
-        60,
-        40
-      ],
-      "params": {
-        "condition_mode": "boolean"
-      },
-      "outputs": {
-        "true": {},
-        "false": {},
-        "condition_result": {}
-      },
-      "ui": {
-        "title": "All Files Verified?"
       }
     },
     {
@@ -9644,39 +9625,6 @@
       }
     },
     {
-      "id": "m_gate_if",
-      "from": {
-        "node": "gate",
-        "output": "all_pass"
-      },
-      "to": {
-        "node": "gate_if",
-        "input": "value"
-      }
-    },
-    {
-      "id": "m_if_e1",
-      "from": {
-        "node": "gate_if",
-        "output": "true"
-      },
-      "to": {
-        "node": "e1",
-        "input": "in__e1_prov__input_0"
-      }
-    },
-    {
-      "id": "m_if_e4",
-      "from": {
-        "node": "gate_if",
-        "output": "true"
-      },
-      "to": {
-        "node": "e4",
-        "input": "in__e4_prov__input_0"
-      }
-    },
-    {
       "id": "m_cfg_e1",
       "from": {
         "node": "cfg",
@@ -9839,6 +9787,28 @@
       "to": {
         "node": "x",
         "input": "after"
+      }
+    },
+    {
+      "id": "e_gate_e1",
+      "from": {
+        "node": "gate",
+        "output": "all_pass"
+      },
+      "to": {
+        "node": "e1",
+        "input": "in__e1_prov__input_0"
+      }
+    },
+    {
+      "id": "e_gate_e4",
+      "from": {
+        "node": "gate",
+        "output": "all_pass"
+      },
+      "to": {
+        "node": "e4",
+        "input": "in__e4_prov__input_0"
       }
     }
   ],

@@ -123,9 +123,8 @@ def test_master_template_layout_groups_and_ports() -> None:
         (e["from"]["node"], e["from"]["output"], e["to"]["node"]): e["to"]["input"]
         for e in workflow["edges"]
     }
-    assert edge_map[("gate", "all_pass", "gate_if")] == "value"
-    assert ("gate_if", "true", "e1") in edge_map
-    assert ("gate_if", "true", "e4") in edge_map
+    assert edge_map[("gate", "all_pass", "e1")] == "in__e1_prov__input_0"
+    assert edge_map[("gate", "all_pass", "e4")] == "in__e4_prov__input_0"
     # The false branch documents the halt inline (note nodes are visual-only;
     # the executor filters them, so no edge may point at one).
     assert not [e for e in workflow["edges"] if e["to"]["node"] == "gate_halt"]
@@ -329,7 +328,7 @@ async def test_miniature_master_run_completes_with_live_ensemble_reward(tmp_path
 
     # Gate verified the staged repo inputs and routed the true branch.
     assert result["node_results"]["gate"]["outputs"]["all_pass"] is True
-    assert result["node_results"]["gate_if"]["outputs"]["condition_result"] is True
+    assert result["node_results"]["gate"]["outputs"]["all_pass"] is True
     for phase in HEAVY_PHASES:
         assert result["node_results"][phase]["status"] == "muted"
 
