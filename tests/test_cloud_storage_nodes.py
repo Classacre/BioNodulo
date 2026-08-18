@@ -352,3 +352,36 @@ def test_s3_environment_metadata_is_declared() -> None:
     assert PACKAGE_MIN_VERSIONS["awscli"] == "2.36.2"
     assert workflow_to_packages({"nodes": [{"id": "upload", "type": "s3_upload"}]}, registry) == ["awscli"]
     assert workflow_to_packages({"nodes": [{"id": "download", "type": "s3_download"}]}, registry) == ["awscli"]
+
+
+def test_s3_download_anonymous_adds_no_sign_request(tmp_path: Path) -> None:
+    node_class = _node_class("s3_download")
+    destination = tmp_path / "sgnex_run1.pod5"
+
+    command = node_class.render_command(
+        {
+            "bucket": "sg-nex-data",
+            "key": "data/sequencing_data_ont/fast5/example.pod5",
+            "local_path": str(destination),
+            "anonymous": True,
+        }
+    )
+
+    assert command[:6] == [
+        "aws",
+        "s3",
+        "cp",
+        "s3://sg-nex-data/data/sequencing_data_ont/fast5/example.pod5",
+        str(destination),
+        "--no-sign-request",
+    ]
+
+    signed = node_class.render_command(
+        {
+            "bucket": "sg-nex-data",
+            "key": "data/example.pod5",
+            "local_path": str(destination),
+            "anonymous": False,
+        }
+    )
+    assert "--no-sign-request" not in signed

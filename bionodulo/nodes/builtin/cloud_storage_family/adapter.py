@@ -105,6 +105,12 @@ async def run_command(command: list[str], cwd: Path, context: Any) -> dict[str, 
 class S3BaseNode(BaseNode):
     """Common AWS CLI metadata and options."""
 
+    @staticmethod
+    def _truthy(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        return str(value if value is not None else "").strip().lower() in {"true", "1", "yes", "on"}
+
     CATEGORY = "storage"
     SEARCH_ALIASES: ClassVar[list[str]] = ["s3", "aws", "cloud storage", "object storage", "bucket"]
     REQUIRES_EXTERNAL_TOOLS = True
@@ -122,6 +128,13 @@ class S3BaseNode(BaseNode):
         return {
             "profile": ("STRING", {"default": "", "description": "Optional AWS CLI profile name"}),
             "region": ("STRING", {"default": "", "description": "Optional AWS region override"}),
+            "anonymous": (
+                "BOOLEAN",
+                {
+                    "default": False,
+                    "description": "Access the bucket without credentials (adds --no-sign-request), e.g. open-data buckets like sg-nex-data",
+                },
+            ),
             "extra_args": (
                 "STRING",
                 {
@@ -140,6 +153,8 @@ class S3BaseNode(BaseNode):
             command.extend(["--profile", profile])
         if region:
             command.extend(["--region", region])
+        if cls._truthy(inputs.get("anonymous")):
+            command.append("--no-sign-request")
         command.extend(extra_args(inputs.get("extra_args", "")))
         return command
 

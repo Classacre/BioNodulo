@@ -51,7 +51,7 @@ async def test_format_converter_is_table_only_and_preserves_header_only_tables(t
     assert Path(converted[0]).read_text(encoding="utf-8") == "id\tvalue\n"
     assert (
         FormatConverterNode.VALIDATE_INPUTS({"input_file": "reads.fastq", "output_format": "FASTA"})
-        == "Input 'output_format' must be one of: csv, tsv, json"
+        == "Input 'output_format' must be one of: csv, tsv, json, jsonl"
     )
 
 
@@ -125,3 +125,22 @@ async def test_deduplicate_fasta_uses_uppercase_sequence_identity(tmp_path: Path
     )
     assert Path(retained).read_text(encoding="utf-8") == ">a\nACGT\n>c\nTTAA\n"
     assert Path(duplicates).read_text(encoding="utf-8") == ">b\nACGT\n"
+
+
+@pytest.mark.asyncio
+async def test_format_converter_jsonl_roundtrip_preserves_records(tmp_path: Path) -> None:
+    source = tmp_path / "rows.tsv"
+    source.write_text("id\tarm\tk_deg\nm1\tdeg_Mg_pH10\t0.5\nm2\tdeg_Mg_pH10\t1.5\n", encoding="utf-8")
+
+    jsonl_path, = await FormatConverterNode().run(
+        input_file=str(source), output_format="jsonl", context=SimpleNamespace(node_dir=tmp_path)
+    )
+    lines = Path(jsonl_path).read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    first = json.loads(lines[0])
+    assert first == {"id": "m1", "arm": "deg_Mg_pH10", "k_deg": "0.5"}
+
+    back_path, = await FormatConverterNode().run(
+        input_file=jsonl_path, output_format="tsv", context=SimpleNamespace(node_dir=tmp_path / "back")
+    )
+    assert Path(back_path).read_text(encoding="utf-8") == source.read_text(encoding="utf-8")

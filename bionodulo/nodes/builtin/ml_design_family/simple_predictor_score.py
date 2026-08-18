@@ -9,6 +9,7 @@ from .adapter import (
     existing_file,
     load_json_mapping,
     node_output_dir,
+    path_probe_is_file,
     read_table,
     write_json_file,
     write_tsv_file,
@@ -23,7 +24,11 @@ class SimplePredictorScoreNode(MLDesignNode):
     DESCRIPTION = (
         "Load a model JSON written by simple_predictor_train and score a headered "
         "feature table, writing per-row predictions as TSV and JSON. Use it to fold a "
-        "learned evaluator back into the mRNA design loop's multi_objective_scorer."
+        "learned evaluator back into the mRNA design loop's multi_objective_scorer. "
+        "An EMPTY 'model' input is not an error: the node writes a header-only "
+        "predictions TSV and an empty predictions JSON so shared evaluator subgraphs "
+        "can leave the learned member untrained (multi_objective_scorer skips empty "
+        "score tables fail-soft)."
     )
     SEARCH_ALIASES = [
         "predict",
@@ -56,7 +61,8 @@ class SimplePredictorScoreNode(MLDesignNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
-        if not str(inputs.get("model", "")).strip():
+        model = str(inputs.get("model", "") or "").strip()
+        if model and not path_probe_is_file(model) and not model.startswith("{"):
             return "Input 'model' must be a model JSON path or inline JSON"
         return True
 
@@ -67,6 +73,15 @@ class SimplePredictorScoreNode(MLDesignNode):
         validation = self.VALIDATE_INPUTS(kwargs)
         if validation is not True:
             raise ValueError(str(validation))
+        output_dir = node_output_dir(self, context)
+        tsv_path = output_dir / "predictions.tsv"
+        json_path = output_dir / "predictions.json"
+
+        if not str(kwargs.get("model", "") or "").strip():
+            write_tsv_file(tsv_path, ["id", "prediction"], [])
+            write_json_file(json_path, {"model": None, "predictions": []})
+            return (str(tsv_path), str(json_path))
+
         model_payload = load_json_mapping(kwargs["model"], "model")
         if model_payload is None:
             raise ValueError("Input 'model' is required")
@@ -109,9 +124,6 @@ class SimplePredictorScoreNode(MLDesignNode):
         for record, prediction in zip(records, predictions, strict=True):
             record["prediction"] = float(prediction)
 
-        output_dir = node_output_dir(self, context)
-        tsv_path = output_dir / "predictions.tsv"
-        json_path = output_dir / "predictions.json"
         write_tsv_file(tsv_path, ["id", "prediction"], records)
         write_json_file(json_path, {"model": model_type, "predictions": records})
         return (str(tsv_path), str(json_path))

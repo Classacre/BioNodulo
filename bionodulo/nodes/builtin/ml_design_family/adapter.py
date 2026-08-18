@@ -246,6 +246,15 @@ def write_json_file(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def write_jsonl_file(path: Path, rows: list[dict[str, Any]]) -> None:
+    """Write one compact JSON object per line (loop-friendly row strings)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(row, ensure_ascii=True, sort_keys=True) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+
 def write_tsv_file(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> None:
     if not fieldnames:
         raise ValueError("Output table must contain at least one column")

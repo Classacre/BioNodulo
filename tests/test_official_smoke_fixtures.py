@@ -40,6 +40,7 @@ ALLOWED_LOCAL_INPUTS = {
     "templates/data/smoke/sgrna_library.tsv",
     "templates/data/smoke/target_decoy.fasta",
     "templates/data/accession_manifest.tsv",
+    "templates/data/verified_inputs_manifest.tsv",
 }
 
 # Sources that were tried and abandoned because they rot or are unreasonably

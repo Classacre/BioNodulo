@@ -595,3 +595,37 @@ async def test_accession_gate_rejects_structurally_invalid_manifests(tmp_path: P
     ragged = _write(tmp_path / "ragged.tsv", _manifest(["SRR1\t1\tf\t2026-01-01\tab\tdata/x.fa"]))
     with pytest.raises(ValueError, match="expected 7"):
         await node.run(manifest=ragged, context=context)
+
+
+@pytest.mark.asyncio
+async def test_accession_gate_base_dir_pins_workspace_root(tmp_path: Path, monkeypatch) -> None:
+    """Relative 'file' entries resolve against base_dir first, then manifest dir, then cwd."""
+    workspace = tmp_path / "workspace"
+    staged = workspace / "data"
+    staged.mkdir(parents=True)
+    payload = staged / "record1.fa"
+    payload.write_text(">x\nACGT\n", encoding="utf-8")
+    digest = hashlib.sha256(payload.read_bytes()).hexdigest()
+    manifest_dir = workspace / "templates" / "data"
+    manifest_dir.mkdir(parents=True)
+    manifest = _write(
+        manifest_dir / "verified_inputs.tsv",
+        _manifest([f"SRR000001\t1\tfeature\t2026-01-15\t{digest}\tdata/record1.fa\tok"]),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    node = AccessionGateNode()
+    _, all_pass = await node.run(
+        manifest=manifest,
+        base_dir=str(workspace),
+        context=_context(tmp_path),
+    )
+    assert all_pass is True
+
+    status_path, all_pass = await node.run(
+        manifest=manifest, fail_closed=False, context=_context(tmp_path / "no-basedir")
+    )
+    assert all_pass is False
+    payload = json.loads(Path(status_path).read_text(encoding="utf-8"))
+    assert payload["base_dir"] == ""
+    assert payload["rows"][0]["file_status"] == "missing"

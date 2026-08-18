@@ -66,7 +66,7 @@ async def test_two_subgraphs_three_iterations(tmp_path: Path) -> None:
     run_dir = tmp_path / "campaign"
     _build_tree(run_dir)
     node = CampaignResultsBuilderNode()
-    results_path, summary_path = await node.run(run_dir=str(run_dir), context=_context(tmp_path))
+    results_path, summary_path, per_subgraph_path = await node.run(run_dir=str(run_dir), context=_context(tmp_path))
 
     with Path(results_path).open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
@@ -98,7 +98,7 @@ async def test_subgraph_path_is_relative_branch(tmp_path: Path) -> None:
     run_dir = tmp_path / "nested"
     _build_tree(run_dir)
     node = CampaignResultsBuilderNode()
-    results_path, _ = await node.run(run_dir=str(run_dir), context=_context(tmp_path, "nested"))
+    results_path, _, _ = await node.run(run_dir=str(run_dir), context=_context(tmp_path, "nested"))
     with Path(results_path).open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     assert {row["subgraph"] for row in rows} == {"sub_a", "sub_b"}
@@ -114,3 +114,73 @@ async def test_empty_and_missing_run_dirs(tmp_path: Path) -> None:
     empty.mkdir()
     with pytest.raises(ValueError, match="No iterations"):
         await node.run(run_dir=str(empty), context=_context(tmp_path, "empty"))
+
+
+def _build_best_so_far_tree(run_dir: Path) -> None:
+    """A baseline loop without an optimizer: best_so_far best.json per iteration."""
+    for index in range(2):
+        iteration_dir = run_dir / "fe_b1" / "iterations" / f"{index:04d}"
+        best_dir = iteration_dir / "best_so_far"
+        best_dir.mkdir(parents=True, exist_ok=True)
+        (best_dir / "best.json").write_text(
+            json.dumps(
+                {
+                    "id": "cand_0001",
+                    "composite": 5.0 + index,
+                    "per_objective": {"scores_1": 0.4, "scores_4": 12.5},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+
+@pytest.mark.asyncio
+async def test_per_subgraph_rows_capture_best_so_far_baselines(tmp_path: Path) -> None:
+    run_dir = tmp_path / "campaign_b1"
+    _build_best_so_far_tree(run_dir)
+    node = CampaignResultsBuilderNode()
+
+    results_path, summary_path, per_subgraph_path = await node.run(
+        run_dir=str(run_dir), after=["/runs/x/e1"], context=_context(tmp_path)
+    )
+
+    lines = Path(per_subgraph_path).read_text(encoding="utf-8").splitlines()
+    header = lines[0].split("\t")
+    assert header[:5] == ["subgraph", "n_iterations", "best_composite_overall", "best_composite_final", "best_id"]
+    assert header[5:] == [f"best_scores_{index}" for index in range(1, 7)]
+    row = dict(zip(header, lines[1].split("\t"), strict=True))
+    assert row["subgraph"] == "fe_b1"
+    assert row["n_iterations"] == "2"
+    assert row["best_composite_overall"] == "6.000000"
+    assert row["best_composite_final"] == "6.000000"
+    assert row["best_id"] == "cand_0001"
+    assert row["best_scores_1"] == "0.400000"
+    assert row["best_scores_4"] == "12.500000"
+    assert row["best_scores_2"] == ""
+
+    summary = json.loads(Path(summary_path).read_text(encoding="utf-8"))
+    assert summary["after"] == ["/runs/x/e1"]
+    assert summary["run_dir"] == str(run_dir)
+    assert summary["subgraphs"][0]["best_composite_overall"] == pytest.approx(6.0)
+    with Path(results_path).open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert {(row["evaluator"], row["metric"]) for row in rows} == {("best_so_far", "composite")}
+
+
+@pytest.mark.asyncio
+async def test_empty_run_dir_uses_execution_context_runs_root(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    run_dir = workspace / "runs" / "run-42"
+    _build_best_so_far_tree(run_dir)
+    context = SimpleNamespace(node_dir=tmp_path / "node", workspace_dir=workspace, run_id="run-42")
+    node = CampaignResultsBuilderNode()
+
+    _, summary_path, _ = await node.run(run_dir="", context=context)
+
+    summary = json.loads(Path(summary_path).read_text(encoding="utf-8"))
+    assert summary["run_dir"] == str(run_dir)
+    assert summary["n_subgraphs"] == 1
+
+    bare = SimpleNamespace(node_dir=tmp_path / "node2")
+    with pytest.raises(ValueError, match="outside an execution context"):
+        await node.run(run_dir="", context=bare)

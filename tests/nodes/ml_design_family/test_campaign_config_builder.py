@@ -32,7 +32,7 @@ async def test_two_targets_two_seeds_make_four_ordered_rows(tmp_path: Path) -> N
     targets = f"egfp\t{fasta_a}\nluc\t{fasta_b}"
     node = CampaignConfigBuilderNode()
 
-    pairs, config_path, weights_path = await node.run(
+    pairs, pairs_jsonl, targets_jsonl, config_path, weights_path, ablations_jsonl = await node.run(
         targets=targets,
         seeds="13,101",
         iterations=5,
@@ -64,12 +64,21 @@ async def test_two_targets_two_seeds_make_four_ordered_rows(tmp_path: Path) -> N
 
     assert json.loads(Path(weights_path).read_text(encoding="utf-8")) == {"cai": 2.0, "gc": 1.0}
 
+    jsonl_rows = [json.loads(line) for line in Path(pairs_jsonl).read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert [row["pair_id"] for row in jsonl_rows] == [row["pair_id"] for row in rows]
+    assert jsonl_rows[0]["cds_sequence"] == CDS_A
+    assert json.loads(jsonl_rows[0]["weights_json"]) == {"scores_1": 2.0, "scores_3": 1.0}
+    assert jsonl_rows[0]["model_path"] == ""
+    target_rows = [json.loads(line) for line in Path(targets_jsonl).read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert [row["target_id"] for row in target_rows] == ["egfp", "luc"]
+    assert Path(ablations_jsonl).read_text(encoding="utf-8") == ""
+
 
 @pytest.mark.asyncio
 async def test_semicolon_targets_and_defaults(tmp_path: Path) -> None:
     fasta = _fasta(tmp_path, "rbd", CDS_A)
     node = CampaignConfigBuilderNode()
-    pairs, config_path, _ = await node.run(
+    pairs, _, _, config_path, _, ablations_jsonl = await node.run(
         targets=f"rbd\t{fasta};",
         context=_context(tmp_path),
     )
@@ -80,6 +89,9 @@ async def test_semicolon_targets_and_defaults(tmp_path: Path) -> None:
     assert config["seeds"] == [13, 101, 2024, 4242, 9001]
     assert config["iterations"] == 30
     assert config["weights"]["mirna"] == 1.0
+    assert config["objective_ports"]["learned"] == "scores_6"
+    assert config["ablations"] == []
+    assert Path(ablations_jsonl).read_text(encoding="utf-8") == ""
 
 
 @pytest.mark.asyncio
@@ -131,3 +143,49 @@ async def test_bad_targets_and_seeds_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="multiple of three"):
         short = _fasta(tmp_path, "short", "ATGGGCC")
         await node.run(targets=f"short\t{short}", context=_context(tmp_path, "short"))
+
+
+@pytest.mark.asyncio
+async def test_ablations_annotate_and_jsonl_rows(tmp_path: Path) -> None:
+    fasta = _fasta(tmp_path, "egfp", CDS_A)
+    node = CampaignConfigBuilderNode()
+
+    pairs, pairs_jsonl, targets_jsonl, config_path, weights_path, ablations_jsonl = await node.run(
+        targets=f"egfp\t{fasta}",
+        seeds="13",
+        ablation_weights='no_immune\t{"immune":0.0}\nno_mirna\t{"mirna":0.0}',
+        annotate_key="model_path",
+        annotate_value=str(tmp_path / "model.json"),
+        context=_context(tmp_path),
+    )
+
+    ablation_rows = [json.loads(line) for line in Path(ablations_jsonl).read_text(encoding="utf-8").splitlines()]
+    assert [row["ablation"] for row in ablation_rows] == ["no_immune", "no_mirna"]
+    no_immune = json.loads(ablation_rows[0]["evaluator_weights"])
+    assert no_immune["immune"] == 0.0 and no_immune["mirna"] == 1.0
+    config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    assert config["ablations"] == ["no_immune", "no_mirna"]
+
+    row = json.loads(Path(pairs_jsonl).read_text(encoding="utf-8").splitlines()[0])
+    assert row["model_path"] == str(tmp_path / "model.json")
+    weights = json.loads(row["weights_json"])
+    assert weights == {
+        "scores_1": 1.0,
+        "scores_2": 1.0,
+        "scores_3": 1.0,
+        "scores_4": 1.0,
+        "scores_5": 1.0,
+    }
+    target_row = json.loads(Path(targets_jsonl).read_text(encoding="utf-8").splitlines()[0])
+    assert target_row["model_path"] == str(tmp_path / "model.json")
+
+    with pytest.raises(ValueError, match="ablation_weights"):
+        await node.run(
+            targets=f"egfp\t{fasta}",
+            ablation_weights="bad\tnot json",
+            context=_context(tmp_path, "bad-abl"),
+        )
+    validation = node.VALIDATE_INPUTS(
+        {"targets": f"egfp\t{fasta}", "annotate_key": "model_path", "annotate_value": ""}
+    )
+    assert "annotate_value" in str(validation)

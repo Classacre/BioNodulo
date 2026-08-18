@@ -781,3 +781,72 @@ def test_rna_structure_validate_accepts_long_inline_sequence() -> None:
     long_sequence = "A" * 5000
     result = node.VALIDATE_INPUTS({"sequence": long_sequence})
     assert result is True
+
+
+@pytest.mark.asyncio
+async def test_scorer_uses_named_score_columns_and_skips_absent_objectives(tmp_path: Path) -> None:
+    """Evaluator per-record tables carry semantic columns; missing/empty arms degrade fail-soft."""
+    base = _base_cds()
+    candidates = (
+        await CandidateGeneratorNode().run(base_cds=base, n_candidates=8, seed=5, context=_context(tmp_path))
+    )[0]
+    entries = json.loads(Path(candidates).read_text(encoding="utf-8"))
+
+    codon = tmp_path / "codon_per_record.tsv"
+    codon.write_text(
+        "id\tcai\tgc_window_max_dev\n"
+        + "".join(f"{e['id']}\t{0.3 + 0.05 * i:.4f}\t{0.2 - 0.01 * i:.4f}\n" for i, e in enumerate(entries)),
+        encoding="utf-8",
+    )
+    fold_missing = tmp_path / "fold_per_record.tsv"  # nonexistent path: skipped
+    learned_empty = tmp_path / "predictions.tsv"
+    learned_empty.write_text("id\tprediction\n", encoding="utf-8")  # header-only: skipped
+
+    ranked, _ = await MultiObjectiveScorerNode().run(
+        candidates=candidates,
+        scores_1=codon,
+        scores_2=fold_missing,
+        scores_3=codon,
+        scores_6=learned_empty,
+        score_columns=json.dumps(
+            {"scores_1": "cai", "scores_3": "gc_window_max_dev", "scores_6": "prediction"}
+        ),
+        modes=json.dumps({"scores_3": "minimize"}),
+        weights=json.dumps({"scores_1": 2.0, "scores_3": 1.0}),
+        context=_context(tmp_path, "cols"),
+    )
+    payload = json.loads(Path(ranked).read_text(encoding="utf-8"))
+    assert len(payload) == 8
+    assert all(set(entry["per_objective"]) == {"scores_1", "scores_3"} for entry in payload)
+    composites = [entry["composite"] for entry in payload]
+    assert composites == sorted(composites, reverse=True)
+    assert len({round(entry["composite"], 9) for entry in payload}) == len(payload)
+
+
+@pytest.mark.asyncio
+async def test_scorer_derives_candidate_ids_without_candidates_input(tmp_path: Path) -> None:
+    scores = tmp_path / "scores.tsv"
+    scores.write_text(
+        "id\tcai\nb\t0.9\na\t0.1\nc\t0.5\n",
+        encoding="utf-8",
+    )
+    ranked, _ = await MultiObjectiveScorerNode().run(
+        scores_1=scores,
+        score_columns=json.dumps({"scores_1": "cai"}),
+        context=_context(tmp_path, "nocand"),
+    )
+    payload = json.loads(Path(ranked).read_text(encoding="utf-8"))
+    assert [entry["id"] for entry in payload] == ["b", "c", "a"]
+
+
+@pytest.mark.asyncio
+async def test_predictor_score_empty_model_returns_empty_predictions(tmp_path: Path) -> None:
+    table = _feature_table(tmp_path, n_rows=10)
+    node = SimplePredictorScoreNode()
+    tsv_path, json_path = await node.run(model="", feature_table=table, context=_context(tmp_path))
+    lines = Path(tsv_path).read_text(encoding="utf-8").splitlines()
+    assert lines[0].split("\t") == ["id", "prediction"]
+    assert len(lines) == 1
+    payload = json.loads(Path(json_path).read_text(encoding="utf-8"))
+    assert payload == {"model": None, "predictions": []}
+    assert SimplePredictorScoreNode.VALIDATE_INPUTS({"model": "", "feature_table": table}) is True

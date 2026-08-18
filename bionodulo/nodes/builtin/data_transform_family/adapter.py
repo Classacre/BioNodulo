@@ -19,7 +19,7 @@ CPYTHON_GIT_URL = "https://github.com/python/cpython.git"
 CPYTHON_GIT_COMMIT = "3bb231a6a5dc02b95658877318bf61501a7209e9"
 PRODUCT_BASE_COMMIT = "a32a426c03ce4c925bf7dcdbd2cf08fbdedd55e9"
 PRODUCT_ORIGIN_COMMIT = "3e6970cfcdac1ac2c452aa94f5190ba61ba3ce6d"
-TABLE_FORMATS = ("csv", "tsv", "json")
+TABLE_FORMATS = ("csv", "tsv", "json", "jsonl")
 DELIMITER_MODES = ("auto", "csv", "tsv")
 OUTPUT_TYPES = ("AUTO", "CSV", "TSV")
 
@@ -210,13 +210,15 @@ def normalize_table_format(value: Any, path: str | Path | None = None) -> str:
     requested = str(value or "auto").strip().lower()
     if requested == "auto":
         suffix = Path(str(path)).suffix.lower() if path else ""
+        if suffix == ".jsonl" or suffix == ".ndjson":
+            return "jsonl"
         if suffix == ".json":
             return "json"
         if suffix == ".csv":
             return "csv"
         if suffix in {".tsv", ".tab"}:
             return "tsv"
-        raise ValueError("input_format=auto requires a .csv, .tsv, .tab, or .json filename")
+        raise ValueError("input_format=auto requires a .csv, .tsv, .tab, .json, .jsonl, or .ndjson filename")
     if requested not in TABLE_FORMATS:
         raise ValueError(f"Unsupported table format: {value}")
     return requested
@@ -241,6 +243,21 @@ def read_records(path: str | Path, input_format: str) -> tuple[list[str], list[d
         fieldnames, rows = read_table(path, "," if input_format == "csv" else "\t")
         return fieldnames, rows
 
+    if input_format == "jsonl":
+        records = []
+        for line_number, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), start=1):
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                item = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"JSONL line {line_number} is not valid JSON: {exc}") from exc
+            if not isinstance(item, dict):
+                raise ValueError(f"JSONL line {line_number} must be a JSON object")
+            records.append(dict(item))
+        return fieldnames_from_records(records), records
+
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if isinstance(payload, dict) and isinstance(payload.get("rows"), list):
         payload = payload["rows"]
@@ -261,6 +278,12 @@ def write_records(
     path.parent.mkdir(parents=True, exist_ok=True)
     if output_format == "json":
         path.write_text(json.dumps(records, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+        return
+    if output_format == "jsonl":
+        path.write_text(
+            "".join(json.dumps(record, ensure_ascii=True) + "\n" for record in records),
+            encoding="utf-8",
+        )
         return
     if not fieldnames:
         raise ValueError("Cannot write headerless CSV/TSV from records with no fields")

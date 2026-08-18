@@ -64,7 +64,7 @@ def test_corrected_generic_contracts() -> None:
     assert FormatConverterNode.REQUIRES_EXTERNAL_TOOLS is False
     assert FormatConverterNode.REQUIRED_EXECUTABLES == []
     assert FormatConverterNode.REQUIRED_CONDA_PACKAGES == []
-    assert FormatConverterNode.INPUT_TYPES()["required"]["output_format"][0] == ["csv", "tsv", "json"]
+    assert FormatConverterNode.INPUT_TYPES()["required"]["output_format"][0] == ["csv", "tsv", "json", "jsonl"]
     assert "stable" not in SortFileNode.INPUT_TYPES()["optional"]
     assert "report_dups" not in DeduplicateNode.INPUT_TYPES()["optional"]
     assert AggregateByGroupNode.INPUT_TYPES()["optional"]["value_column"][0] == "STRING"

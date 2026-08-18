@@ -179,6 +179,33 @@ def test_frontend_metadata_distinguishes_socket_unions_from_enum_options():
     assert _to_frontend_input_spec(("QC_REPORT_DIR", {}))[0] == "QC_REPORT_DIR"
 
 
+def _subgraph_port_metadata(node: dict) -> dict:
+    """Synthesized registry-style metadata for a ``subgraph`` node's declared ports.
+
+    Mirrors web/src/utils/subgraph.ts: a subgraph's visible ports are exactly its
+    ``params.input_ports``/``output_ports`` plus the executor-provided
+    ``subgraph_dir`` output.
+    """
+    params = node.get("params", {})
+    input_ports = {
+        str(port.get("name")): [
+            str(port.get("type", "ANY")),
+            {"description": "subgraph port", "forceInput": True},
+        ]
+        for port in params.get("input_ports", [])
+        if isinstance(port, dict) and port.get("name")
+    }
+    output_names = [
+        str(port.get("name"))
+        for port in params.get("output_ports", [])
+        if isinstance(port, dict) and port.get("name")
+    ]
+    return {
+        "output_name": [*output_names, "subgraph_dir"],
+        "input": {"required": input_ports, "optional": {}},
+    }
+
+
 def test_official_template_edges_have_renderable_editor_handles():
     """Every bundled edge must attach to a port the editor actually renders."""
     metadata = json.loads((_REPO_ROOT / "bionodulo/nodes/node_metadata.json").read_text())
@@ -198,8 +225,16 @@ def test_official_template_edges_have_renderable_editor_handles():
                 failures.append(f"{template_path.name}:{edge_id}: missing endpoint node")
                 continue
 
-            source_meta = metadata.get(str(source_node.get("type")))
-            target_meta = metadata.get(str(target_node.get("type")))
+            source_meta = (
+                _subgraph_port_metadata(source_node)
+                if str(source_node.get("type")) == "subgraph"
+                else metadata.get(str(source_node.get("type")))
+            )
+            target_meta = (
+                _subgraph_port_metadata(target_node)
+                if str(target_node.get("type")) == "subgraph"
+                else metadata.get(str(target_node.get("type")))
+            )
             if source_meta is None or target_meta is None:
                 failures.append(f"{template_path.name}:{edge_id}: missing node metadata")
                 continue

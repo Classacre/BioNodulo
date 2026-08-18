@@ -37,10 +37,11 @@ def _parse_fetch_date(text: str) -> str | None:
         return None
 
 
-def _resolve_file(raw: str, manifest_dir: Path) -> Path:
+def _resolve_file(raw: str, manifest_dir: Path, base_dir: Path | None) -> Path:
     candidate = Path(raw).expanduser()
     if not candidate.is_absolute():
-        for base in (manifest_dir, Path.cwd()):
+        bases = [base_dir, manifest_dir, Path.cwd()] if base_dir is not None else [manifest_dir, Path.cwd()]
+        for base in bases:
             resolved = (base / candidate).resolve()
             if resolved.exists():
                 return resolved
@@ -56,10 +57,12 @@ class AccessionGateNode(MLDesignNode):
         "Validate a manifest TSV (columns accession, resolved_version, feature_used, fetch_date, "
         "sha256, file, notes): header present, at least one row, every row has non-empty accession, "
         "sha256, and file, and fetch_date parses as YYYY-MM-DD. With require_files_exist (default "
-        "true) each file path is resolved (relative paths tried against the manifest directory then "
-        "the working directory) and its sha256 recomputed and compared case-insensitively. Writes "
-        "manifest_status.json with passed plus per-row results and returns all_pass; fail_closed "
-        "(default true) raises when not every row passes."
+        "true) each file path is resolved (relative paths tried against base_dir when set, then the "
+        "manifest directory, then the working directory) and its sha256 recomputed and compared "
+        "case-insensitively. base_dir exists so workspace-staged runs can pin the repo/workspace "
+        "root regardless of the worker's working directory. Writes manifest_status.json with passed "
+        "plus per-row results and returns all_pass; fail_closed (default true) raises when not "
+        "every row passes."
     )
     SEARCH_ALIASES = [
         "accession",
@@ -89,6 +92,13 @@ class AccessionGateNode(MLDesignNode):
                     "BOOLEAN",
                     {"default": True, "description": "Raise instead of returning all_pass=false"},
                 ),
+                "base_dir": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": "Optional base directory tried first when resolving relative 'file' entries (workspace-staged runs)",
+                    },
+                ),
             },
             "hidden": {},
         }
@@ -110,6 +120,8 @@ class AccessionGateNode(MLDesignNode):
             raise ValueError(str(validation))
         require_files_exist = bool(kwargs.get("require_files_exist", True))
         fail_closed = bool(kwargs.get("fail_closed", True))
+        base_dir_text = str(kwargs.get("base_dir", "") or "").strip()
+        base_dir = Path(base_dir_text).expanduser() if base_dir_text else None
         path = existing_file(kwargs["manifest"], "manifest")
 
         lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -145,7 +157,7 @@ class AccessionGateNode(MLDesignNode):
             observed_sha256 = ""
             file_path = ""
             if not errors and require_files_exist:
-                file_path = str(_resolve_file(row["file"], path.parent))
+                file_path = str(_resolve_file(row["file"], path.parent, base_dir))
                 if not Path(file_path).is_file():
                     errors.append("file does not exist")
                     file_status = "missing"
@@ -182,6 +194,7 @@ class AccessionGateNode(MLDesignNode):
             "n_rows": len(row_results),
             "n_failed": sum(1 for result in row_results if not result["passed"]),
             "require_files_exist": require_files_exist,
+            "base_dir": base_dir_text,
             "rows": row_results,
         }
         output_dir = node_output_dir(self, context)

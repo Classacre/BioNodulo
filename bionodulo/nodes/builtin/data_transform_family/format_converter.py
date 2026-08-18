@@ -34,7 +34,7 @@ class FormatConverterNode(PythonDataTransformNode):
         "Missing files, unknown formats, malformed CSV/TSV, non-record JSON, and headerless record output are "
         "fatal; the node never invokes samtools, bcftools, gffread, seqtk, or a shell."
     )
-    EXTENSIONS = {"csv": ".csv", "tsv": ".tsv", "json": ".json"}
+    EXTENSIONS = {"csv": ".csv", "tsv": ".tsv", "json": ".json", "jsonl": ".jsonl"}
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

@@ -1772,7 +1772,14 @@ class WorkflowExecutor:
         node_output_dir = node_dir / str(getattr(node_class, "NODE_ID", "") or "")
         command_inputs["output"] = str(node_output_dir)
         command_inputs["output_dir"] = str(node_output_dir)
-        command = node_class.render_command(command_inputs)
+        try:
+            command = node_class.render_command(command_inputs)
+        except Exception as exc:  # noqa: BLE001 - a preview must not fail the plan
+            # Command rendering can legitimately depend on runtime inputs a dry
+            # run cannot know yet (e.g. a subgraph port placeholder). Surface the
+            # reason on the plan entry instead of failing the whole preview.
+            logger.debug("dry-run command render failed for %s: %s", node_class, exc)
+            return None
         if getattr(node_class, "SHELL", False) and isinstance(command, list):
             return _shell_join(command)
         return command
