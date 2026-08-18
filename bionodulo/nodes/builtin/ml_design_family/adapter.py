@@ -218,6 +218,8 @@ def read_table(path: Path) -> tuple[list[str], list[dict[str, str]]]:
         for line_number, values in enumerate(reader, start=2):
             if not values:
                 continue
+            if values[0].lstrip().startswith("<!--"):
+                break  # provenance footer: everything from the marker on is metadata
             if len(values) != len(fieldnames):
                 raise ValueError(f"Table row {line_number} has {len(values)} fields; expected {len(fieldnames)}")
             rows.append(dict(zip(fieldnames, values, strict=True)))
