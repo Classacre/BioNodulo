@@ -34,6 +34,11 @@ NODE_MODULES = {
     "bedmethyl_feature_builder": "bedmethyl_feature_builder",
     "simple_predictor_train": "simple_predictor_train",
     "simple_predictor_score": "simple_predictor_score",
+    "campaign_config_builder": "campaign_config_builder",
+    "campaign_results_builder": "campaign_results_builder",
+    "paired_stats": "paired_stats",
+    "openvaccine_prepare": "openvaccine_prepare",
+    "training_leakage_check": "training_leakage_check",
 }
 PREFERRED_CODONS = {
     "GCT", "CGT", "AAT", "GAT", "TGT", "CAA", "GAA", "GGT", "CAT", "ATT",

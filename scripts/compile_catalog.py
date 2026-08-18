@@ -90,6 +90,14 @@ POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
         # Third design-loop wave: LinearDesign wrapper (run-time clone; the
         # upstream license forbids bundling the code).
         "lineardesign_optimize",
+        # Fourth design-loop wave: campaign sweep orchestration, scipy-free
+        # paired statistics, OpenVaccine RYOS preparation, and training-set
+        # leakage auditing.
+        "campaign_config_builder",
+        "campaign_results_builder",
+        "paired_stats",
+        "openvaccine_prepare",
+        "training_leakage_check",
     }
 )
 EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)
