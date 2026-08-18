@@ -37,6 +37,26 @@ def _parse_fetch_date(text: str) -> str | None:
         return None
 
 
+
+def _is_reference_only(row: dict[str, str]) -> bool:
+    """True when a manifest row documents a remote/inventory accession.
+
+    Verified accessions that were deliberately not downloaded (S3 objects,
+    FTP references without published hashes, login-gated inventories) carry
+    sentinel sha256/file values; they pass the gate as reference-only rows
+    with their verification notes preserved, instead of failing a hash check
+    that can never run.
+    """
+    sha = (row.get("sha256") or "").strip()
+    file_value = (row.get("file") or "").strip()
+    if sha.lower().startswith("not_downloaded"):
+        return True
+    if file_value.lower() == "n/a" or file_value.startswith(("s3://", "http://", "https://", "ftp://")):
+        return True
+    if not file_value and sha.lower() == "n/a":
+        return True
+    return False
+
 def _resolve_file(raw: str, manifest_dir: Path, base_dir: Path | None) -> Path:
     candidate = Path(raw).expanduser()
     if not candidate.is_absolute():
@@ -147,7 +167,10 @@ class AccessionGateNode(MLDesignNode):
                 )
             row = dict(zip(fieldnames, values, strict=True))
             errors: list[str] = []
+            reference_only = _is_reference_only(row)
             for column in REQUIRED_COLUMNS:
+                if column in ("sha256", "file") and reference_only:
+                    continue
                 if not row.get(column, ""):
                     errors.append(f"empty {column}")
             parsed_date = _parse_fetch_date(row.get("fetch_date", ""))
@@ -156,7 +179,7 @@ class AccessionGateNode(MLDesignNode):
             file_status = "skipped"
             observed_sha256 = ""
             file_path = ""
-            if not errors and require_files_exist:
+            if not errors and require_files_exist and not reference_only:
                 file_path = str(_resolve_file(row["file"], path.parent, base_dir))
                 if not Path(file_path).is_file():
                     errors.append("file does not exist")
@@ -174,6 +197,7 @@ class AccessionGateNode(MLDesignNode):
                     "accession": row.get("accession", ""),
                     "resolved_version": row.get("resolved_version", ""),
                     "feature_used": row.get("feature_used", ""),
+                    "reference_only": reference_only,
                     "fetch_date": parsed_date or row.get("fetch_date", ""),
                     "sha256": row.get("sha256", ""),
                     "file": row.get("file", ""),
