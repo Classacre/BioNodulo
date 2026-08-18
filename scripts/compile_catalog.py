@@ -81,6 +81,12 @@ POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
         "nim_evo2_generate",
         "nim_evo2_score",
         "nim_test",
+        # Second direct-RNA wave: modkit extract, pod5 subsetting, GLORI
+        # validation metrics, and the accession manifest gate.
+        "modkit_extract",
+        "pod5_subset",
+        "m6a_validation_metrics",
+        "accession_gate",
     }
 )
 EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)

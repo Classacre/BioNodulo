@@ -6,8 +6,10 @@ from .dorado_correct import DoradoCorrectNode
 from .dorado_demux import DoradoDemuxNode
 from .dorado_duplex import DoradoDuplexNode
 from .medaka_consensus import MedakaConsensusNode, MedakaNode
+from .modkit_extract import ModkitExtractNode
 from .modkit_pileup import ModkitPileupNode
 from .nanoplot import NanoPlotQCNode
+from .pod5_subset import Pod5SubsetNode
 
 __all__ = [
     "ChopperFilterNode",
@@ -17,6 +19,8 @@ __all__ = [
     "DoradoDuplexNode",
     "MedakaConsensusNode",
     "MedakaNode",
+    "ModkitExtractNode",
     "ModkitPileupNode",
     "NanoPlotQCNode",
+    "Pod5SubsetNode",
 ]

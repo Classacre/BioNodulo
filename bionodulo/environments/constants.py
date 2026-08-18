@@ -301,6 +301,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "control-freec": ">=11.6",
     "ont-modkit": "0.4.3",
     "chopper": "0.9.2",
+    "pod5": "0.3.44",
     "vienna-rna": ">=2.7.0",
     "viennarna": ">=2.7.0",
     "nanoplot": "1.44.1",

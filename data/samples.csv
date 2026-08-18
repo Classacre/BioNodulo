@@ -1,0 +1,97 @@
+Sample_ID	Sample_Name	I7_Index_ID	index	Group	Experiment	Time	Condition	Fraction	Spikein	Type	Factor
+1	Ann_long_1	P1-A1	TTACCGAC	In-vitro	stability				1	Long	
+2	Ann_long_2	P2-A2	AGTGACCT	In-vitro	stability				1	Long	
+3	Ann_long_3	P3-A3	TCGGATTC	In-vitro	stability				1	Long	
+4	Ann_long_4	P4-A4	CAAGGTAC	In-vitro	stability				1	Long	
+5	Ann_long_5	P5-A5	TCCTCATG	In-vitro	stability				1	Long	
+6	Ann_long_6	P6-A6	GTCAGTCA	In-vitro	stability				1	Long	
+7	Ann_long_7	P7-A7	CGAATACG	In-vitro	stability				1	Long	
+8	Ann_long_8	P8-A8	TCTAGGAG	In-vitro	stability				1	Long	
+9	Ann_long_9	P9-A9	CGCAACTA	In-vitro	stability				1	Long	
+10	Ann_long_10	P10-A10	CGTATCTC	In-vitro	stability				1	Long	
+11		P11-A11	GTACACCT								
+12		P12-A12	CGGCATTA								
+13	stability_long_1	P13-B1	TCGTCTGA	In-cell	stability	1			1	Long	1
+14	stability_long_2	P14-B2	AGCCTATC	In-cell	stability	7			1	Long	1.16470588235294
+15	stability_long_3	P15-B3	CTGTACCA	In-cell	stability	12			1	Long	1.17516339869281
+16	stability_long_4	P16-B4	AGACCTTG	In-cell	stability	24			1	Long	1.51241830065359
+17	stability_long_5	P17-B5	AGGATAGC	In-cell	stability	106			1	Long	5.26535947712418
+18	stability_long_6	P18-B6	CCTTCCAT	In-cell	stability	1			1	Long	0.939869281045752
+19	stability_long_7	P19-B7	GTCCTTGA	In-cell	stability	7			1	Long	1.30980392156863
+20	stability_long_8	P20-B8	TGCGTAAC	In-cell	stability	12			1	Long	1.03267973856209
+21		P21-B9	CACAGACT								
+22		P22-B10	TTACGTGC								
+23		P23-B11	CCAAGGTT								
+24		P24-B12	CACGCAAT								
+25	stability_long_9	P25-C1	TTCCAGGT	In-cell	stability	24			1	Long	2.44705882352941
+26	stability_long_10	P26-C2	TCATCTCC	In-cell	stability	106			1	Long	6.15032679738562
+27	stability_long_11	P27-C3	GAGAGTAC	In-cell	stability	1			1	Long	1.00915032679739
+28	stability_long_12	P28-C4	GTCGTTAC	In-cell	stability	7			1	Long	1.21699346405229
+29	stability_long_13	P29-C5	GGAGGAAT	In-cell	stability	12			1	Long	1.05751633986928
+30	stability_long_14	P30-C6	AGGAACAC	In-cell	stability	24			1	Long	2.24444444444444
+31	stability_long_15	P31-C7	CAGTGCTT	In-cell	stability	106			1	Long	5.75816993464052
+32		P32-C8	CTTGCTAG								
+33		P33-C9	TGGAAGCA								
+34		P34-C10	AGCTAAGC								
+35		P35-C11	GAACGGTT								
+36		P36-C12	GGAATGTC								
+37	stability_short_1	P37-D1	TACGGTCT	In-cell	stability	1			1	Short	1
+38	stability_short_2	P38-D2	CCAGTATC	In-cell	stability	7			1	Short	1.16470588235294
+39	stability_short_3	P39-D3	TCTACGCA	In-cell	stability	12			1	Short	1.17516339869281
+40	stability_short_4	P40-D4	GTAACCGA	In-cell	stability	24			1	Short	1.51241830065359
+41	stability_short_5	P41-D5	GACGTCAT	In-cell	stability	106			1	Short	5.26535947712418
+42	stability_short_6	P42-D6	CTTACAGC	In-cell	stability	1			1	Short	0.939869281045752
+43	stability_short_7	P43-D7	TCCATTGC	In-cell	stability	7			1	Short	1.30980392156863
+44	stability_short_8	P44-D8	AGCGAGAT	In-cell	stability	12			1	Short	1.03267973856209
+45	stability_short_9	P45-D9	CAATAGCC	In-cell	stability	24			1	Short	2.44705882352941
+46	stability_short_10	P46-D10	AAGACACC	In-cell	stability	106			1	Short	6.15032679738562
+47	stability_short_11	P47-D11	CCAGTTGA	In-cell	stability	1			1	Short	1.00915032679739
+48	stability_short_12	P48-D12	TGGTGAAG	In-cell	stability	7			1	Short	1.21699346405229
+49	stability_short_13	P49-E1	AAGACCGT	In-cell	stability	12			1	Short	1.05751633986928
+50	stability_short_14	P50-E2	TTGCGAGA	In-cell	stability	24			1	Short	2.24444444444444
+51	stability_short_15	P51-E3	GCAATTCC	In-cell	stability	106			1	Short	5.75816993464052
+52	fraction_spikein_1	P52-E4	GAATCCGT	In-cell	polysomes			1	1		
+53	fraction_spikein_2	P53-E5	CCGCTTAA	In-cell	polysomes			2	1		
+54	fraction_spikein_3	P54-E6	TACCTGCA	In-cell	polysomes			3	1		
+55	fraction_spikein_4	P55-E7	GTCGATTG	In-cell	polysomes			4	1		
+56	fraction_spikein_5	P56-E8	TATGGCAC	In-cell	polysomes			5	1		
+57	fraction_spikein_6	P57-E9	CTCGAACA	In-cell	polysomes			6	1		
+58	fraction_spikein_7	P58-E10	CAACTCCA	In-cell	polysomes			7	1		
+59	fraction_spikein_8	P59-E11	GTCATCGT	In-cell	polysomes			8	1		
+60	fraction_spikein_9	P60-E12	GGACATCA	In-cell	polysomes			9	1		
+61	fraction_spikein_10	P61-F1	CAGGTTCA	In-cell	polysomes			10	1		
+62	fraction_spikein_11	P62-F2	GAACGAAG	In-cell	polysomes			11	1		
+63	fraction_spikein_12	P63-F3	CTCAGAAG	In-cell	polysomes			12	1		
+64	fraction_spikein_13	P64-F4	CATGAGCA	In-cell	polysomes			13	1		
+65	fraction_spikein_14	P65-F5	GACGAACT	In-cell	polysomes			14	1		
+66	fraction_spikein_15	P66-F6	AGACGCTA	In-cell	polysomes			15	1		
+67	fraction_spikein_16	P67-F7	ATAACGCC	In-cell	polysomes			16	1		
+68	fraction_nospikein_1	P68-F8	GAATCACC	In-cell	polysomes			1	0		
+69	fraction_nospikein_2	P69-F9	GGCAAGTT	In-cell	polysomes			2	0		
+70	fraction_nospikein_3	P70-F10	GATCTTGC	In-cell	polysomes			3	0		
+71	fraction_nospikein_4	P71-F11	CAATGCGA	In-cell	polysomes			4	0		
+72	fraction_nospikein_5	P72-F12	GGTGTACA	In-cell	polysomes			5	0		
+73	fraction_nospikein_6	P73-G1	TAGGAGCT	In-cell	polysomes			6	0		
+74	fraction_nospikein_7	P74-G2	CGAATTGC	In-cell	polysomes			7	0		
+75	fraction_nospikein_8	P75-G3	GTCCTAAG	In-cell	polysomes			8	0		
+76	fraction_nospikein_9	P76-G4	CTTAGGAC	In-cell	polysomes			9	0		
+77	fraction_nospikein_10	P77-G5	TCCACGTT	In-cell	polysomes			10	0		
+78	fraction_nospikein_11	P78-G6	CAACACAG	In-cell	polysomes			11	0		
+79	fraction_nospikein_12	P79-G7	GCCTTAAC	In-cell	polysomes			12	0		
+80	fraction_nospikein_13	P80-G8	GTAAGGTG	In-cell	polysomes			13	0		
+81	fraction_nospikein_14	P81-G9	AGCTACCA	In-cell	polysomes			14	0		
+82	fraction_nospikein_15	P82-G10	CTTCACTG	In-cell	polysomes			15	0		
+83	fraction_nospikein_16	P83-G11	GGTTGAAC	In-cell	polysomes			16	0		
+84		P84-G12	GATAGCCA								
+85	Ann_short_1	P85-H1	TACTCCAG	In-vitro	stability				1	Short	
+86	Ann_short_2	P86-H2	GGAAGAGA	In-vitro	stability				1	Short	
+87	Ann_short_3	P87-H3	GCGTTAGA	In-vitro	stability				1	Short	
+88	Ann_short_4	P88-H4	ATCTGACC	In-vitro	stability				1	Short	
+89	Ann_short_5	P89-H5	AACCAGAG	In-vitro	stability				1	Short	
+90	Ann_short_6	P90-H6	GTACCACA	In-vitro	stability				1	Short	
+91	Ann_short_7	P91-H7	GGTATAGG	In-vitro	stability				1	Short	
+92	Ann_short_8	P92-H8	CGAGAGAA	In-vitro	stability				1	Short	
+93	Ann_short_9	P93-H9	CAGCATAC	In-vitro	stability				1	Short	
+94	Ann_short_10	P94-H10	CTCGACTT	In-vitro	stability				1	Short	
+95		P95-H11	CTTCGGTT								
+96		P96-H12	CCACAACA								

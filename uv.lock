@@ -407,7 +407,7 @@ wheels = [
 
 [[package]]
 name = "bionodulo"
-version = "0.1.0a43"
+version = "0.1.0a44"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
