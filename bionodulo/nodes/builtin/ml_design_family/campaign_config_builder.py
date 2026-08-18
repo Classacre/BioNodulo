@@ -153,6 +153,11 @@ class CampaignConfigBuilderNode(MLDesignNode):
                 raise ValueError(f"Target '{target_id}' FASTA contains non-ACGT character(s): {', '.join(invalid)}")
             if len(sequence) % 3 != 0:
                 raise ValueError(f"Target '{target_id}' CDS length must be a multiple of three (got {len(sequence)})")
+            stop_codons = ("TAA", "TAG", "TGA")
+            while len(sequence) >= 3 and sequence[-3:] in stop_codons:
+                sequence = sequence[:-3]
+            if not sequence:
+                raise ValueError(f"Target '{target_id}' CDS is empty after stripping terminal stop codons")
             sequences[target_id] = sequence
             gc = sum(char in "GC" for char in sequence) / len(sequence) if sequence else 0.0
             targets_meta.append(

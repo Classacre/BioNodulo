@@ -8799,7 +8799,7 @@
                 1020
               ],
               "params": {
-                "directory": "https://cdn.oxfordnanoportal.com/software/analysis/dorado/rna004_130bps_hac@v5.1.0+m6A_DRACH@v5.0.0.zip",
+                "directory": "https://cdn.oxfordnanoportal.com/software/analysis/dorado/rna004_130bps_hac@v5.1.0_m6A_DRACH@v1.zip",
                 "source": "url"
               },
               "outputs": {
