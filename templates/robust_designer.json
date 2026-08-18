@@ -71,7 +71,7 @@
         40
       ],
       "params": {
-        "file": "templates/data/verified_inputs_manifest.tsv"
+        "file": "templates/data/accession_manifest.tsv"
       },
       "outputs": {
         "file": {}
