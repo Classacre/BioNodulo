@@ -30,6 +30,17 @@ NODE_LOCAL_TEMPLATE_FIELDS = {
     "workflow_template",
 }
 
+SUBGRAPH_NODE_TYPE = "subgraph"
+# The executor injects this workflow parameter into every subgraph's inner
+# execution, so inner nodes may bind {{subgraph_seed}} without a declaration.
+SUBGRAPH_IMPLICIT_PARAMETERS = frozenset({"subgraph_seed"})
+# Subgraph params whose contents are validated by the recursive inner pass
+# rather than against the outer workflow's parameter set.
+_SUBGRAPH_PARAM_KEYS = {"workflow", "input_ports", "output_ports", "promoted_widgets"}
+# A subgraph embedding itself (directly or transitively) would recurse
+# forever; the executor has the same bound on nesting depth.
+MAX_SUBGRAPH_DEPTH = 8
+
 
 @dataclass
 class ValidationResult:
@@ -44,11 +55,15 @@ class ValidationResult:
 def validate_workflow(
     workflow: dict[str, Any],
     registry: Any,
+    *,
+    _depth: int = 0,
+    _implicit_parameters: frozenset[str] = frozenset(),
 ) -> ValidationResult:
     """Validate a workflow for structural and semantic correctness.
 
     Checks:
-    1. Node types are registered.
+    1. Node types are registered (``subgraph`` nodes instead carry an embedded
+       workflow that is validated recursively with these same rules).
     2. Edges reference valid node IDs.
     3. No cycles (DAG).
     4. Required inputs are connected or have defaults.
@@ -56,6 +71,13 @@ def validate_workflow(
     errors: list[str] = []
     warnings: list[str] = []
     sorted_order: list[str] = []
+
+    if _depth > MAX_SUBGRAPH_DEPTH:
+        return ValidationResult(
+            valid=False,
+            errors=[f"Subgraph nesting exceeds the maximum depth of {MAX_SUBGRAPH_DEPTH}"],
+            warnings=warnings,
+        )
 
     nodes_raw = workflow.get("nodes", {})
     if isinstance(nodes_raw, dict):
@@ -89,6 +111,7 @@ def validate_workflow(
         return None
 
     # Check 1: All node types exist
+    subgraph_orders: dict[str, list[str]] = {}
     for node_id, node in nodes.items():
         if not node:
             errors.append(f"Node '{node_id}' has no data")
@@ -96,6 +119,11 @@ def validate_workflow(
         node_type = node.get("type", "") if isinstance(node, dict) else getattr(node, "type", "")
         if not node_type:
             errors.append(f"Node '{node_id}' has no type")
+            continue
+        if _is_subgraph_type(node_type):
+            subgraph_orders[node_id] = _validate_subgraph_node(
+                node_id, node, registry, errors, warnings, _depth
+            )
             continue
         meta = registry_lookup(node_type)
         if registry is not None and meta is None:
@@ -131,6 +159,20 @@ def validate_workflow(
         if src == dst:
             warnings.append(f"Self-loop on node '{src}'")
 
+        target_port = edge_target_port(edge, "")
+        if (
+            dst
+            and dst in nodes
+            and target_port
+            and target_port != "default"
+            and _node_is_subgraph(nodes[dst])
+        ):
+            if target_port not in _subgraph_port_names(nodes[dst], "input_ports"):
+                errors.append(
+                    f"Edge into subgraph node '{dst}' references unknown "
+                    f"input port '{target_port}'"
+                )
+
         source_port = edge_source_port(edge, "")
         if not src or not source_port or source_port == "default" or src not in nodes:
             continue
@@ -140,11 +182,16 @@ def validate_workflow(
             if isinstance(source_node, dict)
             else getattr(source_node, "type", "")
         )
-        source_meta = registry_lookup(str(source_type))
-        if isinstance(source_meta, dict):
-            output_names = source_meta.get("output_name", source_meta.get("return_names", []))
+        if _node_is_subgraph(source_node):
+            # A subgraph's visible output ports are exactly its declared
+            # output_ports (plus the executor-provided subgraph_dir).
+            output_names = _subgraph_port_names(source_node, "output_ports") | {"subgraph_dir"}
         else:
-            output_names = getattr(source_meta, "RETURN_NAMES", ()) if source_meta else ()
+            source_meta = registry_lookup(str(source_type))
+            if isinstance(source_meta, dict):
+                output_names = source_meta.get("output_name", source_meta.get("return_names", []))
+            else:
+                output_names = getattr(source_meta, "RETURN_NAMES", ()) if source_meta else ()
         # Loop control nodes drive their body through a virtual ``iteration``
         # output the executor provides at run time; it is not part of the
         # node's declared RETURN_NAMES, so exempt it here.
@@ -185,6 +232,9 @@ def validate_workflow(
             sorted_order.extend(topological_sort(body_workflow))
         except ValueError as exc:
             errors.append(f"Cycle detected inside control body of '{control_id}': {exc}")
+
+    for subgraph_id, inner_order in sorted(subgraph_orders.items()):
+        sorted_order.extend(f"{subgraph_id}/{inner_id}" for inner_id in inner_order)
 
     # Check 4: Required inputs connected
     connected_inputs: dict[str, set[str]] = {nid: set() for nid in nodes}
@@ -238,7 +288,9 @@ def validate_workflow(
                     f"missing required input '{in_name}'"
                 )
 
-    _validate_workflow_parameter_references(nodes, parameter_names, errors)
+    _validate_workflow_parameter_references(
+        nodes, parameter_names, errors, implicit_parameters=_implicit_parameters
+    )
 
     valid = len(errors) == 0
     return ValidationResult(
@@ -263,6 +315,111 @@ def _spec_has_default(spec: Any) -> bool:
         if len(spec) >= 2 and isinstance(spec[1], dict):
             return "default" in spec[1]
     return False
+
+
+def _is_subgraph_type(node_type: Any) -> bool:
+    return str(node_type or "") == SUBGRAPH_NODE_TYPE
+
+
+def _node_is_subgraph(node: Any) -> bool:
+    if isinstance(node, dict):
+        return _is_subgraph_type(node.get("type", ""))
+    return _is_subgraph_type(getattr(node, "type", ""))
+
+
+def _node_params(node: Any) -> dict[str, Any]:
+    params = node.get("params", {}) if isinstance(node, dict) else getattr(node, "params", {})
+    return params if isinstance(params, dict) else {}
+
+
+def _subgraph_port_names(node: Any, key: str) -> set[str]:
+    """Declared port names on a subgraph node (``input_ports``/``output_ports``)."""
+    names: set[str] = set()
+    raw = _node_params(node).get(key)
+    if not isinstance(raw, (list, tuple)):
+        return names
+    for entry in raw:
+        if isinstance(entry, dict):
+            name = str(entry.get("name", "") or "")
+            if name:
+                names.add(name)
+    return names
+
+
+def _workflow_node_ids(workflow: dict[str, Any]) -> set[str]:
+    nodes_raw = workflow.get("nodes", {})
+    if isinstance(nodes_raw, dict):
+        return {str(nid) for nid in nodes_raw}
+    if isinstance(nodes_raw, list):
+        return {
+            str(n["id"] if isinstance(n, dict) else getattr(n, "id", ""))
+            for n in nodes_raw
+        }
+    return set()
+
+
+def _validate_subgraph_node(
+    node_id: str,
+    node: Any,
+    registry: Any,
+    errors: list[str],
+    warnings: list[str],
+    depth: int,
+) -> list[str]:
+    """Validate a subgraph node's ports and its embedded inner workflow.
+
+    Returns the inner workflow's sorted node order (prefixed by the caller)
+    so the outer result exposes ``<subgraph_id>/<inner_id>`` ordering.
+    """
+    params = _node_params(node)
+    inner_workflow = params.get("workflow")
+    if not isinstance(inner_workflow, dict) or not inner_workflow.get("nodes"):
+        errors.append(f"Subgraph node '{node_id}' is missing its embedded workflow")
+        _validate_subgraph_port_lists(node_id, params, set(), errors)
+        return []
+
+    inner_result = validate_workflow(
+        inner_workflow,
+        registry,
+        _depth=depth + 1,
+        _implicit_parameters=SUBGRAPH_IMPLICIT_PARAMETERS,
+    )
+    for error in inner_result.errors:
+        errors.append(f"Subgraph '{node_id}': {error}")
+    for warning in inner_result.warnings:
+        warnings.append(f"Subgraph '{node_id}': {warning}")
+
+    _validate_subgraph_port_lists(node_id, params, _workflow_node_ids(inner_workflow), errors)
+    return inner_result.sorted_node_order
+
+
+def _validate_subgraph_port_lists(
+    node_id: str,
+    params: dict[str, Any],
+    inner_node_ids: set[str],
+    errors: list[str],
+) -> None:
+    for key, label in (("input_ports", "input"), ("output_ports", "output")):
+        raw = params.get(key)
+        if raw is None:
+            continue
+        if not isinstance(raw, list):
+            errors.append(f"Subgraph node '{node_id}' {key} must be a list")
+            continue
+        for entry in raw:
+            if not isinstance(entry, dict) or not str(entry.get("name", "") or "").strip():
+                errors.append(
+                    f"Subgraph node '{node_id}' has a {label} port without a name"
+                )
+                continue
+            inner_node = str(
+                entry.get("innerNodeId", entry.get("inner_node_id", "")) or ""
+            )
+            if inner_node_ids and inner_node not in inner_node_ids:
+                errors.append(
+                    f"Subgraph '{node_id}' {label} port '{entry.get('name')}' "
+                    f"references unknown inner node '{inner_node}'"
+                )
 
 
 def _node_executes_loop_body(meta: Any) -> bool:
@@ -436,8 +593,10 @@ def _validate_workflow_parameter_references(
     nodes: dict[str, dict[str, Any]],
     parameter_names: set[str],
     errors: list[str],
+    implicit_parameters: frozenset[str] = frozenset(),
 ) -> None:
     """Validate ``{{name}}`` references in execution-bound node values."""
+    known = set(parameter_names) | set(implicit_parameters)
     for node_id, node in nodes.items():
         if not isinstance(node, dict):
             continue
@@ -445,8 +604,16 @@ def _validate_workflow_parameter_references(
             value = node.get(root_key)
             if value is None:
                 continue
+            if root_key == "params" and _node_is_subgraph(node):
+                # The embedded workflow's own references are validated by the
+                # recursive subgraph pass against the INNER parameter set.
+                value = {
+                    key: item
+                    for key, item in value.items()
+                    if key not in _SUBGRAPH_PARAM_KEYS
+                }
             for path, name in _iter_workflow_parameter_references(value, root_key):
-                if name not in parameter_names:
+                if name not in known:
                     errors.append(
                         f"Node '{node_id}' references unknown workflow parameter '{name}' in {path}"
                     )

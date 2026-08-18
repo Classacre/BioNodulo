@@ -16,7 +16,9 @@ Executes workflow graphs with support for:
 from __future__ import annotations
 
 import asyncio
+import copy
 import gzip
+import hashlib
 import json
 import logging
 import re
@@ -227,6 +229,14 @@ class WorkflowExecutor:
         except Exception:
             logger.exception("Failed to persist run event %s for run %s", event_type, run_id)
 
+    @staticmethod
+    def _tag_subgraph_path(run_metadata: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+        """Stamp a nested-execution event payload with its subgraph path."""
+        path = run_metadata.get("subgraph_path") if isinstance(run_metadata, dict) else ""
+        if not path:
+            return payload
+        return {**payload, "subgraph_path": path}
+
     def _api_secrets_for_options(self, options: dict[str, Any]) -> dict[str, str]:
         configured = getattr(self.settings, "api_secrets", {}) if self.settings is not None else {}
         option_secrets = options.get("api_secrets", {})
@@ -335,6 +345,10 @@ class WorkflowExecutor:
         options: dict[str, Any] | None = None,
         cancel_event: asyncio.Event | None = None,
         emit: Callable[[str, dict[str, Any]], None] | None = None,
+        input_overrides: dict[str, dict[str, Any]] | None = None,
+        *,
+        _run_dir: Path | None = None,
+        _subgraph_path: str = "",
     ) -> dict[str, Any]:
         """Execute a workflow.
 
@@ -347,6 +361,13 @@ class WorkflowExecutor:
             options: Execution options (stop_on_error, etc.).
             cancel_event: Asyncio event for cancellation signaling.
             emit: Callback for WebSocket events.
+            input_overrides: Per-node input values applied after edge
+                resolution (override wins); used to feed a subgraph's mapped
+                parent inputs to its inner nodes.
+            _run_dir: Internal — artifact root for this (possibly nested)
+                execution; defaults to ``workspace/runs/<run_id>``.
+            _subgraph_path: Internal — dot-joined chain of subgraph node IDs
+                this execution is nested under ("" at the top level).
 
         Returns:
             Execution result dict with ``status``, ``outputs``, ``previews``,
@@ -355,6 +376,8 @@ class WorkflowExecutor:
         options = options or {}
         force_nodes = force_nodes or set()
         cancel_event = cancel_event or asyncio.Event()
+        input_overrides = input_overrides or {}
+        run_root = Path(_run_dir) if _run_dir is not None else self.workspace_dir / "runs" / run_id
 
         if emit is None:
             def _noop_emit(event: str, data: dict[str, Any]) -> None:
@@ -497,16 +520,27 @@ class WorkflowExecutor:
         failed_nodes: set[str] = set()
         skipped_nodes: set[str] = set()
         previews: list[dict[str, Any]] = []
+        stop_on_error = options.get("stop_on_error", True)
         run_metadata: dict[str, Any] = {
             "run_id": run_id,
             "forced": force,
             "target_nodes": sorted(target_nodes),
             "workflow_parameters": workflow_parameters,
             "nodes": {},
+            # Flags a nested subgraph execution must inherit (its inner
+            # execute() call reads these through ctx.run_metadata).
+            "execution_options": {
+                "force": bool(force),
+                "stop_on_error": bool(stop_on_error),
+                "embed_provenance": bool(options.get("embed_provenance", True)),
+            },
         }
+        if _subgraph_path:
+            run_metadata["subgraph_path"] = _subgraph_path
+        if input_overrides:
+            run_metadata["input_overrides"] = input_overrides
         if resume_checkpoint:
             run_metadata["resume_checkpoint"] = resume_checkpoint
-        stop_on_error = options.get("stop_on_error", True)
 
         cancelled_holder: dict[str, str | None] = {}
 
@@ -620,7 +654,12 @@ class WorkflowExecutor:
                 # ---- Resolve inputs from upstream nodes ----
                 try:
                     resolved_inputs = self._resolve_inputs(
-                        node_id, node, edge_map, node_outputs, workflow_parameters
+                        node_id,
+                        node,
+                        edge_map,
+                        node_outputs,
+                        workflow_parameters,
+                        input_overrides=input_overrides,
                     )
                 except Exception as exc:
                     msg = f"Input resolution failed for {node_id}: {exc}"
@@ -640,6 +679,7 @@ class WorkflowExecutor:
                 # ---- Fill parameter defaults ----
                 _node_class = self._node_class_for(node)
                 resolved_params = self._with_defaults(node, resolved_inputs, _node_class, workflow_parameters)
+                is_subgraph = self._is_subgraph_node(node)
                 executes_loop_body = self._executes_loop_body(_node_class)
                 executes_try_catch_branches = self._executes_try_catch_branches(_node_class)
 
@@ -652,10 +692,14 @@ class WorkflowExecutor:
                     upstream_keys[f"{src}:{src_port}->{tgt_port}"] = node_cache_keys.get(src)
 
                 # ---- Compute cache key ----
+                # Subgraph nodes have no registry class and always re-run their
+                # embedded workflow (unless excluded by a resume restriction);
+                # inner nodes keep their own normal caching.
                 cache_key = None
                 forced_node = (
                     force
                     or node_id in force_nodes
+                    or is_subgraph
                     or executes_loop_body
                     or executes_try_catch_branches
                     or self._executor_cache_policy(_node_class) == "always_run"
@@ -678,7 +722,7 @@ class WorkflowExecutor:
                 node_cache_keys[node_id] = cache_key
 
                 # ---- Prepare node working directory and environment prefix ----
-                node_dir = self.workspace_dir / "runs" / run_id / node_id
+                node_dir = run_root / node_id
                 node_dir.mkdir(parents=True, exist_ok=True)
 
                 env_prefix: list[str] = []
@@ -904,12 +948,15 @@ class WorkflowExecutor:
                     self._record_run_event(
                         run_id,
                         "node_error",
-                        {
-                            "node_id": node_id,
-                            "error": msg,
-                            "error_code": self._error_code(exc),
-                            "attempts": attempts,
-                        },
+                        self._tag_subgraph_path(
+                            run_metadata,
+                            {
+                                "node_id": node_id,
+                                "error": msg,
+                                "error_code": self._error_code(exc),
+                                "attempts": attempts,
+                            },
+                        ),
                     )
                     error_outputs = self._error_outputs(
                         node=node,
@@ -972,7 +1019,10 @@ class WorkflowExecutor:
             self._record_run_event(
                 run_id,
                 "node_skipped_cancelled",
-                {"node_id": unstarted_id, "node_type": node_type},
+                self._tag_subgraph_path(
+                    run_metadata,
+                    {"node_id": unstarted_id, "node_type": node_type},
+                ),
             )
 
         if cancel_event.is_set():
@@ -985,7 +1035,7 @@ class WorkflowExecutor:
             cancel_artifacts = self._collect_artifacts(run_id, nodes, node_results)
             run_metadata["artifacts"] = cancel_artifacts
             try:
-                self._write_metadata(run_id, run_metadata)
+                self._write_metadata(run_id, run_metadata, meta_dir=run_root)
             except Exception:
                 logger.exception("Failed to write metadata for cancelled run %s", run_id)
             emit("complete", {"run_id": run_id, "status": "cancelled"})
@@ -1019,7 +1069,7 @@ class WorkflowExecutor:
         run_metadata["artifacts"] = artifacts
 
         # Write run metadata
-        self._write_metadata(run_id, run_metadata)
+        self._write_metadata(run_id, run_metadata, meta_dir=run_root)
 
         # Embed provenance in outputs
         if options.get("embed_provenance", True):
@@ -1092,6 +1142,7 @@ class WorkflowExecutor:
             node = nodes[node_id]
             node_type = str(node.get("type", "unknown"))
             node_class = self._node_class_for(node)
+            is_subgraph = self._is_subgraph_node(node)
             node_executables = list(getattr(node_class, "REQUIRED_EXECUTABLES", []) or []) if node_class else []
             node_requires_gpu = bool(getattr(node_class, "REQUIRES_GPU", False)) if node_class else False
             executables.update(str(item) for item in node_executables)
@@ -1142,6 +1193,7 @@ class WorkflowExecutor:
             forced_node = (
                 force
                 or node_id in force_nodes
+                or is_subgraph
                 or self._executes_loop_body(node_class)
                 or self._executes_try_catch_branches(node_class)
                 or self._executor_cache_policy(node_class) == "always_run"
@@ -1165,28 +1217,43 @@ class WorkflowExecutor:
             command = self._dry_run_command(node_class, resolved_params, node_dir)
             node_outputs[node_id] = planned_outputs
 
-            plan_nodes.append(
-                {
-                    "node_id": node_id,
-                    "node_type": node_type,
-                    "display_name": getattr(node_class, "DISPLAY_NAME", "") if node_class else "",
-                    "category": getattr(node_class, "CATEGORY", "") if node_class else "",
-                    "inputs": self._public_plan_values(redact_tree(resolved_inputs)),
-                    "params": self._public_plan_values(redact_tree(resolved_params)),
-                    "command": self._redact_command(command, resolved_params),
-                    "shell": bool(getattr(node_class, "SHELL", False)) if node_class else False,
-                    "env_prefix": self._env_prefix_for_node(node, workflow),
-                    "requires_gpu": node_requires_gpu,
-                    "required_executables": node_executables,
-                    "required_conda_packages": list(getattr(node_class, "REQUIRED_CONDA_PACKAGES", []) or []),
-                    "planned_outputs": planned_outputs,
-                    "cache": {
-                        "key": cache_key,
-                        "hit": cache_hit,
-                        "forced": forced_node,
-                    },
-                }
-            )
+            plan_entry = {
+                "node_id": node_id,
+                "node_type": node_type,
+                "display_name": getattr(node_class, "DISPLAY_NAME", "") if node_class else "",
+                "category": getattr(node_class, "CATEGORY", "") if node_class else "",
+                "inputs": self._public_plan_values(redact_tree(resolved_inputs)),
+                "params": self._public_plan_values(redact_tree(resolved_params)),
+                "command": self._redact_command(command, resolved_params),
+                "shell": bool(getattr(node_class, "SHELL", False)) if node_class else False,
+                "env_prefix": self._env_prefix_for_node(node, workflow),
+                "requires_gpu": node_requires_gpu,
+                "required_executables": node_executables,
+                "required_conda_packages": list(getattr(node_class, "REQUIRED_CONDA_PACKAGES", []) or []),
+                "planned_outputs": planned_outputs,
+                "cache": {
+                    "key": cache_key,
+                    "hit": cache_hit,
+                    "forced": forced_node,
+                },
+            }
+            plan_nodes.append(plan_entry)
+
+            if is_subgraph:
+                inner_preview = await self._dry_run_subgraph(
+                    node=node,
+                    run_id=run_id,
+                    force=force,
+                    force_nodes=force_nodes,
+                    options=options,
+                    workflow_parameters=workflow_parameters,
+                )
+                plan_entry["inner_node_count"] = inner_preview["node_count"]
+                if inner_preview["error"]:
+                    plan_entry["inner_error"] = inner_preview["error"]
+                plan_nodes.extend(inner_preview["nodes"])
+                executables.update(inner_preview["executables"])
+                gpu_nodes.extend(inner_preview["gpu_nodes"])
 
         return {
             "status": "dry_run",
@@ -1204,6 +1271,98 @@ class WorkflowExecutor:
             "will_execute": False,
             **({"resume_checkpoint": resume_checkpoint} if resume_checkpoint else {}),
         }
+
+    async def _dry_run_subgraph(
+        self,
+        *,
+        node: dict[str, Any],
+        run_id: str,
+        force: bool,
+        force_nodes: set[str],
+        options: dict[str, Any],
+        workflow_parameters: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Plan a subgraph node's embedded workflow for dry_run.
+
+        Inner plan entries are surfaced with ``<subgraph_id>/<inner_id>`` node
+        ids (nested subgraphs compose the prefix), their planned output paths
+        are re-rooted under the subgraph's run directory, and the inner
+        executables/GPU requirements are aggregated for the caller to merge
+        into the workflow-level ``requirements``.
+        """
+        empty = {"nodes": [], "node_count": 0, "executables": set(), "gpu_nodes": [], "error": ""}
+        raw_params = node.get("params")
+        params = raw_params if isinstance(raw_params, dict) else {}
+        inner_workflow = params.get("workflow")
+        if not isinstance(inner_workflow, dict) or not inner_workflow.get("nodes"):
+            return {**empty, "error": "subgraph node is missing its embedded workflow"}
+
+        subgraph_id = str(node.get("id", "") or "")
+        inner_seed = self._subgraph_seed(workflow_parameters, subgraph_id)
+        inner_options = {
+            key: value
+            for key, value in (options or {}).items()
+            if key in ("parameters", "api_secrets")
+        }
+        inner_parameters = dict(inner_options.get("parameters") or {})
+        inner_parameters["subgraph_seed"] = inner_seed
+        inner_options["parameters"] = inner_parameters
+
+        preview = await self.dry_run(
+            run_id=run_id,
+            workflow=copy.deepcopy(inner_workflow),
+            force=force,
+            force_nodes=force_nodes,
+            options=inner_options,
+        )
+        if preview.get("status") == "failed":
+            return {**empty, "error": str(preview.get("error", ""))}
+
+        run_dir_prefix = str(self.workspace_dir / "runs" / run_id)
+        planned: list[dict[str, Any]] = []
+        for entry in preview.get("nodes", []):
+            if not isinstance(entry, dict):
+                continue
+            prefixed = dict(entry)
+            prefixed["node_id"] = f"{subgraph_id}/{entry.get('node_id', '')}"
+            prefixed["subgraph_path"] = subgraph_id
+            prefixed["planned_outputs"] = self._replan_output_paths(
+                entry.get("planned_outputs"), run_dir_prefix, subgraph_id
+            )
+            planned.append(prefixed)
+
+        requirements = preview.get("requirements", {})
+        return {
+            "nodes": planned,
+            "node_count": len(planned),
+            "executables": {str(item) for item in requirements.get("executables", [])},
+            "gpu_nodes": [
+                f"{subgraph_id}/{node_id}" for node_id in requirements.get("gpu_nodes", [])
+            ],
+            "error": "",
+        }
+
+    @staticmethod
+    def _replan_output_paths(value: Any, run_dir_prefix: str, subgraph_id: str) -> Any:
+        """Re-root planned inner-workflow paths under the subgraph directory."""
+        if isinstance(value, str):
+            if not value.startswith(run_dir_prefix):
+                return value
+            remainder = value[len(run_dir_prefix):].lstrip("/\\")
+            if not remainder:
+                return value
+            return str(Path(run_dir_prefix) / subgraph_id / remainder)
+        if isinstance(value, list):
+            return [
+                WorkflowExecutor._replan_output_paths(item, run_dir_prefix, subgraph_id)
+                for item in value
+            ]
+        if isinstance(value, dict):
+            return {
+                key: WorkflowExecutor._replan_output_paths(item, run_dir_prefix, subgraph_id)
+                for key, item in value.items()
+            }
+        return value
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -3036,6 +3195,158 @@ class WorkflowExecutor:
             return next(iter(outputs.values()))
         return outputs
 
+    @staticmethod
+    def _is_subgraph_node(node: dict[str, Any]) -> bool:
+        return isinstance(node, dict) and str(node.get("type", "")) == "subgraph"
+
+    @staticmethod
+    def _subgraph_ports(raw: Any) -> list[dict[str, str]]:
+        """Normalize ``params.input_ports``/``output_ports`` entries."""
+        ports: list[dict[str, str]] = []
+        if not isinstance(raw, (list, tuple)):
+            return ports
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+            name = str(entry.get("name", "") or "")
+            if not name:
+                continue
+            inner_node_id = str(
+                entry.get("innerNodeId", entry.get("inner_node_id", "")) or ""
+            )
+            inner_slot = str(entry.get("innerSlot", entry.get("inner_slot", "")) or "")
+            ports.append(
+                {
+                    "name": name,
+                    "inner_node_id": inner_node_id,
+                    "inner_slot": inner_slot,
+                }
+            )
+        return ports
+
+    @staticmethod
+    def _subgraph_seed(workflow_parameters: dict[str, Any], subgraph_node_id: str) -> int:
+        """Derive a stable per-subgraph seed from the run's master seed."""
+        master_seed = workflow_parameters.get("seed") if isinstance(workflow_parameters, dict) else None
+        if master_seed is None and isinstance(workflow_parameters, dict):
+            master_seed = workflow_parameters.get("master_seed")
+        material = "" if master_seed is None else str(master_seed)
+        digest = hashlib.sha256(f"{material}:{subgraph_node_id}".encode("utf-8")).hexdigest()
+        # Mask to 31 bits: full 8-hex-digit digests exceed the INT max
+        # (2147483647) that node input validation enforces on seed inputs.
+        return int(digest[:8], 16) & 0x7FFFFFFF
+
+    async def _execute_subgraph_node(
+        self,
+        ctx: ExecutionContext,
+        node: dict[str, Any],
+        inputs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Execute a subgraph node's embedded workflow inside the same run.
+
+        The inner execution reuses this executor (same run_id, cache,
+        cancel_event) with a recursion context: its artifacts root at the
+        subgraph node's own directory, its events are tagged with the nested
+        ``subgraph_path``, and the parent's resolved port inputs are mapped
+        onto the inner nodes via ``input_overrides``.
+        """
+        raw_params = node.get("params")
+        params = raw_params if isinstance(raw_params, dict) else {}
+        inner_workflow = params.get("workflow")
+        if not isinstance(inner_workflow, dict) or not inner_workflow.get("nodes"):
+            raise RuntimeError(f"Subgraph node '{ctx.node_id}' is missing its embedded workflow")
+
+        input_ports = self._subgraph_ports(params.get("input_ports"))
+        output_ports = self._subgraph_ports(params.get("output_ports"))
+        workflow_parameters = ctx.run_metadata.get("workflow_parameters")
+        if not isinstance(workflow_parameters, dict):
+            workflow_parameters = {}
+        inner_seed = self._subgraph_seed(workflow_parameters, ctx.node_id)
+
+        input_overrides: dict[str, dict[str, Any]] = {}
+        for port in input_ports:
+            if not port["inner_node_id"] or not port["inner_slot"]:
+                continue
+            if port["name"] in inputs:
+                value = inputs[port["name"]]
+                if port["name"] == "seed" and (value is None or value == ""):
+                    value = inner_seed
+            elif port["name"] == "seed":
+                value = inner_seed
+            else:
+                continue
+            input_overrides.setdefault(port["inner_node_id"], {})[port["inner_slot"]] = value
+
+        parent_path = str(ctx.run_metadata.get("subgraph_path", "") or "")
+        child_path = f"{parent_path}.{ctx.node_id}" if parent_path else ctx.node_id
+
+        parent_options = ctx.run_metadata.get("execution_options")
+        parent_options = parent_options if isinstance(parent_options, dict) else {}
+
+        def _inner_emit(event: str, data: dict[str, Any]) -> None:
+            # Inner node events flow to the same stream as the parent run's,
+            # tagged with the nesting path; the inner run's own start/complete
+            # bookkeeping stays internal so consumers tracking run-level state
+            # see exactly one of each from the outermost execution. Events
+            # already tagged by a deeper subgraph keep their deeper path.
+            if event in ("start", "complete"):
+                return
+            if "subgraph_path" in data:
+                ctx.emit(event, data)
+            else:
+                ctx.emit(event, {**data, "subgraph_path": child_path})
+
+        inner_result = await self.execute(
+            run_id=ctx.run_id,
+            workflow=copy.deepcopy(inner_workflow),
+            force=bool(parent_options.get("force", False)),
+            options={
+                "api_secrets": dict(ctx.api_secrets),
+                "parameters": {"subgraph_seed": inner_seed},
+                "stop_on_error": bool(parent_options.get("stop_on_error", True)),
+                "embed_provenance": bool(parent_options.get("embed_provenance", True)),
+            },
+            cancel_event=ctx.cancel_event,
+            emit=_inner_emit,
+            input_overrides=input_overrides,
+            _run_dir=ctx.node_dir,
+            _subgraph_path=child_path,
+        )
+
+        inner_status = str(inner_result.get("status", ""))
+        if inner_status == "cancelled":
+            ctx.cancel_event.set()
+            raise CommandCancelledError(f"subgraph:{ctx.node_id}")
+        inner_node_results = inner_result.get("node_results", {})
+        if inner_status != "completed":
+            failures = [
+                f"{node_id}: {result.get('error', result.get('status'))}"
+                for node_id, result in inner_node_results.items()
+                if isinstance(result, dict) and result.get("status") == "failed"
+            ]
+            detail = str(inner_result.get("error") or "; ".join(failures) or inner_status)
+            raise RuntimeError(f"Subgraph '{ctx.node_id}' failed: {detail[:500]}")
+
+        outputs: dict[str, Any] = {}
+        for port in output_ports:
+            node_result = inner_node_results.get(port["inner_node_id"], {})
+            port_outputs = node_result.get("outputs", {}) if isinstance(node_result, dict) else {}
+            if port["inner_slot"] in port_outputs:
+                outputs[port["name"]] = port_outputs[port["inner_slot"]]
+            else:
+                outputs[port["name"]] = port_outputs.get("default")
+        outputs["subgraph_dir"] = str(ctx.node_dir.resolve())
+
+        return {
+            "outputs": outputs,
+            "subgraph": {
+                "status": inner_status,
+                "subgraph_path": child_path,
+                "seed": inner_seed,
+                "node_count": len(inner_node_results),
+            },
+        }
+
     async def _execute_node(
         self,
         ctx: ExecutionContext,
@@ -3043,6 +3354,8 @@ class WorkflowExecutor:
         inputs: dict[str, Any],
     ) -> dict[str, Any]:
         """Execute a single node via its ``run()`` method."""
+        if self._is_subgraph_node(node):
+            return await self._execute_subgraph_node(ctx, node, inputs)
         node_class = node.get("_node_class")
         # Fallback: look up in registry if _node_class is not attached
         if node_class is None and self.registry is not None and hasattr(self.registry, "get"):
@@ -3122,12 +3435,15 @@ class WorkflowExecutor:
                 self._record_run_event(
                     ctx.run_id,
                     "node_retry",
-                    {
-                        "node_id": ctx.node_id,
-                        "attempt": next_attempt,
-                        "max_attempts": max_attempts,
-                        "error_code": self._error_code(exc),
-                    },
+                    self._tag_subgraph_path(
+                        ctx.run_metadata,
+                        {
+                            "node_id": ctx.node_id,
+                            "attempt": next_attempt,
+                            "max_attempts": max_attempts,
+                            "error_code": self._error_code(exc),
+                        },
+                    ),
                 )
                 if isinstance(exc, NodeMemoryError):
                     self._apply_memory_escalation(ctx, policy, next_attempt, emit)
@@ -3182,7 +3498,7 @@ class WorkflowExecutor:
             record["memory"] = bumped
         ctx.run_metadata.setdefault("escalations", []).append(record)
         emit("node_escalate", {"run_id": ctx.run_id, **record})
-        self._record_run_event(ctx.run_id, "node_escalate", record)
+        self._record_run_event(ctx.run_id, "node_escalate", self._tag_subgraph_path(ctx.run_metadata, record))
 
     @staticmethod
     def _bump_memory_directive(value: str, multiplier: float) -> str:
@@ -3373,6 +3689,7 @@ class WorkflowExecutor:
         edge_map: dict[str, list[dict[str, Any]]],
         node_outputs: dict[str, dict[str, str]],
         workflow_parameters: dict[str, Any] | None = None,
+        input_overrides: dict[str, dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Resolve edge connections to actual values from upstream outputs."""
         inputs: dict[str, Any] = {}
@@ -3430,6 +3747,13 @@ class WorkflowExecutor:
 
         for port, values in collected_list.items():
             inputs[port] = values
+
+        # Explicit per-node overrides win over everything resolved above
+        # (used to map a subgraph's parent inputs onto its inner nodes).
+        if input_overrides:
+            node_overrides = input_overrides.get(node_id)
+            if node_overrides:
+                inputs.update(node_overrides)
 
         return inputs
 
@@ -3754,13 +4078,23 @@ class WorkflowExecutor:
         except OSError:
             return False
 
-    def _write_metadata(self, run_id: str, metadata: dict[str, Any]) -> None:
-        """Write run metadata JSON to the workspace."""
-        meta_dir = self.workspace_dir / "runs" / run_id
-        meta_dir.mkdir(parents=True, exist_ok=True)
-        meta_path = meta_dir / "run_metadata.json"
+    def _write_metadata(
+        self,
+        run_id: str,
+        metadata: dict[str, Any],
+        meta_dir: Path | None = None,
+    ) -> None:
+        """Write run metadata JSON to the workspace.
+
+        ``meta_dir`` relocates the file for nested subgraph executions, whose
+        metadata lands beside their artifacts under the subgraph node's run
+        directory instead of the top-level run directory.
+        """
+        target_dir = meta_dir if meta_dir is not None else self.workspace_dir / "runs" / run_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+        meta_path = target_dir / "run_metadata.json"
         with open(meta_path, "w", encoding="utf-8") as fh:
-            json.dump(metadata, fh, indent=2, ensure_ascii=True)
+            json.dump(metadata, fh, indent=2, ensure_ascii=True, default=str)
 
     def _env_prefix_for_node(self, node: dict[str, Any], workflow: dict[str, Any] | None = None) -> list[str]:
         """Compute the environment command prefix for a node.
