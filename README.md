@@ -8,9 +8,13 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 [![Discord](https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&logoColor=white)](https://discord.gg/baNKVhZq6k)
 [![License](https://img.shields.io/badge/license-Closed%20Alpha%20Commercial-f59e0b)](LICENSE)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb)
+[![MCP Server](https://img.shields.io/badge/MCP-Server-6B5B95?logo=modelcontextprotocol&logoColor=white)](mcp/)
+[![Claude](https://img.shields.io/badge/Claude-D97757?logo=claude&logoColor=fff)](mcp/)
+[![Codex](https://img.shields.io/badge/Codex-412991?logo=openai&logoColor=white)](mcp/)
 
 ## Features
 
+- **MCP Server** — Control BioNodulo from Claude, Codex/ChatGPT and other AI clients: account, credits, runs, workflows, files and local execution via a FastMCP server — see [`mcp/`](mcp/)
 - **Visual Node Editor** — Drag-and-drop canvas for building workflows with 800+ built-in bioinformatics nodes
 - **800+ Bioinformatics Nodes** — Covering QC, alignment, variant calling, assembly, RNA-Seq, metagenomics, phylogenetics, ChIP-Seq, single-cell analysis, BioPython integration, R scripting, and more
 - **23 Pre-built Templates** — FASTQ QC Pipeline, RNA-Seq Pipeline, Variant Calling Pipeline, WGS Variant Pipeline, Genome Assembly, Metagenomics Profiling, Phylogenetics Pipeline, ChIP-Seq Pipeline, Single Cell RNA-Seq, DESeq2 Differential Expression, Transcript Quantification, Biopython Analysis Pipeline, R Visualization Pipeline, ONT Long-Read Sequencing, Proteomics Sage-Percolator Search, Protein Structure Database Workflow, WGBS Methylation Profiling, CRISPR Editing and Screen Analysis, Pangenomics Graph QC and Visualization, Metabolomics LC-MS Workflow, Spatial Transcriptomics QC and Clustering, Synthetic Biology Design and Simulation, ROBUST Designer

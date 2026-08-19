@@ -8,7 +8,7 @@
 .ruff_cache/
 .mypy_cache/
 *.log
-.venv/
+**/.venv/
 
 # Frontend build artifacts (hashed filenames change every build)
 web/node_modules/
