@@ -121,6 +121,20 @@ export interface CloudRunInputArtifact {
   kind: CloudRunInputKind;
 }
 
+/**
+ * The compute portion of a /api/runs body: a named preset, an arbitrary custom
+ * CPU/RAM spec, or the GPU preset with custom worker sizing (customVcpu /
+ * customMemoryGb) — the server maps `resourceProfile: 'gpu'` onto the A10
+ * worker and sizes it from the custom dims.
+ */
+export interface RunComputeBody {
+  resourceProfile?: string;
+  compute?: { vcpu: number; ramGb: number };
+  customVcpu?: number;
+  customMemoryGb?: number;
+  gpuCount?: number;
+}
+
 /** Canonical uploaded-artifact manifest accepted by the website run API. */
 export interface CloudRunInputs {
   artifacts?: Record<string, CloudRunInputArtifact>;
@@ -135,7 +149,7 @@ export interface CloudRunInputs {
  */
 export function submitCloudRun(
   workflowId: string,
-  compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } },
+  compute?: RunComputeBody,
   inputs?: CloudRunInputs,
   parameters?: Record<string, unknown>,
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
@@ -157,7 +171,7 @@ export function submitCloudGuestRun(
   runToken: string,
   guestName: string,
   workflowId: string,
-  compute?: { resourceProfile?: string; compute?: { vcpu: number; ramGb: number } },
+  compute?: RunComputeBody,
   inputs?: CloudRunInputs,
   parameters?: Record<string, unknown>,
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {

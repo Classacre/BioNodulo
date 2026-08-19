@@ -5,12 +5,19 @@ import Icon from '../ui/Icon';
 import { cloudConfigAtom, computeSpecAtom } from '../../state/appAtoms';
 import {
   QUICK_SIZES,
+  GPU_BASE_RAM_GB,
+  GPU_BASE_VCPU,
+  GPU_MEMORY_OPTIONS,
+  GPU_MIN_VCPU,
   capsForPlanName,
   specCreditsPerHour,
   specLabel,
   specDims,
   specCreditPerSecond,
   customComputeRate,
+  gpuComputeRate,
+  isGpuSpec,
+  clampGpuSpec,
   sizeAllowed,
   MIN_GB_PER_VCPU,
 } from '../../utils/computeSpec';
@@ -25,10 +32,13 @@ const VCPU_STEPS = [1, 2, 4, 8, 12, 16, 24, 32, 48, 64];
 /**
  * Cloud compute selector embedded in the editor's left rail (signed-in only).
  * Users choose ANY CPU/RAM with the sliders (or a quick-size shortcut); Free is
- * capped at 4 vCPU / 16 GB, paid plans are unlimited. Priced live by the same
- * formula the server bills at (utils/computeSpec — mirror of the website's
+ * capped at 4 vCPU / 16 GB, paid plans are unlimited. The GPU shortcut selects
+ * the A10 worker — its vCPU/RAM is adjustable too (the instance is auto-matched
+ * by the dispatch optimizer; OCI A10 first, AWS fallback). Priced live by the
+ * same formula the server bills at (utils/computeSpec — mirror of the website's
  * resource-profiles). The selection persists to computeSpecAtom and is sent with
- * the next run as a custom { vcpu, ramGb } spec.
+ * the next run as a custom { vcpu, ramGb } spec (GPU: resourceProfile 'gpu' +
+ * customVcpu/customMemoryGb).
  */
 export default function ComputePanel({ onClose }: ComputePanelProps) {
   const { t } = useTranslation();
@@ -40,8 +50,11 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
   const caps = useMemo(() => capsForPlanName(plan), [plan]);
   const creditsPerHour = specCreditsPerHour(spec);
   const current = specDims(spec);
+  const isGpu = isGpuSpec(spec);
 
   const vcpuChoices = VCPU_STEPS.filter(v => v <= caps.maxVcpu);
+  const gpuVcpuChoices = vcpuChoices.filter(v => v >= GPU_MIN_VCPU);
+  const gpuRamChoices = GPU_MEMORY_OPTIONS.filter(r => r <= caps.maxRamGb);
   const upgradeUrl = accountUrl ? `${accountUrl.replace(/\/+$/, '')}/pricing` : null;
   const isFree = !plan || plan === 'free';
 
@@ -54,19 +67,31 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
     setSpec({ kind: 'custom', vcpu: clampedVcpu, ramGb: clampedRam });
   };
 
+  /** Resize the GPU worker (still the A10 preset — only the machine changes). */
+  const setGpu = (vcpu: number, ramGb: number) => {
+    const gpuMaxVcpu = Math.min(64, caps.maxVcpu);
+    const gpuMaxRam = Math.min(256, caps.maxRamGb);
+    const clamped = clampGpuSpec(
+      Math.min(gpuMaxVcpu, vcpu),
+      Math.min(gpuMaxRam, ramGb),
+    );
+    setSpec({ kind: 'gpu', vcpu: clamped.vcpu, ramGb: clamped.ramGb });
+  };
+
   const pickSize = (q: QuickSize) => {
     // The GPU shortcut is a named preset (an accelerator cannot be expressed as
     // CPU/RAM), so it is submitted as resourceProfile: 'gpu' — see computeSpec.
+    // The base dims land as the GPU default; users resize via setGpu above.
     if (q.profile) {
-      setSpec({ kind: 'profile', profile: q.profile });
+      setSpec({ kind: 'gpu', vcpu: GPU_BASE_VCPU, ramGb: GPU_BASE_RAM_GB });
       return;
     }
     setCustom(q.vcpu, q.ramGb);
   };
   const isActiveSize = (q: QuickSize) => {
-    if (q.profile) return spec.kind === 'profile' && spec.profile === q.profile;
-    // The GPU preset shares its dims (4/16) with 'S'; only one may highlight.
-    if (spec.kind === 'profile' && spec.profile === 'gpu') return false;
+    if (q.profile) return isGpu;
+    // While a GPU spec is active, no CPU size highlights.
+    if (isGpu) return false;
     return current.vcpu === q.vcpu && current.ramGb === q.ramGb;
   };
   /** Live cr/hr quote for a quick size (the GPU preset is accelerator-priced). */
@@ -74,7 +99,7 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
     Math.round(
       specCreditPerSecond(
         q.profile
-          ? { kind: 'profile', profile: q.profile }
+          ? { kind: 'gpu', vcpu: q.vcpu, ramGb: q.ramGb }
           : { kind: 'custom', vcpu: q.vcpu, ramGb: q.ramGb },
       ) * 3600,
     );
@@ -116,7 +141,7 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
                   className={`btn btn-sm ${isActiveSize(q) ? 'btn-primary' : ''}`}
                   disabled={!allowed}
                   title={allowed
-                    ? `${q.vcpu} vCPU / ${q.ramGb} GB${q.profile ? ' · T4' : ''} · ${sizeCreditsPerHour(q)} cr/hr`
+                    ? `${q.vcpu} vCPU / ${q.ramGb} GB${q.profile ? ' · A10' : ''} · ${sizeCreditsPerHour(q)} cr/hr`
                     : t('compute.lockedSize', { defaultValue: 'Upgrade your plan to use this size' })}
                   onClick={() => pickSize(q)}
                 >
@@ -127,7 +152,54 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
           </div>
         </div>
 
-        {/* Custom sliders — available to everyone (Free capped at 4 vCPU / 16 GB) */}
+        {/* GPU worker sizing — the A10 preset with adjustable vCPU/RAM.
+            No instance picker: the dispatch optimizer auto-matches the cheapest
+            shape (OCI A10 first, AWS fallback) from these dims. */}
+        {isGpu && (
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+              {t('compute.gpuSizing', { defaultValue: 'GPU worker (OCI A10, auto-matched)' })}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{t('compute.vcpu', { defaultValue: 'vCPU' })}</span>
+                  <strong>{current.vcpu}</strong>
+                </span>
+                <input
+                  type="range" min={0} max={Math.max(0, gpuVcpuChoices.length - 1)} step={1}
+                  value={Math.max(0, gpuVcpuChoices.indexOf(current.vcpu))}
+                  onChange={e => {
+                    const vcpu = gpuVcpuChoices[Number(e.target.value)] ?? gpuVcpuChoices[0];
+                    if (vcpu !== undefined) setGpu(vcpu, current.ramGb);
+                  }}
+                />
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+                <span>{t('compute.ram', { defaultValue: 'RAM (GB)' })}</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {gpuRamChoices.map(gb => (
+                    <button
+                      key={gb}
+                      className={`btn btn-sm ${current.ramGb === gb ? 'btn-primary' : ''}`}
+                      onClick={() => setGpu(current.vcpu, gb)}
+                    >
+                      {gb}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                ≈ {Math.round(gpuComputeRate(current.vcpu, current.ramGb) * 3600).toLocaleString()} {t('compute.creditsPerHour', { defaultValue: 'credits / hr' })}
+                {' · '}
+                {t('compute.gpuAutoMatch', { defaultValue: 'cheapest matching GPU instance picked for you' })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Custom CPU sliders — available to everyone (Free capped at 4 vCPU / 16 GB) */}
+        {!isGpu && (
         <div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
             {t('compute.custom', { defaultValue: 'Choose CPU & RAM' })}
@@ -165,10 +237,11 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
               ≈ {Math.round(customComputeRate(current.vcpu, current.ramGb) * 3600).toLocaleString()} {t('compute.creditsPerHour', { defaultValue: 'credits / hr' })}
             </div>
           </div>
+        </div>
+        )}
 
-          {isFree && (
+        {isFree && (
             <div style={{
-              marginTop: 12,
               border: '1px dashed var(--border, rgba(127,127,127,0.3))', borderRadius: 8, padding: 12,
               fontSize: 13, color: 'var(--muted)',
             }}>
@@ -182,7 +255,6 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
               )}
             </div>
           )}
-        </div>
       </div>
     </div>
   );

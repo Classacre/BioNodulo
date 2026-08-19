@@ -38,7 +38,9 @@ function loadComputeSpec(): ComputeSpec {
     const raw = localStorage.getItem(COMPUTE_SPEC_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as ComputeSpec;
-      if (parsed && (parsed.kind === 'profile' || parsed.kind === 'custom')) return parsed;
+      if (parsed && (parsed.kind === 'profile' || parsed.kind === 'custom' || parsed.kind === 'gpu')) {
+        return parsed;
+      }
     }
   } catch { /* ignore */ }
   return { kind: 'custom', vcpu: 2, ramGb: 16 };
