@@ -20,6 +20,65 @@
 
 BioNodulo is a professional-grade visual workflow workbench for bioinformatics. Build, execute, and share complex bioinformatics pipelines using an intuitive node-based graph editor.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/dark/app.png" />
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/screenshots/light/app.png" />
+    <img src=".github/assets/screenshots/light/app.png" alt="BioNodulo visual node editor" width="900" />
+  </picture>
+</p>
+
+## Screenshots
+
+<table>
+  <tr>
+    <td>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/dark/rnaseq-graph.png" />
+        <source media="(prefers-color-scheme: light)" srcset=".github/assets/screenshots/light/rnaseq-graph.png" />
+        <img src=".github/assets/screenshots/light/rnaseq-graph.png" alt="RNA-Seq pipeline graph" />
+      </picture>
+      <p align="center"><em>RNA-Seq pipeline in the node editor</em></p>
+    </td>
+    <td>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/dark/editor.png" />
+        <source media="(prefers-color-scheme: light)" srcset=".github/assets/screenshots/light/editor.png" />
+        <img src=".github/assets/screenshots/light/editor.png" alt="Node parameter editor" />
+      </picture>
+      <p align="center"><em>Node parameter editor</em></p>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/dark/console-run.png" />
+        <source media="(prefers-color-scheme: light)" srcset=".github/assets/screenshots/light/console-run.png" />
+        <img src=".github/assets/screenshots/light/console-run.png" alt="Live run console" />
+      </picture>
+      <p align="center"><em>Live run console</em></p>
+    </td>
+    <td>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/dark/run-on-cloud.png" />
+        <source media="(prefers-color-scheme: light)" srcset=".github/assets/screenshots/light/run-on-cloud.png" />
+        <img src=".github/assets/screenshots/light/run-on-cloud.png" alt="Run on cloud" />
+      </picture>
+      <p align="center"><em>One-click cloud execution</em></p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/dark/hpc-scheduler.png" />
+        <source media="(prefers-color-scheme: light)" srcset=".github/assets/screenshots/light/hpc-scheduler.png" />
+        <img src=".github/assets/screenshots/light/hpc-scheduler.png" alt="HPC scheduler panel" />
+      </picture>
+      <p align="center"><em>HPC scheduler integration (SLURM, PBS/Torque, SGE)</em></p>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 - **MCP Server** — Control BioNodulo from Claude, Codex/ChatGPT and other AI clients: account, credits, runs, workflows, files and local execution via a FastMCP server — see [`mcp/`](mcp/)
@@ -40,17 +99,17 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 
 ## Quick Start
 
-### Google Colab
+The easiest way to get started is with the **BioNodulo desktop app** or the **cloud platform** — no local setup required:
+
+- **Desktop app** — download the latest build from [bionodulo.com](https://bionodulo.com) and follow the [desktop installation guide](https://docs.bionodulo.com/desktop/installation)
+- **Cloud** — sign up at [bionodulo.com](https://bionodulo.com) and build & run workflows directly in your browser
+- **Documentation** — full guides, node reference, and API docs at [docs.bionodulo.com](https://docs.bionodulo.com)
 
 For an ephemeral notebook-based trial, launch the Colab notebook:
 
-[Open BioNodulo in Google Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb)
 
-The notebook checks out `origin/main`, prints the active branch and commit with `git status -sb` and `git log -1 --oneline --decorate`, installs the backend dependencies, builds the web frontend, starts BioNodulo in the Colab runtime, and prints a temporary Cloudflare Tunnel URL while the launch cell keeps running.
-
-If Colab still shows an older BioNodulo version, restart or delete the Colab runtime and rerun the setup cell. The printed Git commit should match the latest `main` commit in this repository.
-
-### Prerequisites
+### Running from source
 
 **Required on host PATH:**
 - **Python 3.11+** — runs the FastAPI backend
@@ -62,81 +121,85 @@ If Colab still shows an older BioNodulo version, restart or delete the Colab run
 **Required only for R-based workflows:**
 - **Rscript** — needed by nodes such as DESeq2, ggplot2, pheatmap, edgeR, etc.
 
-### Installation
-
 ```bash
-# Clone or extract the project
-cd bionodulo-v2
-
 # Install Python dependencies
 pip install -e .
 
 # Build the frontend
-cd web && npm install && npm run build
-cd ..
-```
+cd web && npm install && npm run build && cd ..
 
-### Running
-
-```bash
-# Start the built application on the default port
+# Start the application (then open http://localhost:8000)
 python main.py
 
-# Or with options
-python main.py --host 0.0.0.0 --port 8000 --project-root ./workspace
-
-# Development mode with auto-reload
-python main.py --dev
-
-# With custom config
-python main.py --config bionodulo.yaml
-```
-
-Then open http://localhost:8000 in your browser.
-
-For frontend development, run the backend on the port configured in
-`web/vite.config.ts` and Vite on port 5173 with one command:
-
-```bash
+# Development mode with auto-reload (backend on 8765, Vite on 5173)
 make dev
 ```
 
-Then open http://localhost:5173. To run the processes in separate terminals,
-use `make dev-backend` and `make dev-web`; the backend listens on port 8765.
+## MCP Server (Claude, Codex & other AI clients)
 
-### Using HPC Mode
+BioNodulo ships an [MCP](https://modelcontextprotocol.io) server ([`mcp/`](mcp/)) that lets AI agents manage your account, credits, cloud runs, workflows, files, and a locally running desktop app. See the [full MCP documentation](mcp/README.md) for the complete tool list and configuration options.
 
-1. Click the **HPC** toggle in the top bar
-2. Open the HPC panel (Ctrl+5) and configure your scheduler
-3. Set partition, account, resources, and modules
-4. Click **Test Connection** to verify
-5. Run your workflow — it will be submitted as a batch job
+### 1. Install
 
-### Importing Workflows
+Requires [uv](https://docs.astral.sh/uv/):
 
-Click the **Import** button in the top bar (Ctrl+I) and paste workflow code from:
-- SnakeMake (.smk)
-- NextFlow (.nf)
-- CWL (.cwl)
-- Galaxy (.ga)
-- BioNodulo JSON (.json)
+```bash
+cd mcp
+uv sync
+```
 
-### Creating Custom Nodes
+### 2. Connect your AI client
 
-1. Copy `custom_nodes/example_node.py.example` to `custom_nodes/my_node.py`
-2. Edit the node class with your tool's parameters
-3. Optionally set `GIT_URL` and `GIT_COMMIT` as source metadata. Backend Git install support exists, but the recommended supported path today is loading and testing local custom nodes directly.
-4. Restart BioNodulo — your node appears in the palette automatically
+The one-shot installer wires up **Codex CLI / IDE / ChatGPT desktop**, **Claude Code**, and **Claude Desktop** in one go:
 
-### Managing Environments
+```bash
+uv run bionodulo-mcp install \
+  --clerk-secret-key sk_live_... \
+  --user-email you@example.com
+```
 
-BioNodulo automatically checks for missing dependencies every time you open or load a workflow:
+Use `--client claude-code|claude-desktop|codex` to install just one client.
 
-1. **Auto-detect** — Open any template or workflow. If nodes or tools are missing, a top-center banner appears
-2. **Auto Install** — Click **Auto Install** in the banner to install missing Conda-backed executables. Git-backed custom node cloning exists in backend code but is still experimental.
-3. **Environment Panel** (Ctrl+4) — Browse existing Conda environments, create new ones, delete old ones, and view installed packages
-4. **Dependency Tree** — See per-workflow dependency status (installed / missing / available in which env)
-5. **Isolate Workflow** — Create a dedicated Conda environment containing only the tools your current workflow needs
+Or configure each client manually:
+
+**Codex**
+
+```bash
+codex mcp add bionodulo \
+  --env CLERK_SECRET_KEY=sk_live_... \
+  --env BIONODULO_USER_EMAIL=you@example.com \
+  -- uv --directory /path/to/BioNodulo/mcp run bionodulo-mcp
+```
+
+Verify with `codex mcp list`, then use `/mcp` inside a Codex session to confirm the BioNodulo tools are available.
+
+**Claude Code**
+
+```bash
+claude mcp add bionodulo --scope user \
+  --env CLERK_SECRET_KEY=sk_live_... \
+  --env BIONODULO_USER_EMAIL=you@example.com \
+  -- uv --directory /path/to/BioNodulo/mcp run bionodulo-mcp
+```
+
+Verify with `claude mcp list` — the server should show as connected.
+
+**Claude Desktop** — add to `claude_desktop_config.json` (`%APPDATA%\Claude\` on Windows, `~/Library/Application Support/Claude/` on macOS), then restart the app:
+
+```json
+{
+  "mcpServers": {
+    "bionodulo": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/BioNodulo/mcp", "run", "bionodulo-mcp"],
+      "env": {
+        "CLERK_SECRET_KEY": "sk_live_...",
+        "BIONODULO_USER_EMAIL": "you@example.com"
+      }
+    }
+  }
+}
+```
 
 ## Project Structure
 
@@ -173,6 +236,7 @@ bionodulo-v2/
 │   │   └── diagnostics.py
 │   ├── provenance/            # Workflow embedding, reports
 │   └── ai/                    # AI assistant
+├── mcp/                       # MCP server (Claude, Codex, other AI clients)
 ├── custom_nodes/              # Your custom nodes
 ├── templates/                 # 23 pre-built workflow templates
 ├── envs/                      # Generated per-workflow environments (ignored)
@@ -192,133 +256,6 @@ BioNodulo runs locally with no external services. For larger deployments you can
 - **OIDC / Keycloak / SuperTokens** — set `BIONODULO_OIDC_ISSUER`, `BIONODULO_OIDC_AUDIENCE`, and optionally `BIONODULO_OIDC_JWKS_URL` to accept externally issued JWTs.
 - **LiteLLM Proxy** — choose the `litellm` AI provider and set `BIONODULO_LITELLM_BASE_URL` plus `LITELLM_API_KEY` to route models through a provider gateway.
 - **SlowAPI** — REST rate limiting is enabled by default; set `BIONODULO_RATE_LIMIT_REDIS_URL` or `BIONODULO_REDIS_URL` to share rate-limit state between instances.
-
-## Node Categories
-
-| Category | Nodes | Description |
-|----------|-------|-------------|
-| Input | FASTQ, FASTA, VCF, GFF, File, Directory, Sample Sheet | Data loading nodes |
-| Quality Control | FastQC, MultiQC, QualiMap | Sequence quality assessment |
-| Read Preprocessing | fastp, Trimmomatic, Cutadapt | Adapter trimming and filtering |
-| Alignment | BWA, Bowtie2, Minimap2, STAR, HISAT2 | Read alignment (including index builders) |
-| SAM/BAM Processing | samtools sort, index, flagstat, view, merge, stats | Alignment processing |
-| Variant Calling | GATK, bcftools, FreeBayes, VCFtools | SNP/indel detection |
-| Assembly | SPAdes, MEGAHIT, Flye, Canu, Unicycler, QUAST | Genome assembly |
-| Annotation | Prokka, Bakta, eggNOG | Genome annotation |
-| Phylogenetics | MAFFT, ClustalΩ, IQ-TREE, FastTree, RAxML | Tree construction |
-| RNA-Seq | Salmon, Kallisto, featureCounts, StringTie | Expression analysis |
-| Metagenomics | Kraken2, Bracken, MetaPhlAn, HUMAnN, MaxBin, CheckM | Microbial profiling |
-| ChIP-Seq | MACS2, BEDTools, deepTools | Peak calling and coverage |
-| Single Cell | Cell Ranger | scRNA-seq analysis |
-| Spatial Transcriptomics | Space Ranger, Squidpy, Scanpy, Seurat, Cell2location, Baysor | Visium QC, spatial clustering, UMAP visualization, deconvolution, and segmentation |
-| Long Read | Dorado, Chopper, NanoPlot, Modkit | ONT long-read basecalling, demultiplexing, QC, and modified-base calls |
-| Proteomics | Sage, Percolator, FragPipe, MSFragger, MaxQuant, DIA-NN, OpenMS | Mass-spectrometry search and FDR analysis |
-| Protein Structure | UniProt, AlphaFold DB, RCSB PDB | Protein sequence lookup, predicted structure retrieval, experimental structure download, and database reporting |
-| Metabolomics | XCMS, CAMERA, SIRIUS, MZmine, MetaboAnalystR, MS-DIAL | LC-MS peak detection, retention correction, annotation, and metabolomics statistics |
-| Epigenomics | Bismark, MethylDackel, DSS, Modkit, deepTools, Hi-C tooling | WGBS methylation, DMR, coverage, and chromatin-contact analysis |
-| CRISPR | Guide RNA Design, Cas-OFFinder, CRISPResso2, MAGeCK | Genome-editing guide design, off-target checks, amplicon editing, and pooled-screen analysis |
-| Pangenomics | PGGB, Minigraph, Minigraph-Cactus, vg, ODGI, Panacus, Panaroo | Pangenome graph construction, graph QC, visualization, and variant/gene analysis |
-| Synthetic Biology | SBOL, COPASI, iBioSim, Cello | BioCAD design import, circuit compilation, kinetic simulation, and COMBINE archive execution |
-| HPC | Job Submit, Status Check | Cluster job submission |
-| BioPython | SeqIO, BLAST, MSA, Sequence Stats | Python bioinformatics tools |
-| R Integration | R Script, R Plot, DataFrame Builder | R statistical computing |
-| Utility | Generic Command, View Text, Collect Files, Merge VCF, Note, Reroute | Helper nodes |
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| Ctrl+F | Open node palette |
-| Ctrl+R | Run workflow |
-| Ctrl+E | Export workflow |
-| Ctrl+I | Import workflow |
-| Ctrl+Z | Undo |
-| Ctrl+Y / Ctrl+Shift+Z | Redo |
-| Ctrl+A | Select all nodes |
-| Ctrl+G | Group selected nodes |
-| Alt+C | Collapse/expand selected nodes |
-| Delete | Delete selected nodes |
-| Ctrl+1–7 | Toggle left rail panels |
-| Ctrl+6 | Open Help / Wiki |
-| Ctrl+, | Open Settings |
-| Ctrl+` | Toggle bottom console |
-| Middle-click drag | Pan canvas |
-| Alt+click drag | Pan canvas |
-| Double-click node | Edit node parameters |
-| Right-click canvas | Open node palette |
-
-## Configuration
-
-Copy `bionodulo.yaml.example` to `bionodulo.yaml` and customize:
-
-```yaml
-project_root: ./bionodulo_workspace
-runs_dir: ./runs
-cache_dir: ./cache
-custom_nodes_dir: ./custom_nodes
-data_roots: ["./data"]
-
-# External tool paths (leave empty to use PATH)
-tool_paths:
-  bwa: /usr/bin/bwa
-  samtools: /usr/bin/samtools
-  fastqc: /usr/bin/fastqc
-  multiqc: /usr/bin/multiqc
-  gatk: /opt/gatk/gatk
-  bcftools: /usr/bin/bcftools
-  bowtie2: /usr/bin/bowtie2
-  minimap2: /usr/bin/minimap2
-  star: /usr/bin/STAR
-  hisat2: /usr/bin/hisat2
-  spades: /usr/bin/spades.py
-  megahit: /usr/bin/megahit
-  kraken2: /usr/bin/kraken2
-  macs2: /usr/bin/macs2
-  cellranger: /opt/cellranger/cellranger
-
-# Conda/Mamba configuration
-conda:
-  executable: micromamba  # conda, mamba, or micromamba
-  channels: [bioconda, conda-forge]
-
-# Container configuration
-containers:
-  default_runtime: apptainer  # docker or apptainer
-  default_image: null
-
-# HPC configuration
-hpc:
-  enabled: false
-  backend: slurm  # slurm, pbs, sge
-  partition: normal
-  account: null
-  walltime: "01:00:00"
-  cpus_per_task: 4
-  mem_per_cpu: "4G"
-  modules: []
-  extra_args: ""
-
-# API configuration
-api:
-  host: "127.0.0.1"
-  port: 8000
-
-# LLM configuration
-llm:
-  provider: openai
-  model: gpt-4.1-mini
-  base_url: ""
-  api_key: ""
-  temperature: 0.2
-
-# Execution settings
-execution:
-  stop_on_error: true
-  max_parallel_jobs: 4
-
-# Security
-api_secrets: {}
-```
 
 ## License
 
