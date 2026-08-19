@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bionodulo"
-version = "0.1.0a55"
+version = "0.1.0a56"
 description = "Visual bioinformatics pipelines, node by node."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -63,6 +63,7 @@ dev = [
     "pytest-xdist>=3.5",
     "ruff>=0.2.0",
     "mypy>=1.8.0",
+    "pod5>=0.3.44",
     # zoneinfo has no OS timezone database on Windows; the trigger-schedule
     # tests resolve real IANA zones.
     "tzdata>=2024.1; platform_system == 'Windows'",
@@ -90,6 +91,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "ruff>=0.2.0",
     "mypy>=1.8.0",
+    "pod5>=0.3.44",
     "tzdata>=2024.1; platform_system == 'Windows'",
 ]
 
