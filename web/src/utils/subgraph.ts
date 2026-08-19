@@ -352,3 +352,212 @@ export function applyPromotedToInner(
 
 export const SUBGRAPH_INPUT_PREFIX = `in${PORT_DELIM}`;
 export const SUBGRAPH_OUTPUT_PREFIX = `out${PORT_DELIM}`;
+
+// ---------------------------------------------------------------------------
+// Convert-to-subgraph / unpack (canvas context-menu actions).
+//
+// These follow the ENGINE contract (bionodulo/execution/executor.py): the
+// subgraph node carries params.workflow (inner nodes + INTERNAL edges only),
+// params.input_ports / params.output_ports entries of
+// { name, innerNodeId, innerSlot } named in__<innerNodeId>__<innerSlot> /
+// out__<innerNodeId>__<innerSlot>, and a synthesized node_info so the parent
+// canvas renders handles for the ports. Boundary wiring lives ONLY in the
+// port entries — the inner workflow never contains boundary edges.
+
+export interface ConvertResult {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  subgraphId: string;
+}
+
+function synthesizeSubgraphNodeInfo(
+  name: string,
+  inputPorts: SubgraphPort[],
+  outputPorts: SubgraphPort[],
+): WorkflowNode['node_info'] {
+  const inputTypesRequired: Record<string, [string, Record<string, unknown>]> = {};
+  for (const port of inputPorts) {
+    inputTypesRequired[port.name] = [port.type, { description: `${port.innerNodeId}.${port.innerSlot}` }];
+  }
+  return {
+    id: 'subgraph',
+    display_name: name,
+    category: 'Subgraph',
+    input_types: { required: inputTypesRequired as never },
+    return_types: outputPorts.map(p => p.type) as never,
+    return_names: outputPorts.map(p => p.name) as never,
+  } as WorkflowNode['node_info'];
+}
+
+/**
+ * Replace `selectedIds` (>= 2 nodes) in ONE level of a workflow with a single
+ * 'subgraph' node. Boundary edges become port entries: one input port per
+ * unique outside-source -> inside-target-slot pair, one output port per
+ * unique inside-source-slot -> outside-target pair; the boundary edges are
+ * retargeted onto the new node's handles.
+ */
+export function convertSelectionToSubgraph(
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+  selectedIds: string[],
+  name: string,
+): ConvertResult | null {
+  const selected = new Set(selectedIds);
+  const selectedNodes = nodes.filter(n => selected.has(n.id));
+  if (selectedNodes.length < 2) return null;
+
+  const inputPorts: SubgraphPort[] = [];
+  const outputPorts: SubgraphPort[] = [];
+  const usedNames = new Set<string>();
+  // Dedupe: one port per unique outside source -> inside target slot pair.
+  const seenInputs = new Set<string>();
+  const seenOutputs = new Set<string>();
+  const inEdgePort = new Map<string, string>(); // edge id -> port name
+  const outEdgePort = new Map<string, string>();
+
+  for (const edge of edges) {
+    const fromSelected = selected.has(edge.from.node);
+    const toSelected = selected.has(edge.to.node);
+    if (fromSelected === toSelected) continue;
+    if (!fromSelected) {
+      const dedupeKey = `${edge.from.node}:${edge.from.output}->${edge.to.node}:${edge.to.input}`;
+      if (seenInputs.has(dedupeKey)) continue;
+      seenInputs.add(dedupeKey);
+      const innerNode = nodes.find(n => n.id === edge.to.node);
+      const portName = uniquePortName(`${SUBGRAPH_INPUT_PREFIX}${edge.to.node}${PORT_DELIM}${edge.to.input}`, usedNames);
+      inputPorts.push({
+        name: portName,
+        type: findInputType(innerNode, edge.to.input),
+        innerNodeId: edge.to.node,
+        innerSlot: edge.to.input,
+      });
+      inEdgePort.set(edge.id, portName);
+    } else {
+      const dedupeKey = `${edge.from.node}:${edge.from.output}->${edge.to.node}:${edge.to.input}`;
+      if (seenOutputs.has(dedupeKey)) continue;
+      seenOutputs.add(dedupeKey);
+      const innerNode = nodes.find(n => n.id === edge.from.node);
+      const portName = uniquePortName(`${SUBGRAPH_OUTPUT_PREFIX}${edge.from.node}${PORT_DELIM}${edge.from.output}`, usedNames);
+      outputPorts.push({
+        name: portName,
+        type: findOutputType(innerNode, edge.from.output),
+        innerNodeId: edge.from.node,
+        innerSlot: edge.from.output,
+      });
+      outEdgePort.set(edge.id, portName);
+    }
+  }
+
+  // Centroid of the selection for the new node.
+  let cx = 0;
+  let cy = 0;
+  for (const n of selectedNodes) {
+    cx += n.position[0];
+    cy += n.position[1];
+  }
+  cx = Math.round(cx / selectedNodes.length);
+  cy = Math.round(cy / selectedNodes.length);
+
+  const subgraphId = `subgraph_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const subgraphNode: WorkflowNode = {
+    id: subgraphId,
+    type: 'subgraph',
+    position: [cx, cy],
+    params: {
+      workflow: {
+        version: '2.0',
+        app: 'bionodulo',
+        name,
+        description: '',
+        nodes: selectedNodes.map(n => ({ ...n })),
+        edges: edges
+          .filter(e => selected.has(e.from.node) && selected.has(e.to.node))
+          .map(e => ({ ...e })),
+        groups: [],
+        outputs: {},
+      },
+      input_ports: inputPorts,
+      output_ports: outputPorts,
+    } as unknown as Record<string, unknown>,
+    node_info: synthesizeSubgraphNodeInfo(name, inputPorts, outputPorts),
+    ui: { title: name, color: '#6366f1', shape: 'card' },
+  };
+
+  const nextNodes = nodes.filter(n => !selected.has(n.id)).concat(subgraphNode);
+  const nextEdges = edges.flatMap<WorkflowEdge>(edge => {
+    const fromSelected = selected.has(edge.from.node);
+    const toSelected = selected.has(edge.to.node);
+    if (fromSelected && toSelected) return [];
+    if (!fromSelected && toSelected) {
+      const portName = inEdgePort.get(edge.id);
+      if (!portName) return [];
+      return [{ ...edge, to: { node: subgraphId, input: portName } }];
+    }
+    if (fromSelected && !toSelected) {
+      const portName = outEdgePort.get(edge.id);
+      if (!portName) return [];
+      return [{ ...edge, from: { node: subgraphId, output: portName } }];
+    }
+    return [edge];
+  });
+
+  return { nodes: nextNodes, edges: nextEdges, subgraphId };
+}
+
+/**
+ * Inverse of convertSelectionToSubgraph: dissolve one subgraph node back into
+ * its inner nodes/edges. Boundary edges are re-pointed at the inner slots the
+ * port entries referenced; edges to ports without a mapping are dropped.
+ */
+export function unpackSubgraph(
+  nodes: WorkflowNode[],
+  edges: WorkflowEdge[],
+  subgraphId: string,
+): { nodes: WorkflowNode[]; edges: WorkflowEdge[] } | null {
+  const host = nodes.find(n => n.id === subgraphId);
+  if (!host || host.type !== 'subgraph') return null;
+  const inner = host.params?.workflow as { nodes?: WorkflowNode[]; edges?: WorkflowEdge[] } | undefined;
+  if (!inner || !Array.isArray(inner.nodes)) return null;
+  const innerNodes = inner.nodes;
+  const innerEdges = Array.isArray(inner.edges) ? inner.edges : [];
+  const innerIds = new Set(innerNodes.map(n => n.id));
+
+  const inMap = new Map<string, { innerNodeId: string; innerSlot: string }>();
+  const outMap = new Map<string, { innerNodeId: string; innerSlot: string }>();
+  for (const raw of (host.params?.input_ports as unknown[]) ?? []) {
+    const p = raw as { name?: string; innerNodeId?: string; inner_node_id?: string; innerSlot?: string; inner_slot?: string };
+    const name = String(p?.name ?? '');
+    const innerNodeId = String(p?.innerNodeId ?? p?.inner_node_id ?? '');
+    const innerSlot = String(p?.innerSlot ?? p?.inner_slot ?? '');
+    if (name && innerNodeId && innerSlot) inMap.set(name, { innerNodeId, innerSlot });
+  }
+  for (const raw of (host.params?.output_ports as unknown[]) ?? []) {
+    const p = raw as { name?: string; innerNodeId?: string; inner_node_id?: string; innerSlot?: string; inner_slot?: string };
+    const name = String(p?.name ?? '');
+    const innerNodeId = String(p?.innerNodeId ?? p?.inner_node_id ?? '');
+    const innerSlot = String(p?.innerSlot ?? p?.inner_slot ?? '');
+    if (name && innerNodeId && innerSlot) outMap.set(name, { innerNodeId, innerSlot });
+  }
+
+  const nextEdges: WorkflowEdge[] = [];
+  for (const edge of edges) {
+    if (edge.from.node === subgraphId && edge.to.node === subgraphId) continue;
+    if (edge.to.node === subgraphId) {
+      const target = inMap.get(edge.to.input);
+      if (!target || !innerIds.has(target.innerNodeId)) continue;
+      nextEdges.push({ ...edge, to: { node: target.innerNodeId, input: target.innerSlot } });
+      continue;
+    }
+    if (edge.from.node === subgraphId) {
+      const source = outMap.get(edge.from.output);
+      if (!source || !innerIds.has(source.innerNodeId)) continue;
+      nextEdges.push({ ...edge, from: { node: source.innerNodeId, output: source.innerSlot } });
+      continue;
+    }
+    nextEdges.push(edge);
+  }
+  nextEdges.push(...innerEdges.map(e => ({ ...e })));
+
+  const nextNodes = nodes.filter(n => n.id !== subgraphId).concat(innerNodes.map(n => ({ ...n })));
+  return { nodes: nextNodes, edges: nextEdges };
+}

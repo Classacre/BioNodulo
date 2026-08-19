@@ -60,7 +60,8 @@
     "samtools_sort",
     "samtools_index",
     "modkit_extract",
-    "m6a_validation_metrics"
+    "m6a_validation_metrics",
+    "string_primitive"
   ],
   "nodes": [
     {
@@ -77,7 +78,7 @@
         "file": {}
       },
       "ui": {
-        "title": "Verified Inputs Manifest (sha256)"
+        "title": "Input File"
       }
     },
     {
@@ -97,7 +98,7 @@
         "all_pass": {}
       },
       "ui": {
-        "title": "Accession Gate (fail-open -> route)"
+        "title": "Accession Gate"
       }
     },
     {
@@ -123,12 +124,9 @@
         700
       ],
       "params": {
-        "targets": "egfp\tdata/egfp_u55762.fasta\ninsulin\tdata/insulin_nm000207.fasta\nil12b\tdata/il12b_nm002187.fasta\nluc\tdata/luc_m15077.fasta\nrbd\tdata/rbd_nc045512_22517_23185.fasta\nwt1\tdata/wt1_nm000378.fasta",
-        "seeds": "13,101,2024,4242,9001",
         "iterations": 30,
         "batch_size": 48,
-        "top_k": 8,
-        "ablation_weights": "no_cai\t{\"cai\":0.0}\nno_structure\t{\"structure\":0.0}\nno_gc\t{\"gc\":0.0}\nno_immune\t{\"immune\":0.0}\nno_mirna\t{\"mirna\":0.0}"
+        "top_k": 8
       },
       "outputs": {
         "pairs": {},
@@ -139,7 +137,7 @@
         "ablations_jsonl": {}
       },
       "ui": {
-        "title": "Campaign Config (6 targets x 5 seeds)"
+        "title": "Campaign Config Builder"
       }
     },
     {
@@ -172,7 +170,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "Gate Pass-through"
+                "title": "Merge"
               }
             },
             {
@@ -194,7 +192,7 @@
                 "all_succeeded": {}
               },
               "ui": {
-                "title": "Pairs ForEach"
+                "title": "For Each"
               }
             },
             {
@@ -216,7 +214,7 @@
                 "converged": {}
               },
               "ui": {
-                "title": "Design While (30 iters)"
+                "title": "While Loop"
               }
             },
             {
@@ -233,7 +231,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract cds_sequence"
+                "title": "String Format"
               }
             },
             {
@@ -250,7 +248,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract seed"
+                "title": "String Format"
               }
             },
             {
@@ -267,7 +265,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract weights (port-keyed)"
+                "title": "String Format"
               }
             },
             {
@@ -284,7 +282,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract model_path"
+                "title": "String Format"
               }
             },
             {
@@ -306,7 +304,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Codon Policy"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -328,7 +326,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Best Candidate"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -349,7 +347,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Round Counter"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -370,7 +368,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Seed = pair_seed x round"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -390,7 +388,7 @@
                 "fasta": {}
               },
               "ui": {
-                "title": "Policy Sampler (pi)"
+                "title": "Policy Sampler"
               }
             },
             {
@@ -445,7 +443,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "Immune Scanner"
+                        "title": "Immune Motif Scanner"
                       }
                     },
                     {
@@ -467,7 +465,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "miRNA Scanner"
+                        "title": "miRNA Seed Scanner"
                       }
                     },
                     {
@@ -486,7 +484,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "UTR Features (optional arm)"
+                        "title": "UTR Feature Builder"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -513,7 +511,7 @@
                         "per_record": {}
                       },
                       "ui": {
-                        "title": "RNAfold MFE (fail-soft)"
+                        "title": "RNAfold MFE"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -535,7 +533,7 @@
                         "joined_table": {}
                       },
                       "ui": {
-                        "title": "Learned-feature Join"
+                        "title": "Join Tables"
                       }
                     },
                     {
@@ -554,7 +552,7 @@
                         "predictions_json": {}
                       },
                       "ui": {
-                        "title": "Learned Member (empty model = empty)"
+                        "title": "Simple Predictor Score"
                       }
                     }
                   ],
@@ -754,7 +752,7 @@
                 ]
               },
               "ui": {
-                "title": "Shared Evaluator",
+                "title": "Subgraph: Shared Evaluator",
                 "color": "#6366f1",
                 "shape": "card"
               }
@@ -775,7 +773,7 @@
                 "table": {}
               },
               "ui": {
-                "title": "Multi-Objective Scorer (ensemble)"
+                "title": "Multi-Objective Scorer"
               }
             },
             {
@@ -838,7 +836,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Codon Policy"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -858,7 +856,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Best Candidate"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -878,7 +876,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "Loop Carrier Echo (pair row)"
+                "title": "Merge"
               }
             }
           ],
@@ -1343,7 +1341,7 @@
         ]
       },
       "ui": {
-        "title": "E1 Campaign (design loop)",
+        "title": "Subgraph: E1 (design loop)",
         "color": "#6366f1",
         "shape": "card"
       }
@@ -1385,7 +1383,7 @@
                 "ablations_jsonl": {}
               },
               "ui": {
-                "title": "Augmented Campaign Config (EGFP+luc)"
+                "title": "Campaign Config Builder"
               }
             },
             {
@@ -1407,7 +1405,7 @@
                 "all_succeeded": {}
               },
               "ui": {
-                "title": "Pairs ForEach"
+                "title": "For Each"
               }
             },
             {
@@ -1429,7 +1427,7 @@
                 "converged": {}
               },
               "ui": {
-                "title": "Design While (30 iters)"
+                "title": "While Loop"
               }
             },
             {
@@ -1446,7 +1444,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract cds_sequence"
+                "title": "String Format"
               }
             },
             {
@@ -1463,7 +1461,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract seed"
+                "title": "String Format"
               }
             },
             {
@@ -1480,7 +1478,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract weights (port-keyed)"
+                "title": "String Format"
               }
             },
             {
@@ -1497,7 +1495,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract model_path"
+                "title": "String Format"
               }
             },
             {
@@ -1519,7 +1517,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Codon Policy"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -1541,7 +1539,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Best Candidate"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -1562,7 +1560,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Round Counter"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -1583,7 +1581,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Seed = pair_seed x round"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -1603,7 +1601,7 @@
                 "fasta": {}
               },
               "ui": {
-                "title": "Policy Sampler (pi)"
+                "title": "Policy Sampler"
               }
             },
             {
@@ -1658,7 +1656,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "Immune Scanner"
+                        "title": "Immune Motif Scanner"
                       }
                     },
                     {
@@ -1680,7 +1678,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "miRNA Scanner"
+                        "title": "miRNA Seed Scanner"
                       }
                     },
                     {
@@ -1699,7 +1697,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "UTR Features (optional arm)"
+                        "title": "UTR Feature Builder"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -1726,7 +1724,7 @@
                         "per_record": {}
                       },
                       "ui": {
-                        "title": "RNAfold MFE (fail-soft)"
+                        "title": "RNAfold MFE"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -1748,7 +1746,7 @@
                         "joined_table": {}
                       },
                       "ui": {
-                        "title": "Learned-feature Join"
+                        "title": "Join Tables"
                       }
                     },
                     {
@@ -1767,7 +1765,7 @@
                         "predictions_json": {}
                       },
                       "ui": {
-                        "title": "Learned Member (empty model = empty)"
+                        "title": "Simple Predictor Score"
                       }
                     }
                   ],
@@ -1967,7 +1965,7 @@
                 ]
               },
               "ui": {
-                "title": "Shared Evaluator",
+                "title": "Subgraph: Shared Evaluator",
                 "color": "#6366f1",
                 "shape": "card"
               }
@@ -1988,7 +1986,7 @@
                 "table": {}
               },
               "ui": {
-                "title": "Multi-Objective Scorer (ensemble)"
+                "title": "Multi-Objective Scorer"
               }
             },
             {
@@ -2051,7 +2049,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Codon Policy"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -2071,7 +2069,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Best Candidate"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -2091,7 +2089,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "Loop Carrier Echo (pair row)"
+                "title": "Merge"
               }
             }
           ],
@@ -2546,7 +2544,7 @@
         ]
       },
       "ui": {
-        "title": "E1 Augmented (learned member)",
+        "title": "Subgraph: E1 Augmented (learned member)",
         "color": "#6366f1",
         "shape": "card"
       }
@@ -2581,7 +2579,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "E1 Results Provenance"
+                "title": "Merge"
               }
             },
             {
@@ -2603,7 +2601,7 @@
                 "all_succeeded": {}
               },
               "ui": {
-                "title": "B1 Pairs ForEach"
+                "title": "For Each"
               }
             },
             {
@@ -2625,7 +2623,7 @@
                 "converged": {}
               },
               "ui": {
-                "title": "B1 Random Loop (30 iters)"
+                "title": "While Loop"
               }
             },
             {
@@ -2642,7 +2640,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract cds_sequence"
+                "title": "String Format"
               }
             },
             {
@@ -2659,7 +2657,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract seed"
+                "title": "String Format"
               }
             },
             {
@@ -2676,7 +2674,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract weights"
+                "title": "String Format"
               }
             },
             {
@@ -2697,7 +2695,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Seed = pair_seed x round"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -2718,7 +2716,7 @@
                 "fasta": {}
               },
               "ui": {
-                "title": "B1 Random Sampler (uniform)"
+                "title": "Candidate Generator"
               }
             },
             {
@@ -2773,7 +2771,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "Immune Scanner"
+                        "title": "Immune Motif Scanner"
                       }
                     },
                     {
@@ -2795,7 +2793,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "miRNA Scanner"
+                        "title": "miRNA Seed Scanner"
                       }
                     },
                     {
@@ -2814,7 +2812,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "UTR Features (optional arm)"
+                        "title": "UTR Feature Builder"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -2841,7 +2839,7 @@
                         "per_record": {}
                       },
                       "ui": {
-                        "title": "RNAfold MFE (fail-soft)"
+                        "title": "RNAfold MFE"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -2863,7 +2861,7 @@
                         "joined_table": {}
                       },
                       "ui": {
-                        "title": "Learned-feature Join"
+                        "title": "Join Tables"
                       }
                     },
                     {
@@ -2882,7 +2880,7 @@
                         "predictions_json": {}
                       },
                       "ui": {
-                        "title": "Learned Member (empty model = empty)"
+                        "title": "Simple Predictor Score"
                       }
                     }
                   ],
@@ -3082,7 +3080,7 @@
                 ]
               },
               "ui": {
-                "title": "Shared Evaluator",
+                "title": "Subgraph: Shared Evaluator",
                 "color": "#6366f1",
                 "shape": "card"
               }
@@ -3103,7 +3101,7 @@
                 "table": {}
               },
               "ui": {
-                "title": "Baseline Scorer (same weights)"
+                "title": "Multi-Objective Scorer"
               }
             },
             {
@@ -3125,7 +3123,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Best"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -3165,7 +3163,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Best"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -3185,7 +3183,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "Loop Carrier Echo"
+                "title": "Merge"
               }
             },
             {
@@ -3207,7 +3205,7 @@
                 "all_succeeded": {}
               },
               "ui": {
-                "title": "B2 Pairs ForEach"
+                "title": "For Each"
               }
             },
             {
@@ -3229,7 +3227,7 @@
                 "converged": {}
               },
               "ui": {
-                "title": "Single-shot While (1 iter)"
+                "title": "While Loop"
               }
             },
             {
@@ -3246,7 +3244,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract cds_sequence"
+                "title": "String Format"
               }
             },
             {
@@ -3263,7 +3261,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract seed"
+                "title": "String Format"
               }
             },
             {
@@ -3280,7 +3278,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract weights"
+                "title": "String Format"
               }
             },
             {
@@ -3301,7 +3299,7 @@
                 "metrics": {}
               },
               "ui": {
-                "title": "B2 Codon Optimizer (cai_max)"
+                "title": "Codon Optimizer"
               }
             },
             {
@@ -3356,7 +3354,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "Immune Scanner"
+                        "title": "Immune Motif Scanner"
                       }
                     },
                     {
@@ -3378,7 +3376,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "miRNA Scanner"
+                        "title": "miRNA Seed Scanner"
                       }
                     },
                     {
@@ -3397,7 +3395,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "UTR Features (optional arm)"
+                        "title": "UTR Feature Builder"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -3424,7 +3422,7 @@
                         "per_record": {}
                       },
                       "ui": {
-                        "title": "RNAfold MFE (fail-soft)"
+                        "title": "RNAfold MFE"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -3446,7 +3444,7 @@
                         "joined_table": {}
                       },
                       "ui": {
-                        "title": "Learned-feature Join"
+                        "title": "Join Tables"
                       }
                     },
                     {
@@ -3465,7 +3463,7 @@
                         "predictions_json": {}
                       },
                       "ui": {
-                        "title": "Learned Member (empty model = empty)"
+                        "title": "Simple Predictor Score"
                       }
                     }
                   ],
@@ -3665,7 +3663,7 @@
                 ]
               },
               "ui": {
-                "title": "Shared Evaluator",
+                "title": "Subgraph: Shared Evaluator",
                 "color": "#6366f1",
                 "shape": "card"
               }
@@ -3686,7 +3684,7 @@
                 "table": {}
               },
               "ui": {
-                "title": "Baseline Scorer (same weights)"
+                "title": "Multi-Objective Scorer"
               }
             },
             {
@@ -3708,7 +3706,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Best"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -3748,7 +3746,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Best"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -3768,7 +3766,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "Loop Carrier Echo"
+                "title": "Merge"
               }
             },
             {
@@ -3791,7 +3789,7 @@
                 "all_succeeded": {}
               },
               "ui": {
-                "title": "B3 Targets ForEach (Linux only)"
+                "title": "For Each"
               }
             },
             {
@@ -3813,7 +3811,7 @@
                 "converged": {}
               },
               "ui": {
-                "title": "Single-shot While (1 iter)"
+                "title": "While Loop"
               }
             },
             {
@@ -3830,7 +3828,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract cds_sequence"
+                "title": "String Format"
               }
             },
             {
@@ -3847,7 +3845,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract seed"
+                "title": "String Format"
               }
             },
             {
@@ -3864,7 +3862,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract weights"
+                "title": "String Format"
               }
             },
             {
@@ -3882,7 +3880,7 @@
                 "report": {}
               },
               "ui": {
-                "title": "B3 LinearDesign"
+                "title": "LinearDesign Optimize"
               },
               "meta": {
                 "continueOnFail": true,
@@ -3941,7 +3939,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "Immune Scanner"
+                        "title": "Immune Motif Scanner"
                       }
                     },
                     {
@@ -3963,7 +3961,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "miRNA Scanner"
+                        "title": "miRNA Seed Scanner"
                       }
                     },
                     {
@@ -3982,7 +3980,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "UTR Features (optional arm)"
+                        "title": "UTR Feature Builder"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -4009,7 +4007,7 @@
                         "per_record": {}
                       },
                       "ui": {
-                        "title": "RNAfold MFE (fail-soft)"
+                        "title": "RNAfold MFE"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -4031,7 +4029,7 @@
                         "joined_table": {}
                       },
                       "ui": {
-                        "title": "Learned-feature Join"
+                        "title": "Join Tables"
                       }
                     },
                     {
@@ -4050,7 +4048,7 @@
                         "predictions_json": {}
                       },
                       "ui": {
-                        "title": "Learned Member (empty model = empty)"
+                        "title": "Simple Predictor Score"
                       }
                     }
                   ],
@@ -4250,7 +4248,7 @@
                 ]
               },
               "ui": {
-                "title": "Shared Evaluator",
+                "title": "Subgraph: Shared Evaluator",
                 "color": "#6366f1",
                 "shape": "card"
               }
@@ -4271,7 +4269,7 @@
                 "table": {}
               },
               "ui": {
-                "title": "Baseline Scorer (same weights)"
+                "title": "Multi-Objective Scorer"
               }
             },
             {
@@ -4293,7 +4291,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Best"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -4333,7 +4331,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Best"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -4353,7 +4351,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "Loop Carrier Echo"
+                "title": "Merge"
               }
             },
             {
@@ -4370,7 +4368,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract ablation weights"
+                "title": "String Format"
               }
             },
             {
@@ -4396,7 +4394,7 @@
                 "ablations_jsonl": {}
               },
               "ui": {
-                "title": "Ablation Campaign Config"
+                "title": "Campaign Config Builder"
               }
             },
             {
@@ -4418,7 +4416,7 @@
                 "all_succeeded": {}
               },
               "ui": {
-                "title": "Ablations ForEach"
+                "title": "For Each"
               }
             },
             {
@@ -4440,7 +4438,7 @@
                 "all_succeeded": {}
               },
               "ui": {
-                "title": "Pairs ForEach"
+                "title": "For Each"
               }
             },
             {
@@ -4462,7 +4460,7 @@
                 "converged": {}
               },
               "ui": {
-                "title": "Design While (30 iters)"
+                "title": "While Loop"
               }
             },
             {
@@ -4479,7 +4477,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract cds_sequence"
+                "title": "String Format"
               }
             },
             {
@@ -4496,7 +4494,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract seed"
+                "title": "String Format"
               }
             },
             {
@@ -4513,7 +4511,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract weights (port-keyed)"
+                "title": "String Format"
               }
             },
             {
@@ -4530,7 +4528,7 @@
                 "text": {}
               },
               "ui": {
-                "title": "Extract model_path"
+                "title": "String Format"
               }
             },
             {
@@ -4552,7 +4550,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Codon Policy"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -4574,7 +4572,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Read Best Candidate"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -4595,7 +4593,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Round Counter"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -4616,7 +4614,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Seed = pair_seed x round"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -4636,7 +4634,7 @@
                 "fasta": {}
               },
               "ui": {
-                "title": "Policy Sampler (pi)"
+                "title": "Policy Sampler"
               }
             },
             {
@@ -4691,7 +4689,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "Immune Scanner"
+                        "title": "Immune Motif Scanner"
                       }
                     },
                     {
@@ -4713,7 +4711,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "miRNA Scanner"
+                        "title": "miRNA Seed Scanner"
                       }
                     },
                     {
@@ -4732,7 +4730,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "UTR Features (optional arm)"
+                        "title": "UTR Feature Builder"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -4759,7 +4757,7 @@
                         "per_record": {}
                       },
                       "ui": {
-                        "title": "RNAfold MFE (fail-soft)"
+                        "title": "RNAfold MFE"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -4781,7 +4779,7 @@
                         "joined_table": {}
                       },
                       "ui": {
-                        "title": "Learned-feature Join"
+                        "title": "Join Tables"
                       }
                     },
                     {
@@ -4800,7 +4798,7 @@
                         "predictions_json": {}
                       },
                       "ui": {
-                        "title": "Learned Member (empty model = empty)"
+                        "title": "Simple Predictor Score"
                       }
                     }
                   ],
@@ -5000,7 +4998,7 @@
                 ]
               },
               "ui": {
-                "title": "Shared Evaluator",
+                "title": "Subgraph: Shared Evaluator",
                 "color": "#6366f1",
                 "shape": "card"
               }
@@ -5021,7 +5019,7 @@
                 "table": {}
               },
               "ui": {
-                "title": "Multi-Objective Scorer (ensemble)"
+                "title": "Multi-Objective Scorer"
               }
             },
             {
@@ -5084,7 +5082,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Codon Policy"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -5104,7 +5102,7 @@
                 "accumulator": {}
               },
               "ui": {
-                "title": "Store Best Candidate"
+                "title": "Counter / Accumulator"
               }
             },
             {
@@ -5124,7 +5122,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "Loop Carrier Echo (pair row)"
+                "title": "Merge"
               }
             },
             {
@@ -5143,7 +5141,7 @@
                 "per_subgraph": {}
               },
               "ui": {
-                "title": "E2 Phase Scan (master run root)"
+                "title": "Campaign Results Builder"
               }
             },
             {
@@ -5162,7 +5160,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Filter E1 rows (paired CAI (ours vs B1))"
+                "title": "Filter Rows"
               }
             },
             {
@@ -5181,7 +5179,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Filter B1 rows (paired CAI (ours vs B1))"
+                "title": "Filter Rows"
               }
             },
             {
@@ -5198,7 +5196,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "E1 best_scores_1"
+                "title": "Extract Columns"
               }
             },
             {
@@ -5215,7 +5213,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "B1 best_scores_1"
+                "title": "Extract Columns"
               }
             },
             {
@@ -5232,7 +5230,7 @@
                 "stats": {}
               },
               "ui": {
-                "title": "paired CAI (ours vs B1)"
+                "title": "Paired Stats"
               }
             },
             {
@@ -5251,7 +5249,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Filter E1 rows (paired structure MFE (ours vs B1; needs ViennaRNA))"
+                "title": "Filter Rows"
               }
             },
             {
@@ -5270,7 +5268,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Filter B1 rows (paired structure MFE (ours vs B1; needs ViennaRNA))"
+                "title": "Filter Rows"
               }
             },
             {
@@ -5287,7 +5285,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "E1 best_scores_2"
+                "title": "Extract Columns"
               }
             },
             {
@@ -5304,7 +5302,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "B1 best_scores_2"
+                "title": "Extract Columns"
               }
             },
             {
@@ -5321,7 +5319,7 @@
                 "stats": {}
               },
               "ui": {
-                "title": "paired structure MFE (ours vs B1; needs ViennaRNA)"
+                "title": "Paired Stats"
               },
               "meta": {
                 "continueOnFail": true,
@@ -5344,7 +5342,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Filter E1 rows (paired immune burden (ours vs B1))"
+                "title": "Filter Rows"
               }
             },
             {
@@ -5363,7 +5361,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Filter B1 rows (paired immune burden (ours vs B1))"
+                "title": "Filter Rows"
               }
             },
             {
@@ -5380,7 +5378,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "E1 best_scores_4"
+                "title": "Extract Columns"
               }
             },
             {
@@ -5397,7 +5395,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "B1 best_scores_4"
+                "title": "Extract Columns"
               }
             },
             {
@@ -5414,7 +5412,7 @@
                 "stats": {}
               },
               "ui": {
-                "title": "paired immune burden (ours vs B1)"
+                "title": "Paired Stats"
               }
             },
             {
@@ -5433,7 +5431,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Filter E1 rows (paired miRNA hits (ours vs B1))"
+                "title": "Filter Rows"
               }
             },
             {
@@ -5452,7 +5450,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Filter B1 rows (paired miRNA hits (ours vs B1))"
+                "title": "Filter Rows"
               }
             },
             {
@@ -5469,7 +5467,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "E1 best_scores_5"
+                "title": "Extract Columns"
               }
             },
             {
@@ -5486,7 +5484,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "B1 best_scores_5"
+                "title": "Extract Columns"
               }
             },
             {
@@ -5503,7 +5501,7 @@
                 "stats": {}
               },
               "ui": {
-                "title": "paired miRNA hits (ours vs B1)"
+                "title": "Paired Stats"
               }
             }
           ],
@@ -7153,7 +7151,7 @@
         ]
       },
       "ui": {
-        "title": "E2 Baselines + Ablations + Stats",
+        "title": "Subgraph: E2 Baselines + Ablations + Stats",
         "color": "#6366f1",
         "shape": "card"
       }
@@ -7188,7 +7186,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "E2 Completion Provenance"
+                "title": "Merge"
               }
             },
             {
@@ -7213,7 +7211,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "Keep labelled rows with CDS"
+                "title": "Filter Rows"
               }
             },
             {
@@ -7232,7 +7230,7 @@
                 "fasta": {}
               },
               "ui": {
-                "title": "Construct CDS FASTA"
+                "title": "TSV to FASTA"
               }
             },
             {
@@ -7251,7 +7249,7 @@
                 "fasta": {}
               },
               "ui": {
-                "title": "Construct RNA FASTA"
+                "title": "TSV to FASTA"
               }
             },
             {
@@ -7306,7 +7304,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "Immune Scanner"
+                        "title": "Immune Motif Scanner"
                       }
                     },
                     {
@@ -7328,7 +7326,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "miRNA Scanner"
+                        "title": "miRNA Seed Scanner"
                       }
                     },
                     {
@@ -7347,7 +7345,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "UTR Features (optional arm)"
+                        "title": "UTR Feature Builder"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -7374,7 +7372,7 @@
                         "per_record": {}
                       },
                       "ui": {
-                        "title": "RNAfold MFE (fail-soft)"
+                        "title": "RNAfold MFE"
                       },
                       "meta": {
                         "continueOnFail": true,
@@ -7396,7 +7394,7 @@
                         "joined_table": {}
                       },
                       "ui": {
-                        "title": "Learned-feature Join"
+                        "title": "Join Tables"
                       }
                     },
                     {
@@ -7415,7 +7413,7 @@
                         "predictions_json": {}
                       },
                       "ui": {
-                        "title": "Learned Member (empty model = empty)"
+                        "title": "Simple Predictor Score"
                       }
                     }
                   ],
@@ -7615,7 +7613,7 @@
                 ]
               },
               "ui": {
-                "title": "Shared Evaluator",
+                "title": "Subgraph: Shared Evaluator",
                 "color": "#6366f1",
                 "shape": "card"
               }
@@ -7635,7 +7633,7 @@
                 "joined_table": {}
               },
               "ui": {
-                "title": "Join immune x mirna"
+                "title": "Join Tables"
               }
             },
             {
@@ -7653,7 +7651,7 @@
                 "joined_table": {}
               },
               "ui": {
-                "title": "Join features"
+                "title": "Join Tables"
               }
             },
             {
@@ -7671,7 +7669,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "Rename id -> Barcode"
+                "title": "Extract Columns"
               }
             },
             {
@@ -7688,7 +7686,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "Labels"
+                "title": "Extract Columns"
               }
             },
             {
@@ -7706,7 +7704,7 @@
                 "joined_table": {}
               },
               "ui": {
-                "title": "Join labels"
+                "title": "Join Tables"
               }
             },
             {
@@ -7731,7 +7729,7 @@
                 "predictions": {}
               },
               "ui": {
-                "title": "Learned Evaluator (ridge, 5-fold CV)"
+                "title": "Simple Predictor Train"
               }
             },
             {
@@ -7750,7 +7748,7 @@
                 "per_subgraph": {}
               },
               "ui": {
-                "title": "E3 Phase Scan (master run root)"
+                "title": "Campaign Results Builder"
               }
             },
             {
@@ -7769,7 +7767,7 @@
                 "filtered_table": {}
               },
               "ui": {
-                "title": "E1 per-pair bests"
+                "title": "Filter Rows"
               }
             },
             {
@@ -7788,7 +7786,7 @@
                 "fasta": {}
               },
               "ui": {
-                "title": "E1 bests FASTA"
+                "title": "TSV to FASTA"
               }
             },
             {
@@ -7824,7 +7822,7 @@
                 "summary": {}
               },
               "ui": {
-                "title": "OpenVaccine Prepare (deg_Mg_pH10)"
+                "title": "OpenVaccine Prepare"
               }
             },
             {
@@ -7843,7 +7841,7 @@
                 "fasta": {}
               },
               "ui": {
-                "title": "OV Molecule FASTA"
+                "title": "TSV to FASTA"
               }
             },
             {
@@ -7877,7 +7875,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "Immune Scanner"
+                        "title": "Immune Motif Scanner"
                       }
                     },
                     {
@@ -7899,7 +7897,7 @@
                         "per_record_json": {}
                       },
                       "ui": {
-                        "title": "miRNA Scanner"
+                        "title": "miRNA Seed Scanner"
                       }
                     },
                     {
@@ -7917,7 +7915,7 @@
                         "joined_table": {}
                       },
                       "ui": {
-                        "title": "OV Feature Join"
+                        "title": "Join Tables"
                       }
                     }
                   ],
@@ -8010,7 +8008,7 @@
                 ]
               },
               "ui": {
-                "title": "OV Evaluator (lite)",
+                "title": "Subgraph: OV Evaluator (lite)",
                 "color": "#6366f1",
                 "shape": "card"
               }
@@ -8030,7 +8028,7 @@
                 "joined_table": {}
               },
               "ui": {
-                "title": "OV Features"
+                "title": "Join Tables"
               }
             },
             {
@@ -8048,7 +8046,7 @@
                 "predictions_json": {}
               },
               "ui": {
-                "title": "Score OV with learned model"
+                "title": "Simple Predictor Score"
               }
             },
             {
@@ -8066,7 +8064,7 @@
                 "joined_table": {}
               },
               "ui": {
-                "title": "Join predictions x k_deg"
+                "title": "Join Tables"
               }
             },
             {
@@ -8083,7 +8081,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "prediction"
+                "title": "Extract Columns"
               }
             },
             {
@@ -8100,7 +8098,7 @@
                 "extracted_table": {}
               },
               "ui": {
-                "title": "k_deg"
+                "title": "Extract Columns"
               }
             },
             {
@@ -8118,7 +8116,7 @@
                 "stats": {}
               },
               "ui": {
-                "title": "OV Spearman (pred vs k_deg)"
+                "title": "Paired Stats"
               }
             }
           ],
@@ -8624,7 +8622,7 @@
         ]
       },
       "ui": {
-        "title": "E3 Learned Evaluator",
+        "title": "Subgraph: E3 Learned Evaluator",
         "color": "#6366f1",
         "shape": "card"
       }
@@ -8643,7 +8641,7 @@
         "file": {}
       },
       "ui": {
-        "title": "PERSIST constructs.tsv"
+        "title": "Input File"
       }
     },
     {
@@ -8660,7 +8658,7 @@
         "file": {}
       },
       "ui": {
-        "title": "OpenVaccine RYOS_FULL"
+        "title": "Input File"
       }
     },
     {
@@ -8693,7 +8691,7 @@
                 "received_count": {}
               },
               "ui": {
-                "title": "Gate Pass-through"
+                "title": "Merge"
               }
             },
             {
@@ -8714,7 +8712,7 @@
                 "metadata": {}
               },
               "ui": {
-                "title": "SG-NEx POD5 (open data, anonymous)"
+                "title": "S3 Download"
               }
             },
             {
@@ -8733,7 +8731,7 @@
                 "summary": {}
               },
               "ui": {
-                "title": "POD5 Subset (1M reads, seed 13)"
+                "title": "POD5 Subset"
               }
             },
             {
@@ -8751,7 +8749,7 @@
                 "reference": {}
               },
               "ui": {
-                "title": "GRCh38 primary assembly (gz auto-decompressed)"
+                "title": "Input FASTA"
               }
             },
             {
@@ -8770,7 +8768,7 @@
                 "sequence_dictionary": {}
               },
               "ui": {
-                "title": "Reference FAI"
+                "title": "Samtools Faidx"
               }
             },
             {
@@ -8788,7 +8786,7 @@
                 "directory": {}
               },
               "ui": {
-                "title": "Dorado RNA004 hac v5.1.0"
+                "title": "Input Directory"
               }
             },
             {
@@ -8806,7 +8804,7 @@
                 "directory": {}
               },
               "ui": {
-                "title": "Dorado m6A_DRACH modified-base model"
+                "title": "Input Directory"
               }
             },
             {
@@ -8825,7 +8823,7 @@
                 "basecalled_bam": {}
               },
               "ui": {
-                "title": "Dorado Basecaller (GPU, aligned modBAM)"
+                "title": "Dorado Basecaller"
               }
             },
             {
@@ -8842,7 +8840,7 @@
                 "sorted_bam": {}
               },
               "ui": {
-                "title": "Sort modBAM"
+                "title": "Samtools Sort"
               }
             },
             {
@@ -8860,7 +8858,7 @@
                 "bai": {}
               },
               "ui": {
-                "title": "Index modBAM"
+                "title": "Samtools Index"
               }
             },
             {
@@ -8879,7 +8877,7 @@
                 "extracted": {}
               },
               "ui": {
-                "title": "modkit extract (full, DRACH)"
+                "title": "Modkit Extract"
               }
             },
             {
@@ -8896,7 +8894,7 @@
                 "file": {}
               },
               "ui": {
-                "title": "GLORI rep1 per-site ground truth"
+                "title": "Input File"
               }
             },
             {
@@ -8913,7 +8911,7 @@
                 "file": {}
               },
               "ui": {
-                "title": "Ensembl 110 GTF (metagene)"
+                "title": "Input File"
               }
             },
             {
@@ -8952,7 +8950,7 @@
                 "directory": {}
               },
               "ui": {
-                "title": "Smoke POD5 (Coral example)"
+                "title": "Input Directory"
               },
               "meta": {
                 "muted": true
@@ -8973,7 +8971,7 @@
                 "directory": {}
               },
               "ui": {
-                "title": "Smoke Dorado model"
+                "title": "Input Directory"
               },
               "meta": {
                 "muted": true
@@ -8994,7 +8992,7 @@
                 "reference": {}
               },
               "ui": {
-                "title": "Smoke reference"
+                "title": "Input FASTA"
               },
               "meta": {
                 "muted": true
@@ -9016,7 +9014,7 @@
                 "basecalled_bam": {}
               },
               "ui": {
-                "title": "Smoke basecaller"
+                "title": "Dorado Basecaller"
               },
               "meta": {
                 "muted": true
@@ -9036,7 +9034,7 @@
                 "sorted_bam": {}
               },
               "ui": {
-                "title": "Smoke sort"
+                "title": "Samtools Sort"
               },
               "meta": {
                 "muted": true
@@ -9057,7 +9055,7 @@
                 "bai": {}
               },
               "ui": {
-                "title": "Smoke index"
+                "title": "Samtools Index"
               },
               "meta": {
                 "muted": true
@@ -9078,7 +9076,7 @@
                 "extracted": {}
               },
               "ui": {
-                "title": "Smoke modkit extract"
+                "title": "Modkit Extract"
               },
               "meta": {
                 "muted": true
@@ -9100,7 +9098,7 @@
                 "sequence_dictionary": {}
               },
               "ui": {
-                "title": "Smoke FAI"
+                "title": "Samtools Faidx"
               },
               "meta": {
                 "muted": true
@@ -9437,7 +9435,7 @@
         ]
       },
       "ui": {
-        "title": "E4 m6A Validation (GPU)",
+        "title": "Subgraph: E4 m6A Validation (GPU)",
         "color": "#6366f1",
         "shape": "card"
       }
@@ -9458,7 +9456,7 @@
         "per_subgraph": {}
       },
       "ui": {
-        "title": "Master Campaign Export"
+        "title": "Campaign Results Builder"
       }
     },
     {
@@ -9609,6 +9607,372 @@
       "ui": {
         "title": "Export Notes",
         "color": "#ef4444"
+      }
+    },
+    {
+      "id": "cfg_target_egfp",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        440
+      ],
+      "params": {
+        "value": "egfp\tdata/egfp_u55762.fasta"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_target_insulin",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        500
+      ],
+      "params": {
+        "value": "insulin\tdata/insulin_nm000207.fasta"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_target_il12b",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        560
+      ],
+      "params": {
+        "value": "il12b\tdata/il12b_nm002187.fasta"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_target_luc",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        620
+      ],
+      "params": {
+        "value": "luc\tdata/luc_m15077.fasta"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_target_rbd",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        680
+      ],
+      "params": {
+        "value": "rbd\tdata/rbd_nc045512_22517_23185.fasta"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_target_wt1",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        740
+      ],
+      "params": {
+        "value": "wt1\tdata/wt1_nm000378.fasta"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_targets_merge",
+      "type": "merge",
+      "position": [
+        -860,
+        520
+      ],
+      "params": {
+        "num_inputs": 6,
+        "strategy": "append",
+        "ignore_none": true
+      },
+      "outputs": {
+        "merged": {},
+        "received_count": {}
+      },
+      "ui": {
+        "title": "Merge"
+      }
+    },
+    {
+      "id": "cfg_seed_13",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        860
+      ],
+      "params": {
+        "value": "13"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_seed_101",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        920
+      ],
+      "params": {
+        "value": "101"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_seed_2024",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        980
+      ],
+      "params": {
+        "value": "2024"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_seed_4242",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1040
+      ],
+      "params": {
+        "value": "4242"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_seed_9001",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1100
+      ],
+      "params": {
+        "value": "9001"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_seeds_merge",
+      "type": "merge",
+      "position": [
+        -860,
+        920
+      ],
+      "params": {
+        "num_inputs": 5,
+        "strategy": "append",
+        "ignore_none": true
+      },
+      "outputs": {
+        "merged": {},
+        "received_count": {}
+      },
+      "ui": {
+        "title": "Merge"
+      }
+    },
+    {
+      "id": "cfg_evaluator_weights",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1200
+      ],
+      "params": {
+        "value": "{\"cai\":1.0,\"structure\":1.0,\"gc\":1.0,\"immune\":1.0,\"mirna\":1.0}"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_objective_ports",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1260
+      ],
+      "params": {
+        "value": "{\"cai\":\"scores_1\",\"structure\":\"scores_2\",\"gc\":\"scores_3\",\"immune\":\"scores_4\",\"mirna\":\"scores_5\",\"learned\":\"scores_6\"}"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_ablation_no_cai",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1340
+      ],
+      "params": {
+        "value": "no_cai\t{\"cai\":0.0}"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_ablation_no_structure",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1400
+      ],
+      "params": {
+        "value": "no_structure\t{\"structure\":0.0}"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_ablation_no_gc",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1460
+      ],
+      "params": {
+        "value": "no_gc\t{\"gc\":0.0}"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_ablation_no_immune",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1520
+      ],
+      "params": {
+        "value": "no_immune\t{\"immune\":0.0}"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_ablation_no_mirna",
+      "type": "string_primitive",
+      "position": [
+        -1120,
+        1580
+      ],
+      "params": {
+        "value": "no_mirna\t{\"mirna\":0.0}"
+      },
+      "outputs": {
+        "value": {}
+      },
+      "ui": {
+        "title": "String"
+      }
+    },
+    {
+      "id": "cfg_ablations_merge",
+      "type": "merge",
+      "position": [
+        -860,
+        1400
+      ],
+      "params": {
+        "num_inputs": 5,
+        "strategy": "append",
+        "ignore_none": true
+      },
+      "outputs": {
+        "merged": {},
+        "received_count": {}
+      },
+      "ui": {
+        "title": "Merge"
       }
     }
   ],
@@ -9810,12 +10174,243 @@
         "node": "e4",
         "input": "in__e4_prov__input_0"
       }
+    },
+    {
+      "id": "e_cfg_target_egfp_merge",
+      "from": {
+        "node": "cfg_target_egfp",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_targets_merge",
+        "input": "input_0"
+      }
+    },
+    {
+      "id": "e_cfg_target_insulin_merge",
+      "from": {
+        "node": "cfg_target_insulin",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_targets_merge",
+        "input": "input_1"
+      }
+    },
+    {
+      "id": "e_cfg_target_il12b_merge",
+      "from": {
+        "node": "cfg_target_il12b",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_targets_merge",
+        "input": "input_2"
+      }
+    },
+    {
+      "id": "e_cfg_target_luc_merge",
+      "from": {
+        "node": "cfg_target_luc",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_targets_merge",
+        "input": "input_3"
+      }
+    },
+    {
+      "id": "e_cfg_target_rbd_merge",
+      "from": {
+        "node": "cfg_target_rbd",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_targets_merge",
+        "input": "input_4"
+      }
+    },
+    {
+      "id": "e_cfg_target_wt1_merge",
+      "from": {
+        "node": "cfg_target_wt1",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_targets_merge",
+        "input": "input_5"
+      }
+    },
+    {
+      "id": "e_targets_cfg",
+      "from": {
+        "node": "cfg_targets_merge",
+        "output": "merged"
+      },
+      "to": {
+        "node": "cfg",
+        "input": "targets"
+      }
+    },
+    {
+      "id": "e_cfg_seed_13_merge",
+      "from": {
+        "node": "cfg_seed_13",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_seeds_merge",
+        "input": "input_0"
+      }
+    },
+    {
+      "id": "e_cfg_seed_101_merge",
+      "from": {
+        "node": "cfg_seed_101",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_seeds_merge",
+        "input": "input_1"
+      }
+    },
+    {
+      "id": "e_cfg_seed_2024_merge",
+      "from": {
+        "node": "cfg_seed_2024",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_seeds_merge",
+        "input": "input_2"
+      }
+    },
+    {
+      "id": "e_cfg_seed_4242_merge",
+      "from": {
+        "node": "cfg_seed_4242",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_seeds_merge",
+        "input": "input_3"
+      }
+    },
+    {
+      "id": "e_cfg_seed_9001_merge",
+      "from": {
+        "node": "cfg_seed_9001",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_seeds_merge",
+        "input": "input_4"
+      }
+    },
+    {
+      "id": "e_seeds_cfg",
+      "from": {
+        "node": "cfg_seeds_merge",
+        "output": "merged"
+      },
+      "to": {
+        "node": "cfg",
+        "input": "seeds"
+      }
+    },
+    {
+      "id": "e_weights_cfg",
+      "from": {
+        "node": "cfg_evaluator_weights",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg",
+        "input": "evaluator_weights"
+      }
+    },
+    {
+      "id": "e_objports_cfg",
+      "from": {
+        "node": "cfg_objective_ports",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg",
+        "input": "objective_ports"
+      }
+    },
+    {
+      "id": "e_cfg_ablation_no_cai_merge",
+      "from": {
+        "node": "cfg_ablation_no_cai",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_ablations_merge",
+        "input": "input_0"
+      }
+    },
+    {
+      "id": "e_cfg_ablation_no_structure_merge",
+      "from": {
+        "node": "cfg_ablation_no_structure",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_ablations_merge",
+        "input": "input_1"
+      }
+    },
+    {
+      "id": "e_cfg_ablation_no_gc_merge",
+      "from": {
+        "node": "cfg_ablation_no_gc",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_ablations_merge",
+        "input": "input_2"
+      }
+    },
+    {
+      "id": "e_cfg_ablation_no_immune_merge",
+      "from": {
+        "node": "cfg_ablation_no_immune",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_ablations_merge",
+        "input": "input_3"
+      }
+    },
+    {
+      "id": "e_cfg_ablation_no_mirna_merge",
+      "from": {
+        "node": "cfg_ablation_no_mirna",
+        "output": "value"
+      },
+      "to": {
+        "node": "cfg_ablations_merge",
+        "input": "input_4"
+      }
+    },
+    {
+      "id": "e_ablations_cfg",
+      "from": {
+        "node": "cfg_ablations_merge",
+        "output": "merged"
+      },
+      "to": {
+        "node": "cfg",
+        "input": "ablation_weights"
+      }
     }
   ],
   "groups": [
     {
       "id": "g0_gate",
-      "name": "0 \u00b7 Accession Gate",
+      "name": "0 · Accession Gate",
       "position": [
         -1660,
         0
@@ -9827,7 +10422,7 @@
     },
     {
       "id": "g1_cfg",
-      "name": "1 \u00b7 Campaign Config",
+      "name": "1 · Campaign Config",
       "position": [
         -1660,
         660
@@ -9839,7 +10434,7 @@
     },
     {
       "id": "g2_e1",
-      "name": "2 \u00b7 E1 Campaign (+ learned-member rerun)",
+      "name": "2 · E1 Campaign (+ learned-member rerun)",
       "position": [
         -1660,
         1400
@@ -9851,7 +10446,7 @@
     },
     {
       "id": "g3_e2",
-      "name": "3 \u00b7 E2 Baselines",
+      "name": "3 · E2 Baselines",
       "position": [
         160,
         1400
@@ -9863,7 +10458,7 @@
     },
     {
       "id": "g4_e3",
-      "name": "4 \u00b7 E3 Learned Evaluator",
+      "name": "4 · E3 Learned Evaluator",
       "position": [
         160,
         4460
@@ -9875,7 +10470,7 @@
     },
     {
       "id": "g5_e4",
-      "name": "5 \u00b7 E4 m6A Validation (GPU)",
+      "name": "5 · E4 m6A Validation (GPU)",
       "position": [
         500,
         0
@@ -9887,7 +10482,7 @@
     },
     {
       "id": "g6_export",
-      "name": "6 \u00b7 Export",
+      "name": "6 · Export",
       "position": [
         840,
         4120

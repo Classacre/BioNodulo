@@ -537,7 +537,9 @@ def _write_atomic(path: Path, content: bytes) -> None:
     try:
         with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, prefix=f".{path.name}.", delete=False) as handle:
             temporary = Path(handle.name)
-            os.fchmod(handle.fileno(), mode)
+            # os.fchmod is POSIX-only; Windows ACLs make it a no-op anyway.
+            if os.name == "posix":
+                os.fchmod(handle.fileno(), mode)
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())

@@ -72,7 +72,7 @@ def _iter_nodes(workflow: dict[str, Any]):
 def _evaluator_instances(workflow: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     found: list[tuple[str, dict[str, Any]]] = []
     for _, node in _iter_nodes(workflow):
-        if node.get("type") == "subgraph" and (node.get("ui") or {}).get("title") == "Shared Evaluator":
+        if node.get("type") == "subgraph" and (node.get("ui") or {}).get("title") == "Subgraph: Shared Evaluator":
             found.append((node["id"], node["params"]["workflow"]))
     return found
 

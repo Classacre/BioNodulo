@@ -710,11 +710,14 @@ class WorkflowExecutor:
                         **{f"in:{k}": v for k, v in self.cache.fingerprint_inputs(resolved_inputs, hash_mode).items()},
                         **{f"param:{k}": v for k, v in self.cache.fingerprint_inputs(resolved_params, hash_mode).items()},
                     }
+                    # Key on content fingerprints instead of absolute paths so a
+                    # rerun in a fresh run directory still hits entries from an
+                    # earlier run whose inputs are byte-identical.
                     cache_key = self.cache.cache_key_for_node(
                         node_id=node_id,
                         node_type=node_type,
-                        params=resolved_params,
-                        inputs=resolved_inputs,
+                        params=self.cache.normalize_paths(resolved_params, hash_mode),
+                        inputs=self.cache.normalize_paths(resolved_inputs, hash_mode),
                         upstream_keys=upstream_keys,
                         tool_version=getattr(_node_class, "VERSION", None),
                         input_fingerprints=input_fingerprints,
@@ -1201,12 +1204,17 @@ class WorkflowExecutor:
             cache_key = None
             cache_hit = False
             if not forced_node:
+                hash_mode = self._cache_hash_mode()
                 cache_key = self.cache.cache_key_for_node(
                     node_id=node_id,
                     node_type=node_type,
-                    params=resolved_params,
-                    inputs=resolved_inputs,
+                    params=self.cache.normalize_paths(resolved_params, hash_mode),
+                    inputs=self.cache.normalize_paths(resolved_inputs, hash_mode),
                     upstream_keys=upstream_keys,
+                    input_fingerprints={
+                        **{f"in:{k}": v for k, v in self.cache.fingerprint_inputs(resolved_inputs, hash_mode).items()},
+                        **{f"param:{k}": v for k, v in self.cache.fingerprint_inputs(resolved_params, hash_mode).items()},
+                    },
                 )
                 cache_hit = self.cache.is_hit(cache_key)
             node_cache_keys[node_id] = cache_key

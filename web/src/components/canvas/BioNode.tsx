@@ -15,6 +15,7 @@ import { NODE_HEADER_H, NODE_PIN_H, toHexColor } from '../../utils/nodeLayout';
 import type { GraphNode } from './canvasModel';
 import { BioNodeActionsContext, MultiSelectContext } from './bioNodeActions';
 import NodeWidgets from './NodeWidgets';
+import NodePreview from './NodePreview';
 
 export interface BioNodeData extends Record<string, unknown> {
   g: GraphNode;
@@ -160,6 +161,10 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         </div>
         <NodeWidgets nodeId={id} meta={g.meta} params={g.params} promoted={g.promotedInputs} />
+        {/* Inline run-output preview (image / mini-table / chip). Subscribes
+            to the previews atom itself, so the memoized node does not
+            re-render when run history changes; the node auto-sizes to fit. */}
+        <NodePreview nodeId={g.id} />
         </>
       ) : g.collapsed && !g.visualOnly ? (
         // Collapsed: keep handles for every port, pinned to header centre.

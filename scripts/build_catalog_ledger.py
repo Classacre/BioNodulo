@@ -1920,7 +1920,8 @@ def write_or_check(output: Path, expected: bytes, *, check: bool) -> bool:
             delete=False,
         ) as temporary:
             temporary_path = Path(temporary.name)
-            os.fchmod(temporary.fileno(), output_mode)
+            if os.name == "posix":
+                os.fchmod(temporary.fileno(), output_mode)
             temporary.write(expected)
             temporary.flush()
             os.fsync(temporary.fileno())

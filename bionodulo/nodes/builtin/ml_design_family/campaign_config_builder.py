@@ -67,30 +67,29 @@ class CampaignConfigBuilderNode(MLDesignNode):
             "required": {
                 "targets": (
                     "STRING",
-                    {"multiline": True, "description": "One 'target_id<TAB>cds_fasta_path' per line; newline or semicolon separated"},
+                    {"multiline": True, "description": "One 'target_id<TAB>cds_fasta_path' per line; newline or semicolon separated. Wire one string/File per target via a merge node instead of typing them all here."},
                 ),
             },
             "optional": {
-                "seeds": ("STRING", {"default": DEFAULT_SEEDS, "description": "Comma-separated integer RNG seeds"}),
+                "seeds": ("STRING", {"default": DEFAULT_SEEDS, "description": "Comma-separated integer RNG seeds, or a wired list of per-seed strings"}),
                 "iterations": ("INT", {"default": 30, "min": 1, "description": "Loop iterations per pair"}),
                 "batch_size": ("INT", {"default": 48, "min": 1, "description": "Candidates sampled per iteration"}),
                 "top_k": ("INT", {"default": 8, "min": 1, "description": "Elite count kept by the optimizer"}),
-                "evaluator_weights": ("STRING", {"default": DEFAULT_WEIGHTS, "description": "JSON object mapping evaluator name to non-negative weight"}),
+                "evaluator_weights": ("STRING", {"default": DEFAULT_WEIGHTS, "description": "JSON object mapping evaluator name to non-negative weight (wireable)"}),
                 "objective_ports": (
                     "STRING",
-                    {"default": DEFAULT_OBJECTIVE_PORTS, "multiline": True, "description": "JSON mapping evaluator name -> multi_objective_scorer scores_N port"},
+                    {"default": DEFAULT_OBJECTIVE_PORTS, "multiline": True, "description": "JSON mapping evaluator name -> multi_objective_scorer scores_N port (wireable)"},
                 ),
                 "ablation_weights": (
                     "STRING",
                     {
                         "default": "",
                         "multiline": True,
-                        "description": "One weight ablation per line: 'name<TAB>{\"evaluator\":0.0, ...}' merged onto the default weights",
+                        "description": "One weight ablation per line: 'name<TAB>{\"evaluator\":0.0, ...}' merged onto the default weights; a wired list of per-ablation lines also works",
                     },
                 ),
                 "annotate_key": ("STRING", {"default": "", "description": "Extra JSONL column name for annotate_value (e.g. model_path)"}),
                 "annotate_value": ("STRING", {"default": "", "description": "Value stamped into every JSONL row under annotate_key; wire from a runtime artifact"}),
-                "budget_usd": ("FLOAT", {"default": 50.0, "min": 0.0, "description": "Total compute budget marker for the campaign"}),
             },
             "hidden": {},
         }
@@ -104,12 +103,6 @@ class CampaignConfigBuilderNode(MLDesignNode):
             check = validate_int_input(inputs.get(name, default), name, minimum=1)
             if check is not True:
                 return check
-        budget = inputs.get("budget_usd")
-        if budget is not None:
-            if isinstance(budget, bool) or not isinstance(budget, (int, float)) or not math.isfinite(float(budget)):
-                return "Input 'budget_usd' must be a finite number"
-            if float(budget) < 0:
-                return "Input 'budget_usd' must be at least 0"
         ports_check = cls._objective_ports(inputs.get("objective_ports", DEFAULT_OBJECTIVE_PORTS))
         if isinstance(ports_check, str):
             return ports_check
@@ -131,7 +124,6 @@ class CampaignConfigBuilderNode(MLDesignNode):
         iterations = int(kwargs.get("iterations", 30))
         batch_size = int(kwargs.get("batch_size", 48))
         top_k = int(kwargs.get("top_k", 8))
-        budget_usd = float(kwargs.get("budget_usd", 50.0))
         annotate_key = str(kwargs.get("annotate_key", "") or "").strip()
         annotate_value = str(kwargs.get("annotate_value", "") or "")
         port_weights = self._port_weights(weights, objective_ports)
@@ -212,7 +204,6 @@ class CampaignConfigBuilderNode(MLDesignNode):
             "ablations": [entry["ablation"] for entry in ablations],
             "seeds": seeds,
             "targets_meta": targets_meta,
-            "budget_usd": budget_usd,
         }
 
         output_dir = node_output_dir(self, context)
@@ -244,8 +235,16 @@ class CampaignConfigBuilderNode(MLDesignNode):
         )
 
     @staticmethod
-    def _targets(value: Any) -> list[tuple[str, str]]:
-        text = str(value or "")
+    def _as_text(value: Any) -> str:
+        """Accept a plain string or a wired list of strings (e.g. from a merge
+        node fanning in one string node per entry) and flatten to text."""
+        if isinstance(value, (list, tuple)):
+            return "\n".join(str(item) for item in value if item is not None)
+        return str(value or "")
+
+    @classmethod
+    def _targets(cls, value: Any) -> list[tuple[str, str]]:
+        text = cls._as_text(value)
         lines: list[str] = []
         for chunk in text.replace(";", "\n").splitlines():
             chunk = chunk.strip()
@@ -266,9 +265,13 @@ class CampaignConfigBuilderNode(MLDesignNode):
             targets.append((target_id, path_text))
         return targets
 
-    @staticmethod
-    def _seeds(value: Any) -> list[int]:
-        text = str(value if value not in (None, "") else DEFAULT_SEEDS).strip()
+    @classmethod
+    def _seeds(cls, value: Any) -> list[int]:
+        if isinstance(value, (list, tuple)):
+            text = ",".join(str(item) for item in value if item is not None)
+        else:
+            text = str(value if value not in (None, "") else DEFAULT_SEEDS)
+        text = text.strip()
         try:
             seeds = [int(part.strip()) for part in text.split(",") if part.strip()]
         except ValueError as exc:
@@ -277,8 +280,13 @@ class CampaignConfigBuilderNode(MLDesignNode):
             raise ValueError("Input 'seeds' must contain at least one integer")
         return seeds
 
-    @staticmethod
-    def _objective_ports(value: Any) -> dict[str, str] | str:
+    @classmethod
+    def _objective_ports(cls, value: Any) -> dict[str, str] | str:
+        if isinstance(value, dict):
+            payload_in = value
+            value = json.dumps(payload_in)
+        elif isinstance(value, (list, tuple)):
+            value = next((item for item in value if item not in (None, "")), "")
         text = str(value if value not in (None, "") else DEFAULT_OBJECTIVE_PORTS).strip()
         try:
             payload = json.loads(text)
@@ -299,9 +307,9 @@ class CampaignConfigBuilderNode(MLDesignNode):
             if name in weights
         }
 
-    @staticmethod
-    def _ablations(value: Any, default_weights: dict[str, float]) -> list[dict[str, Any]]:
-        text = str(value if value not in (None, "") else "")
+    @classmethod
+    def _ablations(cls, value: Any, default_weights: dict[str, float]) -> list[dict[str, Any]]:
+        text = cls._as_text(value if value not in (None, "") else "")
         entries: list[dict[str, Any]] = []
         for line_number, raw_line in enumerate(text.replace(";", "\n").splitlines(), start=1):
             line = raw_line.strip()
@@ -337,8 +345,12 @@ class CampaignConfigBuilderNode(MLDesignNode):
             entries.append({"ablation": name, "weights": merged})
         return entries
 
-    @staticmethod
-    def _weights(value: Any) -> dict[str, float]:
+    @classmethod
+    def _weights(cls, value: Any) -> dict[str, float]:
+        if isinstance(value, dict):
+            value = json.dumps(value)
+        elif isinstance(value, (list, tuple)):
+            value = next((item for item in value if item not in (None, "")), "")
         text = str(value if value not in (None, "") else DEFAULT_WEIGHTS).strip()
         try:
             payload = json.loads(text)

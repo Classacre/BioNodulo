@@ -36,7 +36,7 @@ import {
   type OnSelectionChangeParams,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { toast } from '../../state/notifications';
 import { setViewportCenterReader } from '../../state/canvasViewport';
@@ -57,9 +57,22 @@ import { promptDialog } from '../ui';
 import { logError } from '../../state/logging';
 import { getResolvedPaletteMode } from '../../state/palettes';
 import { selectedNodeIdAtom } from '../../state/uiAtoms';
+import {
+  subgraphNavAtom, enterSubgraphAtom, jumpToDepthAtom,
+  navStackFor, cacheViewport, readCachedViewport,
+  cachePanelPositions, readPanelPositions,
+} from '../../state/subgraphNav';
+import {
+  deriveView, writeViewBack, writeLevelBack, resolveLevel, getInnerWorkflow,
+  getSubgraphPorts, wirePort, unwirePort, boundaryEdgePort, viewPrefix,
+  IO_INPUTS_TYPE, IO_OUTPUTS_TYPE, ADD_PORT_HANDLE, isIOPanelNode, isIOPanelNodeId,
+} from '../../utils/subgraphView';
+import { convertSelectionToSubgraph, unpackSubgraph } from '../../utils/subgraph';
 import BioNode from './BioNode';
 import BioEdge from './BioEdge';
 import GroupNode from './GroupNode';
+import SubgraphIONode from './SubgraphIONode';
+import SubgraphBreadcrumb from './SubgraphBreadcrumb';
 import Devtools from './Devtools';
 import CollabCursors from './CollabCursors';
 import NodeComments from './NodeComments';
@@ -74,7 +87,7 @@ import { BioEdgeActionsContext, type BioEdgeActions } from './bioEdgeActions';
 
 export type { GraphNode, WorkflowCanvasRef };
 
-const NODE_TYPES = { bio: BioNode, group: GroupNode };
+const NODE_TYPES = { bio: BioNode, group: GroupNode, subgraphIO: SubgraphIONode };
 const GROUP_DEFAULT_COLOR = '#6366f1';
 const EDGE_TYPES = { bio: BioEdge };
 
@@ -171,6 +184,10 @@ interface WorkflowCanvasProps {
   edges: WorkflowEdge[];
   objectInfo: ObjectInfo;
   workflowParameters?: WorkflowParameter[];
+  /** Active workflow (tab) id + display name — own the subgraph nav stack and
+   *  the breadcrumb's root crumb. */
+  workflowId?: string;
+  workflowName?: string;
   onNodesChange: (nodes: WorkflowNode[]) => void;
   onEdgesChange: (edges: WorkflowEdge[]) => void;
   onPushHistory: () => void;
@@ -234,6 +251,12 @@ function toGraphNode(
   const promotedInputs = allParamInputs
     ? getPromotableParamKeys(meta, wn.params || {})
     : (wn.ui?.promotedInputs ?? EMPTY_PROMOTED);
+  // Subgraph nodes: the visible handles are derived from params.input_ports /
+  // params.output_ports (the engine contract), NOT from the stored node_info —
+  // params stay authoritative as boundary edits add/remove ports.
+  const isSubgraph = wn.type === 'subgraph';
+  const subgraphInputs = isSubgraph ? getSubgraphPorts(wn, 'input_ports') : null;
+  const subgraphOutputs = isSubgraph ? getSubgraphPorts(wn, 'output_ports') : null;
   return {
     id: wn.id,
     type: wn.type,
@@ -246,13 +269,17 @@ function toGraphNode(
     // Ports are data-flow inputs only — interactive scalar params render as
     // on-node widgets instead (see NodeWidgets), so exclude them here to avoid
     // showing the same param as both a port and a widget.
-    inputs: (meta && !visualOnly) ? [
+    inputs: subgraphInputs ? subgraphInputs.map(p => ({
+      name: p.name, type: p.type, connected: connectedIn.has(`${wn.id}:${p.name}`),
+    })) : (meta && !visualOnly) ? [
       ...Object.entries(visibleInputs.required),
       ...Object.entries(visibleInputs.optional),
     ].filter(([, spec]) => !isInteractiveWidgetSpec(spec)).map(([name, spec]) => ({
       name, type: spec.type || 'STRING', connected: connectedIn.has(`${wn.id}:${name}`),
     })) : [],
-    outputs: (meta && !visualOnly) ? resolveNodeOutputs(meta, wn.params || {}).map(output => ({
+    outputs: subgraphOutputs ? subgraphOutputs.map(p => ({
+      name: p.name, type: p.type, connected: connectedOut.has(`${wn.id}:${p.name}`),
+    })) : (meta && !visualOnly) ? resolveNodeOutputs(meta, wn.params || {}).map(output => ({
       name: output.name, type: output.type,
       connected: connectedOut.has(`${wn.id}:${output.name}`),
     })) : [],
@@ -277,6 +304,7 @@ function toGraphNode(
 
 const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(function WorkflowCanvasInner({
   nodes, edges, objectInfo,
+  workflowId, workflowName,
   onNodesChange, onEdgesChange, onPushHistory,
   snapToGrid, showMinimap,
   nodeStatusMap, missingDependencyNodeIds,
@@ -342,10 +370,65 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   }), [nodeRadius, nodeFontSize]);
 
   // Latest props for callbacks that must read fresh values without re-binding.
-  const nodesRef = useRef(nodes); nodesRef.current = nodes;
-  const edgesRef = useRef(edges); edgesRef.current = edges;
+  const rootRef = useRef({ nodes, edges }); rootRef.current = { nodes, edges };
+
+  // ---- Subgraph drill-down -------------------------------------------------
+  // The canvas edits ONE level at a time: the root workflow, or the embedded
+  // inner workflow of the subgraph node at the current nav path. `derived` is
+  // the namespaced view of that level (panel nodes + boundary edges included);
+  // every mutation callback below works in view space and folds back into the
+  // root document through writeViewBack/writeLevelBack.
+  const navState = useAtomValue(subgraphNavAtom);
+  const enterSubgraph = useSetAtom(enterSubgraphAtom);
+  const jumpToDepth = useSetAtom(jumpToDepthAtom);
+  const stack = useMemo(() => navStackFor(navState, workflowId ?? null), [navState, workflowId]);
+  const navPath = useMemo(() => stack.map(l => l.nodeId), [stack]);
+  const derived = useMemo(() => {
+    let path = navPath;
+    let view = deriveView(nodes, edges, path, readPanelPositions(workflowId ?? null, path) ?? undefined);
+    // The path can dangle after an undo/delete removed its host subgraph:
+    // fall back to the deepest prefix that still resolves.
+    while (!view && path.length > 0) {
+      path = path.slice(0, -1);
+      view = deriveView(nodes, edges, path, readPanelPositions(workflowId ?? null, path) ?? undefined);
+    }
+    return { view: view!, path };
+  }, [nodes, edges, navPath, workflowId]);
+  const viewNodes = derived.view.nodes;
+  const viewEdges = derived.view.edges;
+  // If the fallback above shortened the path, sync the nav atom once.
+  useEffect(() => {
+    if (workflowId && derived.path.length !== navPath.length) {
+      jumpToDepth({ owner: workflowId, depth: derived.path.length });
+    }
+  }, [workflowId, derived.path.length, navPath.length, jumpToDepth]);
+
+  const nodesRef = useRef(viewNodes); nodesRef.current = viewNodes;
+  const edgesRef = useRef(viewEdges); edgesRef.current = viewEdges;
+  const pathRef = useRef(derived.path); pathRef.current = derived.path;
   const isDraggingRef = useRef(false);
   const selectedIdsRef = useRef<Set<string>>(new Set());
+
+  // Fold an edited view graph back into the root document and hand it up.
+  // Both callbacks fire together: write-back can prune parent-level edges when
+  // inner nodes (and with them port entries) disappear.
+  const emitView = useCallback((nextViewNodes: WorkflowNode[], nextViewEdges: WorkflowEdge[]) => {
+    const out = writeViewBack(rootRef.current.nodes, rootRef.current.edges, pathRef.current, nextViewNodes, nextViewEdges);
+    onNodesChange(out.nodes);
+    onEdgesChange(out.edges);
+  }, [onNodesChange, onEdgesChange]);
+  const emitNodes = useCallback((nextViewNodes: WorkflowNode[]) => {
+    emitView(nextViewNodes, edgesRef.current);
+  }, [emitView]);
+  const emitEdges = useCallback((nextViewEdges: WorkflowEdge[]) => {
+    emitView(nodesRef.current, nextViewEdges);
+  }, [emitView]);
+  // Commit a boundary (port) edit: these helpers already operate on the root
+  // document, so no view fold is needed.
+  const emitRoot = useCallback((out: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }) => {
+    onNodesChange(out.nodes);
+    onEdgesChange(out.edges);
+  }, [onNodesChange, onEdgesChange]);
 
   const [rfNodes, setRfNodes] = useState<RFNode[]>([]);
   const [helperLines, setHelperLines] = useState<{ horizontal?: number; vertical?: number }>({});
@@ -383,12 +466,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   const connectedPorts = useMemo(() => {
     const cin = new Set<string>();
     const cout = new Set<string>();
-    for (const e of edges) {
+    for (const e of viewEdges) {
       cin.add(`${e.to.node}:${e.to.input}`);
       cout.add(`${e.from.node}:${e.from.output}`);
     }
     return { cin, cout };
-  }, [edges]);
+  }, [viewEdges]);
 
   // Reconcile React Flow node state from props. Skipped mid-drag so a status
   // tick or parent re-render never stomps the in-flight drag position (React
@@ -403,15 +486,31 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     setRfNodes(prev => {
       const prevSel = new Map(prev.map(n => [n.id, n.selected]));
       const groupAbs = new Map<string, { x: number; y: number }>();
-      for (const wn of nodes) {
+      for (const wn of viewNodes) {
         if (wn.type === 'group') groupAbs.set(wn.id, { x: wn.position[0], y: wn.position[1] });
       }
-      const built: RFNode[] = nodes.map(wn => {
+      const built: RFNode[] = viewNodes.map(wn => {
         const selected = prevSel.get(wn.id) ?? false;
         const parent = wn.parentId && groupAbs.has(wn.parentId) ? groupAbs.get(wn.parentId)! : null;
         const position = parent
           ? { x: wn.position[0] - parent.x, y: wn.position[1] - parent.y }
           : { x: wn.position[0], y: wn.position[1] };
+
+        // Subgraph IO boundary panels (synthesized by deriveView — never
+        // stored). Not deletable; their positions cache on drag stop.
+        if (isIOPanelNode(wn)) {
+          const kind = wn.type === IO_INPUTS_TYPE ? 'inputs' : 'outputs';
+          const ports = Array.isArray(wn.params?.ports)
+            ? wn.params.ports as { name: string; type: string; connected: boolean }[]
+            : [];
+          const title = wn.params?.title ? String(wn.params.title) : kind;
+          return {
+            id: wn.id, type: 'subgraphIO', position, selected, deletable: false,
+            style: { width: 200 },
+            ariaLabel: title,
+            data: { kind, ports },
+          } satisfies RFNode;
+        }
 
         if (wn.type === 'group') {
           const w = wn.ui?.width ?? 320;
@@ -452,26 +551,47 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       built.sort((a, b) => (a.type === 'group' ? 0 : 1) - (b.type === 'group' ? 0 : 1));
       return built;
     });
-  }, [nodes, connectedPorts, objectInfo, nodeStatusMap, missingDependencyNodeIds, defaultNodeShape, allParamInputs]);
+  }, [viewNodes, connectedPorts, objectInfo, nodeStatusMap, missingDependencyNodeIds, defaultNodeShape, allParamInputs]);
 
   // Stable `${nodeId}:${outputName}` -> output type map for edge colour, keyed
   // on props (not node positions) so it does not churn during a drag.
   const outTypeByNodeOutput = useMemo(() => {
     const map = new Map<string, string>();
-    for (const wn of nodes) {
+    for (const wn of viewNodes) {
+      if (isIOPanelNode(wn)) {
+        const ports = Array.isArray(wn.params?.ports) ? wn.params.ports as { name: string; type: string }[] : [];
+        if (wn.type === IO_INPUTS_TYPE) {
+          for (const p of ports) map.set(`${wn.id}:${p.name}`, p.type);
+        }
+        continue;
+      }
       const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
       if (!meta) continue;
       for (const output of resolveNodeOutputs(meta, wn.params || {})) {
         map.set(`${wn.id}:${output.name}`, output.type);
       }
     }
+    // Subgraph nodes: output handle types come from params.output_ports.
+    for (const wn of viewNodes) {
+      if (wn.type !== 'subgraph') continue;
+      for (const p of getSubgraphPorts(wn, 'output_ports')) {
+        map.set(`${wn.id}:${p.name}`, p.type);
+      }
+    }
     return map;
-  }, [nodes, objectInfo]);
+  }, [viewNodes, objectInfo]);
 
   // Stable `${nodeId}:${inputName}` -> input type map, for connection validation.
   const inTypeByNodeInput = useMemo(() => {
     const map = new Map<string, string>();
-    for (const wn of nodes) {
+    for (const wn of viewNodes) {
+      if (isIOPanelNode(wn)) {
+        const ports = Array.isArray(wn.params?.ports) ? wn.params.ports as { name: string; type: string }[] : [];
+        if (wn.type === IO_OUTPUTS_TYPE) {
+          for (const p of ports) map.set(`${wn.id}:${p.name}`, p.type);
+        }
+        continue;
+      }
       const meta = wn.type ? (objectInfo[wn.type] || wn.node_info || null) : (wn.node_info || null);
       if (!meta) continue;
       const visible = getVisibleInputSpecs(meta, wn.params || {});
@@ -479,8 +599,14 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         map.set(`${wn.id}:${name}`, spec.type || '');
       }
     }
+    for (const wn of viewNodes) {
+      if (wn.type !== 'subgraph') continue;
+      for (const p of getSubgraphPorts(wn, 'input_ports')) {
+        map.set(`${wn.id}:${p.name}`, p.type);
+      }
+    }
     return map;
-  }, [nodes, objectInfo]);
+  }, [viewNodes, objectInfo]);
 
   // Edges are local React Flow state (like nodes), reconciled from props but
   // carrying their own `selected` flag — a controlled flow only surfaces edge
@@ -488,11 +614,15 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // (which would break the BioEdge delete button + elevateEdgesOnSelect).
   const [rfEdges, setRfEdges] = useState<RFEdge[]>([]);
   useEffect(() => {
+    const prefix = viewPrefix(pathRef.current);
     setRfEdges(prev => {
       const prevSel = new Map(prev.map(e => [e.id, e.selected]));
-      return edges.map(edge => {
+      return viewEdges.map(edge => {
         const outType = outTypeByNodeOutput.get(`${edge.from.node}:${edge.from.output}`) || '';
         const stroke = edgeColorForSource(outType);
+        // Derived boundary edges (IO panel <-> inner slot) are not draggable —
+        // they move by rewiring the port, and are deleted via select+Delete.
+        const boundary = boundaryEdgePort(edge.id, prefix) !== null;
         return {
           id: edge.id,
           source: edge.from.node,
@@ -501,6 +631,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           targetHandle: edge.to.input,
           selected: prevSel.get(edge.id) ?? false,
           animated: edgeAnimated,
+          reconnectable: !boundary,
           ariaLabel: `${edge.from.node} → ${edge.to.node}`,
           style: { stroke, strokeWidth: edgeWidth },
           data: { pathType: edgeType },
@@ -508,7 +639,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         } satisfies RFEdge;
       });
     });
-  }, [edges, outTypeByNodeOutput, edgeType, edgeAnimated, edgeWidth, edgeArrows]);
+  }, [viewEdges, outTypeByNodeOutput, edgeType, edgeAnimated, edgeWidth, edgeArrows]);
 
   const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
     setRfEdges(prev => applyEdgeChanges(changes, prev));
@@ -549,6 +680,17 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     // React Flow reports a grouped child's position RELATIVE to its parent, so we
     // add the parent's (absolute, top-level) position back to store absolutes.
     const rfById = new Map(rf.getNodes().map(n => [n.id, n]));
+    // IO panel positions are canvas state, not document state: cache them per
+    // nav level instead of writing them into the workflow.
+    if (workflowId && pathRef.current.length > 0) {
+      const prefix = viewPrefix(pathRef.current);
+      const inputsPanel = rfById.get(`${prefix}${IO_INPUTS_TYPE}`);
+      const outputsPanel = rfById.get(`${prefix}${IO_OUTPUTS_TYPE}`);
+      cachePanelPositions(workflowId, pathRef.current, {
+        ...(inputsPanel ? { inputs: [Math.round(inputsPanel.position.x), Math.round(inputsPanel.position.y)] as [number, number] } : {}),
+        ...(outputsPanel ? { outputs: [Math.round(outputsPanel.position.x), Math.round(outputsPanel.position.y)] as [number, number] } : {}),
+      });
+    }
     const updated = nodesRef.current.map(wn => {
       const rfn = rfById.get(wn.id);
       if (!rfn) return wn;
@@ -562,13 +704,56 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       if (wn.position[0] === ax && wn.position[1] === ay) return wn;
       return { ...wn, position: [ax, ay] as [number, number] };
     });
-    onNodesChange(updated);
+    emitNodes(updated);
     onPushHistory();
-  }, [rf, onNodesChange, onPushHistory]);
+  }, [rf, emitNodes, onPushHistory, workflowId]);
 
   const onConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) return;
     if (connection.source === connection.target) return;
+
+    // Boundary wiring inside a subgraph: a connection touching an IO panel
+    // edits the host's params.input_ports / params.output_ports (the engine
+    // contract) instead of adding an edge. The visible wire is derived from
+    // the port entry, so it appears on its own after the write-back.
+    const path = pathRef.current;
+    if (path.length > 0) {
+      const prefix = viewPrefix(path);
+      const inputsId = `${prefix}${IO_INPUTS_TYPE}`;
+      const outputsId = `${prefix}${IO_OUTPUTS_TYPE}`;
+      if (connection.source === inputsId) {
+        if (connection.target === outputsId) return;
+        const innerNode = connection.target.slice(prefix.length);
+        const portType = connection.sourceHandle === ADD_PORT_HANDLE
+          ? (inTypeByNodeInput.get(`${connection.target}:${connection.targetHandle}`) || '*')
+          : (outTypeByNodeOutput.get(`${connection.source}:${connection.sourceHandle}`) || '*');
+        emitRoot(wirePort(
+          rootRef.current.nodes, rootRef.current.edges, path, 'input',
+          connection.sourceHandle === ADD_PORT_HANDLE ? null : connection.sourceHandle,
+          innerNode, connection.targetHandle, portType,
+        ));
+        onPushHistory();
+        return;
+      }
+      if (connection.target === outputsId) {
+        if (connection.source === inputsId) return;
+        const innerNode = connection.source.slice(prefix.length);
+        const portType = connection.targetHandle === ADD_PORT_HANDLE
+          ? (outTypeByNodeOutput.get(`${connection.source}:${connection.sourceHandle}`) || '*')
+          : (inTypeByNodeInput.get(`${connection.target}:${connection.targetHandle}`) || '*');
+        emitRoot(wirePort(
+          rootRef.current.nodes, rootRef.current.edges, path, 'output',
+          connection.targetHandle === ADD_PORT_HANDLE ? null : connection.targetHandle,
+          innerNode, connection.sourceHandle, portType,
+        ));
+        onPushHistory();
+        return;
+      }
+      // Boundary edges themselves are not reconnectable, so a connection
+      // landing on a panel handle can only come from the cases above.
+      if (connection.source === outputsId || connection.target === inputsId) return;
+    }
+
     const newEdge: WorkflowEdge = {
       id: `e_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       from: { node: connection.source, output: connection.sourceHandle },
@@ -576,7 +761,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     };
     // One connection per input slot: drop any edge already in that slot.
     const filtered = edgesRef.current.filter(e => !(e.to.node === connection.target && e.to.input === connection.targetHandle));
-    onEdgesChange([...filtered, newEdge]);
+    emitEdges([...filtered, newEdge]);
     onPushHistory();
 
     // The link is made either way. If our type model disagrees with it, say so
@@ -595,14 +780,14 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
           {
             label: t('common.undo', { defaultValue: 'Undo' }),
             onClick: () => {
-              onEdgesChange(edgesRef.current.filter(e => e.id !== newEdge.id));
+              emitEdges(edgesRef.current.filter(e => e.id !== newEdge.id));
               onPushHistory();
             },
           },
         ],
       });
     }
-  }, [onEdgesChange, onPushHistory, outTypeByNodeOutput, inTypeByNodeInput, t]);
+  }, [emitEdges, emitRoot, onPushHistory, outTypeByNodeOutput, inTypeByNodeInput, t]);
 
   // Native connection gate: React Flow calls this while the user drags a link
   // and greys out ports it rejects. Block self-links, type-incompatible ports,
@@ -611,12 +796,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   // drag doesn't rebuild the graph for every hovered port.
   const adjacency = useMemo(() => {
     const map = new Map<string, string[]>();
-    for (const e of edges) {
+    for (const e of viewEdges) {
       const list = map.get(e.from.node);
       if (list) list.push(e.to.node); else map.set(e.from.node, [e.to.node]);
     }
     return map;
-  }, [edges]);
+  }, [viewEdges]);
 
   const isValidConnection = useCallback((conn: Connection | RFEdge): boolean => {
     const { source, target } = conn;
@@ -659,16 +844,16 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       from: { node: newConn.source, output: newConn.sourceHandle },
       to: { node: newConn.target, input: newConn.targetHandle },
     });
-    onEdgesChange(filtered);
+    emitEdges(filtered);
     onPushHistory();
-  }, [onEdgesChange, onPushHistory]);
+  }, [emitEdges, onPushHistory]);
   const onReconnectEnd = useCallback((_evt: unknown, edge: RFEdge) => {
     if (!edgeReconnectSuccessful.current) {
-      onEdgesChange(edgesRef.current.filter(e => e.id !== edge.id));
+      emitEdges(edgesRef.current.filter(e => e.id !== edge.id));
       onPushHistory();
     }
     edgeReconnectSuccessful.current = true;
-  }, [onEdgesChange, onPushHistory]);
+  }, [emitEdges, onPushHistory]);
 
   // Split an edge with a reroute node dropped at `flow`: source -> reroute ->
   // target. Backs the edge context menu's "Insert reroute".
@@ -679,25 +864,55 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     const reroute: WorkflowNode = {
       id: rerouteId, type: 'reroute', params: {}, position: [flow.x, flow.y], ui: { title: '' },
     };
-    onNodesChange([...nodesRef.current, reroute]);
-    onEdgesChange([
+    emitView(nodesRef.current.concat(reroute), [
       ...edgesRef.current.filter(e => e.id !== edgeId),
       { id: `${edge.from.node}:${edge.from.output}->${rerouteId}:input`, from: edge.from, to: { node: rerouteId, input: 'input' } },
       { id: `${rerouteId}:output->${edge.to.node}:${edge.to.input}`, from: { node: rerouteId, output: 'output' }, to: edge.to },
     ]);
     onPushHistory();
-  }, [onNodesChange, onEdgesChange, onPushHistory]);
+  }, [emitView, onPushHistory]);
+
+  // Remove one view edge, routing boundary edges to a port removal on the
+  // host subgraph node (which also prunes the parent level's wires to it).
+  const removeViewEdge = useCallback((edgeId: string) => {
+    const path = pathRef.current;
+    const boundary = boundaryEdgePort(edgeId, viewPrefix(path));
+    if (boundary) {
+      emitRoot(unwirePort(rootRef.current.nodes, rootRef.current.edges, path, boundary.direction, boundary.portName));
+      onPushHistory();
+      return;
+    }
+    emitEdges(edgesRef.current.filter(e => e.id !== edgeId));
+    onPushHistory();
+  }, [emitEdges, emitRoot, onPushHistory]);
 
   // Single native delete handler: React Flow passes the FULL cascade in one call
   // — the deleted nodes plus every edge removed as a consequence — so we commit
   // nodes + edges together with a single history push (using onNodesDelete +
   // onEdgesDelete separately double-fires off the same stale ref).
   const onDelete = useCallback(({ nodes: delNodes, edges: delEdges }: { nodes: RFNode[]; edges: RFEdge[] }) => {
-    const goneNodes = new Set(delNodes.map(n => n.id));
-    const goneEdges = new Set(delEdges.map(e => e.id));
-    if (goneNodes.size) onNodesChange(nodesRef.current.filter(n => !goneNodes.has(n.id)));
-    if (goneEdges.size) onEdgesChange(edgesRef.current.filter(e => !goneEdges.has(e.id)));
-    if (goneNodes.size || goneEdges.size) onPushHistory();
+    const path = pathRef.current;
+    const prefix = viewPrefix(path);
+    // Boundary-edge deletions remove the port on the host subgraph node. Fold
+    // those first so the regular view write-back lands on the updated root.
+    let roots = rootRef.current;
+    let boundaryRemoved = false;
+    for (const e of delEdges) {
+      const boundary = boundaryEdgePort(e.id, prefix);
+      if (!boundary) continue;
+      roots = unwirePort(roots.nodes, roots.edges, path, boundary.direction, boundary.portName);
+      boundaryRemoved = true;
+    }
+    const goneNodes = new Set(delNodes.map(n => n.id).filter(id => !isIOPanelNodeId(id, prefix)));
+    const goneEdges = new Set(delEdges.map(e => e.id).filter(id => !boundaryEdgePort(id, prefix)));
+    const nextViewNodes = nodesRef.current.filter(n => !goneNodes.has(n.id));
+    const nextViewEdges = edgesRef.current.filter(e => !goneEdges.has(e.id));
+    const out = writeViewBack(roots.nodes, roots.edges, path, nextViewNodes, nextViewEdges);
+    if (goneNodes.size || goneEdges.size || boundaryRemoved) {
+      onNodesChange(out.nodes);
+      onEdgesChange(out.edges);
+      onPushHistory();
+    }
   }, [onNodesChange, onEdgesChange, onPushHistory]);
 
   // Native pre-delete guard: pinned nodes are protected. Return a filtered set so
@@ -757,14 +972,14 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
 
   // ---- On-node toolbar actions (native <NodeToolbar> in BioNode) ----
   const actions = useMemo<BioNodeActions>(() => ({
-    run: (id) => onExecuteSelected?.([id]),
+    run: (id) => onExecuteSelected?.([pathRef.current.length > 0 ? pathRef.current[0] : id]),
     rename: async (id) => {
       const wn = nodesRef.current.find(n => n.id === id);
       if (!wn) return;
       const current = wn.ui?.title || wn.type || '';
       const next = await promptDialog({ title: tRef.current('canvas.menu.rename'), message: tRef.current('canvas.menu.renamePrompt', 'New node name'), defaultValue: current });
       if (typeof next !== 'string') return;
-      onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, title: next } } : n));
+      emitNodes(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, title: next } } : n));
       onPushHistory();
     },
     duplicate: (id) => {
@@ -777,36 +992,35 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         params: { ...(wn.params || {}) },
         ui: { ...wn.ui },
       };
-      onNodesChange([...nodesRef.current, clone]);
+      emitNodes([...nodesRef.current, clone]);
       onPushHistory();
     },
     toggleCollapse: (id) => {
-      onNodesChange(nodesRef.current.map(n => n.id === id
+      emitNodes(nodesRef.current.map(n => n.id === id
         ? { ...n, ui: { ...n.ui, collapsed: !(n.ui?.collapsed ?? false) } }
         : n));
       onPushHistory();
     },
     remove: (id) => {
-      onNodesChange(nodesRef.current.filter(n => n.id !== id));
-      onEdgesChange(edgesRef.current.filter(e => e.from.node !== id && e.to.node !== id));
+      emitView(nodesRef.current.filter(n => n.id !== id), edgesRef.current.filter(e => e.from.node !== id && e.to.node !== id));
       onPushHistory();
     },
     resize: (id, width, height) => {
-      onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, width, height } } : n));
+      emitNodes(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, width, height } } : n));
       onPushHistory();
     },
     setParam: (id, key, value, history = true) => {
-      onNodesChange(nodesRef.current.map(n => n.id === id
+      emitNodes(nodesRef.current.map(n => n.id === id
         ? { ...n, params: { ...(n.params || {}), [key]: value } }
         : n));
       if (history) onPushHistory();
     },
     setColor: (id, color) => {
-      onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, color } } : n));
+      emitNodes(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, color } } : n));
       onPushHistory();
     },
     ungroup: (groupId) => {
-      onNodesChange(nodesRef.current
+      emitNodes(nodesRef.current
         .filter(n => n.id !== groupId)
         .map(n => n.parentId === groupId ? { ...n, parentId: undefined } : n));
       onPushHistory();
@@ -814,13 +1028,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     deleteGroup: (groupId) => {
       const childIds = new Set(nodesRef.current.filter(n => n.parentId === groupId).map(n => n.id));
       childIds.add(groupId);
-      onNodesChange(nodesRef.current.filter(n => !childIds.has(n.id)));
-      onEdgesChange(edgesRef.current.filter(e => !childIds.has(e.from.node) && !childIds.has(e.to.node)));
+      emitView(nodesRef.current.filter(n => !childIds.has(n.id)), edgesRef.current.filter(e => !childIds.has(e.from.node) && !childIds.has(e.to.node)));
       onPushHistory();
     },
     comment: onAddComment ? (id) => setCommentOpenNodeId(prev => prev === id ? null : id) : undefined,
     toggleFlag: (id, flag) => {
-      onNodesChange(nodesRef.current.map(n => n.id === id
+      emitNodes(nodesRef.current.map(n => n.id === id
         ? { ...n, ui: { ...n.ui, [flag]: !(n.ui?.[flag] ?? false) } }
         : n));
       onPushHistory();
@@ -831,12 +1044,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       const current = node?.ui?.promotedInputs ?? [];
       const isPromoted = current.includes(key);
       const next = isPromoted ? current.filter(k => k !== key) : [...current, key];
-      onNodesChange(nodesRef.current.map(n => n.id === id
+      emitNodes(nodesRef.current.map(n => n.id === id
         ? { ...n, ui: { ...n.ui, promotedInputs: next.length ? next : undefined } }
         : n));
       // Removing an input dot: drop any edge that was feeding it.
       if (isPromoted) {
-        onEdgesChange(edgesRef.current.filter(e => !(e.to.node === id && e.to.input === key)));
+        emitEdges(edgesRef.current.filter(e => !(e.to.node === id && e.to.input === key)));
       }
       onPushHistory();
     },
@@ -844,25 +1057,22 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       const node = nodesRef.current.find(n => n.id === id);
       const prev = node?.ui?.promotedInputs ?? [];
       const nextSet = new Set(keys);
-      onNodesChange(nodesRef.current.map(n => n.id === id
+      emitNodes(nodesRef.current.map(n => n.id === id
         ? { ...n, ui: { ...n.ui, promotedInputs: keys.length ? keys : undefined } }
         : n));
       // Drop edges feeding any input dot that was removed.
       const removed = prev.filter(k => !nextSet.has(k));
       if (removed.length) {
         const removedSet = new Set(removed);
-        onEdgesChange(edgesRef.current.filter(e => !(e.to.node === id && removedSet.has(e.to.input))));
+        emitEdges(edgesRef.current.filter(e => !(e.to.node === id && removedSet.has(e.to.input))));
       }
       onPushHistory();
     },
-  }), [onExecuteSelected, onNodesChange, onEdgesChange, onPushHistory, onAddComment]);
+  }), [onExecuteSelected, emitNodes, emitEdges, emitView, onPushHistory, onAddComment]);
 
   const edgeActions = useMemo<BioEdgeActions>(() => ({
-    removeEdge: (id) => {
-      onEdgesChange(edgesRef.current.filter(e => e.id !== id));
-      onPushHistory();
-    },
-  }), [onEdgesChange, onPushHistory]);
+    removeEdge: removeViewEdge,
+  }), [removeViewEdge]);
 
   // ---- Imperative ref API used across App ----
   const fitView = useCallback(() => { rf.fitView({ padding: 0.2, duration: 220 }); }, [rf]);
@@ -884,13 +1094,14 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   }, [rf]);
   const executeSelected = useCallback(() => {
     const ids = Array.from(selectedIdsRef.current);
-    if (ids.length) onExecuteSelected?.(ids);
+    if (!ids.length) return;
+    onExecuteSelected?.(pathRef.current.length > 0 ? [pathRef.current[0]] : ids);
   }, [onExecuteSelected]);
   const autoLayout = useCallback(() => {
     const all = nodesRef.current;
     // Lay out top-level, non-group nodes only, so grouped sub-flows are left
     // intact (dagre has no notion of parent/child). Uses live measured sizes.
-    const layoutable = all.filter(n => !n.parentId && n.type !== 'group');
+    const layoutable = all.filter(n => !n.parentId && n.type !== 'group' && !isIOPanelNode(n));
     const items = layoutable.map(n => {
       const rfn = rf.getNode(n.id);
       return {
@@ -904,13 +1115,13 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       .filter(e => layoutableIds.has(e.from.node) && layoutableIds.has(e.to.node))
       .map(e => ({ from: e.from.node, to: e.to.node }));
     const posById = dagreLayout(items, dagreEdges, { direction: 'LR' });
-    onNodesChange(all.map(wn => {
+    emitNodes(all.map(wn => {
       const p = posById.get(wn.id);
       return p ? { ...wn, position: [p.x, p.y] as [number, number] } : wn;
     }));
     onPushHistory();
     requestAnimationFrame(() => rf.fitView({ padding: 0.2, duration: 240 }));
-  }, [rf, onNodesChange, onPushHistory]);
+  }, [rf, emitNodes, onPushHistory]);
 
   // --- Right-click context menus (node + pane) ---
   const openNodeMenu = useCallback((e: React.MouseEvent, node: RFNode) => {
@@ -936,9 +1147,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       id: `reroute_${Date.now()}`, type: 'reroute', params: {},
       position: [flow.x, flow.y], ui: { title: '' },
     };
-    onNodesChange([...nodesRef.current, wn]);
+    emitNodes([...nodesRef.current, wn]);
     onPushHistory();
-  }, [onNodesChange, onPushHistory]);
+  }, [emitNodes, onPushHistory]);
 
   const exportThumbnail = useCallback(async () => {
     const host = hostRef.current;
@@ -989,9 +1200,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
     const selIds = new Set(sel.map(s => s.id));
     // Parent first, then the children with their new parentId.
     const next = nodesRef.current.map(n => selIds.has(n.id) ? { ...n, parentId: groupId } : n);
-    onNodesChange([group, ...next]);
+    emitNodes([group, ...next]);
     onPushHistory();
-  }, [rf, onNodesChange, onPushHistory]);
+  }, [rf, emitNodes, onPushHistory]);
 
   // Delete the current selection (respecting pinned nodes), cascading to the
   // children of any selected group. Backs the multi-select toolbar's delete.
@@ -1003,10 +1214,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       if (n.parentId && toDelete.has(n.parentId)) toDelete.add(n.id);
     }
     if (!toDelete.size) return;
-    onNodesChange(nodesRef.current.filter(n => !toDelete.has(n.id)));
-    onEdgesChange(edgesRef.current.filter(e => !toDelete.has(e.from.node) && !toDelete.has(e.to.node)));
+    emitView(nodesRef.current.filter(n => !toDelete.has(n.id)), edgesRef.current.filter(e => !toDelete.has(e.from.node) && !toDelete.has(e.to.node)));
     onPushHistory();
-  }, [onNodesChange, onEdgesChange, onPushHistory]);
+  }, [emitView, onPushHistory]);
 
   // Dissolve every selected group, keeping its children (clears their parentId).
   const ungroupSelection = useCallback(() => {
@@ -1014,17 +1224,109 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       nodesRef.current.filter(n => n.type === 'group' && selectedIdsRef.current.has(n.id)).map(n => n.id),
     );
     if (!groupIds.size) return;
-    onNodesChange(nodesRef.current
+    emitNodes(nodesRef.current
       .filter(n => !groupIds.has(n.id))
       .map(n => n.parentId && groupIds.has(n.parentId) ? { ...n, parentId: undefined } : n));
     onPushHistory();
-  }, [onNodesChange, onPushHistory]);
+  }, [emitNodes, onPushHistory]);
 
   // Native keyboard shortcuts via React Flow's useKeyPress; the rising-edge fire
   // (once per press, not held) is handled by useKeyPressAction below.
   // Cmd/Ctrl+G groups the selection; Cmd/Ctrl+Shift+G ungroups selected groups.
   useKeyPressAction(['Meta+g', 'Control+g'], createGroupFromSelection);
   useKeyPressAction(['Meta+Shift+g', 'Control+Shift+g'], ungroupSelection);
+
+  // ---- Subgraph drill-down actions ----------------------------------------
+  // Enter a subgraph node (double-click body, or node context menu). The nav
+  // stack stores RAW inner ids; the canvas derives the namespaced view.
+  const enterSubgraphNode = useCallback((viewNodeId: string) => {
+    if (!workflowId) return;
+    const path = pathRef.current;
+    const wn = nodesRef.current.find(n => n.id === viewNodeId);
+    if (!wn || wn.type !== 'subgraph') return;
+    if (!getInnerWorkflow(wn)) {
+      toast.warning(tRef.current('canvas.subgraphMissingEmbeddedWorkflow'));
+      return;
+    }
+    cacheViewport(workflowId, path, rf.getViewport());
+    enterSubgraph({
+      owner: workflowId,
+      level: {
+        nodeId: wn.id.slice(viewPrefix(path).length),
+        title: wn.ui?.title || wn.node_info?.display_name || tRef.current('canvas.subgraphFallbackName'),
+      },
+    });
+  }, [workflowId, rf, enterSubgraph]);
+
+  const jumpToNavDepth = useCallback((depth: number) => {
+    if (!workflowId || depth === pathRef.current.length) return;
+    cacheViewport(workflowId, pathRef.current, rf.getViewport());
+    jumpToDepth({ owner: workflowId, depth });
+  }, [workflowId, rf, jumpToDepth]);
+
+  // Esc exits one level (unless a context menu is open — the menu owns Esc).
+  useKeyPressAction(['Escape'], () => {
+    if (menu) return;
+    jumpToNavDepth(pathRef.current.length - 1);
+  });
+
+  // Restore the per-level viewport after the path changes (cached position
+  // when returning, fit-view on first entry).
+  const lastNavKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${workflowId ?? ''}::${derived.path.join('.')}`;
+    if (lastNavKeyRef.current === null) {
+      lastNavKeyRef.current = key;
+      return;
+    }
+    if (key === lastNavKeyRef.current) return;
+    lastNavKeyRef.current = key;
+    const cached = readCachedViewport(workflowId ?? null, derived.path);
+    if (cached) {
+      rf.setViewport({ x: cached.x, y: cached.y, zoom: cached.zoom });
+    } else {
+      rf.fitView({ padding: 0.2, duration: 200 });
+    }
+  }, [derived.path, workflowId, rf]);
+
+  const onNodeDoubleClick = useCallback((_e: React.MouseEvent, node: RFNode) => {
+    enterSubgraphNode(node.id);
+  }, [enterSubgraphNode]);
+
+  // Convert the current selection (>= 2 nodes) into a single subgraph node,
+  // synthesizing boundary ports for the edges that crossed the selection.
+  const convertSelection = useCallback(() => {
+    const path = pathRef.current;
+    const prefix = viewPrefix(path);
+    const level = resolveLevel(rootRef.current.nodes, rootRef.current.edges, path);
+    if (!level) return;
+    const selectedInner = Array.from(selectedIdsRef.current)
+      .map(id => (id.startsWith(prefix) ? id.slice(prefix.length) : id));
+    const result = convertSelectionToSubgraph(
+      level.nodes, level.edges, selectedInner, tRef.current('canvas.subgraphFallbackName'),
+    );
+    if (!result) return;
+    emitRoot(writeLevelBack(rootRef.current.nodes, rootRef.current.edges, path, result.nodes, result.edges));
+    onPushHistory();
+    toast.success(tRef.current('canvas.subgraphSelectionConverted'));
+  }, [emitRoot, onPushHistory]);
+
+  // Inverse of convertSelection: dissolve one subgraph node back into its
+  // inner nodes/edges, re-pointing its boundary wires at the mapped slots.
+  const unpackSubgraphNode = useCallback((viewNodeId: string) => {
+    const path = pathRef.current;
+    const prefix = viewPrefix(path);
+    const level = resolveLevel(rootRef.current.nodes, rootRef.current.edges, path);
+    if (!level) return;
+    const result = unpackSubgraph(level.nodes, level.edges, viewNodeId.slice(prefix.length));
+    if (!result) {
+      toast.warning(tRef.current('canvas.subgraphMissingEmbeddedWorkflow'));
+      return;
+    }
+    emitRoot(writeLevelBack(rootRef.current.nodes, rootRef.current.edges, path, result.nodes, result.edges));
+    onPushHistory();
+    toast.success(tRef.current('canvas.subgraphUnpacked'));
+  }, [emitRoot, onPushHistory]);
 
   useImperativeHandle(ref, () => ({
     fitView, focusNode, setViewport, getViewport, getSelectedNodeIds, executeSelected, screenToFlowPosition, createGroupFromSelection, autoLayout,
@@ -1056,6 +1358,18 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         { key: 'edit', label: t('canvas.menu.editProperties'), icon: 'edit', onClick: () => setPropsNodeId(m.nodeId!) },
       ];
       if (onAddComment) items.push({ key: 'comment', label: t('canvas.menu.addComment'), icon: 'comment', onClick: () => setCommentOpenNodeId(m.nodeId!) });
+
+      // Subgraph actions: drill into / dissolve a subgraph node, or wrap the
+      // current multi-selection in one.
+      if (wn.type === 'subgraph') {
+        items.push(
+          { key: 'enterSubgraph', label: t('canvas.subgraphEnter'), icon: 'target', onClick: () => enterSubgraphNode(m.nodeId!) },
+          { key: 'unpackSubgraph', label: t('canvas.subgraphUnpack'), icon: 'layout', onClick: () => unpackSubgraphNode(m.nodeId!) },
+        );
+      }
+      if (selectedIdsRef.current.size >= 2 && !isIOPanelNode(wn)) {
+        items.push({ key: 'convertToSubgraph', label: t('canvas.subgraphConvertSelection'), icon: 'grid', onClick: convertSelection });
+      }
 
       // "Add input": give a widget-param a connectable input dot (or remove it).
       // The widget stays; toggling only exposes/hides its input handle. Submenu
@@ -1113,7 +1427,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       { key: 'sep2', separator: true },
       { key: 'thumb', label: t('canvas.menu.exportThumbnail'), icon: 'image', onClick: () => { void exportThumbnail(); } },
     ];
-  }, [t, actions, edgeActions, insertRerouteOnEdge, objectInfo, allParamInputs, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail]);
+  }, [t, actions, edgeActions, insertRerouteOnEdge, objectInfo, allParamInputs, onAddComment, onOpenNodeLibrary, addRerouteAt, fitView, selectAll, autoLayout, exportThumbnail, enterSubgraphNode, unpackSubgraphNode, convertSelection]);
 
   const propsNode = propsNodeId ? nodesRef.current.find(n => n.id === propsNodeId) ?? null : null;
 
@@ -1147,6 +1461,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         onBeforeDelete={onBeforeDelete}
         onSelectionChange={handleSelectionChange}
         onNodeContextMenu={openNodeMenu}
+        onNodeDoubleClick={onNodeDoubleClick}
         onPaneContextMenu={openPaneMenu}
         onEdgeContextMenu={openEdgeMenu}
         onError={onError}
@@ -1194,7 +1509,8 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
             the old custom SelectionToolbox. */}
         <NodeToolbar nodeId={selectedIds} isVisible={selectedIds.length > 1} position={Position.Top} className="bio-node-toolbar">
           <button type="button" title={t('canvas.group.create')} aria-label={t('canvas.group.create')} onClick={createGroupFromSelection}><span aria-hidden>▣</span></button>
-          <button type="button" title={t('canvas.menu.run')} aria-label={t('canvas.menu.run')} onClick={() => onExecuteSelected?.(selectedIds)}><span aria-hidden>▶</span></button>
+          <button type="button" title={t('canvas.subgraphConvertSelection')} aria-label={t('canvas.subgraphConvertSelection')} onClick={convertSelection}><span aria-hidden>⧠</span></button>
+          <button type="button" title={t('canvas.menu.run')} aria-label={t('canvas.menu.run')} onClick={() => onExecuteSelected?.(pathRef.current.length > 0 ? [pathRef.current[0]] : selectedIds)}><span aria-hidden>▶</span></button>
           <button type="button" className="danger" title={t('canvas.menu.delete')} aria-label={t('canvas.menu.delete')} onClick={deleteSelected}><span aria-hidden>✕</span></button>
         </NodeToolbar>
         {(helperLines.horizontal !== undefined || helperLines.vertical !== undefined) && (
@@ -1221,6 +1537,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         )}
         {showDebugOverlay && <Devtools />}
       </ReactFlow>
+      {/* Subgraph drill-down breadcrumb — only visible inside a subgraph. */}
+      <SubgraphBreadcrumb
+        rootTitle={workflowName || t('canvas.subgraphWorkflowFallbackName')}
+        stack={stack.slice(0, derived.path.length)}
+        onJump={jumpToNavDepth}
+      />
       {menu && (
         <ContextMenu x={menu.x} y={menu.y} items={buildMenuItems(menu)} onClose={() => setMenu(null)} />
       )}
@@ -1240,7 +1562,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
         <NodePropertiesDialog
           node={propsNode}
           objectInfo={objectInfo}
-          onRename={(id, title) => { onNodesChange(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, title } } : n)); onPushHistory(); }}
+          onRename={(id, title) => { emitNodes(nodesRef.current.map(n => n.id === id ? { ...n, ui: { ...n.ui, title } } : n)); onPushHistory(); }}
           onParamChange={(id, key, value) => actions.setParam(id, key, value)}
           onClose={() => setPropsNodeId(null)}
         />

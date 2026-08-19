@@ -189,6 +189,34 @@ class CacheStore:
             _walk(str(key), value)
         return result
 
+    @classmethod
+    def normalize_paths(cls, values: dict[str, Any] | None, mode: str = "fast") -> dict[str, Any]:
+        """Return a copy of *values* with existing-file paths replaced by fingerprints.
+
+        Cache keys must be path-independent so a rerun in a fresh run directory
+        still hits entries written by an earlier run: two inputs with identical
+        file *contents* (or, in ``fast`` mode, identical size+mtime) key the same
+        even when the producing run stored them at different absolute paths.
+        Non-file values (sequences, JSON blobs, numbers) are copied unchanged.
+        With ``mode == 'off'`` the input is returned as-is (legacy path-keyed
+        behaviour).
+        """
+        if not values or mode == "off":
+            return dict(values) if values else {}
+        fingerprints = cls.fingerprint_inputs(values, mode)
+
+        def _convert(prefix: str, value: Any) -> Any:
+            if isinstance(value, str):
+                fp = fingerprints.get(prefix)
+                return fp if fp is not None else value
+            if isinstance(value, (list, tuple)):
+                return [_convert(f"{prefix}[{i}]", item) for i, item in enumerate(value)]
+            if isinstance(value, dict):
+                return {k: _convert(f"{prefix}.{k}", item) for k, item in value.items()}
+            return value
+
+        return {key: _convert(str(key), value) for key, value in values.items()}
+
     def is_hit(self, cache_key: str) -> bool:
         """Return *True* if a non-expired cached result exists for *cache_key*."""
         return self.read_marker(cache_key) is not None

@@ -39,7 +39,6 @@ async def test_two_targets_two_seeds_make_four_ordered_rows(tmp_path: Path) -> N
         batch_size=12,
         top_k=3,
         evaluator_weights='{"cai":2.0,"gc":1.0}',
-        budget_usd=12.5,
         context=_context(tmp_path),
     )
 
@@ -57,7 +56,7 @@ async def test_two_targets_two_seeds_make_four_ordered_rows(tmp_path: Path) -> N
     assert config["batch_size"] == 12
     assert config["top_k"] == 3
     assert config["seeds"] == [13, 101]
-    assert config["budget_usd"] == 12.5
+    assert "budget_usd" not in config
     assert config["weights"] == {"cai": 2.0, "gc": 1.0}
     assert [meta["target_id"] for meta in config["targets_meta"]] == ["egfp", "luc"]
     assert config["targets_meta"][0]["n_codons"] == len(CDS_A) // 3

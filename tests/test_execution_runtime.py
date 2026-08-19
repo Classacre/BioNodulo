@@ -2258,6 +2258,81 @@ async def test_executor_cache_is_content_addressed(tmp_path: Path) -> None:
     assert third["node_results"]["r"]["status"] == "completed"
 
 
+@pytest.mark.asyncio
+async def test_executor_cache_is_path_independent_across_runs(tmp_path: Path) -> None:
+    """A rerun in a fresh run directory must reuse cache when contents match.
+
+    Input-style nodes re-run every time and emit paths under the *new* run
+    directory. Previously those fresh paths were baked into downstream cache
+    keys, so an unchanged pipeline recomputed end to end. Keys now use content
+    fingerprints instead of absolute paths.
+    """
+    import shutil
+
+    source = tmp_path / "source.txt"
+    source.write_text("stable-contents")
+
+    class ProducerNode:
+        RETURN_NAMES = ("out",)
+        EXECUTOR_CACHE_POLICY = "always_run"
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"src": ("STRING", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, src: str = "", **_: Any) -> dict[str, Any]:
+            out = Path(context.node_dir) / "out.txt"
+            shutil.copyfile(src, out)
+            return {"outputs": {"out": str(out)}}
+
+    class ConsumerNode:
+        RETURN_NAMES = ("done",)
+
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {"required": {"inp": ("FILE", {})}, "optional": {}, "hidden": {}}
+
+        async def run(self, context: Any, inp: Any = None, **_: Any) -> dict[str, Any]:
+            return {"outputs": {"done": "ran"}}
+
+    class Registry:
+        def get(self, node_type: str) -> type | None:
+            return {"producer": ProducerNode, "consumer": ConsumerNode}.get(node_type)
+
+    workflow = {
+        "nodes": [
+            {"id": "p", "type": "producer", "inputs": {"src": {"value": str(source)}}, "outputs": {"out": {}}},
+            {"id": "c", "type": "consumer", "inputs": {}, "outputs": {"done": {}}},
+        ],
+        "edges": [
+            {"id": "e1", "from": {"node": "p", "output": "out"}, "to": {"node": "c", "input": "inp"}}
+        ],
+    }
+
+    class ExecSettings:
+        class execution:  # noqa: N801 - mirrors settings schema
+            content_hashing = "strong"
+
+    executor = WorkflowExecutor(
+        workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry(), settings=ExecSettings()
+    )
+
+    first = await executor.execute("run1", workflow)
+    assert first["node_results"]["p"]["status"] == "completed"
+    assert first["node_results"]["c"]["status"] == "completed"
+
+    # Second run: producer re-runs (always_run) and emits a *new* run-dir path,
+    # but the content is identical so the consumer must hit the cache.
+    second = await executor.execute("run2", workflow)
+    assert second["node_results"]["p"]["status"] == "completed"
+    assert second["node_results"]["c"]["status"] == "cached"
+
+    # Change the contents: the consumer must recompute.
+    source.write_text("changed-contents")
+    third = await executor.execute("run3", workflow)
+    assert third["node_results"]["c"]["status"] == "completed"
+
+
 def test_env_prefix_skips_unready_env(tmp_path: Path) -> None:
     """A manifest left behind by a failed install must NOT be used to run.
 

@@ -1398,12 +1398,16 @@ body.is-dragging-panel {
   opacity: 0; cursor: pointer; border: none; padding: 0;
 }
 
-.bio-node-io { display: flex; justify-content: space-between; padding-top: 2px; }
-.bio-node-inputs, .bio-node-outputs { display: flex; flex-direction: column; }
-.bio-node-outputs { text-align: right; }
-.bio-node-port { display: flex; align-items: center; position: relative; }
+.bio-node-io { display: flex; justify-content: space-between; padding-top: 2px; gap: 8px; }
+/* min-width:0 lets the flex columns shrink inside the fixed-width node so long
+   port names wrap instead of forcing the row past the node boundary. */
+.bio-node-inputs, .bio-node-outputs { display: flex; flex-direction: column; min-width: 0; }
+.bio-node-outputs { text-align: right; margin-left: auto; }
+.bio-node-port { display: flex; align-items: center; position: relative; min-width: 0; }
 .bio-node-port-out { justify-content: flex-end; }
-.bio-node-port-label { padding: 0 8px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Port labels wrap onto new lines and break anywhere — never paint outside the
+   node (the node body is overflow:visible for the handles). */
+.bio-node-port-label { padding: 0 8px; color: var(--muted); font-size: 11px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; line-height: 1.25; }
 /* Handles straddle the node's left/right edge. React Flow's default rule sets
    top:50% (centered in this port row); we only override the horizontal edge so
    the anchor sits on the node border and stays visible (node is overflow:visible). */
@@ -1414,7 +1418,7 @@ body.is-dragging-panel {
 .bio-node-header { overflow: hidden; }
 
 .bio-node-params { padding: 2px 8px; color: var(--muted); font-size: 10px; }
-.bio-node-param { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bio-node-param { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .bio-node-note-body { padding: 6px 8px; white-space: pre-wrap; color: var(--text); }
 
 /* Interactive on-node widgets (toggles/sliders/selects/number/text/colour).
@@ -4728,3 +4732,147 @@ kbd {
   .bio-node-download.is-indeterminate .bio-node-download-fill { animation: none; width: 100%; opacity: 0.5; }
 }
 
+
+/* ---- Subgraph drill-down ------------------------------------------------ */
+/* Breadcrumb bar overlaying the top of the canvas while inside a subgraph. */
+.subgraph-breadcrumb {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: min(80%, 720px);
+  padding: 3px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  font-size: 12px;
+}
+.subgraph-breadcrumb-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.subgraph-breadcrumb-back:hover { background: var(--surface-2); }
+.subgraph-breadcrumb-segment { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.subgraph-breadcrumb-sep { color: var(--muted); padding: 0 1px; }
+.subgraph-breadcrumb-crumb {
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  padding: 3px 6px;
+  cursor: pointer;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subgraph-breadcrumb-crumb:hover { background: var(--surface-2); }
+.subgraph-breadcrumb-crumb.current { color: var(--muted); cursor: default; }
+.subgraph-breadcrumb-crumb.current:hover { background: transparent; }
+
+/* IO boundary panels (Subgraph Inputs / Subgraph Outputs) inside a subgraph.
+   Rendered via the shared .bio-node styles; these tweaks mark the boundary. */
+.bio-subgraph-io {
+  border-style: dashed;
+  opacity: 0.96;
+}
+.bio-subgraph-io-add-label { color: var(--muted); font-style: italic; }
+.bio-handle-add { border-style: dashed !important; }
+
+/* ---- Inline node output previews ---------------------------------------- */
+/* Preview band at the bottom of a node body. Width stays within the node's
+   fixed 220px; the node auto-sizes vertically to fit. */
+.bio-node-preview {
+  border-top: 1px solid var(--border);
+  padding: 3px 6px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bio-node-preview-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+.bio-node-preview-toggle:hover { color: var(--text); }
+.bio-node-preview-chevron { display: inline-block; transition: transform 120ms ease; }
+.bio-node-preview-chevron.collapsed { transform: rotate(-90deg); }
+.bio-node-preview-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, monospace);
+}
+.bio-node-preview-img {
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  cursor: zoom-in;
+}
+.bio-node-preview-table-wrap {
+  max-height: 120px;
+  overflow: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.bio-node-preview-table {
+  border-collapse: collapse;
+  font-size: 9px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text);
+  width: 100%;
+}
+.bio-node-preview-table th,
+.bio-node-preview-table td {
+  padding: 1px 4px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bio-node-preview-table th { color: var(--muted); position: sticky; top: 0; background: var(--surface); }
+.bio-node-preview-footer {
+  font-size: 9px;
+  color: var(--muted);
+  padding: 2px 4px;
+  font-family: var(--font-mono, monospace);
+}
+.bio-node-preview-chip {
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 10px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.bio-node-preview-chip:hover { border-color: var(--accent); }

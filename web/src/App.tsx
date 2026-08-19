@@ -57,6 +57,8 @@ import {
 } from './components/ui';
 import { useSettings } from './hooks/settings';
 import { newNodePosition } from './state/canvasViewport';
+import { nodePreviewsAtom } from './state/nodePreviews';
+import { deriveLatestPreviews } from './utils/nodePreview';
 import { offerUpdateOnStartup } from './utils/appUpdate';
 import { useObjectInfo } from './hooks/data';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -438,6 +440,11 @@ export default function App() {
   const setShowShareDialog = useSetAtom(showShareDialogAtom);
   const setShowInviteDialog = useSetAtom(showInviteDialogAtom);
   const setShowOpenWorkflow = useSetAtom(showOpenWorkflowAtom);
+  // Latest per-node run previews, consumed by BioNode's inline preview band.
+  const setNodePreviews = useSetAtom(nodePreviewsAtom);
+  useEffect(() => {
+    setNodePreviews(deriveLatestPreviews(runs));
+  }, [runs, setNodePreviews]);
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
   const resetCollabOnStartupRef = useRef(false);
 
@@ -3791,6 +3798,8 @@ export default function App() {
           edges={activeWorkflow.edges}
           objectInfo={objectInfo}
           workflowParameters={activeWorkflow.parameters ?? []}
+          workflowId={activeWorkflowId}
+          workflowName={activeWorkflow.name}
           onNodesChange={handleNodesChange}
           onEdgesChange={handleEdgesChange}
           onPushHistory={pushHistory}
