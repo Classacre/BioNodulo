@@ -6,6 +6,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -537,16 +538,24 @@ def _list_workflow_templates(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
     return {"templates": templates, "count": len(templates)}
 
 
-def _load_template(ctx: ToolContext, template_name: str, **kwargs: Any) -> dict[str, Any]:
+def _resolve_template_path(template_name: str) -> Path | None:
+    """Find a template file by exact filename, stem, or ``<stem>_pipeline``."""
     candidates = [template_name]
     if not template_name.endswith(".json"):
         candidates.extend([f"{template_name}.json", f"{template_name}_pipeline.json"])
     for path in _template_files():
         if path.name in candidates or path.stem in candidates:
-            workflow = _load_template_file(path)
-            workflow["id"] = ctx.workflow_id or workflow.get("id") or _new_id("wf")
-            ctx.workflow = workflow
-            return {"workflow": workflow, "template": path.stem}
+            return path
+    return None
+
+
+def _load_template(ctx: ToolContext, template_name: str, **kwargs: Any) -> dict[str, Any]:
+    path = _resolve_template_path(template_name)
+    if path is not None:
+        workflow = _load_template_file(path)
+        workflow["id"] = ctx.workflow_id or workflow.get("id") or _new_id("wf")
+        ctx.workflow = workflow
+        return {"workflow": workflow, "template": path.stem}
     available = [path.stem for path in _template_files()]
     return {"error": f"Template '{template_name}' not found", "available": available}
 
@@ -563,6 +572,609 @@ def _set_workflow_description(ctx: ToolContext, description: str, **kwargs: Any)
     wf["description"] = description
     ctx.workflow = wf
     return {"workflow": wf}
+
+
+# ---------------------------------------------------------------------------
+# Compositional tools: groups, notes, templates, subgraphs, flow control
+# ---------------------------------------------------------------------------
+
+_GROUP_PADDING = 60.0
+
+
+def _slugify(value: str) -> str:
+    slug = re.sub(r"_+", "_", "".join(ch if ch.isalnum() else "_" for ch in str(value).strip().lower())).strip("_")
+    return slug or "template"
+
+
+def _unique_port_name(base: str, used: set[str]) -> str:
+    """First available ``base`` (or ``base_2``, ``base_3``, ...)."""
+    if base not in used:
+        used.add(base)
+        return base
+    n = 2
+    while f"{base}_{n}" in used:
+        n += 1
+    final = f"{base}_{n}"
+    used.add(final)
+    return final
+
+
+def _node_position(node: dict[str, Any]) -> list[float] | None:
+    pos = node.get("position")
+    if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+        try:
+            return [float(pos[0]), float(pos[1])]
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _node_input_slot_type(node: dict[str, Any], slot: str) -> str:
+    """Data type for an input slot from the node's embedded registry metadata."""
+    info = node.get("node_info")
+    if not isinstance(info, dict):
+        return "*"
+    inputs = info.get("input_types") or {}
+    for section in ("required", "optional"):
+        spec = (inputs.get(section) or {}).get(slot)
+        if isinstance(spec, dict) and spec.get("type"):
+            return str(spec["type"])
+        if isinstance(spec, str):
+            return spec
+    return "*"
+
+
+def _node_output_slot_type(node: dict[str, Any], slot: str) -> str:
+    """Data type for an output slot from the node's embedded registry metadata."""
+    info = node.get("node_info")
+    if not isinstance(info, dict):
+        return "*"
+    names = [str(n) for n in (info.get("return_names") or [])]
+    types = [str(t) for t in (info.get("return_types") or [])]
+    if slot in names:
+        idx = names.index(slot)
+        if idx < len(types):
+            return types[idx]
+    return "*"
+
+
+def _subgraph_node_info(
+    name: str,
+    in_ports: list[dict[str, Any]],
+    out_ports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Synthetic node metadata so the canvas/validation can see port slots."""
+    required = {
+        port["name"]: [
+            port.get("type", "*"),
+            {"description": f"{port.get('innerNodeId')}.{port.get('innerSlot')}"},
+        ]
+        for port in in_ports
+    }
+    return {
+        "id": "subgraph",
+        "display_name": name,
+        "category": "Subgraph",
+        "input_types": {"required": required},
+        "return_types": [port.get("type", "*") for port in out_ports],
+        "return_names": [port["name"] for port in out_ports],
+    }
+
+
+def _add_group(
+    ctx: ToolContext,
+    name: str,
+    node_ids: list[str],
+    position: list[float] | None = None,
+    color: str | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Add a visual group rectangle computed from the included nodes' bbox."""
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    ids = [str(nid) for nid in (node_ids or [])]
+    if not name or not str(name).strip():
+        return {"error": "Group name must not be empty."}
+    if not ids:
+        return {"error": "Provide at least one node ID to group."}
+    known = {node.get("id") for node in wf["nodes"] if isinstance(node, dict)}
+    missing = [nid for nid in ids if nid not in known]
+    if missing:
+        return {"error": f"Unknown node IDs: {', '.join(missing)}"}
+
+    positions = [pos for node in wf["nodes"] if node.get("id") in ids for pos in [_node_position(node)] if pos]
+    xs = [pos[0] for pos in positions] or [0.0]
+    ys = [pos[1] for pos in positions] or [0.0]
+    width = max(xs) - min(xs) + 2 * _GROUP_PADDING
+    height = max(ys) - min(ys) + 2 * _GROUP_PADDING
+    if position and len(position) >= 2:
+        top_left = [float(position[0]), float(position[1])]
+    else:
+        top_left = [min(xs) - _GROUP_PADDING, min(ys) - _GROUP_PADDING]
+
+    group = {
+        "id": _new_id("group"),
+        "name": str(name),
+        "position": top_left,
+        "width": width,
+        "height": height,
+        "node_ids": ids,
+        "color": color or "#6366f1",
+        "collapsed": False,
+    }
+    wf["groups"].append(group)
+    ctx.workflow = wf
+    return {"workflow": wf, "added_group": group}
+
+
+def _add_note(ctx: ToolContext, text: str, position: list[float] | None = None, **kwargs: Any) -> dict[str, Any]:
+    """Add a visual-only documentation note node (type ``note``)."""
+    if not str(text or "").strip():
+        return {"error": "Note text must not be empty."}
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    if position and len(position) >= 2:
+        pos: list[float] = [float(position[0]), float(position[1])]
+    else:
+        pos = [120.0, 200.0 + len(wf["nodes"]) * 40.0]
+    node = {
+        "id": _new_id("note"),
+        "type": "note",
+        "position": pos,
+        "params": {"text": str(text)},
+        "ui": {"title": "Notes", "color": "#f59e0b"},
+    }
+    wf["nodes"].append(node)
+    ctx.workflow = wf
+    return {"workflow": wf, "added_node": node}
+
+
+def _save_as_template(
+    ctx: ToolContext,
+    name: str,
+    description: str,
+    category: str = "Custom",
+    tags: list[str] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Persist the current workflow as a reusable template JSON file."""
+    if not str(name or "").strip():
+        return {"error": "Template name must not be empty."}
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    template = copy.deepcopy(wf)
+    template["name"] = str(name)
+    template["description"] = str(description or "")
+    template["category"] = str(category or "Custom")
+    template["tags"] = [str(tag) for tag in (tags or [])]
+    # A template carries no workflow id: every load gets a fresh one.
+    template.pop("id", None)
+
+    slug = _slugify(name)
+    try:
+        TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+        path = TEMPLATES_DIR / f"{slug}.json"
+        path.write_text(json.dumps(template, indent=2, default=str) + "\n", encoding="utf-8")
+    except OSError as exc:
+        return {"error": f"Could not write template: {exc}"}
+    return {
+        "success": True,
+        "template_name": slug,
+        "path": str(path),
+        "category": template["category"],
+        "node_count": len(template.get("nodes", [])),
+        "group_count": len(template.get("groups", [])),
+        "note": "The template is now available to load_template and add_subgraph_instance.",
+    }
+
+
+def _split_groups_for_extraction(
+    wf: dict[str, Any],
+    selected: set[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split groups into (inner, outer): inner groups cover only selected nodes.
+
+    Mirrors the web canvas rule — a group moves into the subgraph when every
+    node inside its bounding box is part of the selection.
+    """
+    inner: list[dict[str, Any]] = []
+    outer: list[dict[str, Any]] = []
+    for group in wf.get("groups") or []:
+        try:
+            gx, gy = float(group["position"][0]), float(group["position"][1])
+            gx2 = gx + float(group.get("width", 0))
+            gy2 = gy + float(group.get("height", 0))
+        except (KeyError, TypeError, ValueError, IndexError):
+            outer.append(group)
+            continue
+        covered = [
+            node.get("id")
+            for node in wf["nodes"]
+            if (pos := _node_position(node)) and gx <= pos[0] <= gx2 and gy <= pos[1] <= gy2
+        ]
+        (inner if covered and all(nid in selected for nid in covered) else outer).append(group)
+    return inner, outer
+
+
+def _extract_subgraph(ctx: ToolContext, node_ids: list[str], name: str, **kwargs: Any) -> dict[str, Any]:
+    """Pack nodes into a subgraph node; crossing edges become explicit ports.
+
+    Follows the same pattern as ``web/src/utils/subgraph.ts``: edges entering
+    or leaving the selection become ports named ``in__<node>__<slot>`` /
+    ``out__<node>__<slot>``, inner edges/groups move into the embedded
+    workflow, and the parent's external edges are rewired onto the new node.
+    """
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    selected = [str(nid) for nid in (node_ids or [])]
+    if not selected:
+        return {"error": "Provide at least one node ID to extract."}
+    if not str(name or "").strip():
+        return {"error": "Subgraph name must not be empty."}
+    nodes_by_id = {node.get("id"): node for node in wf["nodes"] if isinstance(node, dict)}
+    missing = [nid for nid in selected if nid not in nodes_by_id]
+    if missing:
+        return {"error": f"Unknown node IDs: {', '.join(missing)}"}
+    selected_set = set(selected)
+
+    used_names: set[str] = set()
+    in_ports: list[dict[str, Any]] = []
+    out_ports: list[dict[str, Any]] = []
+    in_remap: dict[tuple[str, str], str] = {}
+    out_remap: dict[tuple[str, str], str] = {}
+
+    for edge in wf["edges"]:
+        source = edge.get("from") or {}
+        target = edge.get("to") or {}
+        from_inside = source.get("node") in selected_set
+        to_inside = target.get("node") in selected_set
+        if from_inside == to_inside:
+            continue  # fully inside (kept) or fully outside (untouched)
+        if to_inside:
+            key = (str(target.get("node")), str(target.get("input")))
+            if key not in in_remap:
+                port_name = _unique_port_name(f"in__{key[0]}__{key[1]}", used_names)
+                in_remap[key] = port_name
+                in_ports.append(
+                    {
+                        "name": port_name,
+                        "type": _node_input_slot_type(nodes_by_id[key[0]], key[1]),
+                        "innerNodeId": key[0],
+                        "innerSlot": key[1],
+                    }
+                )
+        else:
+            key = (str(source.get("node")), str(source.get("output")))
+            if key not in out_remap:
+                port_name = _unique_port_name(f"out__{key[0]}__{key[1]}", used_names)
+                out_remap[key] = port_name
+                out_ports.append(
+                    {
+                        "name": port_name,
+                        "type": _node_output_slot_type(nodes_by_id[key[0]], key[1]),
+                        "innerNodeId": key[0],
+                        "innerSlot": key[1],
+                    }
+                )
+
+    inner_edges = [
+        copy.deepcopy(edge)
+        for edge in wf["edges"]
+        if (edge.get("from") or {}).get("node") in selected_set
+        and (edge.get("to") or {}).get("node") in selected_set
+    ]
+    inner_groups, outer_groups = _split_groups_for_extraction(wf, selected_set)
+    inner_workflow = {
+        "version": "2.0",
+        "app": "bionodulo",
+        "name": str(name),
+        "description": "",
+        "nodes": [copy.deepcopy(nodes_by_id[nid]) for nid in selected],
+        "edges": inner_edges,
+        "groups": inner_groups,
+        "outputs": {},
+    }
+
+    positions = [pos for nid in selected for pos in [_node_position(nodes_by_id[nid])] if pos]
+    if positions:
+        sub_position = [
+            sum(p[0] for p in positions) / len(positions),
+            sum(p[1] for p in positions) / len(positions),
+        ]
+    else:
+        sub_position = [200.0 + len(wf["nodes"]) * 30.0, 200.0]
+
+    subgraph_id = _new_id("subgraph")
+    subgraph_node = {
+        "id": subgraph_id,
+        "type": "subgraph",
+        "position": sub_position,
+        "params": {"workflow": inner_workflow, "input_ports": in_ports, "output_ports": out_ports},
+        "node_info": _subgraph_node_info(str(name), in_ports, out_ports),
+        "ui": {"title": str(name), "color": "#6366f1", "shape": "card"},
+    }
+
+    new_edges: list[dict[str, Any]] = []
+    for edge in wf["edges"]:
+        source = edge.get("from") or {}
+        target = edge.get("to") or {}
+        from_inside = source.get("node") in selected_set
+        to_inside = target.get("node") in selected_set
+        if from_inside and to_inside:
+            continue
+        if to_inside:
+            new_edges.append(
+                {
+                    "id": _new_id("edge"),
+                    "from": copy.deepcopy(source),
+                    "to": {"node": subgraph_id, "input": in_remap[(str(target.get("node")), str(target.get("input")))]},
+                }
+            )
+        elif from_inside:
+            new_edges.append(
+                {
+                    "id": _new_id("edge"),
+                    "from": {"node": subgraph_id, "output": out_remap[(str(source.get("node")), str(source.get("output")))]},
+                    "to": copy.deepcopy(target),
+                }
+            )
+        else:
+            new_edges.append(copy.deepcopy(edge))
+
+    wf["nodes"] = [node for node in wf["nodes"] if node.get("id") not in selected_set]
+    wf["nodes"].append(subgraph_node)
+    wf["edges"] = new_edges
+    wf["groups"] = outer_groups
+    ctx.workflow = wf
+    return {
+        "workflow": wf,
+        "subgraph_node": subgraph_node,
+        "input_ports": in_ports,
+        "output_ports": out_ports,
+        "extracted_nodes": selected,
+    }
+
+
+def _template_output_ports(
+    inner: dict[str, Any],
+    used_names: set[str],
+) -> list[dict[str, Any]]:
+    """Output ports for a template: its exposed ``outputs`` map, else sink nodes.
+
+    The map's values are ``node_id`` (or ``node_id.slot``); a bare node id
+    resolves to the node's default output, matching the executor's fallback.
+    """
+    nodes_by_id = {node.get("id"): node for node in inner.get("nodes", []) if isinstance(node, dict)}
+    ports: list[dict[str, Any]] = []
+    outputs = inner.get("outputs")
+    if isinstance(outputs, dict) and outputs:
+        for out_name, ref in outputs.items():
+            ref = str(ref or "")
+            if "." in ref and ref.rsplit(".", 1)[0] in nodes_by_id:
+                node_id, slot = ref.rsplit(".", 1)
+            else:
+                node_id, slot = ref, "default"
+            if node_id not in nodes_by_id:
+                continue
+            ports.append(
+                {
+                    "name": _unique_port_name(f"out__{node_id}__{out_name}", used_names),
+                    "type": _node_output_slot_type(nodes_by_id[node_id], slot),
+                    "innerNodeId": node_id,
+                    "innerSlot": slot,
+                }
+            )
+        return ports
+    # No declared outputs: expose every sink node's outputs instead.
+    sources = {(edge.get("from") or {}).get("node") for edge in inner.get("edges", [])}
+    for node in inner.get("nodes", []):
+        if not isinstance(node, dict) or node.get("id") in sources:
+            continue
+        info = node.get("node_info") if isinstance(node.get("node_info"), dict) else {}
+        slots = [str(s) for s in (info.get("return_names") or [])] or ["default"]
+        for slot in slots:
+            ports.append(
+                {
+                    "name": _unique_port_name(f"out__{node.get('id')}__{slot}", used_names),
+                    "type": _node_output_slot_type(node, slot),
+                    "innerNodeId": str(node.get("id")),
+                    "innerSlot": slot,
+                }
+            )
+    return ports
+
+
+def _template_input_ports(
+    inner: dict[str, Any],
+    used_names: set[str],
+) -> list[dict[str, Any]]:
+    """Input ports for a template: unconnected required inputs without defaults."""
+    connected_slots = {
+        ((edge.get("to") or {}).get("node"), (edge.get("to") or {}).get("input"))
+        for edge in inner.get("edges", [])
+    }
+    ports: list[dict[str, Any]] = []
+    for node in inner.get("nodes", []):
+        if not isinstance(node, dict):
+            continue
+        info = node.get("node_info")
+        if not isinstance(info, dict):
+            continue
+        required = (info.get("input_types") or {}).get("required") or {}
+        for slot, spec in required.items():
+            if (node.get("id"), slot) in connected_slots:
+                continue
+            if isinstance(spec, dict) and "default" in spec:
+                continue  # satisfied by its own default at run time
+            ptype = spec.get("type") if isinstance(spec, dict) else (spec if isinstance(spec, str) else "*")
+            ports.append(
+                {
+                    "name": _unique_port_name(f"in__{node.get('id')}__{slot}", used_names),
+                    "type": str(ptype or "*"),
+                    "innerNodeId": str(node.get("id")),
+                    "innerSlot": str(slot),
+                }
+            )
+    return ports
+
+
+def _add_subgraph_instance(
+    ctx: ToolContext,
+    template_name: str,
+    position: list[float] | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Instantiate a saved template as a subgraph node in the current workflow."""
+    wf = _normalize_workflow(ctx.workflow, ctx.workflow_id)
+    path = _resolve_template_path(template_name)
+    if path is None:
+        available = [p.stem for p in _template_files()]
+        return {"error": f"Template '{template_name}' not found", "available": available}
+    template = _load_template_file(path)
+    inner = copy.deepcopy(template)
+    inner.pop("id", None)
+
+    used_names: set[str] = set()
+    in_ports = _template_input_ports(inner, used_names)
+    out_ports = _template_output_ports(inner, used_names)
+
+    if position and len(position) >= 2:
+        pos: list[float] = [float(position[0]), float(position[1])]
+    else:
+        pos = [200.0 + len(wf["nodes"]) * 30.0, 200.0 + len(wf["nodes"]) * 20.0]
+
+    title = str(inner.get("name") or path.stem)
+    node = {
+        "id": _new_id("subgraph"),
+        "type": "subgraph",
+        "position": pos,
+        "params": {"workflow": inner, "input_ports": in_ports, "output_ports": out_ports},
+        "node_info": _subgraph_node_info(title, in_ports, out_ports),
+        "ui": {"title": title, "color": "#6366f1", "shape": "card"},
+    }
+    wf["nodes"].append(node)
+    ctx.workflow = wf
+    return {"workflow": wf, "added_node": node, "template": path.stem}
+
+
+def _get_run_events(ctx: ToolContext, run_id: str, limit: int | None = 50, **kwargs: Any) -> dict[str, Any]:
+    """Durable per-run event log (queue lifecycle, node start/complete, retries)."""
+    queue = ctx.run_queue
+    if queue is None or not hasattr(queue, "get_run_events"):
+        return {"error": "No run event log is available in this context."}
+    try:
+        count = max(1, min(int(limit) if limit is not None else 50, 1000))
+    except (TypeError, ValueError):
+        count = 50
+    events = queue.get_run_events(run_id, count)
+    if events is None:
+        return {"error": "No durable run store is configured for this queue."}
+    timeline: list[str] = []
+    for event in events:
+        payload = json.dumps(event.get("payload", {}), default=str)
+        if len(payload) > 300:
+            payload = payload[:300] + "..."
+        timeline.append(f"#{event.get('seq', '?')} [{event.get('type', '?')}] {payload}")
+    return {"run_id": run_id, "count": len(events), "events": events, "timeline": timeline}
+
+
+_FLOW_CONTROL_NODE_GUIDE: list[dict[str, Any]] = [
+    {
+        "node": "while_loop",
+        "purpose": "Repeat a body until a condition turns false (convergence / optimisation rounds).",
+        "key_params": "condition_mode (file_exists, numeric_less, boolean_is_true, ...), value, compare_to, max_iterations (mandatory safety cap)",
+        "outputs": "iteration, results, iterations, converged",
+        "wiring": (
+            "Connect the loop's `iteration` output to the first body node. Feed the body's final "
+            "output back into the loop's hidden `_body_result` input, and into `value` when the "
+            "next condition check should observe the result."
+        ),
+    },
+    {
+        "node": "foreach",
+        "purpose": "Map over items: run a connected body once per item and collect the results.",
+        "key_params": "items (the list), batch_size, iteration_mode, collect_mode, stop_on_error",
+        "outputs": "iteration, results, count, all_succeeded",
+        "wiring": (
+            "Connect `items` to the list, the loop's `iteration` output to the first body node, "
+            "and the body's final output back into the loop's hidden `body_result` input. "
+            "Per-item results gather on `results`."
+        ),
+    },
+    {
+        "node": "parallel_for",
+        "purpose": "Scatter-gather: fan items out to parallel branches, then combine them.",
+        "key_params": "items, max_concurrency, chunk_size, gather (all / any / first / sorted)",
+        "outputs": "results, completed_count, all_succeeded, iteration",
+        "wiring": (
+            "Each chunk runs through the connected body; branch results return on the hidden "
+            "`_parallel_results` input and are combined per the `gather` strategy."
+        ),
+    },
+    {
+        "node": "try_catch",
+        "purpose": "Error containment: route a risky step through try/retry/catch phases.",
+        "key_params": "try_input, max_retries, retry_delay, catch_errors, pass_input_to_catch",
+        "outputs": "try, catch, output, succeeded, error_info, retry_count",
+        "wiring": (
+            "Feed the risky step's output into `try_input`. Continue downstream from the `try` "
+            "output on success or the `catch` output on failure; `error_info`/`retry_count` "
+            "describe what happened."
+        ),
+    },
+    {
+        "node": "counter_accumulator",
+        "purpose": "State that persists across loop iterations (counters, running totals).",
+        "key_params": "operation, operand, initial_value, accumulator_key, access_mode",
+        "outputs": "value, count, accumulator",
+        "wiring": (
+            "Runs inside a loop body; each iteration reads `value`/`count` and writes back through "
+            "`operand`. Use its `value` output to drive a while_loop condition."
+        ),
+    },
+    {
+        "node": "gate",
+        "purpose": "Checkpoint: conditionally pass data through, default it, or halt the run.",
+        "key_params": "condition_mode (file_exists, numeric_*, string_*, regex_matches, ...), on_failure",
+        "outputs": "output, passed",
+        "wiring": "Place between stages; downstream runs only when `passed` is true (or branches on it).",
+    },
+    {
+        "node": "if_condition",
+        "purpose": "Two-way branch on a boolean/numeric/string/regex/file check.",
+        "key_params": "condition_mode, value, compare_to",
+        "outputs": "true, false, condition_result",
+        "wiring": "Wire separate downstream chains from `true` and `false`; only one executes.",
+    },
+    {
+        "node": "merge",
+        "purpose": "Fan-in: combine multiple branches once they have all produced.",
+        "key_params": "strategy (append / zip / dict_merge / first_valid / last_valid / interleave)",
+        "outputs": "merged, received_count",
+        "wiring": "Connect every branch into the merge's inputs; downstream waits for `merged`.",
+    },
+    {
+        "node": "subgraph",
+        "purpose": "A reusable component: an embedded workflow inside a single node.",
+        "key_params": "params.workflow (embedded Workflow JSON), input_ports, output_ports",
+        "outputs": "one per declared output port, plus subgraph_dir",
+        "wiring": (
+            "Ports are named in__<node>__<slot> / out__<node>__<slot>. Create them with "
+            "extract_subgraph (from selected nodes) or add_subgraph_instance (from a template)."
+        ),
+    },
+]
+
+
+def _list_flow_control_nodes(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+    """Educational reference for the flow-control primitives and their wiring."""
+    return {
+        "nodes": _FLOW_CONTROL_NODE_GUIDE,
+        "count": len(_FLOW_CONTROL_NODE_GUIDE),
+        "summary": (
+            "Loop bodies hang off the control node's `iteration` output and feed back into its "
+            "hidden result input (`_body_result` for while_loop, `body_result` for foreach, "
+            "`_parallel_results` for parallel_for). Multi-phase campaigns (optimise -> evaluate "
+            "-> export) compose from these primitives plus subgraphs. Call get_node_info on any "
+            "type for its live parameter schema."
+        ),
+    }
 
 
 def _resolve_dependencies(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
@@ -1187,6 +1799,75 @@ ALL_TOOLS: list[ToolDefinition] = [
     ToolDefinition("load_template", "Load a built-in local workflow template by filename or stem.", [ToolParameter("template_name", "string", "Template filename or stem")], _load_template, mutates=True),
     ToolDefinition("set_workflow_name", "Set the workflow name.", [ToolParameter("name", "string", "New workflow name")], _set_workflow_name, mutates=True),
     ToolDefinition("set_workflow_description", "Set the workflow description.", [ToolParameter("description", "string", "New workflow description")], _set_workflow_description, mutates=True),
+    ToolDefinition(
+        "add_group",
+        "Add a visual group rectangle around related nodes to organize the canvas. The bounding box is computed from the included nodes' positions.",
+        [
+            ToolParameter("name", "string", "Group label"),
+            ToolParameter("node_ids", "array", "Node IDs to include in the group"),
+            ToolParameter("position", "array", "Optional [x, y] top-left override", required=False, default=None),
+            ToolParameter("color", "string", "Optional hex color", required=False, default=None),
+        ],
+        _add_group,
+        mutates=True,
+    ),
+    ToolDefinition(
+        "add_note",
+        "Add a documentation note node (type 'note') to the canvas. Notes are visual-only: they carry multiline text and never execute.",
+        [
+            ToolParameter("text", "string", "Multiline note text"),
+            ToolParameter("position", "array", "Optional [x, y] coordinates", required=False, default=None),
+        ],
+        _add_note,
+        mutates=True,
+    ),
+    ToolDefinition(
+        "save_as_template",
+        "Persist the current workflow (including its groups and outputs) as a reusable JSON template in the templates directory. The saved template is immediately available to load_template and add_subgraph_instance.",
+        [
+            ToolParameter("name", "string", "Template name"),
+            ToolParameter("description", "string", "What the template does"),
+            ToolParameter("category", "string", "Template category", required=False, default="Custom"),
+            ToolParameter("tags", "array", "Search tags", required=False, default=None),
+        ],
+        _save_as_template,
+        action=True,
+    ),
+    ToolDefinition(
+        "extract_subgraph",
+        "Pack a set of nodes into a reusable subgraph component (type 'subgraph' with an embedded workflow). Edges crossing the selection boundary become explicit ports named in__<node>__<slot> / out__<node>__<slot>, and the parent's external edges are rewired onto those ports.",
+        [
+            ToolParameter("node_ids", "array", "Node IDs to extract"),
+            ToolParameter("name", "string", "Display name for the subgraph component"),
+        ],
+        _extract_subgraph,
+        mutates=True,
+    ),
+    ToolDefinition(
+        "add_subgraph_instance",
+        "Instantiate a saved template as a subgraph node in the current workflow. Ports are computed from the template's exposed inputs and outputs.",
+        [
+            ToolParameter("template_name", "string", "Template filename or stem"),
+            ToolParameter("position", "array", "Optional [x, y] coordinates", required=False, default=None),
+        ],
+        _add_subgraph_instance,
+        mutates=True,
+    ),
+    ToolDefinition(
+        "get_run_events",
+        "Read a run's durable event log (queue lifecycle, node start/complete, retries, typed errors) as an execution timeline. More granular than get_run_status.",
+        [
+            ToolParameter("run_id", "string", "Run identifier"),
+            ToolParameter("limit", "integer", "Most recent events to return", required=False, default=50),
+        ],
+        _get_run_events,
+    ),
+    ToolDefinition(
+        "list_flow_control_nodes",
+        "List the flow-control node types (while_loop, foreach, parallel_for, try_catch, counter_accumulator, gate, if_condition, merge, subgraph) with their wiring patterns: how to connect loop bodies, feedback edges, and branch outputs.",
+        [],
+        _list_flow_control_nodes,
+    ),
     ToolDefinition(
         "ensure_workflow_environment",
         "Explain how the app creates workflow-scoped environments through the resolver review flow.",
