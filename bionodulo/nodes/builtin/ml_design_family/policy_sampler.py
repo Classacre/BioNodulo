@@ -27,7 +27,9 @@ class PolicySamplerNode(MLDesignNode):
     DESCRIPTION = (
         "Sample N candidate variants from a codon policy table (group_relative_optimizer "
         "output), applying temperature p^(1/T); with no policy table it falls back to "
-        "uniform synonymous sampling. Output shape matches candidate_generator."
+        "uniform synonymous sampling. Output shape matches candidate_generator. "
+        "n_candidates=0 emits an empty candidates JSON array and an empty FASTA instead "
+        "of erroring, so downstream nodes receive an explicitly empty batch."
     )
     SEARCH_ALIASES = [
         "policy sampling",
@@ -51,7 +53,7 @@ class PolicySamplerNode(MLDesignNode):
                 "policy_table": ("JSON", {"default": "", "description": "Policy table from group_relative_optimizer"}),
                 "utr5_template": ("STRING", {"default": "", "description": "Optional 5' UTR attached to every candidate"}),
                 "utr3_template": ("STRING", {"default": "", "description": "Optional 3' UTR attached to every candidate"}),
-                "n_candidates": ("INT", {"default": 24, "min": 1, "max": 1000}),
+                "n_candidates": ("INT", {"default": 24, "min": 0, "max": 1000}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
                 "temperature": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 10.0}),
                 "id_prefix": ("STRING", {"default": "cand"}),
@@ -66,7 +68,7 @@ class PolicySamplerNode(MLDesignNode):
             return validation
         if not str(inputs.get("base_cds", "")).strip():
             return "Input 'base_cds' must be a non-empty sequence or file path"
-        validation = validate_int_input(inputs.get("n_candidates", 24), "n_candidates", minimum=1, maximum=1000)
+        validation = validate_int_input(inputs.get("n_candidates", 24), "n_candidates", minimum=0, maximum=1000)
         if validation is not True:
             return validation
         validation = validate_int_input(inputs.get("seed", 0), "seed", minimum=0, maximum=2147483647)

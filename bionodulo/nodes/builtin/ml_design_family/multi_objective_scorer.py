@@ -9,6 +9,7 @@ from typing import Any
 
 from .adapter import (
     MLDesignNode,
+    append_table_footer,
     load_json_or_table,
     node_output_dir,
     numeric_field,
@@ -36,7 +37,12 @@ class MultiObjectiveScorerNode(MLDesignNode):
         "missing on disk, or a table with zero data rows are skipped fail-soft so a "
         "partial evaluator ensemble (no ViennaRNA, no trained model) still scores. "
         "candidates is optional: without it the candidate id set is taken from the first "
-        "objective table. Output is ranked descending by composite."
+        "objective table. Empty-tolerant: an empty candidate batch or an ensemble where "
+        "every objective produced zero rows emits an empty ranked list (JSON [] plus a "
+        "header-only TSV) instead of erroring, and candidates missing from some "
+        "objectives are scored only when every objective covers them (skipped ids are "
+        "documented in a provenance footer on the TSV). Output is ranked descending by "
+        "composite."
     )
     SEARCH_ALIASES = [
         "multi-objective",
@@ -140,57 +146,66 @@ class MultiObjectiveScorerNode(MLDesignNode):
             if parsed is None:
                 continue
             objectives[name] = parsed
-        if not objectives:
-            raise ValueError("At least one scores_N input must be provided")
 
         candidates_value = kwargs.get("candidates")
         if candidates_value in (None, ""):
-            first = next(iter(objectives.values()))
-            candidate_ids = list(first)
+            first = next(iter(objectives.values()), None)
+            candidate_ids = list(first) if first else []
         else:
-            candidate_ids = [entry["id"] for entry in parse_candidates(candidates_value, "candidates")]
-        known_ids = set(candidate_ids)
-        for name, scores in objectives.items():
-            missing = [cid for cid in candidate_ids if cid not in scores]
-            if missing:
-                raise ValueError(
-                    f"Input '{name}' is missing scores for {len(missing)} candidate(s): {', '.join(missing[:10])}"
-                )
-            unknown = sorted(set(scores) - known_ids)
-            if unknown:
-                raise ValueError(
-                    f"Input '{name}' contains {len(unknown)} id(s) absent from candidates: {', '.join(unknown[:10])}"
-                )
-            objectives[name] = {cid: scores[cid] for cid in candidate_ids}
+            candidate_ids = [
+                entry["id"]
+                for entry in parse_candidates(candidates_value, "candidates", allow_empty=True)
+            ]
+
+        # Score only the ids every objective covers; ids missing from any
+        # objective are skipped fail-soft (partial evaluator ensembles are a
+        # legitimate state, not a wiring error) and documented in the TSV footer.
+        scored_ids = [
+            cid for cid in candidate_ids if all(cid in scores for scores in objectives.values())
+        ] if objectives else []
+        skipped_ids = [cid for cid in candidate_ids if cid not in set(scored_ids)]
+        footer: list[str] = []
+        if not objectives:
+            footer.append("empty result: no scores_N input produced usable rows")
+        elif not candidate_ids:
+            footer.append("empty result: candidate batch is empty")
+        elif skipped_ids:
+            footer.append(
+                f"skipped {len(skipped_ids)} candidate(s) missing from one or more objectives: "
+                + ", ".join(skipped_ids[:20])
+            )
 
         weights = self._parameter_map(kwargs.get("weights"), "weights", default=1.0)
         modes = self._parameter_map(kwargs.get("modes"), "modes", default="maximize")
         active = {name: float(weights.get(name, 1.0)) for name in objectives}
-        if sum(active.values()) <= 0:
+        if objectives and sum(active.values()) <= 0:
             raise ValueError("Input 'weights' must yield a positive total weight")
 
-        normalized: dict[str, dict[str, float]] = {}
-        for name, scores in objectives.items():
-            values = [scores[cid] for cid in candidate_ids]
-            mean = sum(values) / len(values)
-            variance = sum((value - mean) ** 2 for value in values) / len(values)
-            std = math.sqrt(variance)
-            normalized[name] = {
-                cid: 0.0 if std == 0 else (scores[cid] - mean) / std for cid in candidate_ids
-            }
-
         ranked: list[dict[str, Any]] = []
-        total_weight = sum(active.values())
-        for cid in candidate_ids:
-            composite = 0.0
-            per_objective: dict[str, float] = {}
-            for name in objectives:
-                direction = 1.0 if modes.get(name, "maximize") == "maximize" else -1.0
-                composite += active[name] * direction * normalized[name][cid]
-                per_objective[name] = objectives[name][cid]
-            composite = composite / total_weight
-            ranked.append({"id": cid, "composite": composite, "per_objective": per_objective})
-        ranked.sort(key=lambda item: (-item["composite"], item["id"]))
+        if scored_ids:
+            for name, scores in objectives.items():
+                objectives[name] = {cid: scores[cid] for cid in scored_ids}
+            normalized: dict[str, dict[str, float]] = {}
+            for name, scores in objectives.items():
+                values = [scores[cid] for cid in scored_ids]
+                mean = sum(values) / len(values)
+                variance = sum((value - mean) ** 2 for value in values) / len(values)
+                std = math.sqrt(variance)
+                normalized[name] = {
+                    cid: 0.0 if std == 0 else (scores[cid] - mean) / std for cid in scored_ids
+                }
+
+            total_weight = sum(active.values())
+            for cid in scored_ids:
+                composite = 0.0
+                per_objective: dict[str, float] = {}
+                for name in objectives:
+                    direction = 1.0 if modes.get(name, "maximize") == "maximize" else -1.0
+                    composite += active[name] * direction * normalized[name][cid]
+                    per_objective[name] = objectives[name][cid]
+                composite = composite / total_weight
+                ranked.append({"id": cid, "composite": composite, "per_objective": per_objective})
+            ranked.sort(key=lambda item: (-item["composite"], item["id"]))
 
         output_dir = node_output_dir(self, context)
         json_path = output_dir / "ranked.json"
@@ -209,6 +224,7 @@ class MultiObjectiveScorerNode(MLDesignNode):
                 for item in ranked
             ],
         )
+        append_table_footer(tsv_path, footer)
         return (str(json_path), str(tsv_path))
 
     @classmethod

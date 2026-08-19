@@ -173,8 +173,8 @@ async def test_candidate_generator_rejects_invalid_inputs(tmp_path: Path) -> Non
         ({"base_cds": "ATGGGGT"}, "multiple of three"),
         ({"base_cds": "ATGX"}, "non-ACGT"),
         ({"base_cds": "ATGTAATTT", "n_candidates": 24}, "stop codon"),
-        ({"base_cds": "ATGGGGTTTAAA", "n_candidates": 0}, "n_candidates' must be at least 1"),
         ({"base_cds": "ATGGGGTTTAAA", "n_candidates": 2000}, "n_candidates' must be at most 1000"),
+        ({"base_cds": "ATGGGGTTTAAA", "n_candidates": -1}, "n_candidates' must be at least 0"),
         ({"base_cds": "ATGGGGTTTAAA", "strategy": "nope"}, "strategy' must be one of"),
         (
             {"base_cds": "ATGGGGTTTAAA", "strategy": "synonymous_weighted"},
@@ -205,6 +205,14 @@ async def test_candidate_generator_rejects_invalid_inputs(tmp_path: Path) -> Non
 
     with pytest.raises(ValueError, match="must be a non-empty"):
         await node.run(base_cds="", context=_context(tmp_path))
+
+    # n_candidates=0 is the empty-batch guard: it validates and emits an
+    # explicitly empty candidates JSON + empty FASTA instead of erroring.
+    empty_json, empty_fasta = await node.run(
+        base_cds="ATGGGGTTTAAA", n_candidates=0, context=_context(tmp_path, "zero")
+    )
+    assert json.loads(Path(empty_json).read_text(encoding="utf-8")) == []
+    assert Path(empty_fasta).read_text(encoding="utf-8").strip() == ""
 
 
 @pytest.mark.asyncio
@@ -256,7 +264,7 @@ async def test_multi_objective_scorer_weights_modes_and_ranking(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
-async def test_multi_objective_scorer_rejects_mismatched_and_malformed_inputs(tmp_path: Path) -> None:
+async def test_multi_objective_scorer_rejects_malformed_and_scores_intersections(tmp_path: Path) -> None:
     base = _base_cds()
     candidates = (
         await CandidateGeneratorNode().run(base_cds=base, n_candidates=8, seed=5, context=_context(tmp_path))
@@ -264,12 +272,27 @@ async def test_multi_objective_scorer_rejects_mismatched_and_malformed_inputs(tm
     entries = json.loads(Path(candidates).read_text(encoding="utf-8"))
     valid = json.dumps([{"id": entry["id"], "score": 1.0} for entry in entries])
 
+    # Partial id coverage is tolerated: only the intersection is scored and
+    # the skipped ids are documented in a provenance footer on the TSV.
+    partial = json.dumps([{"id": entries[0]["id"], "score": 1.0}])
+    with_ghost = json.dumps(
+        [{"id": entry["id"], "score": 1.0} for entry in entries] + [{"id": "ghost", "score": 2.0}]
+    )
+    ranked, table = await MultiObjectiveScorerNode().run(
+        candidates=candidates, scores_1=partial, context=_context(tmp_path, "partial")
+    )
+    payload = json.loads(Path(ranked).read_text(encoding="utf-8"))
+    assert [entry["id"] for entry in payload] == [entries[0]["id"]]
+    table_text = Path(table).read_text(encoding="utf-8")
+    assert "<!--" in table_text and "skipped 7 candidate(s)" in table_text
+
+    ghost_ranked, _ = await MultiObjectiveScorerNode().run(
+        candidates=candidates, scores_1=with_ghost, context=_context(tmp_path, "ghost")
+    )
+    ghost_ids = [entry["id"] for entry in json.loads(Path(ghost_ranked).read_text(encoding="utf-8"))]
+    assert "ghost" not in ghost_ids and len(ghost_ids) == len(entries)
+
     cases: tuple[tuple[dict[str, Any], str], ...] = (
-        ({"scores_1": json.dumps([{"id": entries[0]["id"], "score": 1.0}])}, "missing scores for"),
-        (
-            {"scores_1": json.dumps([{"id": entry["id"], "score": 1.0} for entry in entries] + [{"id": "ghost", "score": 2.0}])},
-            "absent from candidates",
-        ),
         ({"scores_1": json.dumps([{"id": entry["id"], "score": "abc"} for entry in entries])}, "not numeric"),
         ({"scores_1": valid, "weights": "{not json"}, "must be a JSON object"),
         ({"scores_1": valid, "weights": json.dumps({"bogus": 1.0})}, "scores_N input name"),
@@ -460,10 +483,17 @@ async def test_optimizer_rejects_drifted_candidates_and_broken_policy(tmp_path: 
     with pytest.raises(ValueError, match="one identical protein"):
         await GroupRelativeOptimizerNode().run(candidates=mutated, ranked=ranked, context=context)
 
+    # Partial coverage is tolerated: candidates absent from ranked are dropped
+    # and the optimizer updates the policy over the covered subset.
     ranked_entries = json.loads(Path(ranked).read_text(encoding="utf-8"))
     truncated_ranked = json.dumps(ranked_entries[:-2])
-    with pytest.raises(ValueError, match="missing composite"):
-        await GroupRelativeOptimizerNode().run(candidates=candidates, ranked=truncated_ranked, context=context)
+    subset_policy, subset_elites, subset_best = await GroupRelativeOptimizerNode().run(
+        candidates=candidates, ranked=truncated_ranked, context=context
+    )
+    subset_payload = json.loads(Path(subset_elites).read_text(encoding="utf-8"))
+    assert subset_payload["stats"]["n_candidates"] == len(ranked_entries) - 2
+    assert len(subset_payload["elites"]) == len(ranked_entries) - 2
+    assert json.loads(Path(subset_best).read_text(encoding="utf-8"))["id"] == subset_payload["best"]["id"]
 
     bad_policy = tmp_path / "policy.json"
     bad_policy.write_text(json.dumps({"positions": {"0": {"AAA": 1.0}}}), encoding="utf-8")

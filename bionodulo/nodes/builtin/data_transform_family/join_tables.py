@@ -9,6 +9,7 @@ from typing import Any
 from .adapter import (
     DELIMITER_MODES,
     PythonDataTransformNode,
+    append_table_footer,
     delimiter_for,
     node_output_dir,
     path_value,
@@ -27,7 +28,14 @@ class JoinTablesNode(PythonDataTransformNode):
 
     NODE_ID = "join_tables"
     DISPLAY_NAME = "Join Tables"
-    DESCRIPTION = "Join two CSV/TSV tables by shared multi-column keys or by row index."
+    DESCRIPTION = (
+        "Join two CSV/TSV tables by shared multi-column keys or by row index. "
+        "Empty-tolerant: when either input table has zero data rows (header-only, "
+        "provenance-footer-only, or no header at all) the node emits a header-only "
+        "joined table with a provenance footer documenting the empty side instead of "
+        "erroring, so evaluator ensembles where one evaluator legitimately produced "
+        "no records still join."
+    )
     SEARCH_ALIASES = ["join", "tables", "multi-key", "index join", "advanced join", "csv", "tsv"]
     RETURN_TYPES = ("TSV",)
     RETURN_NAMES = ("joined_table",)
@@ -36,7 +44,9 @@ class JoinTablesNode(PythonDataTransformNode):
     PRODUCT_ORIGIN_COMMIT = "c9191042c21e18a38500aba29517ff0ede13271c"
     EXIT_SEMANTICS = (
         "Missing files, malformed tables, absent keys, invalid join modes, and suffix collisions are fatal; "
-        "empty join_keys explicitly selects deterministic row-index joining."
+        "empty join_keys explicitly selects deterministic row-index joining; an input table with zero "
+        "data rows (including no header at all) yields a header-only joined table with a provenance "
+        "footer rather than an error."
     )
 
     @classmethod
@@ -80,12 +90,32 @@ class JoinTablesNode(PythonDataTransformNode):
         table_a = Path(path_value(kwargs["table_a"])).expanduser()
         table_b = Path(path_value(kwargs["table_b"])).expanduser()
         delimiter_mode = kwargs.get("delimiter", "auto")
-        fields_a, rows_a = read_table(table_a, delimiter_for(delimiter_mode, table_a))
-        fields_b, rows_b = read_table(table_b, delimiter_for(delimiter_mode, table_b))
+        fields_a, rows_a = self._read_table_lenient(table_a, delimiter_mode, "table_a")
+        fields_b, rows_b = self._read_table_lenient(table_b, delimiter_mode, "table_b")
         join_keys = split_fields(kwargs.get("join_keys", ""))
         how = str(kwargs.get("how", "inner"))
         left_suffix = str(kwargs.get("left_suffix", "_left"))
         right_suffix = str(kwargs.get("right_suffix", "_right"))
+
+        # Empty-tolerant join: an evaluator ensemble where ANY input table has
+        # zero data rows (header-only, provenance-footer-only, or a fully empty
+        # file) cannot produce joined records, so emit a header-only table with
+        # a provenance footer documenting why — never a hard error.
+        if not rows_a or not rows_b:
+            empty_sides = [name for name, rows in (("table_a", rows_a), ("table_b", rows_b)) if not rows]
+            output_path = node_output_dir(self, context) / "joined.tsv"
+            write_table(
+                output_path,
+                self._empty_join_header(fields_a, fields_b, join_keys, left_suffix, right_suffix),
+                [],
+                "\t",
+            )
+            append_table_footer(
+                output_path,
+                [f"empty join: {', '.join(empty_sides)} has zero data rows"],
+            )
+            return (str(output_path),)
+
         output_fields = self.output_fields(fields_a, fields_b, join_keys, left_suffix, right_suffix)
         if len(output_fields) != len(set(output_fields)):
             raise ValueError("Join suffixes produce duplicate output column names")
@@ -116,6 +146,44 @@ class JoinTablesNode(PythonDataTransformNode):
         output_path = node_output_dir(self, context) / "joined.tsv"
         write_table(output_path, output_fields, output_rows, "\t")
         return (str(output_path),)
+
+    @staticmethod
+    def _read_table_lenient(
+        path: Path,
+        delimiter_mode: str,
+        name: str,
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        """read_table, but a file with no header at all counts as zero data rows.
+
+        Structural problems (blank/duplicate header names, ragged rows) stay
+        fatal; only "there is literally nothing in this table" degrades to an
+        empty side of the join.
+        """
+        try:
+            return read_table(path, delimiter_for(delimiter_mode, path))
+        except ValueError as exc:
+            if "Table is empty" not in str(exc):
+                raise
+            return [], []
+
+    @staticmethod
+    def _empty_join_header(
+        fields_a: list[str],
+        fields_b: list[str],
+        join_keys: list[str],
+        left_suffix: str,
+        right_suffix: str,
+    ) -> list[str]:
+        """Header for a zero-row join: the normal join header when both sides
+        declare one, else whichever side's header survives, else the join keys
+        (or a placeholder column) so the output is still a valid table."""
+        if fields_a and fields_b:
+            try:
+                return JoinTablesNode.output_fields(fields_a, fields_b, join_keys, left_suffix, right_suffix)
+            except ValueError:
+                pass
+        header = fields_a or fields_b or join_keys or ["id"]
+        return list(dict.fromkeys(header))
 
     @staticmethod
     def output_fields(

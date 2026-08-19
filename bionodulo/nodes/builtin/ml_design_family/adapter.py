@@ -156,13 +156,30 @@ def load_json_mapping(value: Any, key: str) -> dict[str, Any] | None:
     return payload
 
 
-def parse_candidates(value: Any, key: str = "candidates") -> list[dict[str, Any]]:
+def parse_candidates(
+    value: Any,
+    key: str = "candidates",
+    *,
+    allow_empty: bool = False,
+) -> list[dict[str, Any]]:
+    """Parse a candidate batch JSON.
+
+    With ``allow_empty=True`` an empty candidate array yields ``[]`` instead of
+    raising: loop-shaped workflows legitimately produce zero candidates (empty
+    first iteration, a generator guard emitting an empty batch), and consumers
+    must treat that as "nothing to do". Structural problems in a present,
+    non-empty batch remain fatal either way.
+    """
     payload = load_json_payload(value, key)
     if payload is None:
         raise ValueError(f"Input '{key}' is required")
     if isinstance(payload, dict) and isinstance(payload.get("candidates"), list):
         payload = payload["candidates"]
-    if not isinstance(payload, list) or not payload:
+    if not isinstance(payload, list):
+        raise ValueError(f"Input '{key}' must be a non-empty JSON array of candidate objects")
+    if not payload:
+        if allow_empty:
+            return []
         raise ValueError(f"Input '{key}' must be a non-empty JSON array of candidate objects")
     seen: set[str] = set()
     entries: list[dict[str, Any]] = []
@@ -205,6 +222,13 @@ def parse_score_entries(
 
 
 def read_table(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    """Read a TSV/CSV table as (fieldnames, rows).
+
+    Empty-tolerant by design: a file with a valid header but zero data rows
+    (an evaluator that produced no records, a header-only predictions table)
+    returns ``([], [])`` so loop-shaped workflows can pass emptiness along
+    instead of crashing. Only a file with no header at all still errors.
+    """
     delimiter = "," if path.suffix.lower() == ".csv" else "\t"
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.reader(handle, delimiter=delimiter)
@@ -224,7 +248,7 @@ def read_table(path: Path) -> tuple[list[str], list[dict[str, str]]]:
                 raise ValueError(f"Table row {line_number} has {len(values)} fields; expected {len(fieldnames)}")
             rows.append(dict(zip(fieldnames, values, strict=True)))
     if not rows:
-        raise ValueError(f"Table contains no data rows: {path}")
+        return [], []  # header-only table: an empty result, not an error
     return [name.strip() for name in fieldnames], rows
 
 
@@ -272,6 +296,20 @@ def write_tsv_file(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]
         writer.writeheader()
         for row in rows:
             writer.writerow({name: format_cell(row.get(name, "")) for name in fieldnames})
+
+
+def append_table_footer(path: Path, notes: list[str]) -> None:
+    """Append provenance-footer notes after a table's data rows.
+
+    Every note line starts with the ``<!--`` marker, which both families'
+    ``read_table`` treat as "metadata from here on" — so downstream nodes
+    re-reading the table still see only the data rows.
+    """
+    if not notes:
+        return
+    with path.open("a", encoding="utf-8") as handle:
+        for note in notes:
+            handle.write(f"<!-- {note} -->\n")
 
 
 def format_cell(value: Any) -> str:

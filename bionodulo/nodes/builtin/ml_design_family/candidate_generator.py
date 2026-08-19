@@ -31,7 +31,9 @@ class CandidateGeneratorNode(MLDesignNode):
     DESCRIPTION = (
         "Generate N deterministic synonymous-codon variants of a base CDS "
         "(uniform, codon-weighted, or GC-target-biased sampling); the pi_old sampler "
-        "of the iterative mRNA design loop."
+        "of the iterative mRNA design loop. n_candidates=0 emits an empty candidates "
+        "JSON array and an empty FASTA instead of erroring, so downstream nodes "
+        "receive an explicitly empty batch."
     )
     SEARCH_ALIASES = [
         "mRNA design",
@@ -55,7 +57,7 @@ class CandidateGeneratorNode(MLDesignNode):
                 "utr5_template": ("STRING", {"default": "", "description": "Optional 5' UTR attached to every candidate"}),
                 "utr3_template": ("STRING", {"default": "", "description": "Optional 3' UTR attached to every candidate"}),
                 "codon_weights": ("JSON", {"default": "", "description": "codon -> positive weight JSON for synonymous_weighted"}),
-                "n_candidates": ("INT", {"default": 24, "min": 1, "max": 1000}),
+                "n_candidates": ("INT", {"default": 24, "min": 0, "max": 1000}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
                 "strategy": ("STRING", {"default": "synonymous_uniform", "options": list(STRATEGIES)}),
                 "gc_target": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "description": "GC fraction targeted by gc_jitter"}),
@@ -79,7 +81,7 @@ class CandidateGeneratorNode(MLDesignNode):
         validation = validate_choice_input(inputs.get("strategy", "synonymous_uniform"), "strategy", STRATEGIES)
         if validation is not True:
             return validation
-        validation = validate_int_input(inputs.get("n_candidates", 24), "n_candidates", minimum=1, maximum=1000)
+        validation = validate_int_input(inputs.get("n_candidates", 24), "n_candidates", minimum=0, maximum=1000)
         if validation is not True:
             return validation
         validation = validate_int_input(inputs.get("seed", 0), "seed", minimum=0, maximum=2147483647)

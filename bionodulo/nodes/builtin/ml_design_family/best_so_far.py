@@ -28,7 +28,9 @@ class BestSoFarNode(MLDesignNode):
         "'value' -> best_so_far 'current', each iteration's ranked/candidate batch -> "
         "best_so_far 'incoming', and best_so_far 'best' -> the loop-body node that feeds "
         "the while_loop 'value' input, so state arrives purely through loop wiring. Feed "
-        "'score' (or 'improved' as 1/0) into while_loop numeric condition modes."
+        "'score' (or 'improved' as 1/0) into while_loop numeric condition modes. "
+        "Empty-tolerant: an empty or null incoming batch passes the current best "
+        "through unchanged (or null when no best exists yet) with improved=false."
     )
     SEARCH_ALIASES = [
         "best so far",
@@ -83,18 +85,26 @@ class BestSoFarNode(MLDesignNode):
         mode = str(kwargs.get("mode", "maximize"))
         key = str(kwargs.get("key", "composite") or "composite").strip()
         incoming = self._entries(kwargs["incoming"], "incoming", key)
-        if not incoming:
-            raise ValueError("Input 'incoming' must contain at least one entry")
-        best_incoming = self._best(incoming, mode, key)
 
         current_raw = kwargs.get("current")
         current = None
         if current_raw not in (None, ""):
             entries = self._entries(current_raw, "current", key)
-            if not entries:
-                raise ValueError("Input 'current' must contain at least one entry")
-            current = self._best(entries, mode, key)
+            current = self._best(entries, mode, key) if entries else None
 
+        # Empty-tolerant: an empty incoming batch (e.g. a first iteration where
+        # every evaluator produced no rows) passes the current best through
+        # unchanged — or null when no best exists yet — instead of erroring.
+        if not incoming:
+            best = current
+            improved = False
+            score = float(best[key]) if best is not None else 0.0
+            output_dir = node_output_dir(self, context)
+            best_path = output_dir / "best.json"
+            write_json_file(best_path, best)
+            return (str(best_path), improved, score)
+
+        best_incoming = self._best(incoming, mode, key)
         improved = current is None or self._better(best_incoming[key], current[key], mode)
         best = best_incoming if improved else current
 
@@ -108,6 +118,8 @@ class BestSoFarNode(MLDesignNode):
         payload, table = load_json_or_table(value, name)
         if table is not None:
             fieldnames, rows = table
+            if not rows:
+                return []  # header-only / empty table: nothing to compare
             for column in ("id", key):
                 if column not in fieldnames:
                     raise ValueError(f"Input '{name}' TSV header must contain an '{column}' column")

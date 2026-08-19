@@ -173,6 +173,21 @@ def write_table(
             writer.writerow({name: format_scalar(row.get(name, "")) for name in fieldnames})
 
 
+def append_table_footer(path: Path, notes: Iterable[str]) -> None:
+    """Append provenance-footer notes after a table's data rows.
+
+    Every note line starts with the ``<!--`` marker, which both families'
+    ``read_table`` treat as "metadata from here on" — so downstream nodes
+    re-reading the table still see only the data rows.
+    """
+    notes_list = [note for note in notes if note]
+    if not notes_list:
+        return
+    with path.open("a", encoding="utf-8") as handle:
+        for note in notes_list:
+            handle.write(f"<!-- {note} -->\n")
+
+
 def split_fields(value: Any) -> list[str]:
     return [item.strip() for item in str(value or "").split(",") if item.strip()]
 

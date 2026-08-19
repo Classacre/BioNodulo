@@ -507,6 +507,15 @@ def _resolve_example_data_fallback(source: Any, context: Any) -> Path | None:
 class CopyInputNode(CommandNode):
     """Shared copy behavior for workflow input nodes."""
 
+    # Input nodes return the absolute path of the staged copy inside the
+    # CURRENT run's directory. Caching that output across runs serves the
+    # previous run's path on a cache hit — a directory that has typically been
+    # cleaned up — so input nodes are always re-executed (they only copy or
+    # resume a workspace-level URL cache, which is cheap). See
+    # WorkflowExecutor._executor_cache_policy: "always_run" forces a fresh
+    # cache key (None) every run.
+    EXECUTOR_CACHE_POLICY = "always_run"
+
     SOURCE_KEYS: ClassVar[tuple[str, ...]] = ()
     OUTPUT_KEYS: ClassVar[tuple[str, ...]] = ()
     ALLOW_MULTIPLE: ClassVar[bool] = False

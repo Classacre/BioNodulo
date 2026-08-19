@@ -64,6 +64,10 @@
     ],
     "requires_gpu": false
   },
+  "accession_gate": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "adapter_removal": {
     "required_executables": [
       "AdapterRemoval"
@@ -1711,6 +1715,14 @@
     "required_executables": [
       "convert_fasta_bins_to_biobox_format.py"
     ],
+    "requires_gpu": false
+  },
+  "campaign_config_builder": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "campaign_results_builder": {
+    "required_executables": [],
     "requires_gpu": false
   },
   "candidate_generator": {
@@ -3612,6 +3624,10 @@
     "required_executables": [],
     "requires_gpu": false
   },
+  "lineardesign_optimize": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "list_operations": {
     "required_executables": [],
     "requires_gpu": false
@@ -3653,6 +3669,10 @@
       "lofreq",
       "samtools"
     ],
+    "requires_gpu": false
+  },
+  "m6a_validation_metrics": {
+    "required_executables": [],
     "requires_gpu": false
   },
   "ma_plot": {
@@ -3979,6 +3999,12 @@
     ],
     "requires_gpu": false
   },
+  "modkit_extract": {
+    "required_executables": [
+      "modkit"
+    ],
+    "requires_gpu": false
+  },
   "modkit_pileup": {
     "required_executables": [
       "modkit"
@@ -4195,6 +4221,14 @@
     "required_executables": [],
     "requires_gpu": false
   },
+  "openvaccine_prepare": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "paired_stats": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
   "pangenome_gene": {
     "required_executables": [
       "panaroo"
@@ -4318,6 +4352,10 @@
     "required_executables": [
       "Platypus.py"
     ],
+    "requires_gpu": false
+  },
+  "pod5_subset": {
+    "required_executables": [],
     "requires_gpu": false
   },
   "policy_sampler": {
@@ -5363,6 +5401,10 @@
       "bgzip",
       "tracy"
     ],
+    "requires_gpu": false
+  },
+  "training_leakage_check": {
+    "required_executables": [],
     "requires_gpu": false
   },
   "transpose_table": {

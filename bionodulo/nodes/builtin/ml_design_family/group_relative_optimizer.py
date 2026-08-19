@@ -34,7 +34,13 @@ class GroupRelativeOptimizerNode(MLDesignNode):
         "codon policy table via advantage-weighted counts, with softmax temperature, "
         "learning-rate step, epsilon probability floor on every synonymous codon, and "
         "ref_strength mixing toward the reference table (the KL-to-reference analogue). "
-        "Also selects the top-k elite set and emits the batch's best candidate."
+        "Also selects the top-k elite set and emits the batch's best candidate. "
+        "Empty-tolerant: an empty candidate batch and/or empty ranked list (zero "
+        "elites, e.g. a first iteration where every evaluator produced no rows) emits "
+        "the policy unchanged (pass-through of the wired policy_table, else an empty "
+        "uniform skeleton), an empty elite set, and stats with n_candidates 0 and "
+        "best_composite null instead of erroring; candidates absent from the ranked "
+        "list are dropped rather than fatal."
     )
     SEARCH_ALIASES = [
         "GRPO",
@@ -100,8 +106,14 @@ class GroupRelativeOptimizerNode(MLDesignNode):
         validation = self.VALIDATE_INPUTS(kwargs)
         if validation is not True:
             raise ValueError(str(validation))
-        candidates = parse_candidates(kwargs["candidates"], "candidates")
+        candidates = parse_candidates(kwargs["candidates"], "candidates", allow_empty=True)
         composites = self._composites(kwargs["ranked"], candidates)
+        # Tolerate partial coverage: the scorer may legitimately rank fewer ids
+        # than the batch (some evaluators produced no rows for them).
+        candidates = [entry for entry in candidates if entry["id"] in composites]
+        if not candidates:
+            return self._zero_elite_passthrough(kwargs, context)
+
         proteins = {self._protein(entry["cds"], entry["id"]) for entry in candidates}
         if len(proteins) != 1:
             raise ValueError("All candidates must encode one identical protein for codon-policy updates")
@@ -155,6 +167,7 @@ class GroupRelativeOptimizerNode(MLDesignNode):
                 "elites": elites,
                 "best": best,
                 "stats": {
+                    "n_candidates": len(candidates),
                     "mean": mean,
                     "std": std,
                     "best_composite": values[best_index],
@@ -165,25 +178,73 @@ class GroupRelativeOptimizerNode(MLDesignNode):
         write_json_file(best_path, best)
         return (str(policy_path), str(elites_path), str(best_path))
 
+    def _zero_elite_passthrough(self, kwargs: dict[str, Any], context: Any) -> tuple[str, str, str]:
+        """Zero elites (empty batch and/or empty ranked list): do not error.
+
+        Emits the policy unchanged (the wired policy_table verbatim when one
+        was supplied, else a canonical empty uniform skeleton that
+        policy_sampler falls back to uniform sampling from) plus an empty
+        elite set with best_composite null, so loop iteration one with an
+        empty candidate batch survives without hidden state.
+        """
+        payload = load_json_mapping(kwargs.get("policy_table"), "policy_table")
+        policy = (
+            payload
+            if isinstance(payload, dict)
+            else {
+                "format": "categorical_codon_policy_v1",
+                "n_positions": 0,
+                "position_key_style": "0-based codon index",
+                "positions": {},
+            }
+        )
+        output_dir = node_output_dir(self, context)
+        policy_path = output_dir / "policy_table.json"
+        elites_path = output_dir / "elites.json"
+        best_path = output_dir / "best.json"
+        write_json_file(policy_path, policy)
+        write_json_file(
+            elites_path,
+            {
+                "elites": [],
+                "best": None,
+                "stats": {
+                    "n_candidates": 0,
+                    "mean": None,
+                    "std": None,
+                    "best_composite": None,
+                    "improvement_vs_prev": None,
+                },
+            },
+        )
+        write_json_file(best_path, None)
+        return (str(policy_path), str(elites_path), str(best_path))
+
     @staticmethod
     def _composites(value: Any, candidates: list[dict[str, Any]]) -> dict[str, float]:
+        """Map candidate id -> composite; ids absent from ranked are omitted.
+
+        An empty ranked list yields {} (the zero-elite pass-through); entries
+        in ranked that match no candidate are ignored. Structural errors in a
+        present, non-empty payload remain fatal.
+        """
         payload = load_json_payload(value, "ranked")
-        if not isinstance(payload, list) or not payload:
+        if payload is None:
+            raise ValueError("Input 'ranked' must be a non-empty JSON array from multi_objective_scorer")
+        if not isinstance(payload, list):
             raise ValueError("Input 'ranked' must be a non-empty JSON array from multi_objective_scorer")
         composites: dict[str, float] = {}
+        known = {entry["id"] for entry in candidates}
         for index, entry in enumerate(payload):
             if not isinstance(entry, dict):
                 raise ValueError(f"Input 'ranked' entry {index} must be a JSON object")
             cid = str(entry.get("id", "")).strip()
             if not cid:
                 raise ValueError(f"Input 'ranked' entry {index} is missing a non-empty 'id'")
+            if known and cid not in known:
+                continue
             composites[cid] = numeric_field(entry, "composite", f"Input 'ranked' entry {cid}")
-        missing = [entry["id"] for entry in candidates if entry["id"] not in composites]
-        if missing:
-            raise ValueError(
-                f"Input 'ranked' is missing composite for {len(missing)} candidate(s): {', '.join(missing[:10])}"
-            )
-        return {entry["id"]: composites[entry["id"]] for entry in candidates}
+        return composites
 
     @staticmethod
     def _protein(cds: str, identifier: str) -> str:
@@ -221,6 +282,11 @@ class GroupRelativeOptimizerNode(MLDesignNode):
         positions = payload.get("positions")
         if not isinstance(positions, dict):
             raise ValueError("Input 'policy_table' must contain a 'positions' object")
+        if not positions:
+            # The zero-elite pass-through skeleton (or any empty policy
+            # table): nothing learned yet, so update from the uniform
+            # reference rather than failing the recovery iteration.
+            return reference
         n_positions = len(domains)
         supplied = {str(key) for key in positions}
         expected = {str(index) for index in range(n_positions)}
