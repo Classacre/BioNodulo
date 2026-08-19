@@ -1,16 +1,24 @@
-# BioNodulo
+<p align="center">
+  <img src=".github/assets/logo.svg" alt="BioNodulo logo" width="120" />
+</p>
 
-**Visual bioinformatics pipelines, node by node.**
+<h1 align="center">BioNodulo</h1>
+
+<p align="center">
+  <strong>Visual bioinformatics pipelines, node by node.</strong>
+</p>
+
+<p align="center">
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FClassacre%2FBioNodulo%2Fmain%2Fpyproject.toml&amp;query=%24.project.version&amp;label=version&amp;color=0d9488&amp;logo=github" alt="Version" /></a>
+  <a href="https://discord.gg/baNKVhZq6k"><img src="https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&amp;logoColor=white" alt="Discord" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Closed%20Alpha%20Commercial-f59e0b" alt="License" /></a>
+  <a href="https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" /></a>
+  <a href="mcp/"><img src="https://img.shields.io/badge/MCP-Server-6B5B95?logo=modelcontextprotocol&amp;logoColor=white" alt="MCP Server" /></a>
+  <a href="mcp/"><img src="https://img.shields.io/badge/Claude-D97757?logo=claude&amp;logoColor=fff" alt="Claude" /></a>
+  <a href="mcp/"><img src="https://img.shields.io/badge/Codex-412991?logo=openai&amp;logoColor=white" alt="Codex" /></a>
+</p>
 
 BioNodulo is a professional-grade visual workflow workbench for bioinformatics. Build, execute, and share complex bioinformatics pipelines using an intuitive node-based graph editor.
-
-[![Version](https://img.shields.io/badge/version-0.1.0--alpha.25-0d9488?logo=github)](pyproject.toml)
-[![Discord](https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&logoColor=white)](https://discord.gg/baNKVhZq6k)
-[![License](https://img.shields.io/badge/license-Closed%20Alpha%20Commercial-f59e0b)](LICENSE)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb)
-[![MCP Server](https://img.shields.io/badge/MCP-Server-6B5B95?logo=modelcontextprotocol&logoColor=white)](mcp/)
-[![Claude](https://img.shields.io/badge/Claude-D97757?logo=claude&logoColor=fff)](mcp/)
-[![Codex](https://img.shields.io/badge/Codex-412991?logo=openai&logoColor=white)](mcp/)
 
 ## Features
 
