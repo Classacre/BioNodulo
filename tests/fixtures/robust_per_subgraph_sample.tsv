@@ -1,0 +1,6 @@
+subgraph	n_iterations	best_composite_overall	best_composite_final	best_id	best_scores_1	best_scores_2	best_scores_3	best_scores_4	best_scores_5	best_scores_6
+e1/fe_pairs	30	1.402794	1.222226	cand_0027	0.705518	-554.200000	0.275564	74.501992	3.000000	
+e1/fe_pairs/iterations/0001/d1_wl	30	1.541144	1.268899	cand_0046	0.743146	-209.100000	0.189679	65.271967	1.000000	
+e2/fe_abl/iterations/0001/fe_abl_pairs/iterations/0006/dv_wl	30	1.343780	0.922677	cand_0009	0.702470	-516.700000	0.283533	65.338645	1.000000	
+e2/fe_b1/iterations/0011/b1_wl	30	1.696485	1.035567	rand_0014	0.702730	-288.600000	0.151423	54.471545	2.000000	
+e2/fe_b2/iterations/0020/b2_wl	1	0.000000	0.000000	optimized_cds	1.000000	-616.800000	0.172121	72.727273	3.000000	

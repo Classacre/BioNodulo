@@ -159,3 +159,33 @@ async def test_miniature_master_run_does_not_crash_on_empty_batches(tmp_path: Pa
             assert any(pattern.search(error) for pattern in KNOWN_EMPTY_TOLERANCE), (
                 f"{node_id} failed outside known empty-tolerance patterns: {error[:300]}"
             )
+
+
+def _filter_rows(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    for _, node in _iter_nodes({"nodes": nodes}):
+        if node.get("type") == "filter_rows" and node.get("params", {}).get("column") == "subgraph":
+            found.append(node)
+    return found
+
+
+def test_stats_filters_match_real_scan_prefixes() -> None:
+    """crb2/crb3 scan the MASTER run root, so their subgraph column is
+    phase-prefixed ('e1/fe_pairs/...', 'e2/fe_b1/...'). Every subgraph-column
+    filter in the template must match at least one row of a real scan, or the
+    paired-stats chain silently produces empty tables (run 45b642 failure).
+    Fixture: real per_subgraph.tsv rows harvested from that run.
+    """
+    fixture = (
+        Path(__file__).parent / "fixtures" / "robust_per_subgraph_sample.tsv"
+    ).read_text(encoding="utf-8")
+    values = [line.split("\t", 1)[0] for line in fixture.splitlines()[1:] if line.strip()]
+    filters = _filter_rows(_load_template()["nodes"])
+    assert filters, "expected subgraph-column filters in the template"
+    for node in filters:
+        params = node["params"]
+        assert params.get("operator") == "startswith"
+        prefix = str(params.get("value", ""))
+        assert any(value.startswith(prefix) for value in values), (
+            f"{node['id']}: prefix {prefix!r} matches no row in the real scan sample"
+        )

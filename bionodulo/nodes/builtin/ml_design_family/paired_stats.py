@@ -262,6 +262,30 @@ class PairedStatsNode(MLDesignNode):
         seed = int(kwargs.get("seed", 1301))
         values_a = self._values(kwargs["values_a"], "values_a")
         values_b = self._values(kwargs["values_b"], "values_b")
+        if not values_a or not values_b:
+            # Empty-tolerance: an upstream filter that matched nothing is a valid
+            # "no data" outcome, not a hard failure — emit a null-stats payload so
+            # downstream consumers can render NaN and the run continues.
+            payload = {
+                "test": test,
+                "alternative": alternative,
+                "n": 0,
+                "statistic": None,
+                "p_value": None,
+                "effect_mean_a": None,
+                "effect_mean_b": None,
+                "mean_diff": None,
+                "ci95_low": None,
+                "ci95_high": None,
+                "alpha": alpha,
+                "significant": False,
+                "empty": True,
+                "note": f"no paired rows (values_a={len(values_a)}, values_b={len(values_b)})",
+            }
+            output_dir = node_output_dir(self, context)
+            stats_path = output_dir / "stats.json"
+            write_json_file(stats_path, payload)
+            return (str(stats_path),)
         if len(values_a) != len(values_b):
             raise ValueError(
                 f"Inputs 'values_a' and 'values_b' must have equal length (got {len(values_a)} vs {len(values_b)})"
@@ -312,14 +336,24 @@ class PairedStatsNode(MLDesignNode):
             content = Path(text).expanduser().read_text(encoding="utf-8").lstrip()
             if content.startswith(("{", "[")):
                 return PairedStatsNode._json_list(content, key, text)
-            fieldnames, rows = read_table(Path(text).expanduser())
+            try:
+                fieldnames, rows = read_table(Path(text).expanduser())
+            except ValueError:
+                return []  # zero-byte / headerless table = no data
+            if not fieldnames or not rows:
+                return []
             column = PairedStatsNode._column(text, fieldnames, key)
             return [PairedStatsNode._number(row.get(column, ""), f"Input '{key}' row {index}") for index, row in enumerate(rows)]
         separator = text.rfind(":")
         if separator > 0:
             table_path = text[:separator].strip()
             if path_probe_is_file(table_path):
-                fieldnames, rows = read_table(Path(table_path).expanduser())
+                try:
+                    fieldnames, rows = read_table(Path(table_path).expanduser())
+                except ValueError:
+                    return []
+                if not fieldnames or not rows:
+                    return []
                 column = PairedStatsNode._column(text, fieldnames, key)
                 return [PairedStatsNode._number(row.get(column, ""), f"Input '{key}' row {index}") for index, row in enumerate(rows)]
         if text.lstrip().startswith(("{", "[")):

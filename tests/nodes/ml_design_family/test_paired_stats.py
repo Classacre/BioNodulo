@@ -168,3 +168,23 @@ async def test_bootstrap_ci_deterministic(tmp_path: Path) -> None:
     assert first["ci95_low"] == second["ci95_low"]
     assert first["ci95_high"] == second["ci95_high"]
     assert first["ci95_low"] < first["ci95_high"]
+
+
+@pytest.mark.asyncio
+async def test_paired_stats_empty_inputs_emit_null_stats(tmp_path: Path) -> None:
+    """Universal empty tolerance: an upstream filter that matched nothing must
+    produce a null-stats payload (n=0, empty=True), not a node failure."""
+    empty = tmp_path / "empty.tsv"
+    empty.write_text("", encoding="utf-8")
+    payload = await _run(PairedStatsNode(), tmp_path, values_a=str(empty), values_b=str(empty))
+    assert payload["empty"] is True
+    assert payload["n"] == 0
+    assert payload["p_value"] is None
+
+
+@pytest.mark.asyncio
+async def test_paired_stats_header_only_table_is_empty(tmp_path: Path) -> None:
+    header_only = tmp_path / "header.tsv"
+    header_only.write_text("best_scores_1\n", encoding="utf-8")
+    payload = await _run(PairedStatsNode(), tmp_path, values_a=str(header_only), values_b=str(header_only))
+    assert payload["empty"] is True
