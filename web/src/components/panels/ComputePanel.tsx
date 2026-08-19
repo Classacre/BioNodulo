@@ -122,6 +122,11 @@ export default function ComputePanel({ onClose }: ComputePanelProps) {
           <div>
             <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('compute.selected', { defaultValue: 'Selected' })}</div>
             <div style={{ fontWeight: 600 }}>{specLabel(spec)}</div>
+            {!isGpu && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                {t('compute.noGpu', { defaultValue: 'No GPU (CPU only)' })}
+              </div>
+            )}
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontWeight: 600 }}>{creditsPerHour.toLocaleString()}</div>
