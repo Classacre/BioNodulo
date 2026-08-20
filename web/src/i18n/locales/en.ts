@@ -673,6 +673,17 @@ const en = {
       regenerateTitle: 'Re-run the previous question',
       regenerate: 'Regenerate',
     },
+    error: {
+      backend: 'The assistant request failed: {{message}}',
+      hint: 'Check your connection or sign-in status, then try again.',
+    },
+    popout: {
+      openTitle: 'Open in window',
+      dockTitle: 'Dock to drawer',
+    },
+    skills: {
+      listLabel: 'Skills',
+    },
     localResponses: {
       rna: 'For RNA-Seq, I recommend: input_fastq -> fastp (trim) -> STAR or HISAT2 (align) -> featureCounts (quantify). Add a Sample Sheet node for multi-sample runs. The RNA-Seq template has this wired up for you!',
       variant: 'For variant calling: input_fastq -> fastp -> BWA-MEM -> samtools sort/index -> GATK HaplotypeCaller -> bcftools filter. The Variant Calling template includes BAM QC with samtools flagstat too.',
@@ -2213,6 +2224,7 @@ class MyToolNode(CommandNode):
     saveSubgraphLibraryOnlySubgraph: 'Save to library only works on subgraph nodes',
     subgraphMissingEmbeddedWorkflow: 'Subgraph has no embedded workflow',
     subgraphFallbackName: 'Subgraph',
+    subgraphChip: 'Subgraph',
     subgraphWorkflowFallbackName: 'Workflow',
     subgraphBlockName: '{{name}} block',
     subgraphSelectionConverted: 'Selection converted to subgraph',

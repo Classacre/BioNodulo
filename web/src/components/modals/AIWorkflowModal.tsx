@@ -2,9 +2,15 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { Workflow } from '../../types';
-import { apiPost, ApiError } from '../../api/client';
+import { apiGet, apiPost, ApiError } from '../../api/client';
 import { logError } from '../../state/logging';
 import { renderMarkdownToHtml } from '../../utils/markdown';
+import {
+  AI_DRAWER_DEFAULT_WIDTH,
+  clampDrawerWidth,
+  filterSkills,
+  type SkillSummary,
+} from '../../utils/aiAssistant';
 
 interface AIWorkflowModalProps {
   workflow: Workflow;
@@ -28,6 +34,9 @@ interface ChatTurn {
   steps?: ChatStep[];
   model?: string;
   files?: AttachedFile[];
+  /** Backend/network failure marker: renders the muted error bubble instead of
+   *  markdown. `content` carries the raw error message. */
+  isError?: boolean;
 }
 
 interface AttachedFile {
@@ -44,7 +53,11 @@ interface ChatSession {
 }
 
 const STORAGE_KEY = 'bionodulo-ai-sessions';
+const DRAWER_WIDTH_KEY = 'bionodulo.ai.drawerWidth';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+// The existing mobile media query collapses the drawer to full-width at this
+// breakpoint; below it the saved/inline width must not apply.
+const DRAWER_FULL_WIDTH_BREAKPOINT = 768;
 
 const QUICK_PROMPTS: { id: string; labelKey: string; promptKey: string }[] = [
   { id: 'summary', labelKey: 'aiWorkflow.quickPrompts.summary.label', promptKey: 'aiWorkflow.quickPrompts.summary.prompt' },
@@ -67,6 +80,17 @@ function saveSessions(sessions: ChatSession[]) {
   } catch { /* ignore */ }
 }
 
+function loadDrawerWidth(): number {
+  try {
+    const raw = localStorage.getItem(DRAWER_WIDTH_KEY);
+    if (raw) {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  } catch { /* ignore */ }
+  return AI_DRAWER_DEFAULT_WIDTH;
+}
+
 function makeId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -85,6 +109,28 @@ function createSession(name: string, greeting: string): ChatSession {
   };
 }
 
+// Module-level skill cache: /ai/skills is fetched at most once per page
+// lifetime (the skill list only changes when packs are imported). A failed
+// fetch clears the in-flight promise so the next '/' keystroke retries.
+let skillsCache: SkillSummary[] | null = null;
+let skillsRequest: Promise<SkillSummary[]> | null = null;
+
+function loadSkills(): Promise<SkillSummary[]> {
+  if (skillsCache) return Promise.resolve(skillsCache);
+  if (!skillsRequest) {
+    skillsRequest = apiGet<{ skills?: SkillSummary[] }>('/ai/skills')
+      .then(data => {
+        skillsCache = Array.isArray(data?.skills) ? data.skills : [];
+        return skillsCache;
+      })
+      .catch(err => {
+        skillsRequest = null;
+        throw err;
+      });
+  }
+  return skillsRequest;
+}
+
 export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: AIWorkflowModalProps) {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -98,15 +144,35 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // Pop-out mode: same chat state, larger centered window with a session
+  // sidebar. `false` is the classic right-hand drawer.
+  const [isPoppedOut, setIsPoppedOut] = useState(false);
+  // Resizable drawer width (drawer mode only; persisted).
+  const [drawerWidth, setDrawerWidth] = useState(() =>
+    clampDrawerWidth(loadDrawerWidth(), typeof window === 'undefined' ? 1024 : window.innerWidth)
+  );
+  const [isResizing, setIsResizing] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === 'undefined' ? 1024 : window.innerWidth
+  );
+  // Slash-command skill autocomplete. skillQuery === null means the dropdown
+  // is closed; otherwise it is the text after the leading '/'.
+  const [availableSkills, setAvailableSkills] = useState<SkillSummary[]>(skillsCache || []);
+  const [skillQuery, setSkillQuery] = useState<string | null>(null);
+  const [skillIndex, setSkillIndex] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const resizeDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
   // AbortController for the in-flight chat fetch — lets the user Stop a slow
   // tool-using turn instead of being forced to wait for it to finish.
   const inFlightRef = useRef<AbortController | null>(null);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const turns = activeSession?.turns || [];
+
+  const skillMatches = skillQuery !== null ? filterSkills(skillQuery, availableSkills) : [];
+  const skillDropdownVisible = skillQuery !== null && skillMatches.length > 0;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -115,6 +181,37 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   useEffect(() => {
     saveSessions(sessions);
   }, [sessions]);
+
+  // Persist the drawer width (clamped value, so a tiny viewport never stores a
+  // width that would be off-screen on a larger display).
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAWER_WIDTH_KEY, String(drawerWidth));
+    } catch { /* ignore */ }
+  }, [drawerWidth]);
+
+  // Track the viewport so the inline drawer width can be suppressed when the
+  // CSS media query takes over (mobile full-width drawer).
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Esc leaves pop-out mode (back to the drawer). Skill-dropdown Escape and
+  // session-rename Escape handle themselves first.
+  useEffect(() => {
+    if (!isPoppedOut) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (renamingId !== null || skillQuery !== null) return;
+      setIsPoppedOut(false);
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [isPoppedOut, renamingId, skillQuery]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -126,6 +223,11 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     if (showMenu) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showMenu]);
+
+  // Keep the highlighted skill inside the visible match list.
+  useEffect(() => {
+    setSkillIndex(i => Math.min(i, Math.max(skillMatches.length - 1, 0)));
+  }, [skillMatches.length]);
 
   const createNewSession = useCallback(() => {
     const s = createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting'));
@@ -264,19 +366,23 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     const abortController = new AbortController();
     inFlightRef.current = abortController;
 
+    // Surface backend/network failures as an honest, muted error bubble.
+    // (Previously this fell back to canned local responses, which masked a
+    // production outage behind plausible-looking nonsense.)
+    const appendErrorTurn = (message: string) => setSessions(prev =>
+      prev.map(s =>
+        s.id === activeSessionId
+          ? { ...s, turns: [...s.turns, { role: 'assistant', content: message, isError: true } as ChatTurn] }
+          : s
+      )
+    );
+
     try {
       const history = historyTurns.map(t => ({
         role: t.role,
         content: t.content || t.steps?.map(s => s.content).join('\n') || '',
       }));
 
-      const respondLocally = () => setSessions(prev =>
-        prev.map(s =>
-          s.id === activeSessionId
-            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg, t) }] }
-            : s
-        )
-      );
       try {
         const data = await apiPost<{ steps?: ChatStep[]; model?: string }>('/ai/chat', {
           message: userMsg,
@@ -316,20 +422,14 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
           );
         } else if (err instanceof ApiError || err instanceof Error) {
           logError('aiWorkflow.chat', err);
-          respondLocally();
+          appendErrorTurn(err.message);
         } else {
           throw err;
         }
       }
     } catch (err) {
       logError('aiWorkflow.chat.fallback', err);
-      setSessions(prev =>
-        prev.map(s =>
-          s.id === activeSessionId
-            ? { ...s, turns: [...s.turns, { role: 'assistant', content: getLocalResponse(userMsg, t) }] }
-            : s
-        )
-      );
+      appendErrorTurn(err instanceof Error ? err.message : String(err));
     }
     inFlightRef.current = null;
     setSending(false);
@@ -339,6 +439,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     if ((!input.trim() && attachments.length === 0) || sending) return;
     const userMsg = input.trim();
     setInput('');
+    setSkillQuery(null);
     const currentAttachments = attachments;
     setAttachments([]);
 
@@ -405,11 +506,133 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     [onApplyWorkflow, activeSessionId, t]
   );
 
-  return (
-    <div className="ai-drawer" onClick={e => e.stopPropagation()}>
-      {/* Header */}
-      <div className="ai-drawer-header">
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+  // --- Slash-command skill autocomplete -----------------------------------
+
+  const handleInputChange = useCallback((value: string) => {
+    setInput(value);
+    if (value.startsWith('/')) {
+      setSkillQuery(value.slice(1));
+      setSkillIndex(0);
+      if (!skillsCache) {
+        // Best-effort: the dropdown simply stays empty when the fetch fails.
+        loadSkills().then(setAvailableSkills).catch(() => { /* autocomplete unavailable */ });
+      }
+    } else if (skillQuery !== null) {
+      setSkillQuery(null);
+    }
+  }, [skillQuery]);
+
+  const selectSkill = useCallback((skill: SkillSummary) => {
+    setInput(`/${skill.name} `);
+    setSkillQuery(null);
+  }, []);
+
+  const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (skillQuery !== null) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setSkillQuery(null);
+        return;
+      }
+      if (skillDropdownVisible) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSkillIndex(i => Math.min(i + 1, skillMatches.length - 1));
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSkillIndex(i => Math.max(i - 1, 0));
+          return;
+        }
+        if (e.key === 'Tab' || e.key === 'Enter') {
+          e.preventDefault();
+          const skill = skillMatches[Math.min(skillIndex, skillMatches.length - 1)];
+          if (skill) selectSkill(skill);
+          return;
+        }
+      }
+    }
+    if (e.key === 'Enter') send();
+  }, [skillQuery, skillDropdownVisible, skillMatches, skillIndex, selectSkill, send]);
+
+  // --- Drawer resize --------------------------------------------------------
+
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    resizeDragRef.current = { startX: e.clientX, startWidth: drawerWidth };
+    setIsResizing(true);
+    document.body.style.userSelect = 'none';
+    const handleMove = (ev: MouseEvent) => {
+      const drag = resizeDragRef.current;
+      if (!drag) return;
+      // The handle sits on the LEFT edge: dragging left grows the drawer.
+      setDrawerWidth(clampDrawerWidth(drag.startWidth + (drag.startX - ev.clientX), window.innerWidth));
+    };
+    const handleUp = () => {
+      resizeDragRef.current = null;
+      setIsResizing(false);
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [drawerWidth]);
+
+  // --- Shared JSX (drawer + pop-out render the same chat, same state) ------
+
+  const sessionItems = sessions.map(s => (
+    <div
+      key={s.id}
+      className={`ai-session-item ${s.id === activeSessionId ? 'active' : ''}`}
+      onClick={() => switchSession(s.id)}
+    >
+      {renamingId === s.id ? (
+        <input
+          className="text-input text-input-sm"
+          value={renameValue}
+          onChange={e => setRenameValue(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commitRename();
+            if (e.key === 'Escape') setRenamingId(null);
+          }}
+          onBlur={commitRename}
+          autoFocus
+          onClick={e => e.stopPropagation()}
+        />
+      ) : (
+        <>
+          <span className="ai-session-name">{s.name}</span>
+          <span className="ai-session-meta">{t('aiWorkflow.sessions.messageCount', { count: s.turns.length })}</span>
+        </>
+      )}
+      {renamingId !== s.id && (
+        <div className="ai-session-actions">
+          <button
+            className="btn btn-icon btn-xs"
+            title={t('common.rename')}
+            onClick={e => startRename(s, e)}
+          >
+            <Icon name="edit" size={10} />
+          </button>
+          <button
+            className="btn btn-icon btn-xs"
+            title={t('common.delete')}
+            onClick={e => deleteSession(s.id, e)}
+          >
+            <Icon name="trash" size={10} />
+          </button>
+        </div>
+      )}
+    </div>
+  ));
+
+  const renderHeader = (inPopout: boolean) => (
+    <div className="ai-drawer-header">
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {!inPopout && (
           <button
             className="btn btn-icon btn-sm"
             onClick={() => setShowMenu(!showMenu)}
@@ -417,12 +640,231 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
           >
             <Icon name="menu" size={16} />
           </button>
-          <Icon name="wand" size={16} /> {t('aiWorkflow.title')}
-        </span>
+        )}
+        <Icon name="wand" size={16} /> {t('aiWorkflow.title')}
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button
+          className="btn btn-icon btn-sm"
+          onClick={() => setIsPoppedOut(!inPopout)}
+          title={inPopout ? t('aiWorkflow.popout.dockTitle') : t('aiWorkflow.popout.openTitle')}
+        >
+          <Icon name={inPopout ? 'minimize' : 'maximize'} size={14} />
+        </button>
         <button className="btn btn-icon btn-sm" onClick={onClose} title={t('common.close')}>
           <Icon name="close" size={14} />
         </button>
+      </span>
+    </div>
+  );
+
+  const chatBody = (
+    <div className="ai-drawer-body">
+      <div className="ai-chat-scroll">
+        {turns.map((turn, i) => (
+          <div key={i} className={`ai-turn ${turn.role}`}>
+            {turn.role === 'user' ? (
+              <div className="ai-msg user">
+                {turn.content}
+                {turn.files && turn.files.length > 0 && (
+                  <div className="ai-file-chips">
+                    {turn.files.map((f, fi) => (
+                      <span key={fi} className="ai-file-chip">
+                        <Icon name="file" size={10} /> {f.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className={`ai-msg assistant ${turn.isError ? 'ai-error' : ''}`}>
+                {turn.isError ? (
+                  <>
+                    <Icon name="warning" size={14} className="ai-error-icon" />
+                    <div className="ai-error-text">
+                      <div>{t('aiWorkflow.error.backend', { message: turn.content || '' })}</div>
+                      <div className="ai-error-hint">{t('aiWorkflow.error.hint')}</div>
+                    </div>
+                  </>
+                ) : turn.steps ? (
+                  <div className="ai-steps">
+                    {turn.steps.map((step, si) => (
+                      <StepRenderer key={si} step={step} onApply={handleApply} />
+                    ))}
+                    <div className="ai-model-badge">{turn.model || t('aiWorkflow.modelUnknown')}</div>
+                  </div>
+                ) : (
+                  <div
+                    className="ai-markdown"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(turn.content || '') }}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+        {sending && (
+          <div className="ai-turn assistant">
+            <div className="ai-msg assistant">
+              <div className="ai-thinking-inline">
+                <span className="ai-spinner" />
+                {t('aiWorkflow.generation.thinking')}
+                <button
+                  className="btn btn-sm btn-ghost"
+                  style={{ marginLeft: 12 }}
+                  onClick={stop}
+                  title={t('aiWorkflow.generation.stopTitle')}
+                >
+                  <Icon name="close" size={10} /> {t('aiWorkflow.generation.stop')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
       </div>
+    </div>
+  );
+
+  const chatFooter = (
+    <div className="ai-drawer-footer">
+      {/* Quick prompt chips: only show when the conversation is empty (one
+          primer assistant turn) and we're not mid-send. They let the user
+          kick off a useful tool-using turn with one click. */}
+      {turns.length <= 1 && !sending && (
+        <div className="ai-quick-prompts">
+          {QUICK_PROMPTS.map(qp => (
+            <button
+              key={qp.id}
+              className="ai-quick-prompt"
+              onClick={() => insertQuickPrompt(t(qp.promptKey))}
+              title={t(qp.promptKey)}
+            >
+              {t(qp.labelKey)}
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Regenerate is offered after any assistant turn so the user can
+          quickly retry without retyping the question. */}
+      {!sending && turns.length > 1 && turns[turns.length - 1].role === 'assistant' && (
+        <div className="ai-quick-prompts">
+          <button className="ai-quick-prompt" onClick={regenerate} title={t('aiWorkflow.generation.regenerateTitle')}>
+            ↻ {t('aiWorkflow.generation.regenerate')}
+          </button>
+        </div>
+      )}
+      {attachments.length > 0 && (
+        <div className="ai-attachments-row">
+          {attachments.map((f, i) => (
+            <span key={i} className="ai-attachment-chip">
+              <Icon name="file" size={10} /> {f.name}
+              <button className="ai-attachment-remove" onClick={() => removeAttachment(i)}>
+                <Icon name="close" size={8} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {skillDropdownVisible && (
+        <div className="ai-skill-dropdown nodrag" role="listbox" aria-label={t('aiWorkflow.skills.listLabel')}>
+          {skillMatches.map((skill, i) => (
+            <button
+              key={skill.name}
+              type="button"
+              role="option"
+              aria-selected={i === skillIndex}
+              className={`ai-skill-option ${i === skillIndex ? 'active' : ''}`}
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => selectSkill(skill)}
+              onMouseEnter={() => setSkillIndex(i)}
+            >
+              <span className="ai-skill-name">/{skill.name}</span>
+              <span className="ai-skill-desc">{skill.description}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="ai-input-row">
+        <button
+          className="btn btn-icon btn-sm"
+          onClick={() => fileInputRef.current?.click()}
+          title={t('aiWorkflow.input.attachFileTitle')}
+        >
+          <Icon name="paperclip" size={14} />
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          style={{ display: 'none' }}
+          multiple
+          onChange={handleFileSelect}
+        />
+        <input
+          type="text"
+          className="text-input"
+          style={{ flex: 1 }}
+          value={input}
+          onChange={e => handleInputChange(e.target.value)}
+          onKeyDown={handleInputKeyDown}
+          onPaste={handlePaste}
+          placeholder={t('aiWorkflow.input.placeholder')}
+          disabled={sending}
+        />
+        {sending ? (
+          <button className="btn btn-secondary" onClick={stop} title={t('aiWorkflow.generation.stopTitle')}>
+            {t('aiWorkflow.generation.stop')}
+          </button>
+        ) : (
+          <button className="btn btn-primary" onClick={send}>
+            {t('aiWorkflow.input.send')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  if (isPoppedOut) {
+    return (
+      <div className="ai-popout-backdrop" onClick={() => setIsPoppedOut(false)}>
+        <div
+          className="ai-popout"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('aiWorkflow.title')}
+          onClick={e => e.stopPropagation()}
+        >
+          {renderHeader(true)}
+          <div className="ai-popout-content">
+            <aside className="ai-popout-sidebar">
+              <div className="ai-session-menu-header">
+                <strong>{t('aiWorkflow.sessions.menuTitle')}</strong>
+                <button className="btn btn-primary btn-sm" onClick={createNewSession}>
+                  <Icon name="plus" size={12} /> {t('aiWorkflow.sessions.newSession')}
+                </button>
+              </div>
+              <div className="ai-session-list">{sessionItems}</div>
+            </aside>
+            <div className="ai-popout-main">
+              {chatBody}
+              {chatFooter}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`ai-drawer ${isResizing ? 'ai-drawer-resizing' : ''}`}
+      style={viewportWidth > DRAWER_FULL_WIDTH_BREAKPOINT ? { width: drawerWidth } : undefined}
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="ai-drawer-resize-handle" onMouseDown={startResize} />
+
+      {/* Header */}
+      {renderHeader(false)}
 
       {/* Session Menu Dropdown */}
       {showMenu && (
@@ -433,192 +875,15 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
               <Icon name="plus" size={12} /> {t('aiWorkflow.sessions.newSession')}
             </button>
           </div>
-          <div className="ai-session-list">
-            {sessions.map(s => (
-              <div
-                key={s.id}
-                className={`ai-session-item ${s.id === activeSessionId ? 'active' : ''}`}
-                onClick={() => switchSession(s.id)}
-              >
-                {renamingId === s.id ? (
-                  <input
-                    className="text-input text-input-sm"
-                    value={renameValue}
-                    onChange={e => setRenameValue(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') commitRename();
-                      if (e.key === 'Escape') setRenamingId(null);
-                    }}
-                    onBlur={commitRename}
-                    autoFocus
-                    onClick={e => e.stopPropagation()}
-                  />
-                ) : (
-                  <>
-                    <span className="ai-session-name">{s.name}</span>
-                    <span className="ai-session-meta">{t('aiWorkflow.sessions.messageCount', { count: s.turns.length })}</span>
-                  </>
-                )}
-                {renamingId !== s.id && (
-                  <div className="ai-session-actions">
-                    <button
-                      className="btn btn-icon btn-xs"
-                      title={t('common.rename')}
-                      onClick={e => startRename(s, e)}
-                    >
-                      <Icon name="edit" size={10} />
-                    </button>
-                    <button
-                      className="btn btn-icon btn-xs"
-                      title={t('common.delete')}
-                      onClick={e => deleteSession(s.id, e)}
-                    >
-                      <Icon name="trash" size={10} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <div className="ai-session-list">{sessionItems}</div>
         </div>
       )}
 
       {/* Body */}
-      <div className="ai-drawer-body">
-        <div className="ai-chat-scroll">
-          {turns.map((turn, i) => (
-            <div key={i} className={`ai-turn ${turn.role}`}>
-              {turn.role === 'user' ? (
-                <div className="ai-msg user">
-                  {turn.content}
-                  {turn.files && turn.files.length > 0 && (
-                    <div className="ai-file-chips">
-                      {turn.files.map((f, fi) => (
-                        <span key={fi} className="ai-file-chip">
-                          <Icon name="file" size={10} /> {f.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="ai-msg assistant">
-                  {turn.steps ? (
-                    <div className="ai-steps">
-                      {turn.steps.map((step, si) => (
-                        <StepRenderer key={si} step={step} onApply={handleApply} />
-                      ))}
-                      <div className="ai-model-badge">{turn.model || t('aiWorkflow.modelUnknown')}</div>
-                    </div>
-                  ) : (
-                    <div
-                      className="ai-markdown"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(turn.content || '') }}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-          {sending && (
-            <div className="ai-turn assistant">
-              <div className="ai-msg assistant">
-                <div className="ai-thinking-inline">
-                  <span className="ai-spinner" />
-                  {t('aiWorkflow.generation.thinking')}
-                  <button
-                    className="btn btn-sm btn-ghost"
-                    style={{ marginLeft: 12 }}
-                    onClick={stop}
-                    title={t('aiWorkflow.generation.stopTitle')}
-                  >
-                    <Icon name="close" size={10} /> {t('aiWorkflow.generation.stop')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          <div ref={bottomRef} />
-        </div>
-      </div>
+      {chatBody}
 
       {/* Footer */}
-      <div className="ai-drawer-footer">
-        {/* Quick prompt chips: only show when the conversation is empty (one
-            primer assistant turn) and we're not mid-send. They let the user
-            kick off a useful tool-using turn with one click. */}
-        {turns.length <= 1 && !sending && (
-          <div className="ai-quick-prompts">
-            {QUICK_PROMPTS.map(qp => (
-              <button
-                key={qp.id}
-                className="ai-quick-prompt"
-                onClick={() => insertQuickPrompt(t(qp.promptKey))}
-                title={t(qp.promptKey)}
-              >
-                {t(qp.labelKey)}
-              </button>
-            ))}
-          </div>
-        )}
-        {/* Regenerate is offered after any assistant turn so the user can
-            quickly retry without retyping the question. */}
-        {!sending && turns.length > 1 && turns[turns.length - 1].role === 'assistant' && (
-          <div className="ai-quick-prompts">
-            <button className="ai-quick-prompt" onClick={regenerate} title={t('aiWorkflow.generation.regenerateTitle')}>
-              ↻ {t('aiWorkflow.generation.regenerate')}
-            </button>
-          </div>
-        )}
-        {attachments.length > 0 && (
-          <div className="ai-attachments-row">
-            {attachments.map((f, i) => (
-              <span key={i} className="ai-attachment-chip">
-                <Icon name="file" size={10} /> {f.name}
-                <button className="ai-attachment-remove" onClick={() => removeAttachment(i)}>
-                  <Icon name="close" size={8} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="ai-input-row">
-          <button
-            className="btn btn-icon btn-sm"
-            onClick={() => fileInputRef.current?.click()}
-            title={t('aiWorkflow.input.attachFileTitle')}
-          >
-            <Icon name="paperclip" size={14} />
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            style={{ display: 'none' }}
-            multiple
-            onChange={handleFileSelect}
-          />
-          <input
-            type="text"
-            className="text-input"
-            style={{ flex: 1 }}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && send()}
-            onPaste={handlePaste}
-            placeholder={t('aiWorkflow.input.placeholder')}
-            disabled={sending}
-          />
-          {sending ? (
-            <button className="btn btn-secondary" onClick={stop} title={t('aiWorkflow.generation.stopTitle')}>
-              {t('aiWorkflow.generation.stop')}
-            </button>
-          ) : (
-            <button className="btn btn-primary" onClick={send}>
-              {t('aiWorkflow.input.send')}
-            </button>
-          )}
-        </div>
-      </div>
+      {chatFooter}
     </div>
   );
 }
@@ -732,36 +997,4 @@ function sanitizeWorkflow(raw: Record<string, unknown>, fallback: Workflow | und
     environment: (raw.environment as Record<string, unknown>) || undefined,
     dependencies: (raw.dependencies as Record<string, string>) || undefined,
   } as Workflow;
-}
-
-function getLocalResponse(msg: string, t: ReturnType<typeof useTranslation>['t']): string {
-  const lower = msg.toLowerCase();
-  if (lower.includes('rna') || lower.includes('transcript')) {
-    return t('aiWorkflow.localResponses.rna');
-  }
-  if (lower.includes('variant') || lower.includes('snp') || lower.includes('vcf')) {
-    return t('aiWorkflow.localResponses.variant');
-  }
-  if (lower.includes('assembly') || lower.includes('spades') || lower.includes('megahit')) {
-    return t('aiWorkflow.localResponses.assembly');
-  }
-  if (lower.includes('meta') || lower.includes('kraken') || lower.includes('humann')) {
-    return t('aiWorkflow.localResponses.metagenomics');
-  }
-  if (lower.includes('chip') || lower.includes('peak')) {
-    return t('aiWorkflow.localResponses.chipSeq');
-  }
-  if (lower.includes('qc') || lower.includes('quality') || lower.includes('fastqc')) {
-    return t('aiWorkflow.localResponses.qc');
-  }
-  if (lower.includes('phylo') || lower.includes('tree')) {
-    return t('aiWorkflow.localResponses.phylogenetics');
-  }
-  if (lower.includes('single cell') || lower.includes('scRNA') || lower.includes('cellranger')) {
-    return t('aiWorkflow.localResponses.singleCell');
-  }
-  if (lower.includes('plot') || lower.includes('r ') || lower.includes('ggplot')) {
-    return t('aiWorkflow.localResponses.plotting');
-  }
-  return t('aiWorkflow.localResponses.default');
 }

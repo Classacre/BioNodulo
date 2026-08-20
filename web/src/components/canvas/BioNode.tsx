@@ -64,6 +64,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
         missingDependency ? 'missing-dep' : '',
         running ? 'running' : '',
         g.collapsed ? 'bio-node-collapsed' : '',
+        g.isSubgraph ? 'bio-node-subgraph' : '',
       ].filter(Boolean).join(' ')}
       style={{ ['--bio-node-color' as string]: g.color }}
       data-node-id={g.id}
@@ -121,6 +122,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
       </NodeToolbar>
 
       <div className="bio-node-header" style={{ height: NODE_HEADER_H, background: g.color }}>
+        {g.isSubgraph && <span className="bio-node-subgraph-chip">{t('canvas.subgraphChip')}</span>}
         <span className="bio-node-title" title={g.title}>{g.title}</span>
         {g.pinned && <span className="bio-node-flag" aria-hidden>📌</span>}
       </div>
@@ -260,6 +262,7 @@ function bioNodePropsEqual(prev: NodeProps, next: NodeProps): boolean {
     ga.pinned === gb.pinned &&
     ga.shape === gb.shape &&
     ga.visualOnly === gb.visualOnly &&
+    ga.isSubgraph === gb.isSubgraph &&
     ga.meta === gb.meta &&
     portsEqual(ga.inputs, gb.inputs) &&
     portsEqual(ga.outputs, gb.outputs) &&

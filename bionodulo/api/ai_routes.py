@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from bionodulo.ai.assistant import chat_with_tools
+from bionodulo.ai.skills import list_skills
 from bionodulo.ai.hosted import (
     HOSTED_MODEL,
     HOSTED_PROVIDER,
@@ -201,6 +203,21 @@ async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
+@ai_router.get("/ai/skills")
+async def ai_skills(request: Request) -> dict[str, Any]:
+    """List available skill packs for the chat input's slash-command autocomplete.
+
+    Cheap listing (name/description/source only, no bodies) whose names match
+    the assistant's ``load_skill`` tool, so the UI can suggest valid
+    ``/<skill-name>`` commands. Workspace skills are included when the app
+    state carries a project root; bare apps (tests) list bundled + user packs.
+    """
+    settings = getattr(request.app.state, "settings", None)
+    project_root = getattr(settings, "project_root", None)
+    workspace = Path(project_root) if project_root else None
+    return list_skills(workspace)
 
 
 @ai_router.post("/ai/reproduce-paper")

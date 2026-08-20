@@ -677,6 +677,17 @@ const es = {
       regenerateTitle: 'Volver a ejecutar la pregunta anterior',
       regenerate: 'Regenerar',
     },
+    error: {
+      backend: 'La solicitud al asistente fallo: {{message}}',
+      hint: 'Revisa tu conexion o inicia sesion, luego intentalo de nuevo.',
+    },
+    popout: {
+      openTitle: 'Abrir en ventana',
+      dockTitle: 'Volver al panel',
+    },
+    skills: {
+      listLabel: 'Habilidades',
+    },
     localResponses: {
       rna: 'Para RNA-Seq, recomiendo: input_fastq -> fastp (recorte) -> STAR o HISAT2 (alinear) -> featureCounts (cuantificar). Agrega un nodo Hoja de muestras para ejecuciones con multiples muestras. La plantilla RNA-Seq ya lo trae conectado.',
       variant: 'Para llamada de variantes: input_fastq -> fastp -> BWA-MEM -> samtools sort/index -> GATK HaplotypeCaller -> bcftools filter. La plantilla de llamado de variantes tambien incluye QC de BAM con samtools flagstat.',
@@ -2223,6 +2234,7 @@ class MyToolNode(CommandNode):
     saveSubgraphLibraryOnlySubgraph: 'Guardar en biblioteca solo funciona en nodos de subgrafo',
     subgraphMissingEmbeddedWorkflow: 'El subgrafo no tiene flujo de trabajo embebido',
     subgraphFallbackName: 'Subgrafo',
+    subgraphChip: 'Subgrafo',
     subgraphWorkflowFallbackName: 'Flujo de trabajo',
     subgraphBlockName: 'Bloque de {{name}}',
     subgraphSelectionConverted: 'Seleccion convertida en subgrafo',

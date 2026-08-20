@@ -31,6 +31,9 @@ export interface GraphNode {
   title: string;
   status?: NodeStatus['status'];
   visualOnly: boolean;
+  /** Engine subgraph node (wn.type === 'subgraph'): gets a distinct stacked
+   *  card look + a SUBGRAPH chip in the header (see BioNode / index.css). */
+  isSubgraph: boolean;
   inlinePreview: boolean;
   previewCollapsed: boolean;
   // Run-reactive: true while this node is showing an inline preview band

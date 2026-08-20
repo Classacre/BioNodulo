@@ -4876,3 +4876,189 @@ kbd {
   cursor: pointer;
 }
 .bio-node-preview-chip:hover { border-color: var(--accent); }
+/* ---------------------------------------------------------------------------
+   AI assistant: resizable drawer, error turns, skill autocomplete, pop-out
+   (Appended feature block — earlier rules above are intentionally untouched.)
+   --------------------------------------------------------------------------- */
+
+/* Resize handle: 6px strip on the drawer's LEFT edge. Hidden on narrow
+   screens, where the media query below collapses the drawer to full width. */
+.ai-drawer-resize-handle {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 6;
+}
+.ai-drawer-resize-handle:hover,
+.ai-drawer-resizing .ai-drawer-resize-handle {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+/* No width transition/animation while dragging — the width follows the
+   pointer 1:1. */
+.ai-drawer-resizing {
+  transition: none !important;
+  animation: none !important;
+}
+@media (max-width: 640px) {
+  .ai-drawer-resize-handle { display: none; }
+}
+
+/* Error turns: honest backend-failure bubble (replaces the old canned local
+   fallback). Subtle: muted text, thin warning-tinted border, warning icon. */
+.ai-msg.ai-error {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  color: var(--muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.ai-msg.ai-error .ai-error-icon {
+  color: var(--warning);
+  flex: none;
+  margin-top: 1px;
+}
+.ai-msg.ai-error .ai-error-text { min-width: 0; }
+.ai-msg.ai-error .ai-error-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+/* Slash-command skill autocomplete: small dropdown above the chat input. */
+.ai-skill-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.ai-skill-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.ai-skill-option.active,
+.ai-skill-option:hover {
+  background: var(--surface-2);
+}
+.ai-skill-name {
+  flex: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+.ai-skill-desc {
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pop-out chat window: large centered modal over a dimmed backdrop. */
+.ai-popout-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ai-popout {
+  width: min(1100px, 92vw);
+  height: min(760px, 88vh);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ai-popout-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.ai-popout-sidebar {
+  width: 240px;
+  flex: none;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ai-popout-sidebar .ai-session-menu-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.ai-popout-sidebar .ai-session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.ai-popout-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------------------
+   Subgraph nodes: distinct "stacked card" look — a 2px accent border plus a
+   two-tone background hint, and a tiny uppercase chip in the header. Uses
+   theme vars so it reads on both the light default and .dark themes.
+   --------------------------------------------------------------------------- */
+.bio-node.bio-node-subgraph {
+  border: 2px solid var(--accent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 10%, var(--surface)) 0%,
+    var(--surface) 45%
+  );
+  /* Stacked-card hint: a second "card" peeking out underneath. */
+  box-shadow:
+    0 3px 0 -1px var(--border),
+    0 6px 0 -2px color-mix(in srgb, var(--border) 60%, transparent),
+    0 1px 3px rgba(0, 0, 0, 0.18);
+}
+.dark .bio-node.bio-node-subgraph {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 14%, var(--surface)) 0%,
+    var(--surface) 45%
+  );
+}
+.bio-node-subgraph-chip {
+  flex: none;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+}

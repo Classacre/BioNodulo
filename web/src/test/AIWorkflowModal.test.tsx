@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { apiPost } from '../api/client';
+import { apiGet, apiPost } from '../api/client';
 import type { Workflow } from '../types';
 
 vi.mock('../api/client', () => {
@@ -10,6 +10,7 @@ vi.mock('../api/client', () => {
 
   return {
     ApiError,
+    apiGet: vi.fn(() => Promise.resolve({ skills: [] })),
     apiPost: vi.fn((_path: string, _json?: unknown, init?: { signal?: AbortSignal }) =>
       new Promise((_resolve, reject) => {
         if (init?.signal?.aborted) {
@@ -437,65 +438,35 @@ describe('AIWorkflowModal i18n', () => {
     expect(await screen.findByDisplayValue('Aqui estan mis nodos seleccionados (2 nodos, 1 arista): fastqc, multiqc')).toBeInTheDocument();
   });
 
-  it('renders local fallback responses from the active locale', async () => {
+  it('renders an honest error turn (never canned text) when the backend fails', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const { setLanguage } = await import('../i18n');
 
     await setLanguage('es');
+    const chatError = new Error('offline');
+    vi.mocked(apiPost).mockRejectedValueOnce(chatError);
 
-    async function expectFallback(prompt: string, expected: string, forbidden: RegExp[] = []) {
-      storage.clear();
-      const chatError = new Error('offline');
-      vi.mocked(apiPost).mockRejectedValueOnce(chatError);
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
 
-      render(
-        <AIWorkflowModal
-          workflow={workflow()}
-          onClose={() => undefined}
-          onApplyWorkflow={() => undefined}
-        />,
-      );
+    fireEvent.change(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)'), {
+      target: { value: 'rna workflow' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
-      fireEvent.change(screen.getByPlaceholderText('Pregunta sobre flujos de trabajo... (pega imagenes directamente)'), {
-        target: { value: prompt },
-      });
-      fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
-
-      expect(await screen.findByText(expected)).toBeInTheDocument();
-      expect(loggingMock.logError).toHaveBeenCalledWith('aiWorkflow.chat', chatError);
-      forbidden.forEach(pattern => expect(screen.queryByText(pattern)).not.toBeInTheDocument());
-      cleanup();
-      loggingMock.logError.mockReset();
-    }
-
-    await expectFallback(
-      'rna workflow',
-      'Para RNA-Seq, recomiendo: input_fastq -> fastp (recorte) -> STAR o HISAT2 (alinear) -> featureCounts (cuantificar). Agrega un nodo Hoja de muestras para ejecuciones con multiples muestras. La plantilla RNA-Seq ya lo trae conectado.',
-      [/Sample Sheet/],
-    );
-    await expectFallback(
-      'variant calling',
-      'Para llamada de variantes: input_fastq -> fastp -> BWA-MEM -> samtools sort/index -> GATK HaplotypeCaller -> bcftools filter. La plantilla de llamado de variantes tambien incluye QC de BAM con samtools flagstat.',
-      [/Variant Calling/],
-    );
-    await expectFallback(
-      'single cell analysis',
-      'Para celula unica: directorio de entrada (FASTQs) + transcriptoma de referencia -> Cell Ranger Count. La plantilla de celula unica esta preconfigurada para datos 10x Genomics.',
-      [/single-cell/, /Single Cell/],
-    );
-    await expectFallback(
-      'plot graph',
-      'Para graficar: usa el nodo Grafico R. Conecta un nodo Constructor de DataFrame con tus columnas x/y, elige dispersion/lineas/barras/cajas y configura color/titulo opcionales.',
-      [/R Plot/, /scatter\/line\/bar\/boxplot/],
-    );
-    await expectFallback(
-      'something else',
-      'Puedo ayudarte a disenar flujos de trabajo de bioinformatica. Prueba preguntar sobre RNA-Seq, llamada de variantes, ensamblaje, metagenomica, ChIP-Seq, QC, filogenetica o analisis de celula unica.',
-      [/single-cell/, /disenar workflows/i],
-    );
+    expect(await screen.findByText('La solicitud al asistente fallo: offline')).toBeInTheDocument();
+    expect(screen.getByText('Revisa tu conexion o inicia sesion, luego intentalo de nuevo.')).toBeInTheDocument();
+    expect(loggingMock.logError).toHaveBeenCalledWith('aiWorkflow.chat', chatError);
+    // The canned local responses must never mask a backend failure.
+    expect(screen.queryByText(/Para RNA-Seq, recomiendo/)).not.toBeInTheDocument();
   });
 
-  it('logs unexpected chat fallback failures while preserving the local response', async () => {
+  it('logs unexpected chat failures and renders them as error turns too', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const thrownValue = 'unexpected-chat-failure';
 
@@ -514,8 +485,55 @@ describe('AIWorkflowModal i18n', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
-    expect(await screen.findByText(/For RNA-Seq, I recommend/)).toBeInTheDocument();
+    expect(await screen.findByText('The assistant request failed: unexpected-chat-failure')).toBeInTheDocument();
+    expect(screen.getByText('Check your connection or sign-in status, then try again.')).toBeInTheDocument();
     expect(loggingMock.logError).toHaveBeenCalledWith('aiWorkflow.chat.fallback', thrownValue);
+    expect(screen.queryByText(/For RNA-Seq, I recommend/)).not.toBeInTheDocument();
+  });
+
+  it('suggests skills for slash commands and inserts the selection without sending', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+
+    // Call history accumulates across tests in this file — reset so the
+    // "did not send" assertion below only covers this test.
+    vi.mocked(apiPost).mockClear();
+    vi.mocked(apiGet).mockResolvedValue({
+      skills: [
+        { name: 'qc-report', description: 'Aggregate QC metrics', source: 'user' },
+        { name: 'rnaseq', description: 'RNA-seq pipeline helper', source: 'bundled' },
+      ],
+    });
+
+    render(
+      <AIWorkflowModal
+        workflow={workflow()}
+        onClose={() => undefined}
+        onApplyWorkflow={() => undefined}
+      />,
+    );
+
+    const chatInput = screen.getByPlaceholderText('Ask about workflows... (Paste images directly)');
+    fireEvent.change(chatInput, { target: { value: '/' } });
+
+    // Both skills listed once the fetch resolves.
+    expect(await screen.findByText('/rnaseq')).toBeInTheDocument();
+    expect(screen.getByText('/qc-report')).toBeInTheDocument();
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+
+    // Prefix filtering narrows the list.
+    fireEvent.change(chatInput, { target: { value: '/rn' } });
+    expect(screen.getByText('/rnaseq')).toBeInTheDocument();
+    expect(screen.queryByText('/qc-report')).not.toBeInTheDocument();
+
+    // Enter inserts the command; it does NOT send the message.
+    fireEvent.keyDown(chatInput, { key: 'Enter' });
+    expect(chatInput).toHaveValue('/rnaseq ');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(apiPost).not.toHaveBeenCalled();
+
+    // Typing a normal message hides the dropdown for good.
+    fireEvent.change(chatInput, { target: { value: 'hello' } });
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 
   it('renders the missing model fallback from the active locale', async () => {
@@ -586,16 +604,11 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.generation.regenerateTitle',
       'aiWorkflow.generation.regenerate',
       'aiWorkflow.modelUnknown',
-      'aiWorkflow.localResponses.rna',
-      'aiWorkflow.localResponses.variant',
-      'aiWorkflow.localResponses.assembly',
-      'aiWorkflow.localResponses.metagenomics',
-      'aiWorkflow.localResponses.chipSeq',
-      'aiWorkflow.localResponses.qc',
-      'aiWorkflow.localResponses.phylogenetics',
-      'aiWorkflow.localResponses.singleCell',
-      'aiWorkflow.localResponses.plotting',
-      'aiWorkflow.localResponses.default',
+      'aiWorkflow.error.backend',
+      'aiWorkflow.error.hint',
+      'aiWorkflow.popout.openTitle',
+      'aiWorkflow.popout.dockTitle',
+      'aiWorkflow.skills.listLabel',
       'common.untitled',
       'common.close',
       'common.rename',
@@ -642,6 +655,9 @@ describe('AIWorkflowModal i18n', () => {
       '_Stopped by user._',
       'Re-run the previous question',
       '↻ Regenerate',
+      'The assistant request failed',
+      'Open in window',
+      'Dock to drawer',
       "model: data.model || 'unknown'",
       'For RNA-Seq, I recommend',
       'For variant calling:',

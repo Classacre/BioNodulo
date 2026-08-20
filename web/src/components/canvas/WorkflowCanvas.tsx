@@ -296,6 +296,7 @@ function toGraphNode(
     title: wn.ui?.title || meta?.display_name || wn.type || t('canvas.nodeFallbackTitle'),
     status,
     visualOnly,
+    isSubgraph,
     inlinePreview: false,
     previewCollapsed: false,
     showingPreview: false,
