@@ -312,3 +312,127 @@ async def test_research_tools_registered_and_async_dispatch(monkeypatch: pytest.
     result = await aexecute_tool("literature_search", {"query": "deseq2"}, ToolContext())
     assert result["status"] == "ok"
     assert result["result"]["count"] == 0
+
+
+_EUROPEPMC_RESULT = {
+    "resultList": {
+        "result": [
+            {
+                "id": "PPR123456",
+                "source": "PPR",
+                "doi": "10.1101/2024.01.01.123456",
+                "title": "A bioRxiv preprint on RNA velocity",
+                "authorString": "Doe J, Smith A",
+                "journalTitle": "bioRxiv",
+                "pubYear": "2024",
+                "abstractText": "Preprint abstract.",
+                "isOpenAccess": "Y",
+            },
+            {
+                "id": "38888888",
+                "source": "MED",
+                "pmid": "38888888",
+                "title": "A PubMed journal article",
+                "authorString": "Lee K",
+                "journalTitle": "Nature Methods",
+                "pubYear": "2024",
+                "isOpenAccess": "N",
+            },
+        ]
+    }
+}
+
+
+@pytest.mark.asyncio
+async def test_europepmc_search_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "www.ebi.ac.uk"
+        assert "rna+velocity" in str(request.url) or "rna velocity" in str(request.url) or "rna" in str(request.url)
+        return _json_response(_EUROPEPMC_RESULT)
+
+    _install_transport(monkeypatch, handler)
+
+    result = await research_tools._europepmc_search(ToolContext(), query="rna velocity", max_results=5)
+
+    assert result["count"] == 2
+    preprint, article = result["results"]
+    assert preprint["source"] == "PPR"  # bioRxiv/medRxiv preprint marker
+    assert preprint["doi"] == "10.1101/2024.01.01.123456"
+    assert preprint["authors"] == ["Doe J", "Smith A"]
+    assert preprint["is_open_access"] is True
+    assert preprint["url"] == "https://europepmc.org/article/PPR/PPR123456"
+    assert article["source"] == "MED"
+    assert article["pmid"] == "38888888"
+    assert article["abstract"] == ""
+
+
+@pytest.mark.asyncio
+async def test_europepmc_search_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_transport(monkeypatch, lambda request: httpx.Response(503, text="down"))
+    result = await research_tools._europepmc_search(ToolContext(), query="deseq2")
+    assert "error" in result
+    assert "Europe PMC search failed" in result["error"]
+
+
+_CLINICALTRIALS_RESULT = {
+    "studies": [
+        {
+            "protocolSection": {
+                "identificationModule": {"nctId": "NCT01234567", "briefTitle": "Drug X in Glioma"},
+                "statusModule": {"overallStatus": "RECRUITING"},
+                "designModule": {"phases": ["PHASE2"]},
+                "sponsorCollaboratorsModule": {"leadSponsor": {"name": "Acme Oncology"}},
+            }
+        },
+        {
+            "protocolSection": {
+                "identificationModule": {"nctId": "NCT07654321", "officialTitle": "Drug Y Basket Study"},
+                "statusModule": {"overallStatus": "COMPLETED"},
+                "designModule": {},
+                "sponsorCollaboratorsModule": {"leadSponsor": {"name": "State University"}},
+            }
+        },
+    ]
+}
+
+
+@pytest.mark.asyncio
+async def test_clinicaltrials_search_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "clinicaltrials.gov"
+        assert request.url.path == "/api/v2/studies"
+        return _json_response(_CLINICALTRIALS_RESULT)
+
+    _install_transport(monkeypatch, handler)
+
+    result = await research_tools._clinicaltrials_search(ToolContext(), query="glioma", max_results=5)
+
+    assert result["count"] == 2
+    first, second = result["results"]
+    assert first["nct_id"] == "NCT01234567"
+    assert first["title"] == "Drug X in Glioma"
+    assert first["status"] == "RECRUITING"
+    assert first["phase"] == "PHASE2"
+    assert first["sponsor"] == "Acme Oncology"
+    assert first["url"] == "https://clinicaltrials.gov/study/NCT01234567"
+    assert second["title"] == "Drug Y Basket Study"  # falls back to officialTitle
+    assert second["phase"] == ""
+
+
+@pytest.mark.asyncio
+async def test_clinicaltrials_search_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    _install_transport(monkeypatch, lambda request: httpx.Response(500, text="boom"))
+    result = await research_tools._clinicaltrials_search(ToolContext(), query="glioma")
+    assert "error" in result
+    assert "ClinicalTrials.gov search failed" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_new_connectors_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("europepmc_search", "clinicaltrials_search"):
+        assert get_tool(name) is not None, name
+
+    _install_transport(monkeypatch, lambda request: _json_response({"resultList": {"result": []}}))
+    result = await aexecute_tool("europepmc_search", {"query": "deseq2"}, ToolContext())
+    assert result["status"] == "ok"
+    assert result["result"]["count"] == 0

@@ -6,6 +6,9 @@ Free, keyless scholarly APIs — no credentials required anywhere:
   lookup by DOI, and citation graphs (citing works, references).
 - NCBI E-utilities (PubMed): biomedical literature search and metadata.
 - arXiv (export.arxiv.org/api/query): preprint search and lookup.
+- Europe PMC (www.ebi.ac.uk/europepmc): biomedical literature including
+  bioRxiv/medRxiv preprints (per-result ``source`` field).
+- ClinicalTrials.gov v2: clinical study search (NCT id, status, phase, sponsor).
 
 All handlers are async, share one ``httpx.AsyncClient`` per call with a 30 s
 timeout, throttle per host (a simple minimum-interval delay in the spirit of
@@ -40,6 +43,8 @@ USER_AGENT = "BioNodulo/2.0 (AI assistant research tools; mailto:bionodulo@users
 OPENALEX_BASE = "https://api.openalex.org"
 NCBI_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 ARXIV_BASE = "https://export.arxiv.org/api/query"
+EUROPEPMC_BASE = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+CLINICALTRIALS_BASE = "https://clinicaltrials.gov/api/v2"
 
 #: Minimum seconds between requests to the same host. OpenAlex's polite pool
 #: allows ~10 req/s, NCBI 3 req/s without a key, and arXiv asks for ~3 s.
@@ -47,6 +52,8 @@ _HOST_MIN_INTERVAL_S = {
     "api.openalex.org": 0.1,
     "eutils.ncbi.nlm.nih.gov": 0.34,
     "export.arxiv.org": 3.0,
+    "www.ebi.ac.uk": 0.34,
+    "clinicaltrials.gov": 0.34,
 }
 _DEFAULT_MIN_INTERVAL_S = 0.5
 
@@ -325,6 +332,96 @@ async def _arxiv_search(
 
 
 # ---------------------------------------------------------------------------
+# Europe PMC (covers PubMed + bioRxiv/medRxiv preprints)
+# ---------------------------------------------------------------------------
+
+
+def _europepmc_card(entry: dict[str, Any]) -> dict[str, Any]:
+    source = str(entry.get("source") or "")
+    entry_id = str(entry.get("id") or "")
+    return {
+        "id": entry_id,
+        "source": source,  # MED = PubMed, PMC, PPR = preprint (bioRxiv/medRxiv), ...
+        "pmid": entry.get("pmid") or "",
+        "doi": entry.get("doi") or "",
+        "title": entry.get("title") or "",
+        "authors": str(entry.get("authorString") or "").split(", ")[:6] if entry.get("authorString") else [],
+        "journal": entry.get("journalTitle") or "",
+        "year": entry.get("pubYear") or "",
+        "abstract": (entry.get("abstractText") or "")[:4000],
+        "is_open_access": entry.get("isOpenAccess") == "Y",
+        "url": f"https://europepmc.org/article/{source}/{entry_id}" if source and entry_id else "",
+    }
+
+
+async def _europepmc_search(
+    ctx: ToolContext,
+    query: str,
+    max_results: int | None = 10,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Search Europe PMC (keyless), which also indexes bioRxiv/medRxiv preprints."""
+    count = _clamp_count(max_results, 10, 50)
+    try:
+        async with _new_client() as client:
+            payload = await _get_json(
+                client,
+                f"{EUROPEPMC_BASE}/search",
+                params={"query": query, "format": "json", "pageSize": count},
+            )
+    except Exception as exc:
+        return {"error": f"Europe PMC search failed: {exc}", "query": query}
+    entries = (payload.get("resultList") or {}).get("result") or []
+    results = [_europepmc_card(e) for e in entries if isinstance(e, dict)]
+    return {"query": query, "results": results, "count": len(results)}
+
+
+# ---------------------------------------------------------------------------
+# ClinicalTrials.gov (API v2)
+# ---------------------------------------------------------------------------
+
+
+def _clinicaltrials_card(study: dict[str, Any]) -> dict[str, Any]:
+    protocol = study.get("protocolSection") or {}
+    identification = protocol.get("identificationModule") or {}
+    status = protocol.get("statusModule") or {}
+    design = protocol.get("designModule") or {}
+    sponsor = protocol.get("sponsorCollaboratorsModule") or {}
+    nct_id = identification.get("nctId") or ""
+    phases = design.get("phases") or []
+    return {
+        "nct_id": nct_id,
+        "title": identification.get("briefTitle") or identification.get("officialTitle") or "",
+        "status": status.get("overallStatus") or "",
+        "phase": ", ".join(str(p) for p in phases),
+        "sponsor": (sponsor.get("leadSponsor") or {}).get("name") or "",
+        "url": f"https://clinicaltrials.gov/study/{nct_id}" if nct_id else "",
+    }
+
+
+async def _clinicaltrials_search(
+    ctx: ToolContext,
+    query: str,
+    max_results: int | None = 10,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Search ClinicalTrials.gov (API v2, keyless) for clinical studies."""
+    count = _clamp_count(max_results, 10, 50)
+    try:
+        async with _new_client() as client:
+            payload = await _get_json(
+                client,
+                f"{CLINICALTRIALS_BASE}/studies",
+                params={"query.term": query, "pageSize": count},
+            )
+    except Exception as exc:
+        return {"error": f"ClinicalTrials.gov search failed: {exc}", "query": query}
+    studies = payload.get("studies") or []
+    results = [_clinicaltrials_card(s) for s in studies if isinstance(s, dict)]
+    return {"query": query, "results": results, "count": len(results)}
+
+
+# ---------------------------------------------------------------------------
 # Identifier routing: get_paper / citation_lookup
 # ---------------------------------------------------------------------------
 
@@ -484,6 +581,24 @@ RESEARCH_TOOLS: list[ToolDefinition] = [
             ToolParameter("max_results", "integer", "Maximum papers to return (<=50)", required=False, default=10),
         ],
         _arxiv_search,
+    ),
+    ToolDefinition(
+        "europepmc_search",
+        "Search Europe PMC (keyless) for biomedical papers — covers PubMed plus bioRxiv/medRxiv preprints (the per-result 'source' field distinguishes them: MED/PMC vs PPR). Returns title, authors, journal, year, DOI/PMID, abstract, and open-access flag.",
+        [
+            ToolParameter("query", "string", "Europe PMC search query (supports fielded syntax, e.g. TITLE:\"deseq2\")"),
+            ToolParameter("max_results", "integer", "Maximum papers to return (<=50)", required=False, default=10),
+        ],
+        _europepmc_search,
+    ),
+    ToolDefinition(
+        "clinicaltrials_search",
+        "Search ClinicalTrials.gov (API v2, keyless) for clinical studies. Returns NCT id, title, overall status, phase, lead sponsor, and URL. Use for translational/clinical context behind a target or therapy.",
+        [
+            ToolParameter("query", "string", "Condition, intervention, or keyword query"),
+            ToolParameter("max_results", "integer", "Maximum studies to return (<=50)", required=False, default=10),
+        ],
+        _clinicaltrials_search,
     ),
     ToolDefinition(
         "get_paper",

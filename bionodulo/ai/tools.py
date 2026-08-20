@@ -1892,6 +1892,12 @@ from bionodulo.ai.research_tools import RESEARCH_TOOLS as _RESEARCH_TOOLS  # noq
 
 ALL_TOOLS = ALL_TOOLS + _RESEARCH_TOOLS
 
+# Skill packs (list/load/import + the optional feynman CLI bridge) live in
+# their own module for the same reason; same bottom-of-file import pattern.
+from bionodulo.ai.skills import SKILL_TOOLS as _SKILL_TOOLS  # noqa: E402
+
+ALL_TOOLS = ALL_TOOLS + _SKILL_TOOLS
+
 
 def get_tool(name: str) -> ToolDefinition | None:
     """Get a tool by name."""

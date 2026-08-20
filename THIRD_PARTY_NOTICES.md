@@ -49,6 +49,17 @@ Examples of external tools that require separate license attention include:
 - R/Bioconductor packages and Conda/Bioconda packages, which may have their own
   license, citation, redistribution, and source-availability obligations.
 
+## Bundled Skill Packs
+
+The AI assistant ships skill packs (SKILL.md prompt/workflow documents) under
+`bionodulo/ai/bundled_skills/`:
+
+- **Feynman** (https://github.com/companion-inc/feynman), Copyright (c) 2026
+  Companion, Inc., licensed under the MIT License. The bundled skill library
+  under `bionodulo/ai/bundled_skills/feynman/` is redistributed unmodified in
+  content; the full license text ships alongside it at
+  `bionodulo/ai/bundled_skills/feynman/LICENSE`.
+
 ## Distribution Guidance
 
 BioNodulo installers, containers, managed environments, and hosted deployments
