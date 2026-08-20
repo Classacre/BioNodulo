@@ -1885,6 +1885,14 @@ ALL_TOOLS: list[ToolDefinition] = [
 ]
 
 
+# Research tools (OpenAlex / PubMed / arXiv) live in their own module to keep
+# this file focused on workflow editing; they share the ToolDefinition schema
+# defined above, so the import sits at the bottom to avoid a circular import.
+from bionodulo.ai.research_tools import RESEARCH_TOOLS as _RESEARCH_TOOLS
+
+ALL_TOOLS = ALL_TOOLS + _RESEARCH_TOOLS
+
+
 def get_tool(name: str) -> ToolDefinition | None:
     """Get a tool by name."""
     for tool in ALL_TOOLS:

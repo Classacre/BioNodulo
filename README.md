@@ -89,7 +89,7 @@ BioNodulo is a professional-grade visual workflow workbench for bioinformatics. 
 - **Workflow Converters** — Import and export workflows between SnakeMake, NextFlow, CWL, Galaxy, and BioNodulo JSON formats
 - **Settings System** — Per-user settings with categories for appearance, canvas, execution, LLM, and files
 - **Help / Wiki System** — Built-in searchable documentation panel (Ctrl+6)
-- **AI Assistant** — Chat-based workflow builder assistant
+- **AI Assistant** — Chat-based workflow builder assistant with keyless literature research tools (OpenAlex, PubMed, arXiv) — see [`docs/assistant-research.md`](docs/assistant-research.md)
 - **Environment Manager** — Auto-detect missing dependencies, one-click install, Conda/Mamba/Micromamba env CRUD, Docker/Apptainer support, per-workflow isolation
 - **Dependency Resolution** — Scans workflows on open for missing nodes, executables, and Python packages with a top-center banner + Auto Install
 - **Custom Nodes** — Extensible plugin system for local custom node packages; Git URL installation exists in the backend but still needs frontend validation before it should be treated as a polished user flow
