@@ -1888,7 +1888,7 @@ ALL_TOOLS: list[ToolDefinition] = [
 # Research tools (OpenAlex / PubMed / arXiv) live in their own module to keep
 # this file focused on workflow editing; they share the ToolDefinition schema
 # defined above, so the import sits at the bottom to avoid a circular import.
-from bionodulo.ai.research_tools import RESEARCH_TOOLS as _RESEARCH_TOOLS
+from bionodulo.ai.research_tools import RESEARCH_TOOLS as _RESEARCH_TOOLS  # noqa: E402
 
 ALL_TOOLS = ALL_TOOLS + _RESEARCH_TOOLS
 

@@ -217,6 +217,32 @@ class CacheStore:
 
         return {key: _convert(str(key), value) for key, value in values.items()}
 
+    @staticmethod
+    def marker_outputs_exist(outputs: dict[str, Any]) -> bool:
+        """Return True when every absolute file path in *outputs* still exists.
+
+        Cache markers record output paths from the run that produced them. With
+        content-addressed (path-independent) keys a later run may hit such an
+        entry after the old run directory was deleted; replaying those paths
+        would hand downstream nodes dangling references. Non-path values
+        (numbers, inline JSON, relative names) are ignored.
+        """
+        def _walk(value: Any) -> bool:
+            if isinstance(value, str):
+                if value and len(value) < 4096 and os.path.isabs(value):
+                    try:
+                        return os.path.exists(value)
+                    except (OSError, ValueError):
+                        return False
+                return True
+            if isinstance(value, (list, tuple)):
+                return all(_walk(item) for item in value)
+            if isinstance(value, dict):
+                return all(_walk(item) for item in value.values())
+            return True
+
+        return all(_walk(value) for value in outputs.values())
+
     def is_hit(self, cache_key: str) -> bool:
         """Return *True* if a non-expired cached result exists for *cache_key*."""
         return self.read_marker(cache_key) is not None

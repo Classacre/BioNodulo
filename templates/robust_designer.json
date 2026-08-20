@@ -137,7 +137,14 @@
         "ablations_jsonl": {}
       },
       "ui": {
-        "title": "Campaign Config Builder"
+        "title": "Campaign Config Builder",
+        "promotedInputs": [
+          "targets",
+          "seeds",
+          "evaluator_weights",
+          "objective_ports",
+          "ablation_weights"
+        ]
       }
     },
     {

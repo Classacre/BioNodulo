@@ -735,9 +735,19 @@ class WorkflowExecutor:
                     env_prefix = self._env_prefix_for_node(node, workflow)
 
                 # ---- Cache hit check ----
+                marker = None
                 if cache_key is not None and self.cache.is_hit(cache_key):
                     marker = self.cache.read_marker(cache_key)
                     cached_outputs = marker.get("outputs", {}) if marker else {}
+                    # Path-independent keys (content fingerprints) let a rerun hit
+                    # entries written by an earlier run — but the marker's outputs
+                    # point at THAT run's directory. If it was cleaned up, the
+                    # replayed paths dangle; treat the entry as a miss so the node
+                    # re-executes and materialises fresh outputs under this run.
+                    if cached_outputs and not self.cache.marker_outputs_exist(cached_outputs):
+                        marker = None
+                        cached_outputs = {}
+                if cache_key is not None and marker is not None:
                     ctx = ExecutionContext(
                         run_id=run_id,
                         node_id=node_id,
