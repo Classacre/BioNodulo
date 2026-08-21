@@ -75,6 +75,21 @@ class OpenvaccinePrepareNode(MLDesignNode):
         arms = self._arms(kwargs.get("arms", DEFAULT_ARMS))
 
         molecules, missing_counts = self._from_json(json_path, arms) if json_path else self._from_rdat(rdat_path, arms)
+        # Public datasets carry duplicate construct IDs (RYOS alone has 8), and
+        # tsv_to_fasta treats colliding normalized IDs as fatal. Suffix repeats
+        # here so every molecule keeps a unique, stable identity end-to-end.
+        seen_ids: set[str] = set()
+        duplicated_ids = 0
+        for entry in molecules:
+            candidate = str(entry["id"])
+            if candidate in seen_ids:
+                duplicated_ids += 1
+                counter = 1
+                while f"{candidate}-dup{counter}" in seen_ids:
+                    counter += 1
+                candidate = f"{candidate}-dup{counter}"
+                entry["id"] = candidate
+            seen_ids.add(candidate)
         rows = [
             {
                 "id": entry["id"],
@@ -103,6 +118,7 @@ class OpenvaccinePrepareNode(MLDesignNode):
             }
         summary = {
             "n_molecules": len(molecules),
+            "n_duplicated_ids_suffixed": duplicated_ids,
             "arms": sorted(arm_stats),
             "per_arm": arm_stats,
             "k_deg_definition": "sum(per-nt values) / max(n_measured - 1, 1)",

@@ -152,3 +152,34 @@ async def test_input_presence_rules(tmp_path: Path) -> None:
         )
     with pytest.raises(ValueError, match="not an existing file"):
         await node.run(json_path=str(tmp_path / "nope.json"), context=_context(tmp_path, "nope"))
+
+
+@pytest.mark.asyncio
+async def test_duplicate_ids_suffixed_for_fasta_uniqueness(tmp_path: Path) -> None:
+    """RYOS-style sources carry repeated construct IDs; tsv_to_fasta treats
+    colliding normalized IDs as fatal, so repeats must be suffixed here."""
+    json_path = tmp_path / "dups.json"
+    payload = {
+        "ID": {"0": "9842694", "1": "9842694", "2": "9842694", "3": "other"},
+        "sequence": {
+            "0": "ACGUACGUACGU",
+            "1": "GGAAUUCCGGAAUUCC",
+            "2": "UUUGGGCCC",
+            "3": "AACCGGUU",
+        },
+        "deg_Mg_pH10": {"0": [1.0, 2.0], "1": [2.0, 2.0], "2": [0.5, 1.5], "3": [1.0]},
+    }
+    json_path.write_text(json.dumps(payload), encoding="utf-8")
+    node = OpenvaccinePrepareNode()
+    molecules_path, summary_path = await node.run(
+        json_path=str(json_path),
+        arms="deg_Mg_pH10",
+        context=_context(tmp_path),
+    )
+    with Path(molecules_path).open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+    ids = [row["id"] for row in rows]
+    assert len(ids) == len(set(ids)) == 4
+    assert sorted(ids) == ["9842694", "9842694-dup1", "9842694-dup2", "other"]
+    summary = json.loads(Path(summary_path).read_text(encoding="utf-8"))
+    assert summary["n_duplicated_ids_suffixed"] == 2

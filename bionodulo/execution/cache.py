@@ -249,12 +249,8 @@ class CacheStore:
 
     def read_marker(self, cache_key: str) -> dict[str, Any] | None:
         """Read and return the cached metadata for *cache_key*, or *None*."""
-        marker = self._metadata.get(cache_key, default=None)
-        if isinstance(marker, dict):
-            if self._is_expired(marker):
-                self._delete_marker(cache_key)
-                return None
-            self._remember(cache_key)
+        marker = self._validated_marker(cache_key)
+        if marker is not None:
             return marker
         path = self._marker_path(cache_key)
         if not path.is_file():
@@ -267,7 +263,30 @@ class CacheStore:
             return None
         if not isinstance(marker, dict):
             return None
+        return self._validated_marker(cache_key, marker)
+
+    def _validated_marker(
+        self,
+        cache_key: str,
+        marker: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Return *marker* when live and its output files still exist.
+
+        Content-addressed keys make cross-run hits possible long after the run
+        directory that produced an entry is gone; replaying such a hit hands
+        downstream nodes dangling paths (seen live when old run dirs were
+        reclaimed). A marker whose recorded outputs vanished is treated as a
+        miss and deleted.
+        """
+        if marker is None:
+            marker = self._metadata.get(cache_key, default=None)
+            if not isinstance(marker, dict):
+                return None
         if self._is_expired(marker):
+            self._delete_marker(cache_key)
+            return None
+        outputs = marker.get("outputs")
+        if isinstance(outputs, dict) and not self.marker_outputs_exist(outputs):
             self._delete_marker(cache_key)
             return None
         self._remember(cache_key)

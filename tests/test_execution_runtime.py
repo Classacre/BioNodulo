@@ -2425,3 +2425,25 @@ def test_named_env_prefix_uses_the_ready_workflow_manifest_and_locked_manta_env(
         "manta",
         "--",
     ]
+
+
+def test_cache_store_misses_when_marker_outputs_vanish(tmp_path: Path) -> None:
+    """A cross-run hit whose recorded output files were deleted must be a miss,
+    not a replay of dangling paths (content-addressed keys outlive run dirs)."""
+    store = CacheStore(tmp_path)
+    artifact = tmp_path / "artifact.tsv"
+    artifact.write_text("data", encoding="utf-8")
+
+    store.write_marker("stale-key", outputs={"out": str(artifact)})
+    assert store.is_hit("stale-key")
+
+    artifact.unlink()
+    assert not store.is_hit("stale-key")
+    assert store.read_marker("stale-key") is None
+
+
+def test_cache_store_keeps_markers_with_relative_outputs(tmp_path: Path) -> None:
+    """Inline values and relative names are not existence-checked."""
+    store = CacheStore(tmp_path)
+    store.write_marker("inline-key", outputs={"out": 42, "name": "relative.tsv"})
+    assert store.is_hit("inline-key")
