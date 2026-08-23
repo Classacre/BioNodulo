@@ -1859,7 +1859,12 @@ async def test_workflow_executor_consumes_registered_retry_node_policy(tmp_path:
 
 
 @pytest.mark.asyncio
-async def test_workflow_executor_binds_workflow_parameters_into_node_inputs(tmp_path: Path) -> None:
+async def test_workflow_executor_binds_workflow_parameters_into_node_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Pin thread auto-scaling so this test is deterministic on any machine.
+    monkeypatch.setenv("BIONODULO_MAX_THREADS", "8")
+
     class CaptureNode:
         RETURN_NAMES = ("out", "threads")
 

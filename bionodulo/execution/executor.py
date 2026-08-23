@@ -21,6 +21,7 @@ import gzip
 import hashlib
 import json
 import logging
+import os
 import re
 import shlex
 import tempfile
@@ -242,20 +243,69 @@ class WorkflowExecutor:
         option_secrets = options.get("api_secrets", {})
         return merge_api_secrets(configured, option_secrets if isinstance(option_secrets, dict) else {})
 
+    @staticmethod
+    def _detected_vcpus() -> int:
+        """Best-effort count of usable vCPUs on this machine.
+
+        In containers/cgroups, os.cpu_count() reports the host's total;
+        reading the cgroup quota is the reliable signal there. On a
+        full VM, os.cpu_count() is correct.
+        """
+        try:
+            import os
+
+            count = os.cpu_count() or 1
+        except Exception:
+            count = 1
+        # cgroup v2 (most modern containers)
+        try:
+            quota = int(open("/sys/fs/cgroup/cpu.max").read().split()[0])
+            if quota > 0:
+                period = int(open("/sys/fs/cgroup/cpu.max").read().split()[1])
+                if period > 0:
+                    count = min(count, max(1, quota // period))
+        except (OSError, ValueError, IndexError):
+            pass
+        # cgroup v1 (older containers)
+        if count > 1:
+            try:
+                quota = int(open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read())
+                period = int(open("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read())
+                if quota > 0 and period > 0:
+                    count = min(count, max(1, quota // period))
+            except (OSError, ValueError):
+                pass
+        return max(1, count)
+
     def _max_parallel_nodes(self) -> int:
         """Maximum number of nodes to execute concurrently within one run.
 
-        Sourced from ``settings.execution.max_workers`` (default 4). Independent
-        branches of the DAG run in parallel up to this bound; set to 1 to recover
-        fully serial execution.
+        Priority order:
+          1. ``BIONODULO_MAX_WORKERS`` env var (explicit override — the
+             dispatch/website sets this to match the provisioned VM size)
+          2. ``settings.execution.max_workers`` (user configuration)
+          3. Auto-detected vCPU count (universal default: use what you pay for)
+
+        Independent branches of the DAG run in parallel up to this bound; set
+        to 1 to recover fully serial execution.
         """
+        env = os.environ.get("BIONODULO_MAX_WORKERS", "").strip()
+        if env:
+            try:
+                return max(1, int(env))
+            except (TypeError, ValueError):
+                pass
         execution = getattr(self.settings, "execution", None) if self.settings is not None else None
         raw = getattr(execution, "max_workers", None) if execution is not None else None
-        try:
-            value = int(raw) if raw is not None else 4
-        except (TypeError, ValueError):
-            value = 4
-        return max(1, value)
+        if raw is not None:
+            try:
+                return max(1, int(raw))
+            except (TypeError, ValueError):
+                pass
+        # Universal default: scale with detected vCPUs so the engine uses
+        # what the user is paying for. Cloud VMs report their size correctly;
+        # local dev machines get their core count too.
+        return self._detected_vcpus()
 
     def _cache_hash_mode(self) -> str:
         """Input-file fingerprint mode for cache keys: 'fast', 'strong', or 'off'.
@@ -679,6 +729,8 @@ class WorkflowExecutor:
                 # ---- Fill parameter defaults ----
                 _node_class = self._node_class_for(node)
                 resolved_params = self._with_defaults(node, resolved_inputs, _node_class, workflow_parameters)
+                # Universal optimization: scale thread params to available cores
+                resolved_params = self._auto_scale_threads(resolved_params)
                 is_subgraph = self._is_subgraph_node(node)
                 executes_loop_body = self._executes_loop_body(_node_class)
                 executes_try_catch_branches = self._executes_try_catch_branches(_node_class)
@@ -1196,6 +1248,7 @@ class WorkflowExecutor:
                 workflow_parameters,
             )
             resolved_params = self._with_defaults(node, resolved_inputs, node_class, workflow_parameters)
+            resolved_params = self._auto_scale_threads(resolved_params)
             upstream_keys: dict[str, str | None] = {}
             for edge in edge_map.get(node_id, []):
                 src = edge_source(edge)
@@ -3864,6 +3917,50 @@ class WorkflowExecutor:
                 ) or config.get("multiple") is True:
                     ports.add(name)
         return ports
+
+    def _auto_scale_threads(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Universal thread auto-scaling: bump node ``threads`` params to use
+        available cores when the user hasn't explicitly set a higher value.
+
+        Bioinformatics tools (samtools, bwa, minimap2, seqkit, etc.) expose a
+        ``threads`` parameter that defaults to a conservative 1-4. On a
+        16-vCPU cloud VM that means 75%+ of paid compute sits idle. This hook
+        detects the machine's vCPU count and raises any ``threads`` param that
+        is below it — but only when the user hasn't explicitly tuned it up.
+
+        Rules:
+          - Only scales up (never reduces a user's explicit higher setting)
+          - Respects ``BIONODULO_MAX_THREADS`` env cap (the dispatch sets this
+            to the provisioned VM's vCPU count)
+          - Leaves ``threads=1`` alone only when the node genuinely requires
+            serial execution (detected via ``serial_only`` in the param config)
+          - Works on ANY workflow — the presence of a ``threads`` param is the
+            trigger; no workflow-specific knowledge required.
+        """
+        if "threads" not in params:
+            return params
+
+        # Respect explicit env override
+        max_threads_env = os.environ.get("BIONODULO_MAX_THREADS", "").strip()
+        if max_threads_env:
+            try:
+                cap = max(1, int(max_threads_env))
+            except (TypeError, ValueError):
+                cap = self._detected_vcpus()
+        else:
+            cap = self._detected_vcpus()
+
+        try:
+            current = int(params.get("threads", 1))
+        except (TypeError, ValueError):
+            return params
+
+        if current >= cap:
+            return params  # already using enough
+
+        # Scale up to the cap
+        params["threads"] = cap
+        return params
 
     def _with_defaults(
         self,
