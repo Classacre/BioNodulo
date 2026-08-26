@@ -1905,6 +1905,17 @@ class _WhileLoopContract(FlowControlNode):
                 "compare_to": ("STRING", {"default": ""}),
                 "max_iterations": ("INT", {"default": 100, "min": 1, "max": 10000}),
                 "check_frequency": ("INT", {"default": 1, "min": 1, "max": 100}),
+                "patience": (
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 1000,
+                        "description": "Consecutive failed conditions tolerated "
+                        "before completing: stochastic design loops plateau for "
+                        "a few iterations before improving again.",
+                    },
+                ),
             },
             "hidden": {
                 "_loop_state": ("LOOP_STATE", {}),
@@ -1943,6 +1954,12 @@ class _WhileLoopContract(FlowControlNode):
                 "check_frequency": check_frequency,
                 "condition_mode": condition_mode,
                 "compare_to": compare_to,
+                "patience": self._bounded_int(
+                    kwargs.get("patience", 0),
+                    "while_loop patience",
+                    0,
+                    1000,
+                ),
                 "processed": [],
                 "is_complete": False,
             }
@@ -2000,9 +2017,27 @@ class _WhileLoopContract(FlowControlNode):
         )
         compare = loop_state.get("compare_to", compare_to)
         if not self._evaluate_condition(value, mode, compare):
-            loop_state["is_complete"] = True
-            return self._result(processed, iteration, True, "completed", loop_state, inactive=[])
+            failures = int(loop_state.get("consecutive_failures", 0) or 0) + 1
+            loop_state["consecutive_failures"] = failures
+            patience = self._bounded_int(
+                loop_state.get("patience", 0),
+                "while_loop state patience",
+                0,
+                1000,
+            )
+            if failures > patience:
+                loop_state["is_complete"] = True
+                return self._result(processed, iteration, True, "completed", loop_state, inactive=[])
+            return self._result(
+                processed,
+                iteration,
+                False,
+                "iterating",
+                loop_state,
+                inactive=["results", "iterations", "converged"],
+            )
 
+        loop_state["consecutive_failures"] = 0
         return self._result(
             processed,
             iteration,

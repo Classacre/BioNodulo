@@ -3000,3 +3000,51 @@ async def test_while_loop_survives_non_path_feedback_value(tmp_path: Path) -> No
     )
     outputs = result["outputs"]
     assert outputs["converged"] is False
+
+
+@pytest.mark.asyncio
+async def test_while_loop_patience_tolerates_plateau_before_completing() -> None:
+    """Convergence stopping with patience: a condition failing for a few
+    iterations must not stop the loop early, and a recovery must reset the
+    failure count; only patience+1 consecutive failures complete it."""
+    node = _node_class("while_loop")()
+
+    def state_from(result: dict) -> dict:
+        return result["flow_control"]["loop_state"]
+
+    # Iteration 0 (initial call) initialises state with patience=2.
+    result = await node.run(
+        condition_mode="numeric_greater",
+        value=1.0,
+        compare_to="0.5",
+        max_iterations=50,
+        patience=2,
+    )
+    state = state_from(result)
+
+    async def iterate(value: float, state: dict) -> dict:
+        return await node.run(
+            condition_mode="numeric_greater",
+            value=value,
+            compare_to="0.5",
+            _loop_state=dict(state),
+            _is_loop_iteration=True,
+        )
+
+    # Plateau: two failed conditions (0.0 <= 0.5) tolerated with patience=2.
+    r = await iterate(0.0, state); state = state_from(r)
+    assert not state["is_complete"], "first failure must be tolerated"
+    r = await iterate(0.0, state); state = state_from(r)
+    assert not state["is_complete"], "second failure must be tolerated"
+    # Recovery resets the counter.
+    r = await iterate(1.0, state); state = state_from(r)
+    assert not state["is_complete"]
+    assert state.get("consecutive_failures", 0) == 0
+    # Three consecutive failures (patience 2 + 1) complete the loop.
+    r = await iterate(0.0, state); state = state_from(r)
+    assert not state["is_complete"]
+    r = await iterate(0.0, state); state = state_from(r)
+    assert not state["is_complete"]
+    r = await iterate(0.0, state); state = state_from(r)
+    assert state["is_complete"], "patience+1 consecutive failures must complete"
+    assert r["outputs"]["converged"] is True
