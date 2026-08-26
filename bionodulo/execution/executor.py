@@ -852,6 +852,17 @@ class WorkflowExecutor:
                         "cache_key": cache_key,
                         "outputs": cached_outputs,
                     }
+                    # Durable progress record: a healthy run must leave evidence
+                    # in run_events, not just workspace files — live-only events
+                    # made a 15h field run indistinguishable from a hang.
+                    self._record_run_event(
+                        run_id,
+                        "node_cache_hit",
+                        self._tag_subgraph_path(
+                            run_metadata,
+                            {"node_id": node_id, "node_type": node_type},
+                        ),
+                    )
                     node_outputs[node_id] = cached_outputs
                     # Some HTML reports are directory bundles whose relative
                     # assets cannot be served by the single-file preview route.
@@ -955,6 +966,19 @@ class WorkflowExecutor:
                         "cache_key": cache_key,
                         "attempts": result.get("attempts", 1),
                     }
+                    # Durable progress record (see node_cache_hit note above).
+                    self._record_run_event(
+                        run_id,
+                        "node_finished",
+                        self._tag_subgraph_path(
+                            run_metadata,
+                            {
+                                "node_id": node_id,
+                                "node_type": node_type,
+                                "attempts": result.get("attempts", 1),
+                            },
+                        ),
+                    )
                     node_outputs[node_id] = outputs
 
                     # Cache the result

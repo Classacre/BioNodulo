@@ -62,12 +62,28 @@ class BlockerNode:
         raise CommandCancelledError("blocker")
 
 
+class StaticNode:
+    """Run-independent output path so cross-run cache hits are possible."""
+
+    RETURN_NAMES = ("default",)
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:
+        return {"required": {}, "optional": {}, "hidden": {}}
+
+    async def run(self, context: Any, **_: Any) -> dict[str, Any]:
+        out = Path(context.workspace_dir) / "static_out.txt"
+        out.write_text("stable", encoding="utf-8")
+        return {"outputs": {"default": str(out)}}
+
+
 class Registry:
     def get(self, node_type: str) -> Any:
         return {
             "flaky": FlakyMemoryNode,
             "blocker": BlockerNode,
             "policy": PolicyNode,
+            "static": StaticNode,
         }.get(node_type)
 
 
@@ -248,3 +264,67 @@ async def test_run_dict_surfaces_event_count(tmp_path: Path) -> None:
     finally:
         await queue.shutdown()
     store.close()
+
+
+@pytest.mark.asyncio
+async def test_queue_persists_node_progress_events(tmp_path: Path) -> None:
+    """Healthy runs must leave durable progress evidence in run_events.
+
+    Field incident: a 15h run showed only queue_submit/queue_start in the DB
+    while the workspace filled normally — node completions were live-only, so
+    a healthy run was indistinguishable from a hung one after the fact.
+    """
+    store = RunStore(tmp_path / "runs.db")
+    executor = WorkflowExecutor(
+        workspace_dir=tmp_path,
+        cache_dir=tmp_path / "cache",
+        registry=Registry(),
+        settings=_settings(),
+    )
+    queue = RunQueue(executor=executor, max_concurrent=1, store=store)
+
+    def _workflow() -> dict[str, Any]:
+        return {
+            "name": "progress-flow",
+            "nodes": [
+                {"id": "policy", "type": "policy"},
+                {"id": "flaky", "type": "flaky"},
+            ],
+            "edges": [
+                {
+                    "from": {"node": "policy", "output": "default"},
+                    "to": {"node": "flaky", "input": "input"},
+                },
+            ],
+        }
+
+    cache_wf = {
+        "name": "cache-flow",
+        "nodes": [{"id": "only", "type": "static"}],
+        "edges": [],
+    }
+
+    try:
+        FlakyMemoryNode.calls = 0
+        FlakyMemoryNode.fail_times = 0  # never fail
+        await queue.submit(_workflow(), run_id="run-fresh")
+        await asyncio.wait_for(queue._pending.join(), timeout=5.0)
+        # Run-independent output path -> identical cache key. First pass
+        # executes; the second is a pure cache replay.
+        await queue.submit(cache_wf, run_id="run-cached")
+        await asyncio.wait_for(queue._pending.join(), timeout=5.0)
+        await queue.submit(cache_wf, run_id="run-cached-2")
+        await asyncio.wait_for(queue._pending.join(), timeout=5.0)
+    finally:
+        await queue.shutdown()
+
+    reopened = RunStore(tmp_path / "runs.db")
+    fresh = reopened.get_events("run-fresh")
+    finished = [e for e in fresh if e["type"] == "node_finished"]
+    assert finished, "successful nodes must persist node_finished events"
+    assert {e["payload"]["node_id"] for e in finished} == {"policy", "flaky"}
+
+    cached = reopened.get_events("run-cached-2")
+    hits = [e for e in cached if e["type"] == "node_cache_hit"]
+    assert hits, "cache-replayed nodes must persist node_cache_hit events"
+    reopened.close()
