@@ -1963,6 +1963,23 @@ class WorkflowExecutor:
                     continue
                 body.add(next_node)
                 queue.append(next_node)
+
+        # State providers: nodes that declare the hidden ``_loop_state`` input
+        # (e.g. read-only counter_accumulator readers) but sit upstream of the
+        # body's ``iteration`` frontier. Evaluated once outside, they can never
+        # see the accumulator the body writes, so loop-carried state — best
+        # candidate, policy — silently resets to the initial value every
+        # iteration. Pull them into the body so they re-run per iteration with
+        # the live loop state injected.
+        for edge in edges:
+            provider = edge_source(edge)
+            consumer = edge_target(edge)
+            if provider in body or provider == loop_node_id or consumer not in body:
+                continue
+            if provider not in nodes or self._executes_loop_body(self._node_class_for(nodes.get(provider, {}))):
+                continue
+            if "_loop_state" in self._declared_hidden_inputs(self._node_class_for(nodes.get(provider, {}))):
+                body.add(provider)
         return body
 
     def _coerce_node_id_set(self, value: Any) -> set[str]:

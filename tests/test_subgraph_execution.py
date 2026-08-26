@@ -893,3 +893,110 @@ async def test_subgraph_inside_foreach_body_runs_per_item(tmp_path: Path) -> Non
         payload = json.loads(marker.read_text(encoding="utf-8").splitlines()[0])["payload"]
         assert payload == item
     assert len(SentinelNode.executions) == 3
+
+
+class DecreasingGenNode:
+    """Emits a candidate batch whose best composite falls each iteration.
+
+    Iteration 1 offers the global optimum (3.0); later iterations offer
+    strictly worse candidates, so a correct loop-carried best keeps 3.0
+    while a per-iteration best would end on 1.0.
+    """
+
+    NODE_ID = "decreasing_gen"
+    RETURN_NAMES = ("out",)
+    RETURN_TYPES = ("JSON",)
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:
+        return {"required": {}, "optional": {}, "hidden": {"_iteration": ("INT", {})}}
+
+    async def run(self, context: Any, **kwargs: Any) -> dict[str, Any]:
+        it = int(kwargs.get("_iteration", 0) or 0)
+        out = context.node_dir / "cands.json"
+        out.write_text(
+            json.dumps([{"id": f"c{it}", "composite": 3.0 - it}]), encoding="utf-8"
+        )
+        return {"outputs": {"out": str(out)}}
+
+
+@pytest.mark.asyncio
+async def test_loop_state_provider_outside_frontier_joins_body(tmp_path: Path) -> None:
+    """A read-only state provider upstream of the loop body must re-run per
+    iteration.
+
+    Field defect (ROBUST E1): best_so_far's ``current`` came from a
+    counter_accumulator reader placed outside the body's iteration frontier.
+    It evaluated once with no loop state, so the carried best was empty
+    forever and every run silently discarded its best candidate — all 30
+    campaign pairs selected a worse design than one they had already found.
+    """
+    stubs = dict(STUB_CLASSES)
+    stubs["decreasing_gen"] = DecreasingGenNode
+    registry = _HybridRegistry(stubs, base=_loaded_registry())
+    workflow = {
+        "nodes": [
+            {
+                "id": "reader",
+                "type": "counter_accumulator",
+                "params": {
+                    "operation": "set",
+                    "access_mode": "read_only",
+                    "accumulator_key": "carried_best",
+                    "initial_value": "",
+                },
+                "outputs": {"value": {}, "count": {}, "accumulator": {}},
+            },
+            {
+                "id": "cond",
+                "type": "constant",
+                "params": {"value": True},
+                "outputs": {"value": {}},
+            },
+            {
+                "id": "wl",
+                "type": "while_loop",
+                "params": {"condition_mode": "boolean_is_true", "max_iterations": 3},
+                "outputs": {"iteration": {}, "results": {}, "iterations": {}, "converged": {}},
+            },
+            {"id": "gen", "type": "decreasing_gen", "outputs": {"out": {}}},
+            {"id": "best", "type": "best_so_far", "outputs": {"best": {}, "improved": {}, "score": {}}},
+            {
+                "id": "writer",
+                "type": "counter_accumulator",
+                "params": {"operation": "set", "accumulator_key": "carried_best"},
+                "outputs": {"value": {}, "count": {}, "accumulator": {}},
+            },
+        ],
+        "edges": [
+            {"source_node": "cond", "target_node": "wl", "source_output": "value", "target_input": "value"},
+            {"source_node": "wl", "target_node": "gen", "source_output": "iteration", "target_input": "value"},
+            {"source_node": "gen", "target_node": "best", "source_output": "out", "target_input": "incoming"},
+            {"source_node": "reader", "target_node": "best", "source_output": "value", "target_input": "current"},
+            {"source_node": "best", "target_node": "writer", "source_output": "best", "target_input": "operand"},
+            {"source_node": "best", "target_node": "wl", "source_output": "best", "target_input": "_body_result"},
+        ],
+    }
+    validation = validate_workflow(workflow, registry)
+    assert validation.valid is True, validation.errors
+    executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=registry)
+
+    result = await executor.execute("loop-state-provider-run", workflow, emit=lambda *_: None)
+
+    assert result["status"] == "completed", result["node_results"]
+    assert result["node_results"]["wl"]["outputs"]["iterations"] == 3
+    final_best = json.loads(
+        (
+            tmp_path / "runs" / "loop-state-provider-run" / "wl"
+            / "iterations" / "0003" / "best" / "best_so_far" / "best.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert final_best["composite"] == 3.0, (
+        "loop-carried best must retain the iteration-1 optimum, not the "
+        f"last iteration's local best ({final_best['composite']})"
+    )
+    # The reader re-ran inside the body each iteration (3 iterations on disk).
+    reader_iters = tmp_path / "runs" / "loop-state-provider-run" / "wl" / "iterations"
+    assert (reader_iters / "0002" / "reader").is_dir(), (
+        "state provider must execute per iteration with live loop state"
+    )
