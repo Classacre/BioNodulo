@@ -203,6 +203,7 @@ async def test_s3_download_executes_aws_cli_and_writes_metadata(tmp_path: Path) 
     assert metadata == {
         "operation": "download",
         "aws_cli_version": "2.36.2",
+        "transport": "aws-cli",
         "bucket": "analysis-bucket",
         "key": "reports/summary.tsv",
         "s3_uri": "s3://analysis-bucket/reports/summary.tsv",
@@ -385,3 +386,58 @@ def test_s3_download_anonymous_adds_no_sign_request(tmp_path: Path) -> None:
         }
     )
     assert "--no-sign-request" not in signed
+
+
+@pytest.mark.asyncio
+async def test_s3_download_anonymous_https_fallback_without_aws_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hosts without the AWS CLI must still download public open-data objects.
+
+    Field defect: OCI workers have no ``aws`` binary, so the node died with a
+    bare FileNotFoundError and took the whole e4 direct-RNA leg with it.
+    """
+    import bionodulo.nodes.builtin.cloud_storage_family.s3_download as mod
+
+    monkeypatch.setattr(mod.shutil, "which", lambda name: None)
+
+    class FakeResponse:
+        def __init__(self, chunks: list[bytes]) -> None:
+            self._chunks = list(chunks)
+
+        def read(self, size: int = -1) -> bytes:
+            return self._chunks.pop(0) if self._chunks else b""
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            return None
+
+    requested: dict[str, Any] = {}
+
+    def fake_urlopen(url: str, timeout: int = 0) -> FakeResponse:
+        requested["url"] = url
+        return FakeResponse([b"POD5\x00", b"data-bytes"])
+
+    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+
+    node_class = _node_class("s3_download")
+    destination = tmp_path / "out" / "sample.pod5"
+    context = SimpleNamespace(node_dir=tmp_path, run_command=None)
+
+    result = await node_class().run(
+        bucket="sg-nex-data",
+        key="data/sequencing_1/sample.pod5",
+        local_path=str(destination),
+        profile="",
+        region="",
+        extra_args="",
+        context=context,
+    )
+
+    assert requested["url"] == "https://sg-nex-data.s3.amazonaws.com/data/sequencing_1/sample.pod5"
+    assert destination.read_bytes() == b"POD5\x00data-bytes"
+    metadata = json.loads(Path(result["outputs"]["metadata"]).read_text(encoding="utf-8"))
+    assert metadata["transport"] == "https-anonymous"
+    assert metadata["size_bytes"] == len(b"POD5\x00data-bytes")

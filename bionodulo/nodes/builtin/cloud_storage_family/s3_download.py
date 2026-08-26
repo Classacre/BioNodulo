@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import urllib.request
 from typing import Any
 
 from .adapter import (
@@ -77,17 +79,45 @@ class S3DownloadNode(S3BaseNode):
         local_path.parent.mkdir(parents=True, exist_ok=True)
         transfer_path = local_path.with_name(f".{local_path.name}.bionodulo-part")
         transfer_path.unlink(missing_ok=True)
-        command = self.__class__.render_command({**run_inputs, "local_path": str(transfer_path)})
-        try:
-            result = await run_command(command, output_dir, context)
-        except Exception:
-            transfer_path.unlink(missing_ok=True)
-            raise
-        returncode = require_returncode(result, self.DISPLAY_NAME)
-        if returncode != 0:
-            transfer_path.unlink(missing_ok=True)
-            stderr = str(result.get("stderr", ""))
-            raise RuntimeError(f"S3 Download failed (exit {returncode}): {stderr[:500]}")
+
+        transport = "aws-cli"
+        if shutil.which("aws") is None:
+            # Hosts without the AWS CLI (e.g. OCI workers downloading public
+            # open-data buckets) still work: anonymous HTTPS against the
+            # bucket's regional endpoint, streamed to disk. Authenticated
+            # buckets keep requiring the CLI path.
+            transport = "https-anonymous"
+            bucket = str(run_inputs.get("bucket", "") or "").strip()
+            key = str(run_inputs.get("key", "") or "").strip().lstrip("/")
+            url = f"https://{bucket}.s3.amazonaws.com/{key}"
+            try:
+                with urllib.request.urlopen(url, timeout=60) as resp, open(
+                    transfer_path, "wb"
+                ) as out:
+                    while True:
+                        chunk = resp.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        out.write(chunk)
+                result = {"returncode": 0, "stdout": "", "stderr": ""}
+            except Exception as exc:
+                transfer_path.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"S3 Download anonymous HTTPS failed (aws CLI not installed "
+                    f"on this host): {exc}"
+                ) from exc
+        else:
+            command = self.__class__.render_command({**run_inputs, "local_path": str(transfer_path)})
+            try:
+                result = await run_command(command, output_dir, context)
+            except Exception:
+                transfer_path.unlink(missing_ok=True)
+                raise
+            returncode = require_returncode(result, self.DISPLAY_NAME)
+            if returncode != 0:
+                transfer_path.unlink(missing_ok=True)
+                stderr = str(result.get("stderr", ""))
+                raise RuntimeError(f"S3 Download failed (exit {returncode}): {stderr[:500]}")
         if not transfer_path.is_file():
             raise RuntimeError("S3 Download exited successfully but did not create the requested file")
         transfer_path.replace(local_path)
@@ -96,13 +126,14 @@ class S3DownloadNode(S3BaseNode):
         metadata = {
             "operation": "download",
             "aws_cli_version": self.VERSION,
+            "transport": transport,
             "bucket": str(run_inputs.get("bucket", "") or "").strip(),
             "key": str(run_inputs.get("key", "") or "").strip().lstrip("/"),
             "s3_uri": uri,
             "local_path": str(local_path),
             "size_bytes": local_path.stat().st_size,
-            "command": redacted_command(command),
-            "returncode": returncode,
+            "command": redacted_command(command) if transport == "aws-cli" else url,
+            "returncode": 0,
             "stdout": result.get("stdout", ""),
             "stderr": result.get("stderr", ""),
         }
