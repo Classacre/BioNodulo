@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import shutil
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from .adapter import (
@@ -16,6 +17,12 @@ from .adapter import (
     run_command,
     s3_uri,
 )
+
+# Single-stream TCP over a long-fat path (e.g. cross-continent to an
+# open-data bucket) saturates around 15 MB/s regardless of host bandwidth;
+# ranged parallel streams restore line rate, matching aws-cli behaviour.
+PARALLEL_THRESHOLD_BYTES = 256 * 1024 * 1024
+PARALLEL_STREAMS = 8
 
 
 class S3DownloadNode(S3BaseNode):
@@ -84,23 +91,51 @@ class S3DownloadNode(S3BaseNode):
         if shutil.which("aws") is None:
             # Hosts without the AWS CLI (e.g. OCI workers downloading public
             # open-data buckets) still work: anonymous HTTPS against the
-            # bucket's regional endpoint, streamed to disk. Authenticated
-            # buckets keep requiring the CLI path.
+            # bucket's endpoint. Large objects fetch as parallel ranged
+            # streams; authenticated buckets keep requiring the CLI path.
             transport = "https-anonymous"
             bucket = str(run_inputs.get("bucket", "") or "").strip()
             key = str(run_inputs.get("key", "") or "").strip().lstrip("/")
             url = f"https://{bucket}.s3.amazonaws.com/{key}"
             try:
-                with urllib.request.urlopen(url, timeout=60) as resp, open(
-                    transfer_path, "wb"
-                ) as out:
-                    while True:
-                        chunk = resp.read(1024 * 1024)
-                        if not chunk:
-                            break
-                        out.write(chunk)
+                request = urllib.request.Request(url, method="HEAD")
+                with urllib.request.urlopen(request, timeout=60) as resp:
+                    total = int(resp.headers.get("Content-Length") or 0)
+                streams = 1
+                if total > PARALLEL_THRESHOLD_BYTES:
+                    streams = PARALLEL_STREAMS
+                part_paths = []
+                if streams == 1:
+                    self._fetch_range(url, 0, None, transfer_path)
+                else:
+                    chunk = total // streams + 1
+                    ranges = [
+                        (offset, min(offset + chunk, total) - 1)
+                        for offset in range(0, total, chunk)
+                    ]
+                    with ThreadPoolExecutor(max_workers=streams) as pool:
+                        futures = []
+                        for index, (start, end) in enumerate(ranges):
+                            part = transfer_path.with_name(f"{transfer_path.name}.part{index:03d}")
+                            part_paths.append(part)
+                            futures.append(
+                                pool.submit(self._fetch_range, url, start, end, part)
+                            )
+                        for future in futures:
+                            future.result()
+                    with open(transfer_path, "wb") as out:
+                        for part in part_paths:
+                            with open(part, "rb") as src:
+                                while True:
+                                    block = src.read(1024 * 1024)
+                                    if not block:
+                                        break
+                                    out.write(block)
+                            part.unlink(missing_ok=True)
                 result = {"returncode": 0, "stdout": "", "stderr": ""}
             except Exception as exc:
+                for part in transfer_path.parent.glob(f"{transfer_path.name}.part*"):
+                    part.unlink(missing_ok=True)
                 transfer_path.unlink(missing_ok=True)
                 raise RuntimeError(
                     f"S3 Download anonymous HTTPS failed (aws CLI not installed "
@@ -140,3 +175,17 @@ class S3DownloadNode(S3BaseNode):
         metadata_path = output_dir / "download_metadata.json"
         metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         return {"outputs": {"local_path": str(local_path), "metadata": str(metadata_path)}}
+
+    @staticmethod
+    def _fetch_range(url: str, start: int, end: int | None, destination: Any) -> None:
+        """Stream one byte range (or the whole object) to destination."""
+        headers = {"Range": f"bytes={start}-{end}"} if end is not None else {}
+        request = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(request, timeout=120) as resp, open(
+            destination, "wb"
+        ) as out:
+            while True:
+                block = resp.read(1024 * 1024)
+                if not block:
+                    break
+                out.write(block)

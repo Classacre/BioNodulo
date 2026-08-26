@@ -404,6 +404,7 @@ async def test_s3_download_anonymous_https_fallback_without_aws_cli(
     class FakeResponse:
         def __init__(self, chunks: list[bytes]) -> None:
             self._chunks = list(chunks)
+            self.headers = {"Content-Length": str(sum(len(c) for c in chunks))}
 
         def read(self, size: int = -1) -> bytes:
             return self._chunks.pop(0) if self._chunks else b""
@@ -416,9 +417,9 @@ async def test_s3_download_anonymous_https_fallback_without_aws_cli(
 
     requested: dict[str, Any] = {}
 
-    def fake_urlopen(url: str, timeout: int = 0) -> FakeResponse:
-        requested["url"] = url
-        return FakeResponse([b"POD5\x00", b"data-bytes"])
+    def fake_urlopen(req: Any, timeout: int = 0) -> FakeResponse:
+        requested["url"] = getattr(req, "full_url", req)
+        return FakeResponse([b"POD5", b"data-bytes"])
 
     monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
 
@@ -437,7 +438,71 @@ async def test_s3_download_anonymous_https_fallback_without_aws_cli(
     )
 
     assert requested["url"] == "https://sg-nex-data.s3.amazonaws.com/data/sequencing_1/sample.pod5"
-    assert destination.read_bytes() == b"POD5\x00data-bytes"
+    assert destination.read_bytes() == b"POD5data-bytes"
     metadata = json.loads(Path(result["outputs"]["metadata"]).read_text(encoding="utf-8"))
     assert metadata["transport"] == "https-anonymous"
-    assert metadata["size_bytes"] == len(b"POD5\x00data-bytes")
+    assert metadata["size_bytes"] == len(b"POD5data-bytes")
+
+
+@pytest.mark.asyncio
+async def test_s3_download_anonymous_large_object_uses_parallel_ranges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Large open-data objects must fetch as parallel ranged streams.
+
+    A single TCP stream saturates near 15 MB/s on cross-continent paths
+    (measured against the SG-NEx bucket from us-ashburn: 16 MB/s/stream
+    while OCI-Melbourne reached 32 MB/s); the 467 GB campaign POD5 needs
+    aws-cli-style parallelism to finish in minutes instead of hours.
+    """
+    import bionodulo.nodes.builtin.cloud_storage_family.s3_download as mod
+
+    monkeypatch.setattr(mod.shutil, "which", lambda name: None)
+    monkeypatch.setattr(mod, "PARALLEL_THRESHOLD_BYTES", 1024)
+
+    blob = bytes(range(256)) * 8192  # 2 MiB fake object
+
+    class FakeResponse:
+        def __init__(self, data: bytes) -> None:
+            self._data = data
+            self.headers = {"Content-Length": str(len(blob))}
+
+        def read(self, size: int = -1) -> bytes:
+            data, self._data = self._data, b""
+            return data
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            return None
+
+    ranges_requested: list[str | None] = []
+
+    def fake_urlopen(req: Any, timeout: int = 0) -> FakeResponse:
+        rng = getattr(req.headers, "get", lambda *_: None)("Range")
+        ranges_requested.append(rng)
+        if rng is None:
+            return FakeResponse(blob)
+        start_s, end_s = rng.replace("bytes=", "").split("-")
+        return FakeResponse(blob[int(start_s) : int(end_s) + 1])
+
+    monkeypatch.setattr(mod.urllib.request, "urlopen", fake_urlopen)
+
+    destination = tmp_path / "big.pod5"
+    context = SimpleNamespace(node_dir=tmp_path, run_command=None)
+    result = await _node_class("s3_download")().run(
+        bucket="sg-nex-data",
+        key="data/run1.pod5",
+        local_path=str(destination),
+        profile="",
+        region="",
+        extra_args="",
+        context=context,
+    )
+
+    ranged = [r for r in ranges_requested if r]
+    assert len(ranged) == mod.PARALLEL_STREAMS, "expected 8 ranged streams + 1 HEAD"
+    assert destination.read_bytes() == blob, "parts must reassemble byte-exact"
+    metadata = json.loads(Path(result["outputs"]["metadata"]).read_text(encoding="utf-8"))
+    assert metadata["transport"] == "https-anonymous"
