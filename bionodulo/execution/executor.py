@@ -1971,6 +1971,9 @@ class WorkflowExecutor:
         # candidate, policy — silently resets to the initial value every
         # iteration. Pull them into the body so they re-run per iteration with
         # the live loop state injected.
+        # Pure sources (no incoming edges, e.g. constants) feeding body inputs
+        # join too: without them, their edges vanish in body context and the
+        # input silently falls back to another provider (the foreach item).
         for edge in edges:
             provider = edge_source(edge)
             consumer = edge_target(edge)
@@ -1978,12 +1981,16 @@ class WorkflowExecutor:
                 continue
             if provider not in nodes or self._executes_loop_body(self._node_class_for(nodes.get(provider, {}))):
                 continue
-            if "_loop_state" not in self._declared_hidden_inputs(self._node_class_for(nodes.get(provider, {}))):
+            declares_state = "_loop_state" in self._declared_hidden_inputs(
+                self._node_class_for(nodes.get(provider, {}))
+            )
+            is_pure_source = not any(edge_target(other) == provider for other in edges)
+            if not (declares_state or is_pure_source):
                 continue
-            # Pure state sources only: a provider that consumes the loop's
-            # iteration output or any body output (e.g. a merge node feeding
-            # the loop's value input) would add a feedback edge inside the
-            # body and break its topological order.
+            # Providers that consume the loop's iteration output or any body
+            # output (e.g. a merge node feeding the loop's value input) would
+            # add a feedback edge inside the body and break its topological
+            # order.
             consumes_from_loop = any(
                 edge_target(other) == provider
                 and (edge_source(other) == loop_node_id or edge_source(other) in body)
@@ -2706,6 +2713,16 @@ class WorkflowExecutor:
             loop_inputs = {
                 **inputs,
                 "value": current_value,
+                # A dedicated condition operand (convergence stopping) refreshes
+                # per iteration like value; without feedback edges it keeps the
+                # initial condition so the loop is purely value-driven.
+                "condition": self._loop_feedback_value(
+                    ctx.node_id,
+                    "condition",
+                    edges,
+                    local_outputs,
+                    fallback=inputs.get("condition"),
+                ),
                 "_loop_state": loop_state,
                 "_is_loop_iteration": True,
                 "_body_result": None if loop_signal == "continue" else self._loop_feedback_value(

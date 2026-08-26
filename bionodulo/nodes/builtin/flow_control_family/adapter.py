@@ -1905,6 +1905,15 @@ class _WhileLoopContract(FlowControlNode):
                 "compare_to": ("STRING", {"default": ""}),
                 "max_iterations": ("INT", {"default": 100, "min": 1, "max": 10000}),
                 "check_frequency": ("INT", {"default": 1, "min": 1, "max": 100}),
+                "condition": (
+                    "ANY",
+                    {
+                        "default": None,
+                        "description": "Condition operand when it differs from "
+                        "'value' (which loop bodies often use to carry data): "
+                        "e.g. best_so_far.improved for convergence stopping.",
+                    },
+                ),
                 "patience": (
                     "INT",
                     {
@@ -1963,7 +1972,10 @@ class _WhileLoopContract(FlowControlNode):
                 "processed": [],
                 "is_complete": False,
             }
-            if not self._evaluate_condition(value, condition_mode, compare_to):
+            condition_operand = kwargs.get("condition")
+            if condition_operand is None:
+                condition_operand = value
+            if not self._evaluate_condition(condition_operand, condition_mode, compare_to):
                 loop_state["is_complete"] = True
                 return self._result([], 0, True, "completed", loop_state, inactive=[])
             return self._result(
@@ -2016,7 +2028,10 @@ class _WhileLoopContract(FlowControlNode):
             tuple(self._CONDITION_MODES),
         )
         compare = loop_state.get("compare_to", compare_to)
-        if not self._evaluate_condition(value, mode, compare):
+        condition_operand = kwargs.get("condition")
+        if condition_operand is None:
+            condition_operand = value
+        if not self._evaluate_condition(condition_operand, mode, compare):
             failures = int(loop_state.get("consecutive_failures", 0) or 0) + 1
             loop_state["consecutive_failures"] = failures
             patience = self._bounded_int(

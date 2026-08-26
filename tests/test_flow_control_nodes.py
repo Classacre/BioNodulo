@@ -3048,3 +3048,46 @@ async def test_while_loop_patience_tolerates_plateau_before_completing() -> None
     r = await iterate(0.0, state); state = state_from(r)
     assert state["is_complete"], "patience+1 consecutive failures must complete"
     assert r["outputs"]["converged"] is True
+
+
+@pytest.mark.asyncio
+async def test_while_loop_condition_operand_separate_from_value() -> None:
+    """Convergence stopping: the condition operand is distinct from the data
+    carried by 'value' (foreach items, loop-carried payloads).
+
+    Design loops use 'value' to carry pair data through wl.iteration into the
+    body; wiring best_so_far.improved into the SAME port breaks that flow. A
+    dedicated 'condition' input stops the loop without touching data flow.
+    """
+    node = _node_class("while_loop")()
+
+    # Initial call: value is the data payload (a dict), condition is PI.
+    result = await node.run(
+        condition_mode="numeric_greater",
+        value={"pair": "egfp__s13"},
+        condition=3.14159,
+        compare_to="0.5",
+        max_iterations=50,
+        patience=2,
+    )
+    state = result["flow_control"]["loop_state"]
+    assert not state["is_complete"], "PI condition must start the loop"
+
+    async def iterate(condition, state):
+        return await node.run(
+            condition_mode="numeric_greater",
+            value={"pair": "egfp__s13"},
+            condition=condition,
+            compare_to="0.5",
+            _loop_state=dict(state),
+            _is_loop_iteration=True,
+        )
+
+    # Plateau on the condition; the value payload rides along untouched.
+    r = await iterate(0.0, state); state = r["flow_control"]["loop_state"]
+    assert not state["is_complete"]
+    r = await iterate(0.0, state); state = r["flow_control"]["loop_state"]
+    assert not state["is_complete"]
+    r = await iterate(0.0, state); state = r["flow_control"]["loop_state"]
+    assert state["is_complete"], "patience+1 consecutive failures complete"
+    assert r["outputs"]["converged"] is True
