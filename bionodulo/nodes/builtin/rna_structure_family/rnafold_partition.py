@@ -92,7 +92,7 @@ class RNAfoldPartitionNode(RNAStructureCommandNode):
             command.extend(["--maxBPspan", str(inputs["max_bp_span"])])
         threads = inputs.get("threads", 1)
         if threads not in (None, 1):
-            command.extend(["--jobs", str(threads)])
+            command.extend([f"--jobs={threads}"])
         command.extend(["-T", str(inputs.get("temperature", 37.0)), "-i", str(cls.staged_input_path(inputs))])
         return command
 
