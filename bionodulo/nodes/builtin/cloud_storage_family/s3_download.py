@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -106,7 +107,7 @@ class S3DownloadNode(S3BaseNode):
                     streams = PARALLEL_STREAMS
                 part_paths = []
                 if streams == 1:
-                    self._fetch_range(url, 0, None, transfer_path)
+                    self._fetch_range_resumable(url, 0, None, transfer_path)
                 else:
                     chunk = total // streams + 1
                     ranges = [
@@ -119,7 +120,7 @@ class S3DownloadNode(S3BaseNode):
                             part = transfer_path.with_name(f"{transfer_path.name}.part{index:03d}")
                             part_paths.append(part)
                             futures.append(
-                                pool.submit(self._fetch_range, url, start, end, part)
+                                pool.submit(self._fetch_range_resumable, url, start, end, part)
                             )
                         for future in futures:
                             future.result()
@@ -181,7 +182,7 @@ class S3DownloadNode(S3BaseNode):
         """Stream one byte range (or the whole object) to destination."""
         headers = {"Range": f"bytes={start}-{end}"} if end is not None else {}
         request = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(request, timeout=120) as resp, open(
+        with urllib.request.urlopen(request, timeout=300) as resp, open(
             destination, "wb"
         ) as out:
             while True:
@@ -189,3 +190,47 @@ class S3DownloadNode(S3BaseNode):
                 if not block:
                     break
                 out.write(block)
+
+    RANGE_MAX_RETRIES = 3
+
+    @classmethod
+    def _fetch_range_resumable(cls, url: str, start: int, end: int | None, destination: Any) -> None:
+        """Fetch a range with per-stream retry and byte-level resume.
+
+        Large cross-continent transfers stall momentarily; a single
+        socket timeout on a multi-GB stream must not kill the whole
+        parallel download (it did: the 467 GB campaign POD5 lost one
+        range after 2.5 h and took the entire e4 leg with it).
+        """
+        import time as _time
+
+        for attempt in range(cls.RANGE_MAX_RETRIES):
+            try:
+                # If a partial file exists, resume from its current size.
+                offset = 0
+                try:
+                    offset = os.path.getsize(destination)
+                except OSError:
+                    pass
+                if end is not None and offset >= (end - start + 1):
+                    return  # already complete
+                resume_start = start + offset
+                headers = (
+                    {"Range": f"bytes={resume_start}-{end}"}
+                    if end is not None
+                    else ({"Range": f"bytes={resume_start}-"} if offset > 0 else {})
+                )
+                request = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(request, timeout=300) as resp, open(
+                    destination, "ab" if offset > 0 else "wb"
+                ) as out:
+                    while True:
+                        block = resp.read(1024 * 1024)
+                        if not block:
+                            break
+                        out.write(block)
+                return
+            except Exception:
+                if attempt == cls.RANGE_MAX_RETRIES - 1:
+                    raise
+                _time.sleep(5 * (attempt + 1))  # linear backoff
