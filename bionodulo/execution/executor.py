@@ -1978,8 +1978,20 @@ class WorkflowExecutor:
                 continue
             if provider not in nodes or self._executes_loop_body(self._node_class_for(nodes.get(provider, {}))):
                 continue
-            if "_loop_state" in self._declared_hidden_inputs(self._node_class_for(nodes.get(provider, {}))):
-                body.add(provider)
+            if "_loop_state" not in self._declared_hidden_inputs(self._node_class_for(nodes.get(provider, {}))):
+                continue
+            # Pure state sources only: a provider that consumes the loop's
+            # iteration output or any body output (e.g. a merge node feeding
+            # the loop's value input) would add a feedback edge inside the
+            # body and break its topological order.
+            consumes_from_loop = any(
+                edge_target(other) == provider
+                and (edge_source(other) == loop_node_id or edge_source(other) in body)
+                for other in edges
+            )
+            if consumes_from_loop:
+                continue
+            body.add(provider)
         return body
 
     def _coerce_node_id_set(self, value: Any) -> set[str]:
