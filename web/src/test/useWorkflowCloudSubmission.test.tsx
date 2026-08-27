@@ -45,7 +45,10 @@ describe('useWorkflow cloud submission', () => {
     storage.clear();
     vi.stubGlobal('localStorage', localStorageStub);
     vi.clearAllMocks();
-    websiteMocks.createCloudWorkflow.mockResolvedValue('wf-cloud-server');
+    websiteMocks.createCloudWorkflow.mockResolvedValue({
+      ...workflow,
+      id: 'wf-cloud-server',
+    });
     websiteMocks.saveCloudWorkflow.mockResolvedValue({ id: workflow.id });
     websiteMocks.submitCloudRun.mockResolvedValue({ runId: 'run-cloud' });
   });

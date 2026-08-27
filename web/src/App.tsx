@@ -22,7 +22,6 @@ const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
 const CLOUD_COLLAB = (import.meta.env.VITE_COLLAB_PROVIDER || '').trim() === 'durable-objects';
 
 const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
-const HelpWikiPanel = lazy(() => import('./components/panels/HelpWikiPanel'));
 const TemplatesPanel = lazy(() => import('./components/panels/TemplatesPanel'));
 const EnvironmentPanel = lazy(() => import('./components/panels/EnvironmentPanel'));
 const RuntimeArtifactsPanel = lazy(() => import('./components/panels/RuntimeArtifactsPanel'));
@@ -140,6 +139,7 @@ import {
   authUserAtom,
 } from './state/appAtoms';
 import { specToRunBody } from './utils/computeSpec';
+import { openDocs } from './utils/links';
 import {
   showExportAtom,
   showImportAtom,
@@ -153,7 +153,6 @@ import {
   showInviteDialogAtom,
   showCommentsAtom,
   showOpenWorkflowAtom,
-  selectedNodeIdAtom,
   consoleVisibleAtom,
   focusModeAtom,
 } from './state/uiAtoms';
@@ -508,8 +507,8 @@ export default function App() {
       objectInfo,
       signedIn: Boolean(authUser),
       createCloudTab: async (name) => {
-        const id = await createCloudWorkflow(name);
-        await openCloudWorkflow(id);
+        const created = await createCloudWorkflow(name);
+        await openCloudWorkflow(created.id as string);
       },
       addLocalTab: (name) => {
         addWorkflow({
@@ -711,7 +710,6 @@ export default function App() {
   // class toggling.
   const showComments = useAtomValue(showCommentsAtom);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
-  const selectedNodeId = useAtomValue(selectedNodeIdAtom);
   const [livePresenceUsers, setLivePresenceUsers] = useState<LivePresenceUser[]>([]);
   // Cross-workflow display names came from the (removed) comments REST feed; in
   // single-doc collab there is one workflow, so this stays empty and lookups
@@ -1633,15 +1631,12 @@ export default function App() {
     }
   }, [getBool]);
 
-  // Listen for custom event from Getting Started modal to open help
+  // Listen for custom event from Getting Started modal to open help.
+  // Help is now the docs site — deep-link the old page id into it.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      setRailTab('help');
-      // Store preferred help page in session if needed
-      if (detail) {
-        sessionStorage.setItem('bionodulo.help_page', detail);
-      }
+      openDocs(typeof detail === 'string' ? detail : null);
     };
     window.addEventListener('bionodulo:open-help', handler);
     return () => window.removeEventListener('bionodulo:open-help', handler);
@@ -2922,7 +2917,7 @@ export default function App() {
         group: 'Panels',
         groupLabelKey: 'commandPalette.groups.panels',
         shortcut: getBinding('rail.help') ?? undefined,
-        onSelect: () => togglePanel('help'),
+        onSelect: () => openDocs(),
       },
       {
         id: 'rail.console',
@@ -3266,7 +3261,7 @@ export default function App() {
   useGlobalShortcut('rail.templates', () => togglePanel('templates'));
   useGlobalShortcut('rail.environment', () => togglePanel('environments'));
   useGlobalShortcut('rail.hpc', () => togglePanel('hpc'));
-  useGlobalShortcut('rail.help', () => togglePanel('help'));
+  useGlobalShortcut('rail.help', () => openDocs());
   useGlobalShortcut('rail.console', () => togglePanel('console'));
 
   const latestWorkflowRef = useRef(activeWorkflow);
@@ -3457,21 +3452,6 @@ export default function App() {
         />
       ));
     }
-    if (tab === 'help') {
-      const selected = selectedNodeId
-        ? activeWorkflow.nodes.find(n => n.id === selectedNodeId)
-        : null;
-      const helpSelectedNode = selected
-        ? {
-          id: selected.id,
-          type: selected.type,
-          meta: objectInfo[selected.type],
-          title: selected.ui?.title || objectInfo[selected.type]?.display_name || selected.type,
-          params: selected.params,
-        }
-        : null;
-      return wrap('help', <HelpWikiPanel onClose={() => closePanel(tab)} selectedNode={helpSelectedNode} objectInfo={objectInfo} />);
-    }
     if (tab === 'templates') {
       return wrap('templates', (
         <TemplatesPanel
@@ -3552,7 +3532,14 @@ export default function App() {
       return wrap('user', <UserPanel onClose={() => closePanel(tab)} />);
     }
     if (tab === 'compute') {
-      return wrap('compute', <ComputePanel onClose={() => closePanel(tab)} />);
+      return wrap('compute', (
+        <ComputePanel
+          onClose={() => closePanel(tab)}
+          nodes={activeWorkflow.nodes}
+          edges={activeWorkflow.edges}
+          objectInfo={objectInfo}
+        />
+      ));
     }
     const registered = registeredPanels.find(panel => panel.id === tab);
     if (registered) {

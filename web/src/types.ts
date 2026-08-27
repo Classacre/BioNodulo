@@ -181,6 +181,12 @@ export interface Workflow {
    * session is active. `replies` is always empty in storage (derived for UI).
    */
   comments?: Comment[];
+  /**
+   * Cloud editor: true while the server row for this tab is still being
+   * created (optimistic new-tab). The debounced cloud save must skip these —
+   * PUTting the client-generated temp id would 404.
+   */
+  cloudPending?: boolean;
 }
 
 export interface NodeStatus {

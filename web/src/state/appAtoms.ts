@@ -56,3 +56,27 @@ export const computeSpecAtom = atom(
     try { localStorage.setItem(COMPUTE_SPEC_KEY, JSON.stringify(next)); } catch { /* ignore */ }
   },
 );
+
+// Workflow auto-sizing: while true, the Compute panel keeps the spec matched to
+// the active workflow (threads demand + GPU need). Any manual slider edit turns
+// it off; the panel offers a one-click re-enable. Defaults to on.
+const COMPUTE_AUTO_KEY = 'bionodulo.cloud.computeAuto';
+
+function loadComputeAuto(): boolean {
+  try {
+    const raw = localStorage.getItem(COMPUTE_AUTO_KEY);
+    if (raw === 'false') return false;
+  } catch { /* ignore */ }
+  return true;
+}
+
+const baseComputeAutoAtom = atom<boolean>(loadComputeAuto());
+
+/** Whether compute auto-sizing is active; persisted alongside the spec. */
+export const computeAutoAtom = atom(
+  (get) => get(baseComputeAutoAtom),
+  (_get, set, next: boolean) => {
+    set(baseComputeAutoAtom, next);
+    try { localStorage.setItem(COMPUTE_AUTO_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  },
+);

@@ -94,6 +94,25 @@ function emptyWorkflow(): Workflow {
   };
 }
 
+/** Stable key of exactly what saveCloudWorkflow PUTs. Used to skip the
+ * redundant re-save of a workflow that was just created and never edited. */
+function workflowSaveKey(wf: Workflow): string {
+  return JSON.stringify({
+    name: wf.name || 'Untitled',
+    description: wf.description || null,
+    nodes: wf.nodes ?? [],
+    edges: wf.edges ?? [],
+    groups: wf.groups ?? [],
+    outputs: wf.outputs ?? {},
+    environment: wf.environment,
+    dependencies: wf.dependencies,
+    parameters: wf.parameters ?? [],
+    comments: wf.comments ?? [],
+    version: wf.version,
+    app: wf.app,
+  });
+}
+
 const LOCAL_WORKFLOWS_KEY = 'bionodulo.local.workflows';
 
 function loadLocalWorkflows(): { workflows: Workflow[]; activeIndex: number } {
@@ -152,6 +171,10 @@ export function useWorkflow() {
   // when restoration finishes, and a ref assignment does not schedule a render.
   const [cloudRestored, setCloudRestored] = useState(false);
   const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Server ids of workflows created this session, mapped to the exact payload
+  // that was written at creation time. While the current state still matches
+  // that snapshot there is nothing to PUT.
+  const cloudPristineRef = useRef(new Map<string, string>());
 
   // Local persistence (skipped in cloud editor mode).
   useEffect(() => {
@@ -198,7 +221,7 @@ export function useWorkflow() {
         }
         // Nothing yet — create a fresh workflow so the editor isn't empty.
         if (ids.length === 0) {
-          ids.push(await createCloudWorkflow(i18n.t('common.untitled')));
+          ids.push((await createCloudWorkflow(i18n.t('common.untitled'))).id as string);
         }
 
         const loaded = await Promise.all(
@@ -240,14 +263,19 @@ export function useWorkflow() {
   // placeholder does not overwrite the record before restoration runs.
   useEffect(() => {
     if (!editorMode || !cloudRestored) return;
-    writeOpenWorkflows(workflows.map(w => w.id).filter(Boolean) as string[]);
+    writeOpenWorkflows(
+      workflows.filter(w => w.id && !w.cloudPending).map(w => w.id as string),
+    );
   }, [workflows, editorMode, cloudRestored]);
 
   // Cloud save: debounced PUT of the active workflow's definition.
   useEffect(() => {
     if (!editorMode || !cloudLoadedRef.current) return;
     const wf = workflows[activeIndex];
-    if (!wf?.id) return;
+    // cloudPending = row still being created server-side; its temp id would 404.
+    // Pristine match = freshly created and untouched since — nothing to save.
+    if (!wf?.id || wf.cloudPending) return;
+    if (cloudPristineRef.current.get(wf.id) === workflowSaveKey(wf)) return;
     if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
     cloudSaveTimer.current = setTimeout(() => {
       saveCloudWorkflow(wf).catch(err => logError('cloud.workflows.save', err));
@@ -315,18 +343,47 @@ export function useWorkflow() {
     }
   }, [editorMode]);
 
-  // Create a fresh cloud workflow and open it as a new tab.
+  // Create a fresh cloud workflow and open it as a new tab. The tab appears
+  // IMMEDIATELY with a temp id (cloudPending) — the server round trip then
+  // swaps in the real id while keeping any edits made in the meantime. This is
+  // what makes new tabs feel instant in the cloud editor; the old flow awaited
+  // POST + GET serially before the tab rendered at all.
   const newCloudWorkflow = useCallback(async () => {
     if (!editorMode) return;
+    const placeholder: Workflow = { ...emptyWorkflow(), cloudPending: true };
+    const tempId = placeholder.id as string;
+    setWorkflows(prev => {
+      setActiveIndex(prev.length);
+      return [...prev, placeholder];
+    });
     try {
-      const id = await createCloudWorkflow(i18n.t('common.untitled'));
-      const wf = normalizeWorkflow(await getCloudWorkflow(id));
-      setWorkflows(prev => {
-        setActiveIndex(prev.length);
-        return [...prev, wf];
-      });
+      const created = await createCloudWorkflow(i18n.t('common.untitled'));
+      setWorkflows(prev => prev.map(w => {
+        if (w.id !== tempId) return w;
+        // Tab closed before the row landed — leave the map alone; the empty
+        // server row is harmless and shows up in "Open workflow".
+        if (!w.cloudPending) return w;
+        const merged: Workflow = {
+          ...w,
+          id: created.id,
+          description: w.description || created.description,
+          cloudPending: false,
+        };
+        // Pristine key = the SERVER row (created), not `merged` — edits made
+        // while the row was landing must still trip the save effect.
+        cloudPristineRef.current.set(merged.id as string, workflowSaveKey(created));
+        return merged;
+      }));
     } catch (err) {
       logError('cloud.workflows.new', err);
+      // Roll the placeholder back out so the user is not left on a dead tab.
+      setWorkflows(prev => {
+        const next = prev.filter(w => w.id !== tempId);
+        if (next.length === 0) next.push(emptyWorkflow());
+        const len = next.length;
+        setActiveIndex(idx => Math.max(0, Math.min(idx, len - 1)));
+        return next;
+      });
     }
   }, [editorMode]);
 
@@ -436,7 +493,7 @@ export function useWorkflow() {
       // A local workflow id is generated client-side and does not identify a DB
       // row. Forced cloud runs therefore always create a server-owned workflow.
       let id = options?.forceCloud && !editorMode ? undefined : wf.id;
-      if (!id) id = await createCloudWorkflow(wf.name || i18n.t('common.untitled'));
+      if (!id) id = (await createCloudWorkflow(wf.name || i18n.t('common.untitled'))).id as string;
       const persisted = { ...wf, id };
       try {
         await saveCloudWorkflow(persisted);

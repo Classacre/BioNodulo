@@ -6,6 +6,7 @@ import { usePanelRegistry } from '../../state/panels';
 import { useKeybindings } from '../../hooks/ui';
 import { consoleVisibleAtom } from '../../state/uiAtoms';
 import { authUserAtom, cloudConfigAtom } from '../../state/appAtoms';
+import { openDocs } from '../../utils/links';
 
 export type RailTab = 'data' | 'nodes' | 'templates' | 'environments' | 'runtimeArtifacts' | 'help' | 'console' | 'settings' | 'hpc' | 'user' | 'compute' | string | null;
 
@@ -110,7 +111,8 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
         />
       ))}
       <div className="rail-sep" />
-      <RailButton active={active === 'help'} icon="help" label={t('panels.helpWiki')} shortcut={getBinding('rail.help') ?? undefined} onClick={() => toggle('help')} />
+      {/* Help is the docs site, not an in-app panel — open in a new tab. */}
+      <RailButton active={false} icon="help" label={t('panels.helpWiki')} shortcut={getBinding('rail.help') ?? undefined} onClick={() => openDocs()} />
       <RailButton active={active === 'console' || consoleVisible} icon="console" label={t('panels.console')} shortcut={getBinding('rail.console') ?? undefined} onClick={toggleConsole} />
       <div className="rail-sep" />
       {signedIn && (

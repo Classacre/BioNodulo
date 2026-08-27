@@ -3456,8 +3456,21 @@ kbd {
   overflow-y: auto;
 }
 
+/* Node Library scrolls in exactly one place: the results list. The generic
+   .rail-panel-body scrolls for other panels, but here the search box, count
+   summary and filter chips are fixed and the list flexes to the remaining
+   height — otherwise a viewport-based max-height makes the body and the list
+   overflow together and two scrollbars appear. */
+.node-library-panel .rail-panel-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .node-library-results {
-  max-height: calc(100vh - 210px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .node-palette-body {

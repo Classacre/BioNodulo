@@ -81,13 +81,15 @@ export async function getCloudWorkflow(id: string): Promise<Workflow> {
   return rowToWorkflow(row);
 }
 
-/** Create a new empty workflow row; returns its id. */
-export async function createCloudWorkflow(name: string): Promise<string> {
+/** Create a new empty workflow row. The POST returns the full row, so this
+ * resolves straight to the editor-shaped workflow — callers must not re-GET
+ * it (that second round trip is what made new tabs feel slow). */
+export async function createCloudWorkflow(name: string): Promise<Workflow> {
   const row = await call<WorkflowRow>('/workflows', {
     method: 'POST',
     body: JSON.stringify({ name }),
   });
-  return row.id;
+  return rowToWorkflow(row);
 }
 
 /** Persist the editor workflow's name/description/definition to its row. */
