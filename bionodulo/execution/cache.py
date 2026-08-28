@@ -135,10 +135,14 @@ class CacheStore:
         """Map any input value that resolves to an existing file to a fingerprint.
 
         ``mode`` selects the trade-off:
-        - ``"fast"`` (default): ``size`` + ``mtime_ns`` — cheap, like make /
-          Snakemake's default. Detects in-place edits without reading the file.
-        - ``"strong"``: a SHA-256 of the file contents — robust against
-          mtime-only changes, but reads every input (can be slow for the large
+        - ``"fast"`` (default): sampled content hash (size + first/middle/last
+          1MB blocks) — content-addressed, path-independent, and fast for any
+          file size. Two files with identical content produce identical
+          fingerprints regardless of when they were created or where they live,
+          so a rerun on a recovered worker hits the cache instead of
+          recomputing everything from scratch.
+        - ``"strong"``: a SHA-256 of the full file contents — robust against
+          sampled collisions, but reads every byte (prohibitive for the large
           files common in bioinformatics).
         - ``"off"``: no fingerprinting (legacy path-only behaviour).
 
@@ -163,7 +167,25 @@ class CacheStore:
                     return f"sha256:{digest.hexdigest()}"
                 except OSError:
                     return None
-            return f"fast:{stat.st_size}:{stat.st_mtime_ns}"
+            # Sampled content hash: size + three 1MB blocks. Fast for any
+            # file size (< 1s for a 467 GB POD5) and content-addressed so
+            # recovery from a re-download produces the same fingerprint.
+            try:
+                digest = hashlib.sha256()
+                digest.update(str(stat.st_size).encode("utf-8"))
+                block = 1024 * 1024
+                with open(path, "rb") as handle:
+                    # First block
+                    digest.update(handle.read(block))
+                    # Middle block
+                    handle.seek(max(0, stat.st_size // 2))
+                    digest.update(handle.read(block))
+                    # Last block
+                    handle.seek(max(0, stat.st_size - block))
+                    digest.update(handle.read(block))
+                return f"sc:{digest.hexdigest()[:24]}"
+            except OSError:
+                return None
 
         def _walk(prefix: str, value: Any) -> None:
             if isinstance(value, str):
