@@ -19,6 +19,7 @@ import asyncio
 import copy
 import gzip
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -3565,8 +3566,20 @@ class WorkflowExecutor:
             }
             kwargs = self._resolve_file_paths(node_class, kwargs)
             node_instance = node_class()
-            if asyncio.iscoroutinefunction(node_class.run):
+            if asyncio.iscoroutinefunction(node_class.run) and self._run_body_awaits(
+                node_class.run
+            ):
                 raw = await node_instance.run(context=ctx, **kwargs)
+            elif asyncio.iscoroutinefunction(node_class.run):
+                # Declared async but never awaits (a widespread builtin bug
+                # class): the body executes synchronously on the first send, so
+                # awaiting it inline would run blocking work on the server's
+                # event loop. Execute it in a worker thread on a private loop
+                # instead, exactly like a plain sync node body.
+                def _run_coro() -> Any:
+                    return asyncio.run(node_instance.run(context=ctx, **kwargs))
+
+                raw = await asyncio.to_thread(_run_coro)
             else:
                 # Run synchronous (often CPU- or IO-bound) node bodies off the
                 # event loop so a single blocking node cannot stall the server,
@@ -3578,6 +3591,23 @@ class WorkflowExecutor:
             f"Node class not found for '{node.get('type', 'unknown')}'. "
             "Ensure the node is registered in the node registry."
         )
+
+    @staticmethod
+    def _run_body_awaits(run_method: Any) -> bool:
+        """Return True when an async ``run`` body actually awaits something.
+
+        Many builtin nodes declare ``async def run`` yet contain no ``await``;
+        such bodies execute their entire (often blocking) body inline when
+        awaited, stalling the server's event loop for the duration of the
+        node. Inspecting the source for ``await`` separates genuinely
+        cooperative coroutines from misdeclared synchronous bodies. When the
+        source cannot be read, assume the body awaits (previous behaviour).
+        """
+        try:
+            source = inspect.getsource(run_method)
+        except (OSError, TypeError):
+            return True
+        return "await" in source
 
     @staticmethod
     def _declared_hidden_inputs(node_class: Any) -> set[str]:

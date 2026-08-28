@@ -2452,3 +2452,63 @@ def test_cache_store_keeps_markers_with_relative_outputs(tmp_path: Path) -> None
     store = CacheStore(tmp_path)
     store.write_marker("inline-key", outputs={"out": 42, "name": "relative.tsv"})
     assert store.is_hit("inline-key")
+
+
+def test_misdeclared_async_node_does_not_stall_event_loop() -> None:
+    """A node declaring ``async def run`` with no ``await`` runs its blocking
+    body off the server loop (worker thread + private loop), so concurrent
+    tasks keep ticking while the node blocks (seen live: a 467 GB s3_download
+    pinned the engine API for hours because the body called future.result()
+    inline on the event loop)."""
+
+    ticks: list[float] = []
+
+    async def _heartbeat() -> None:
+        for _ in range(6):
+            ticks.append(asyncio.get_running_loop().time())
+            await asyncio.sleep(0.05)
+
+    class BlockingAsyncNode:
+        @classmethod
+        def INPUT_TYPES(cls) -> dict[str, Any]:
+            return {}
+
+        async def run(self, context: Any = None) -> dict[str, Any]:
+            import time
+
+            time.sleep(0.6)  # blocking: must not stall the loop
+            return {"outputs": {"result": "ok"}}
+
+    executor = WorkflowExecutor.__new__(WorkflowExecutor)
+
+    async def _scenario() -> None:
+        node = {"id": "n1", "type": "blocking_async", "_node_class": BlockingAsyncNode}
+        ctx = SimpleNamespace(params={})
+        heartbeat = asyncio.create_task(_heartbeat())
+        result = await executor._execute_node(ctx, node, {})
+        await heartbeat
+        return result
+
+    outcome = asyncio.run(_scenario())
+    assert outcome == {"outputs": {"result": "ok"}}
+    # The heartbeat must have made progress *during* the blocking node: ticks
+    # span at least a few sleep periods rather than bunching after completion.
+    assert len(ticks) >= 4
+    assert ticks[-1] - ticks[0] >= 0.15
+
+
+def test_run_body_awaits_detection() -> None:
+    """Source inspection separates genuinely cooperative coroutines from
+    misdeclared synchronous bodies."""
+
+    class GenuinelyAsyncNode:
+        async def run(self, context: Any = None) -> dict[str, Any]:
+            await asyncio.sleep(0)
+            return {}
+
+    class FakeAsyncNode:
+        async def run(self, context: Any = None) -> dict[str, Any]:
+            return {}
+
+    assert WorkflowExecutor._run_body_awaits(GenuinelyAsyncNode.run) is True
+    assert WorkflowExecutor._run_body_awaits(FakeAsyncNode.run) is False
