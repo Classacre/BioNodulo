@@ -624,3 +624,65 @@ def test_vcf_index_contract_rejects_invalid_pairings(
     message: str,
 ) -> None:
     assert message in str(InputVCFNode.VALIDATE_INPUTS(inputs))
+
+
+def test_url_cache_validates_fasta_before_promotion(tmp_path, monkeypatch):
+    """The corrupt-reference class, fixed at the source: a downloaded FASTA with
+    torn line structure must fail validation (with one retry) instead of being
+    promoted into the URL cache where every later run replays it. Clean files,
+    including shorter record tails, must pass."""
+    import asyncio
+    from pathlib import Path
+
+    import bionodulo.nodes.builtin.input_family.adapter as adapter_mod
+
+    NL = chr(10)
+    clean = ">chr1" + NL + "A" * 60 + NL + "A" * 30 + NL
+    torn = ">chr1" + NL + "A" * 60 + NL + "A" * 35 + NL + "A" * 60 + NL
+
+    class _Ctx:
+        workspace_dir = str(tmp_path)
+
+    ctx = _Ctx()
+    # gzip path: url ends .gz so decompression runs; feed a real gzip of each payload
+    import gzip as _gzip
+    import io as _io
+
+    payloads = [torn, clean]  # first transfer corrupt, retry succeeds
+    gz_payloads = []
+    for text in payloads:
+        buf = _io.BytesIO()
+        with _gzip.GzipFile(fileobj=buf, mode="wb") as gz:
+            gz.write(text.encode("utf-8"))
+        gz_payloads.append(buf.getvalue())
+    gz_iter = iter(gz_payloads)
+
+    def fake_urlopen_gz(req, timeout=None):
+        data = next(gz_iter)
+        state = {"remaining": data}
+
+        class _Resp:
+            headers = {"Content-Length": str(len(data))}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self, n=-1):
+                take = state["remaining"][: n if n and n > 0 else len(state["remaining"])]
+                state["remaining"] = state["remaining"][len(take):]
+                return take
+
+        return _Resp()
+
+    monkeypatch.setattr(adapter_mod.urllib.request, "urlopen", fake_urlopen_gz)
+    dest = adapter_mod._download_to_cache(
+        "https://example.org/genome.fa.gz", ctx, decompress_gzip=True
+    )
+    assert dest.name == "genome.fa"
+    assert dest.read_text(encoding="utf-8") == clean
+    # the corrupt transfer was consumed and the retry fetched the clean file
+    consumed = len(gz_payloads) - len(list(gz_iter))
+    assert consumed == 2

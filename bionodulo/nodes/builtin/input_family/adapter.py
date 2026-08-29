@@ -214,6 +214,56 @@ def _copy_with_progress(response: Any, fh: Any, context: Any, url: str) -> None:
             logger.debug("final download progress emit failed", exc_info=True)
 
 
+def _validate_fasta_lines(path: Path, max_report: int = 3) -> None:
+    """Reject a decompressed FASTA whose sequence lines break uniform width.
+
+    samtools faidx and most indexers require equal-length sequence lines; a
+    torn write (short line followed by more sequence) makes every downstream
+    index build fail with an opaque format error. Observed live: a cached
+    GRCh38 reference carried 833,444 truncated lines for months and killed
+    five workflow attempts at the first faidx. The scan accepts the final
+    line of each record being shorter (normal FASTA tail); a short line
+    followed by another sequence line is the defect. Returns the first
+    offending line numbers in the raised message.
+    """
+    bad: list[int] = []
+    current_width: int | None = None
+    pending_short: int | None = None  # lineno of a shorter line awaiting its successor
+    with path.open("rb") as fh:
+        for lineno, raw in enumerate(fh, 1):
+            line = raw.rstrip(b"\r\n")
+            if line.startswith(b">"):
+                # A shorter line right before a header is the record tail: legal.
+                pending_short = None
+                current_width = None
+                continue
+            if not line:
+                continue
+            if pending_short is not None:
+                # Sequence continued after a short line: that short line was a defect.
+                bad.append(pending_short)
+                pending_short = None
+                if len(bad) >= max_report:
+                    break
+            if current_width is None:
+                current_width = len(line)
+            elif len(line) == current_width:
+                pass
+            elif len(line) < current_width:
+                pending_short = lineno  # legal only if a header (or EOF) follows
+            else:
+                bad.append(lineno)  # longer than the record width cannot be a tail
+                if len(bad) >= max_report:
+                    break
+    # EOF after a short line is a legal tail; pending_short simply expires.
+    if bad:
+        raise ValueError(
+            f"Downloaded FASTA has non-uniform sequence line lengths "
+            f"(first bad lines: {bad}); the transfer is corrupt. "
+            f"Delete {path} and retry, or verify the source."
+        )
+
+
 def _download_to_cache(
     url: str,
     context: Any,
@@ -224,7 +274,9 @@ def _download_to_cache(
 
     The complete URL SHA-256 selects an isolated cache directory, so unrelated
     URLs with the same basename cannot alias. Downloaded and decompressed bytes
-    are promoted with ``os.replace`` only after the whole operation succeeds.
+    are promoted with ``os.replace`` only after the whole operation succeeds,
+    and FASTA outputs are structurally validated before promotion so a torn
+    transfer cannot poison the cache.
 
     When ``decompress_gzip`` is true, URLs ending in ``.gz`` are transparently
     decompressed and the cached filename loses that suffix. Callers such as
@@ -241,33 +293,53 @@ def _download_to_cache(
         logger.debug("URL cache hit: %s -> %s", url, dest)
         return dest
 
+    is_fasta = fname.lower().endswith((".fa", ".fasta", ".fna"))
     logger.info("Downloading URL cache key %s -> %s", _url_cache_key(url)[:12], dest)
-    req = urllib.request.Request(url, headers={"User-Agent": _HTTP_USER_AGENT})
-    download_path: Path | None = _temporary_path(
-        cache_dir,
-        prefix=".download-",
-        suffix=".part",
-    )
-    decoded_path: Path | None = None
-    try:
-        with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_S) as response:
-            with download_path.open("wb") as fh:
-                _copy_with_progress(response, fh, context, url)
-        if gunzip:
-            decoded_path = _temporary_path(cache_dir, prefix=".decoded-", suffix=".part")
-            with gzip.open(download_path, "rb") as gz_fh, decoded_path.open("wb") as out_fh:
-                shutil.copyfileobj(gz_fh, out_fh)
-            os.replace(decoded_path, dest)
-            decoded_path = None
-        else:
-            os.replace(download_path, dest)
-            download_path = None
-    finally:
-        if download_path is not None:
-            download_path.unlink(missing_ok=True)
-        if decoded_path is not None:
-            decoded_path.unlink(missing_ok=True)
-    return dest
+    for attempt in (1, 2):
+        req = urllib.request.Request(url, headers={"User-Agent": _HTTP_USER_AGENT})
+        download_path: Path | None = _temporary_path(
+            cache_dir,
+            prefix=".download-",
+            suffix=".part",
+        )
+        decoded_path: Path | None = None
+        try:
+            with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT_S) as response:
+                with download_path.open("wb") as fh:
+                    _copy_with_progress(response, fh, context, url)
+            if gunzip:
+                decoded_path = _temporary_path(cache_dir, prefix=".decoded-", suffix=".part")
+                with gzip.open(download_path, "rb") as gz_fh, decoded_path.open("wb") as out_fh:
+                    shutil.copyfileobj(gz_fh, out_fh)
+                if is_fasta:
+                    _validate_fasta_lines(decoded_path)
+                os.replace(decoded_path, dest)
+                decoded_path = None
+            else:
+                if is_fasta:
+                    _validate_fasta_lines(download_path)
+                os.replace(download_path, dest)
+                download_path = None
+        except ValueError:
+            # Structural validation failed: the bytes on disk are corrupt.
+            # Drop them and retry once; a second failure propagates.
+            if download_path is not None:
+                download_path.unlink(missing_ok=True)
+            if decoded_path is not None:
+                decoded_path.unlink(missing_ok=True)
+            if attempt == 2:
+                raise
+            logger.warning(
+                "FASTA validation failed for %s (attempt 1); retrying download", url
+            )
+            continue
+        finally:
+            if download_path is not None:
+                download_path.unlink(missing_ok=True)
+            if decoded_path is not None:
+                decoded_path.unlink(missing_ok=True)
+        return dest
+    raise RuntimeError("unreachable")
 
 
 _ARCHIVE_SUFFIXES = (".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".tar", ".zip")
