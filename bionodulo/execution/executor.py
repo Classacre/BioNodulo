@@ -853,6 +853,27 @@ class WorkflowExecutor:
                         "cache_key": cache_key,
                         "outputs": cached_outputs,
                     }
+                    # Replay pointer: cached nodes materialise no files under
+                    # this run, so tree-scanning consumers (campaign results,
+                    # audits) see empty iteration dirs for fully-replayed
+                    # branches. A small pointer file restores the linkage: it
+                    # records where the real outputs live without copying them.
+                    try:
+                        node_dir.mkdir(parents=True, exist_ok=True)
+                        (node_dir / "replay.json").write_text(
+                            json.dumps(
+                                {
+                                    "cache_key": cache_key,
+                                    "outputs": cached_outputs,
+                                },
+                                sort_keys=True,
+                            ),
+                            encoding="utf-8",
+                        )
+                    except OSError:
+                        logger.debug(
+                            "replay pointer not written for %s", node_id, exc_info=True
+                        )
                     # Durable progress record: a healthy run must leave evidence
                     # in run_events, not just workspace files — live-only events
                     # made a 15h field run indistinguishable from a hang.

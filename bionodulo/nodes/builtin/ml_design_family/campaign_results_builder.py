@@ -191,7 +191,44 @@ class CampaignResultsBuilderNode(MLDesignNode):
             payload = json.loads(path.read_text(encoding="utf-8"))
             stats = payload.get("stats", {}) if isinstance(payload, dict) else {}
             return [(metric, stats.get(metric)) for metric in ELITE_METRICS]
+        # Fully-replayed iterations materialise no files: the executor leaves
+        # replay.json pointers at the original outputs instead. Follow the
+        # optimizer's pointer when the direct scan finds nothing.
+        pointed = CampaignResultsBuilderNode._replay_pointed(
+            iteration_dir, OPTIMIZER_DIR, "elites.json"
+        )
+        if pointed is not None:
+            try:
+                payload = json.loads(pointed.read_text(encoding="utf-8"))
+                stats = payload.get("stats", {}) if isinstance(payload, dict) else {}
+                return [(metric, stats.get(metric)) for metric in ELITE_METRICS]
+            except (json.JSONDecodeError, OSError):
+                return []
         return []
+
+    @staticmethod
+    def _replay_pointed(iteration_dir: Path, node_name: str, filename: str) -> Path | None:
+        """Resolve an output file through the replay pointer of *node_name*.
+
+        Cache-hit nodes write ``<node_dir>/replay.json`` mapping output port
+        names to the original run's file paths. Returns the pointed-to path
+        when the pointer exists and the target file is still readable.
+        """
+        pointer = iteration_dir / node_name / "replay.json"
+        if not pointer.is_file():
+            return None
+        try:
+            payload = json.loads(pointer.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+        outputs = payload.get("outputs", {}) if isinstance(payload, dict) else {}
+        for value in outputs.values() if isinstance(outputs, dict) else []:
+            if not isinstance(value, str):
+                continue
+            candidate = Path(value)
+            if candidate.name == filename and candidate.is_file():
+                return candidate
+        return None
 
     @staticmethod
     def _best_payload(iteration_dir: Path) -> dict[str, Any] | None:
@@ -212,6 +249,18 @@ class CampaignResultsBuilderNode(MLDesignNode):
             except json.JSONDecodeError:
                 return None
             return payload if isinstance(payload, dict) else None
+        # Replay fallback for fully-cached branches (see _optimizer_metrics).
+        for node_name in ("best_so_far", OPTIMIZER_DIR):
+            pointed = CampaignResultsBuilderNode._replay_pointed(
+                iteration_dir, node_name, "best.json"
+            )
+            if pointed is not None:
+                try:
+                    payload = json.loads(pointed.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+                if isinstance(payload, dict):
+                    return payload
         return None
 
     @staticmethod

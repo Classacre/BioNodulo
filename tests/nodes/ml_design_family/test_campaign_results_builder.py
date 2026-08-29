@@ -184,3 +184,48 @@ async def test_empty_run_dir_uses_execution_context_runs_root(tmp_path: Path) ->
     bare = SimpleNamespace(node_dir=tmp_path / "node2")
     with pytest.raises(ValueError, match="outside an execution context"):
         await node.run(run_dir="", context=bare)
+
+
+def test_replayed_iterations_resolve_through_pointer_files(tmp_path):
+    """Fully-cached branches materialise no elites.json/best.json under the
+    new run; the executor writes replay.json pointers instead (seen live when
+    LinearDesign's per-target rows came back empty in the campaign summary).
+    The builder follows the pointers; direct scans keep priority when real
+    files exist."""
+    import json as _json
+
+    from bionodulo.nodes.builtin.ml_design_family.campaign_results_builder import (
+        CampaignResultsBuilderNode as CRB,
+    )
+
+    orig = tmp_path / "orig"
+    orig.mkdir()
+    (orig / "elites.json").write_text(
+        _json.dumps({"stats": {"best_composite": 1.234}}), encoding="utf-8"
+    )
+    (orig / "best.json").write_text(
+        _json.dumps({"composite": 1.234, "id": "cand_9", "best_cds": "ATGCCC"}),
+        encoding="utf-8",
+    )
+    it = tmp_path / "run" / "branch" / "iterations" / "0001"
+    (it / "group_relative_optimizer").mkdir(parents=True)
+    (it / "best_so_far").mkdir(parents=True)
+    (it / "group_relative_optimizer" / "replay.json").write_text(
+        _json.dumps({"cache_key": "k1", "outputs": {"metrics": str(orig / "elites.json")}}),
+        encoding="utf-8",
+    )
+    (it / "best_so_far" / "replay.json").write_text(
+        _json.dumps({"cache_key": "k2", "outputs": {"best": str(orig / "best.json")}}),
+        encoding="utf-8",
+    )
+    metrics = CRB._optimizer_metrics(it)
+    assert metrics and metrics[0][1] == 1.234
+    best = CRB._best_payload(it)
+    assert best and best["best_cds"] == "ATGCCC"
+
+    live = tmp_path / "live"
+    (live / "group_relative_optimizer").mkdir(parents=True)
+    (live / "group_relative_optimizer" / "elites.json").write_text(
+        _json.dumps({"stats": {"best_composite": 9.9}}), encoding="utf-8"
+    )
+    assert CRB._optimizer_metrics(live)[0][1] == 9.9
