@@ -1272,6 +1272,17 @@
                 "node": "fe_pairs",
                 "input": "body_result"
               }
+            },
+            {
+              "id": "m_d1_sampler_to_d1_best",
+              "from": {
+                "node": "d1_sampler",
+                "output": "candidates"
+              },
+              "to": {
+                "node": "d1_best",
+                "input": "candidates"
+              }
             }
           ],
           "outputs": {}
@@ -7018,6 +7029,28 @@
               "to": {
                 "node": "st_mir",
                 "input": "values_b"
+              }
+            },
+            {
+              "id": "m_b1_gen_to_b1_best",
+              "from": {
+                "node": "b1_gen",
+                "output": "candidates"
+              },
+              "to": {
+                "node": "b1_best",
+                "input": "candidates"
+              }
+            },
+            {
+              "id": "m_dv_sampler_to_dv_best",
+              "from": {
+                "node": "dv_sampler",
+                "output": "candidates"
+              },
+              "to": {
+                "node": "dv_best",
+                "input": "candidates"
               }
             }
           ],
