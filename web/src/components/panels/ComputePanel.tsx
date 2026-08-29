@@ -192,7 +192,7 @@ export default function ComputePanel({ onClose, nodes, edges, objectInfo }: Comp
             t('compute.gpuCount', { defaultValue: 'GPUs (A10)' }),
             gpuCount,
             0,
-            GPU_MAX_COUNT,
+            isFree ? 1 : GPU_MAX_COUNT,
             1,
             setGpuCount,
             v => (v === 0 ? t('compute.none', { defaultValue: 'None' }) : `×${v}`),
