@@ -1,6 +1,7 @@
 """AWS CLI 2.36.2 S3 download contract."""
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
@@ -99,40 +100,12 @@ class S3DownloadNode(S3BaseNode):
             key = str(run_inputs.get("key", "") or "").strip().lstrip("/")
             url = f"https://{bucket}.s3.amazonaws.com/{key}"
             try:
-                request = urllib.request.Request(url, method="HEAD")
-                with urllib.request.urlopen(request, timeout=60) as resp:
-                    total = int(resp.headers.get("Content-Length") or 0)
-                streams = 1
-                if total > PARALLEL_THRESHOLD_BYTES:
-                    streams = PARALLEL_STREAMS
-                part_paths = []
-                if streams == 1:
-                    self._fetch_range_resumable(url, 0, None, transfer_path)
-                else:
-                    chunk = total // streams + 1
-                    ranges = [
-                        (offset, min(offset + chunk, total) - 1)
-                        for offset in range(0, total, chunk)
-                    ]
-                    with ThreadPoolExecutor(max_workers=streams) as pool:
-                        futures = []
-                        for index, (start, end) in enumerate(ranges):
-                            part = transfer_path.with_name(f"{transfer_path.name}.part{index:03d}")
-                            part_paths.append(part)
-                            futures.append(
-                                pool.submit(self._fetch_range_resumable, url, start, end, part)
-                            )
-                        for future in futures:
-                            future.result()
-                    with open(transfer_path, "wb") as out:
-                        for part in part_paths:
-                            with open(part, "rb") as src:
-                                while True:
-                                    block = src.read(1024 * 1024)
-                                    if not block:
-                                        break
-                                    out.write(block)
-                            part.unlink(missing_ok=True)
+                # The whole HTTP fetch (HEAD, ranged streams, reassembly) runs
+                # in a worker thread: this node's run() is async-declared, so
+                # awaiting the blocking fetch inline parked the server's event
+                # loop for the entire multi-hour transfer (observed live on a
+                # 467 GB object).
+                await asyncio.to_thread(self._fetch_https_anonymous, url, transfer_path)
                 result = {"returncode": 0, "stdout": "", "stderr": ""}
             except Exception as exc:
                 for part in transfer_path.parent.glob(f"{transfer_path.name}.part*"):
@@ -192,6 +165,50 @@ class S3DownloadNode(S3BaseNode):
                 out.write(block)
 
     RANGE_MAX_RETRIES = 3
+
+    @classmethod
+    def _fetch_https_anonymous(cls, url: str, transfer_path: Any) -> None:
+        """Fetch an object over anonymous HTTPS; blocking, so call in a thread.
+
+        HEAD determines the size; objects above the parallel threshold split
+        into ranged streams fetched concurrently (each with retry and resume),
+        then reassemble into the transfer path. Runs entirely on blocking IO
+        and may take hours for very large objects.
+        """
+        request = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(request, timeout=60) as resp:
+            total = int(resp.headers.get("Content-Length") or 0)
+        streams = 1
+        if total > PARALLEL_THRESHOLD_BYTES:
+            streams = PARALLEL_STREAMS
+        part_paths = []
+        if streams == 1:
+            cls._fetch_range_resumable(url, 0, None, transfer_path)
+            return
+        chunk = total // streams + 1
+        ranges = [
+            (offset, min(offset + chunk, total) - 1)
+            for offset in range(0, total, chunk)
+        ]
+        with ThreadPoolExecutor(max_workers=streams) as pool:
+            futures = []
+            for index, (start, end) in enumerate(ranges):
+                part = transfer_path.with_name(f"{transfer_path.name}.part{index:03d}")
+                part_paths.append(part)
+                futures.append(
+                    pool.submit(cls._fetch_range_resumable, url, start, end, part)
+                )
+            for future in futures:
+                future.result()
+        with open(transfer_path, "wb") as out:
+            for part in part_paths:
+                with open(part, "rb") as src:
+                    while True:
+                        block = src.read(1024 * 1024)
+                        if not block:
+                            break
+                        out.write(block)
+                part.unlink(missing_ok=True)
 
     @classmethod
     def _fetch_range_resumable(cls, url: str, start: int, end: int | None, destination: Any) -> None:

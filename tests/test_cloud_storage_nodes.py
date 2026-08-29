@@ -506,3 +506,51 @@ async def test_s3_download_anonymous_large_object_uses_parallel_ranges(
     assert destination.read_bytes() == blob, "parts must reassemble byte-exact"
     metadata = json.loads(Path(result["outputs"]["metadata"]).read_text(encoding="utf-8"))
     assert metadata["transport"] == "https-anonymous"
+
+
+def test_s3_download_offloads_blocking_fetch_from_event_loop(monkeypatch, tmp_path):
+    """The starvation fix: s3_download's run() is async, but the whole HTTP
+    fetch (HEAD + ranged streams + reassembly) used to execute inline, parking
+    the server's event loop for the entire transfer (hours on a 467 GB
+    object). The fetch now runs via asyncio.to_thread; a heartbeat coroutine
+    must keep ticking while a download is in flight."""
+    import asyncio
+    import time
+    from types import SimpleNamespace
+
+    import bionodulo.nodes.builtin.cloud_storage_family.s3_download as mod
+
+    ticks: list[float] = []
+
+    def slow_fetch(cls_self, url, transfer_path):
+        time.sleep(0.6)  # stands in for the blocking transfer
+        transfer_path.write_bytes(b"data")
+
+    async def scenario():
+        node = mod.S3DownloadNode()
+        ctx = SimpleNamespace(node_dir=str(tmp_path))
+        monkeypatch.setattr(mod.S3DownloadNode, "_fetch_https_anonymous", slow_fetch)
+        monkeypatch.setattr(mod.shutil, "which", lambda _: None)  # force HTTPS path
+
+        async def heartbeat():
+            for _ in range(6):
+                ticks.append(asyncio.get_running_loop().time())
+                await asyncio.sleep(0.05)
+
+        hb = asyncio.create_task(heartbeat())
+        result = await node.run(
+            context=ctx,
+            bucket="example-bucket",
+            key="some/object.pod5",
+            local_path=str(tmp_path / "out.pod5"),
+        )
+        await hb
+        return result
+
+    out = asyncio.run(scenario())
+    assert str(out["outputs"]["local_path"]).endswith("out.pod5")
+    assert (tmp_path / "out.pod5").read_bytes() == b"data"
+    # The heartbeat progressed DURING the blocking fetch rather than bunching
+    # up after it completed.
+    assert len(ticks) >= 4
+    assert ticks[-1] - ticks[0] >= 0.15
