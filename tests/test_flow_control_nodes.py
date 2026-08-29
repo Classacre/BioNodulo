@@ -3091,3 +3091,66 @@ async def test_while_loop_condition_operand_separate_from_value() -> None:
     r = await iterate(0.0, state); state = r["flow_control"]["loop_state"]
     assert state["is_complete"], "patience+1 consecutive failures complete"
     assert r["outputs"]["converged"] is True
+
+
+def test_best_so_far_joins_winning_sequence(tmp_path):
+    """The e3 data-contract fix: with a candidates pool wired, the best record
+    carries best_cds (the winning candidate's sequence), so downstream FASTA
+    conversion of the winning design works. Seen live when the learned-
+    evaluator leg died on "Column(s) not found: best_cds"."""
+    import asyncio
+    import json
+    from types import SimpleNamespace
+
+    from bionodulo.nodes.builtin.ml_design_family.best_so_far import BestSoFarNode
+
+    pool = tmp_path / "candidates.tsv"
+    pool.write_text(
+        "id\tcds\tcomposite\ncand_1\tATGAAA\t1.2\ncand_2\tATGCCC\t1.9\n",
+        encoding="utf-8",
+    )
+    ranked = tmp_path / "ranked.tsv"
+    ranked.write_text(
+        "id\tcomposite\ncand_2\t1.9\ncand_1\t1.2\n",
+        encoding="utf-8",
+    )
+    node = BestSoFarNode()
+    ctx = SimpleNamespace(node_dir=str(tmp_path))
+    best_path, improved, score = asyncio.run(
+        node.run(context=ctx, incoming=str(ranked), candidates=str(pool), mode="maximize", key="composite")
+    )
+    best = json.loads(Path(best_path).read_text(encoding="utf-8"))
+    assert improved is True and score == 1.9
+    assert best["id"] == "cand_2"
+    assert best["best_cds"] == "ATGCCC"
+
+
+def test_best_so_far_sequence_join_tolerates_missing_pool(tmp_path):
+    """No candidates wired, or no sequence column, or no matching row: the best
+    record is unchanged and nothing raises (backward-compatible behavior)."""
+    import asyncio
+    import json
+    from types import SimpleNamespace
+
+    from bionodulo.nodes.builtin.ml_design_family.best_so_far import BestSoFarNode
+
+    ranked = tmp_path / "ranked.tsv"
+    ranked.write_text("id\tcomposite\ncand_1\t1.5\n", encoding="utf-8")
+    node = BestSoFarNode()
+    ctx = SimpleNamespace(node_dir=str(tmp_path))
+
+    # no candidates input at all
+    best_path, _, _ = asyncio.run(
+        node.run(context=ctx, incoming=str(ranked), mode="maximize", key="composite")
+    )
+    best = json.loads(Path(best_path).read_text(encoding="utf-8"))
+    assert "best_cds" not in best
+
+    # pool without the winning id
+    pool = tmp_path / "pool.tsv"
+    pool.write_text("id\tcds\nother\tATG\n", encoding="utf-8")
+    best_path, _, _ = asyncio.run(
+        node.run(context=ctx, incoming=str(ranked), candidates=str(pool), mode="maximize", key="composite")
+    )
+    best = json.loads(Path(best_path).read_text(encoding="utf-8"))
+    assert "best_cds" not in best

@@ -59,6 +59,18 @@ class BestSoFarNode(MLDesignNode):
                     "STRING",
                     {"default": "", "description": "Current best carried by the loop; empty on iteration one"},
                 ),
+                "candidates": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "description": (
+                            "Optional candidate pool (TSV or JSON) containing the sequences "
+                            "(a cds/cds_sequence/sequence column). When provided, the best "
+                            "record also carries best_cds: the winning candidate's sequence, "
+                            "so downstream FASTA conversion can consume the best design."
+                        ),
+                    },
+                ),
                 "mode": ("STRING", {"default": "maximize", "options": list(MODES)}),
                 "key": ("STRING", {"default": "composite", "description": "Numeric field compared across entries"}),
             },
@@ -108,10 +120,52 @@ class BestSoFarNode(MLDesignNode):
         improved = current is None or self._better(best_incoming[key], current[key], mode)
         best = best_incoming if improved else current
 
+        candidates_raw = kwargs.get("candidates")
+        if candidates_raw not in (None, ""):
+            best = self._with_best_cds(best, candidates_raw)
+
         output_dir = node_output_dir(self, context)
         best_path = output_dir / "best.json"
         write_json_file(best_path, best)
         return (str(best_path), improved, float(best[key]))
+
+    _SEQUENCE_COLUMNS = ("cds", "cds_sequence", "sequence")
+
+    @classmethod
+    def _with_best_cds(cls, best: dict[str, Any] | None, candidates_raw: Any) -> dict[str, Any] | None:
+        """Join the winning candidate's sequence into the best record as best_cds.
+
+        The ranked batches that feed this node carry ids and scores but not
+        sequences, so downstream FASTA export of the winning design needs the
+        sequence re-attached from the iteration's candidate pool. A pool row
+        with a matching id and a non-empty sequence column wins; anything else
+        leaves the record unchanged (the loop's design loops always emit the
+        candidate table, but this node must not break other uses).
+        """
+        if best is None:
+            return best
+        try:
+            payload, table = load_json_or_table(candidates_raw, "candidates")
+        except Exception:
+            return best
+        rows: list[dict[str, Any]]
+        if table is not None:
+            rows = [dict(row) for row in table[1]]
+        elif isinstance(payload, list):
+            rows = [row for row in payload if isinstance(row, dict)]
+        elif isinstance(payload, dict):
+            rows = [payload]
+        else:
+            return best
+        best_id = str(best.get("id", ""))
+        for row in rows:
+            if str(row.get("id", "")) != best_id:
+                continue
+            for column in cls._SEQUENCE_COLUMNS:
+                value = str(row.get(column, "") or "")
+                if value:
+                    return {**best, "best_cds": value}
+        return best
 
     @staticmethod
     def _entries(value: Any, name: str, key: str) -> list[dict[str, Any]]:
