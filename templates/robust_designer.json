@@ -7274,25 +7274,6 @@
               }
             },
             {
-              "id": "const_rna_fasta",
-              "type": "tsv_to_fasta",
-              "position": [
-                340,
-                520
-              ],
-              "params": {
-                "id_column": "Barcode",
-                "seq_column": "RNA.sequence",
-                "line_width": 0
-              },
-              "outputs": {
-                "fasta": {}
-              },
-              "ui": {
-                "title": "TSV to FASTA"
-              }
-            },
-            {
               "id": "ev_e3",
               "type": "subgraph",
               "position": [
@@ -7957,6 +7938,45 @@
                       "ui": {
                         "title": "Join Tables"
                       }
+                    },
+                    {
+                      "id": "ov_cm",
+                      "type": "codon_metrics",
+                      "position": [
+                        40,
+                        700
+                      ],
+                      "params": {
+                        "window": 30,
+                        "cds": ""
+                      },
+                      "outputs": {
+                        "metrics": {},
+                        "metrics_table": {},
+                        "per_record": {},
+                        "per_record_json": {}
+                      },
+                      "ui": {
+                        "title": "Codon Metrics"
+                      }
+                    },
+                    {
+                      "id": "ov_feat_join_cm",
+                      "type": "join_tables",
+                      "position": [
+                        520,
+                        520
+                      ],
+                      "params": {
+                        "join_keys": "id",
+                        "how": "inner"
+                      },
+                      "outputs": {
+                        "joined_table": {}
+                      },
+                      "ui": {
+                        "title": "Join Tables"
+                      }
                     }
                   ],
                   "edges": [
@@ -7981,6 +8001,28 @@
                         "node": "ov_feat_join",
                         "input": "table_b"
                       }
+                    },
+                    {
+                      "id": "ov_cm_to_join2",
+                      "from": {
+                        "node": "ov_cm",
+                        "output": "per_record"
+                      },
+                      "to": {
+                        "node": "ov_feat_join_cm",
+                        "input": "table_b"
+                      }
+                    },
+                    {
+                      "id": "ov_fj_to_fj2",
+                      "from": {
+                        "node": "ov_feat_join",
+                        "output": "joined_table"
+                      },
+                      "to": {
+                        "node": "ov_feat_join_cm",
+                        "input": "table_a"
+                      }
                     }
                   ],
                   "outputs": {}
@@ -7997,6 +8039,12 @@
                     "type": "STRING",
                     "innerNodeId": "ov_mirna",
                     "innerSlot": "target"
+                  },
+                  {
+                    "name": "in__ov_cm__cds",
+                    "type": "STRING",
+                    "innerNodeId": "ov_cm",
+                    "innerSlot": "cds"
                   }
                 ],
                 "output_ports": [
@@ -8011,6 +8059,12 @@
                     "type": "TSV",
                     "innerNodeId": "ov_mirna",
                     "innerSlot": "per_record"
+                  },
+                  {
+                    "name": "out__ov_feat_join_cm__joined_table",
+                    "type": "TSV",
+                    "innerNodeId": "ov_feat_join_cm",
+                    "innerSlot": "joined_table"
                   }
                 ]
               },
@@ -8173,17 +8227,6 @@
               }
             },
             {
-              "id": "e3_cf_rna",
-              "from": {
-                "node": "const_filter",
-                "output": "filtered_table"
-              },
-              "to": {
-                "node": "const_rna_fasta",
-                "input": "table"
-              }
-            },
-            {
               "id": "e3c_ev_cm",
               "from": {
                 "node": "const_cds_fasta",
@@ -8220,39 +8263,6 @@
               "id": "e3c_ev_fold",
               "from": {
                 "node": "const_cds_fasta",
-                "output": "fasta"
-              },
-              "to": {
-                "node": "ev_e3",
-                "input": "in__ev_fold__fasta"
-              }
-            },
-            {
-              "id": "e3_rna_immune",
-              "from": {
-                "node": "const_rna_fasta",
-                "output": "fasta"
-              },
-              "to": {
-                "node": "ev_e3",
-                "input": "in__ev_immune__sequence"
-              }
-            },
-            {
-              "id": "e3_rna_mirna",
-              "from": {
-                "node": "const_rna_fasta",
-                "output": "fasta"
-              },
-              "to": {
-                "node": "ev_e3",
-                "input": "in__ev_mirna__target"
-              }
-            },
-            {
-              "id": "e3_rna_fold",
-              "from": {
-                "node": "const_rna_fasta",
                 "output": "fasta"
               },
               "to": {
@@ -8472,8 +8482,8 @@
             {
               "id": "e3_ovjoin_score",
               "from": {
-                "node": "ov_feat_join",
-                "output": "joined_table"
+                "node": "ev_ov",
+                "output": "out__ov_feat_join_cm__joined_table"
               },
               "to": {
                 "node": "ov_score",
@@ -8555,6 +8565,17 @@
               "to": {
                 "node": "ov_stats",
                 "input": "values_b"
+              }
+            },
+            {
+              "id": "m_ov_fasta_cm",
+              "from": {
+                "node": "ov_fasta",
+                "output": "fasta"
+              },
+              "to": {
+                "node": "ev_ov",
+                "input": "in__ov_cm__cds"
               }
             }
           ],
