@@ -91,15 +91,16 @@ test('Compute panel shows a live credits/hr quote', async ({ page }) => {
   }
   await page.locator('nav.left-rail').getByRole('button', { name: /^Cloud compute/ }).click();
   // The panel legitimately shows the rate twice -- once as the headline quote
-  // and once in the custom-compute row -- so any bare text match trips strict
-  // mode. Scope to the panel body and take the headline, and assert the number
-  // separately so the test fails if the quote renders as an empty label.
+  // and once in the slider section footnote -- so any bare text match trips
+  // strict mode. Scope to the panel body and take the headline, and assert the
+  // number separately so the test fails if the quote renders as an empty label.
   const computeBody = page.locator('.rail-panel-body');
   await expect(computeBody.getByText('credits / hr', { exact: true }).first()).toBeVisible();
   await expect(computeBody.getByText(/^[\d,]+$/).first()).toBeVisible();
-  // Presets render. QUICK_SIZES is labelled XS/S/M/L/XL/XXL -- the test used to
-  // look for "Small", which no longer exists anywhere in the panel.
-  await expect(page.getByRole('button', { name: 'S', exact: true })).toBeVisible();
+  // Sizing is slider-only now (presets removed): GPU count, vCPU, RAM, plus
+  // the auto-size row that tracks the workflow's thread/GPU demand.
+  await expect(computeBody.locator('input[type="range"]')).toHaveCount(3);
+  await expect(computeBody.getByText(/Auto-size for this workflow/)).toBeVisible();
 });
 
 test('does not poll host-only endpoints in editor mode', async ({ page }) => {

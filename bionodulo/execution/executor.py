@@ -529,6 +529,33 @@ class WorkflowExecutor:
                 downstream_of[src].append(tgt)
                 edge_map[tgt].append(edge)
 
+        # A control node's branch machinery resolves body-node inputs from the
+        # LIVE outer outputs (e.g. a reference genome node feeding a combiner
+        # inside the try region — an outer→internal edge the outer graph
+        # above dropped). Nothing ordered the control node after those
+        # providers: the race was invisible while never-awaiting "async" node
+        # bodies completed inline at dispatch, but thread-offloaded bodies
+        # (misdeclared-async and sync nodes alike) make completion genuinely
+        # asynchronous, so the region could read an output that hasn't landed
+        # yet. Order each control node after every outer provider of its
+        # internal body nodes. (Loop bodies that PULL their providers into
+        # the body are unaffected — pulled providers are internal, so their
+        # source is no longer in `nodes` and the edge is skipped here.)
+        internal_owner: dict[str, str] = {}
+        for owner, body_node_ids in loop_bodies.items():
+            for body_node_id in body_node_ids:
+                internal_owner.setdefault(body_node_id, owner)
+        for owner, branches in try_catch_regions.items():
+            for body_node_id in branches.get("try", set()) | branches.get("catch", set()):
+                internal_owner.setdefault(body_node_id, owner)
+        for edge in edges:
+            src = edge_source(edge)
+            owner = internal_owner.get(edge_target(edge))
+            if owner is None or src == owner or src not in nodes or owner not in nodes:
+                continue
+            upstream_of[owner].append(src)
+            downstream_of[src].append(owner)
+
         # Topological sort
         try:
             execution_order = self._topological_sort(nodes, upstream_of, downstream_of)

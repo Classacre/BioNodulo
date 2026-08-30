@@ -2290,7 +2290,10 @@ async def test_executor_skips_inactive_switch_rule_outputs(tmp_path: Path) -> No
     result = await executor.execute("switch-rule-branches", workflow, force=True)
 
     assert result["status"] == "completed"
-    assert RecordingNode.calls == ["tumor_branch", "rna_branch"]
+    # Active branches may execute in either order (they are independent nodes
+    # running concurrently once node bodies are thread-offloaded); the contract
+    # under test is that the inactive normal/default branches never ran.
+    assert sorted(RecordingNode.calls) == ["rna_branch", "tumor_branch"]
     assert result["node_results"]["normal_branch"]["status"] == "skipped"
     assert result["node_results"]["default_branch"]["status"] == "skipped"
     assert result["outputs"]["tumor_branch"] == {"out": "sample.tsv"}
@@ -2598,14 +2601,16 @@ async def test_executor_runs_parallel_for_body_subgraph_and_gathers_results(tmp_
         "step_b:step_a:S3",
     ]
     assert result["status"] == "completed"
-    assert BodyNode.calls == [
-        ("step_a", "S1"),
-        ("step_b", "step_a:S1"),
-        ("step_a", "S2"),
-        ("step_b", "step_a:S2"),
-        ("step_a", "S3"),
-        ("step_b", "step_a:S3"),
-    ]
+    # Iterations run concurrently (max_concurrency=2), so cross-iteration call
+    # order is completion timing, not contract. Within ONE iteration the body
+    # order is sequential: step_a always completes before step_b of the same
+    # item. The gathered `results` order below is the real contract.
+    assert len(BodyNode.calls) == 6
+    assert {node_id for node_id, _ in BodyNode.calls} == {"step_a", "step_b"}
+    for item in ("S1", "S2", "S3"):
+        a_index = BodyNode.calls.index(("step_a", item))
+        b_index = BodyNode.calls.index(("step_b", f"step_a:{item}"))
+        assert a_index < b_index, (item, a_index, b_index)
     assert result["outputs"]["fanout"]["iteration"] is None
     assert result["outputs"]["fanout"]["results"] == expected_results
     assert result["outputs"]["fanout"]["completed_count"] == 3
