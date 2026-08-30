@@ -146,8 +146,15 @@ async def test_per_subgraph_rows_capture_best_so_far_baselines(tmp_path: Path) -
 
     lines = Path(per_subgraph_path).read_text(encoding="utf-8").splitlines()
     header = lines[0].split("\t")
-    assert header[:5] == ["subgraph", "n_iterations", "best_composite_overall", "best_composite_final", "best_id"]
-    assert header[5:] == [f"best_scores_{index}" for index in range(1, 7)]
+    assert header[:6] == [
+        "subgraph",
+        "n_iterations",
+        "best_composite_overall",
+        "best_composite_final",
+        "best_id",
+        "best_cds",
+    ]
+    assert header[6:] == [f"best_scores_{index}" for index in range(1, 7)]
     row = dict(zip(header, lines[1].split("\t"), strict=True))
     assert row["subgraph"] == "fe_b1"
     assert row["n_iterations"] == "2"
