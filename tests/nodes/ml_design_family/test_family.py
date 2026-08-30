@@ -880,3 +880,22 @@ async def test_predictor_score_empty_model_returns_empty_predictions(tmp_path: P
     payload = json.loads(Path(json_path).read_text(encoding="utf-8"))
     assert payload == {"model": None, "predictions": []}
     assert SimplePredictorScoreNode.VALIDATE_INPUTS({"model": "", "feature_table": table}) is True
+
+
+def test_codon_metrics_accepts_rna_uracil(tmp_path):
+    """The OpenVaccine leg feeds RNA molecules (U for T) into codon metrics;
+    the first live execution failed closed on the uracil. Metrics must
+    normalise U to T instead of rejecting the panel."""
+    import asyncio
+    import json
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from bionodulo.nodes.builtin.codon_design_family.codon_metrics import CodonMetricsNode
+
+    fasta = tmp_path / "panel.fa"
+    fasta.write_text(">mol_1\nAUGAAACCCGGGUUU\n", encoding="utf-8")
+    node = CodonMetricsNode()
+    ctx = SimpleNamespace(node_dir=str(tmp_path / "out"))
+    result = asyncio.run(node.run(context=ctx, cds=str(fasta), window=5))
+    assert result, "metrics must produce outputs for an RNA panel"

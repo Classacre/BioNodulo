@@ -16,6 +16,7 @@ from .adapter import (
     gc_by_codon_position,
     gc_fraction,
     read_fasta_records,
+    normalize_rna_to_dna,
     require_dna_cds,
     validate_sequence_literal,
     write_json,
@@ -94,8 +95,10 @@ class CodonMetricsNode(CodonDesignNode):
         if validation is not True:
             raise ValueError(str(validation))
         context = kwargs.get("context")
+        # RNA inputs (U for T, e.g. the OpenVaccine panel) are normalised
+        # rather than rejected; arbitrary lengths are fine for metrics.
         records = [
-            (record_id, require_dna_cds(sequence, "cds"))
+            (record_id, normalize_rna_to_dna(sequence, "cds"))
             for record_id, sequence in read_fasta_records(kwargs.get("cds"), "cds")
         ]
         cds = "".join(sequence for _, sequence in records)

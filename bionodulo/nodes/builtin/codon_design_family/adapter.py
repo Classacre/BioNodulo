@@ -190,6 +190,24 @@ def require_dna_cds(sequence: str, key: str) -> str:
     return sequence
 
 
+def normalize_rna_to_dna(sequence: str, key: str) -> str:
+    """Normalise an RNA-or-DNA sequence for codon metrics.
+
+    Uracil is accepted as the RNA equivalent of thymine and translated, so
+    RNA panels (e.g. the OpenVaccine molecule set) can be scored by the
+    codon-metric evaluator without a conversion step; trailing partial codons
+    are left in place because the metric windows cover arbitrary lengths.
+    Anything else still fails closed.
+    """
+    if not sequence:
+        raise ValueError(f"Input '{key}' is empty")
+    normalized = "".join(sequence.split()).upper().replace("U", "T")
+    invalid = set(normalized) - DNA_ALPHABET
+    if invalid:
+        raise ValueError(f"Input '{key}' contains non-ACGT(U) characters: {''.join(sorted(invalid))}")
+    return normalized
+
+
 def codons_of(cds: str) -> list[str]:
     usable = len(cds) - len(cds) % 3
     return [cds[offset:offset + 3] for offset in range(0, usable, 3)]
