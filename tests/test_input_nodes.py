@@ -631,8 +631,6 @@ def test_url_cache_validates_fasta_before_promotion(tmp_path, monkeypatch):
     torn line structure must fail validation (with one retry) instead of being
     promoted into the URL cache where every later run replays it. Clean files,
     including shorter record tails, must pass."""
-    import asyncio
-    from pathlib import Path
 
     import bionodulo.nodes.builtin.input_family.adapter as adapter_mod
 

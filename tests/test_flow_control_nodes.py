@@ -3037,20 +3037,32 @@ async def test_while_loop_patience_tolerates_plateau_before_completing() -> None
         )
 
     # Plateau: two failed conditions (0.0 <= 0.5) tolerated with patience=2.
-    r = await iterate(0.0, state); state = state_from(r)
+    r = await iterate(0.0, state)
+
+    state = state_from(r)
     assert not state["is_complete"], "first failure must be tolerated"
-    r = await iterate(0.0, state); state = state_from(r)
+    r = await iterate(0.0, state)
+
+    state = state_from(r)
     assert not state["is_complete"], "second failure must be tolerated"
     # Recovery resets the counter.
-    r = await iterate(1.0, state); state = state_from(r)
+    r = await iterate(1.0, state)
+
+    state = state_from(r)
     assert not state["is_complete"]
     assert state.get("consecutive_failures", 0) == 0
     # Three consecutive failures (patience 2 + 1) complete the loop.
-    r = await iterate(0.0, state); state = state_from(r)
+    r = await iterate(0.0, state)
+
+    state = state_from(r)
     assert not state["is_complete"]
-    r = await iterate(0.0, state); state = state_from(r)
+    r = await iterate(0.0, state)
+
+    state = state_from(r)
     assert not state["is_complete"]
-    r = await iterate(0.0, state); state = state_from(r)
+    r = await iterate(0.0, state)
+
+    state = state_from(r)
     assert state["is_complete"], "patience+1 consecutive failures must complete"
     assert r["outputs"]["converged"] is True
 
@@ -3089,11 +3101,17 @@ async def test_while_loop_condition_operand_separate_from_value() -> None:
         )
 
     # Plateau on the condition; the value payload rides along untouched.
-    r = await iterate(0.0, state); state = r["flow_control"]["loop_state"]
+    r = await iterate(0.0, state)
+
+    state = r["flow_control"]["loop_state"]
     assert not state["is_complete"]
-    r = await iterate(0.0, state); state = r["flow_control"]["loop_state"]
+    r = await iterate(0.0, state)
+
+    state = r["flow_control"]["loop_state"]
     assert not state["is_complete"]
-    r = await iterate(0.0, state); state = r["flow_control"]["loop_state"]
+    r = await iterate(0.0, state)
+
+    state = r["flow_control"]["loop_state"]
     assert state["is_complete"], "patience+1 consecutive failures complete"
     assert r["outputs"]["converged"] is True
 
