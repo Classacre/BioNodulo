@@ -899,3 +899,35 @@ def test_codon_metrics_accepts_rna_uracil(tmp_path):
     ctx = SimpleNamespace(node_dir=str(tmp_path / "out"))
     result = asyncio.run(node.run(context=ctx, cds=str(fasta), window=5))
     assert result, "metrics must produce outputs for an RNA panel"
+
+
+def test_predictor_train_drops_na_target_rows(tmp_path):
+    """The construct panel marks missing degradation as the string 'NA'; the
+    first live e3 execution failed on it. Rows with NA targets must be
+    dropped, not fatal."""
+    import asyncio
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from bionodulo.nodes.builtin.ml_design_family.simple_predictor_train import (
+        SimplePredictorTrainNode,
+    )
+
+    table = tmp_path / "panel.tsv"
+    rows = ["Barcode\tf1\tdegradation_coef_in_cell"]
+    for i in range(12):
+        rows.append(f"mol_{i}\t{0.5 + i * 0.1:.2f}\t{1.0 + i * 0.2:.3f}")
+    rows.append("mol_na\t0.60\tNA")  # the missing-target row
+    table.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    node = SimplePredictorTrainNode()
+    ctx = SimpleNamespace(node_dir=str(tmp_path / "out"))
+    result = asyncio.run(
+        node.run(
+            context=ctx,
+            feature_table=str(table),
+            target_column="degradation_coef_in_cell",
+            id_column="Barcode",
+            model="ridge",
+        )
+    )
+    assert result, "training must succeed with NA rows present"

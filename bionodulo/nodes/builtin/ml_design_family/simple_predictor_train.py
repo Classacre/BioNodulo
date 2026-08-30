@@ -142,6 +142,16 @@ class SimplePredictorTrainNode(MLDesignNode):
         if not feature_columns:
             raise ValueError("Input 'feature_table' must contain at least one feature column")
 
+        # Real panels mark missing targets as 'NA'/'NaN'/'null'/'.' (the PERSIST
+        # construct table uses 'NA'); drop those rows instead of failing - seen
+        # live when the first e3 execution hit the trainer.
+        _MISSING = {"", "na", "nan", "null", "none", "."}
+        rows = [
+            row
+            for row in rows
+            if str(row.get(target_column, "")).strip().lower() not in _MISSING
+        ]
+
         identifiers: list[str] = []
         matrix_rows: list[list[float]] = []
         targets: list[float] = []
