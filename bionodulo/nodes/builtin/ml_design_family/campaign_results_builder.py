@@ -283,6 +283,7 @@ class CampaignResultsBuilderNode(MLDesignNode):
             "best_composite_overall",
             "best_composite_final",
             "best_id",
+            "best_cds",
             *[f"best_scores_{index}" for index in range(1, cls.N_SCORE_COLUMNS + 1)],
         ]
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,6 +296,9 @@ class CampaignResultsBuilderNode(MLDesignNode):
                 scores = [
                     per_objective.get(f"scores_{index}") for index in range(1, cls.N_SCORE_COLUMNS + 1)
                 ]
+                # best_cds rides the best record when the loop's sampler table
+                # is wired into best_so_far; downstream FASTA export of the
+                # winning designs reads this column.
                 writer.writerow(
                     [
                         entry["subgraph"],
@@ -302,6 +306,7 @@ class CampaignResultsBuilderNode(MLDesignNode):
                         _optional_number(entry["best_composite_overall"]),
                         _optional_number(entry["best_composite_final"]),
                         str(record.get("id", "") or ""),
+                        str(record.get("best_cds", "") or ""),
                         *[_optional_number(value) for value in scores],
                     ]
                 )
