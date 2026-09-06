@@ -580,7 +580,7 @@ const en = {
       alpha11: {
         items: {
           aiAssistant: 'AI assistant with tool-calling for workflow building',
-          workflowExport: 'Workflow export to Snakemake, NextFlow, CWL, Galaxy',
+          workflowExport: 'Workflow export to Snakemake, Nextflow, CWL, Galaxy',
           nodeRegistry: 'Node registry with bioinformatics tool metadata',
           websocketLogs: 'Real-time WebSocket execution logs',
           hardwareMonitor: 'Hardware monitor overlay',
@@ -2542,8 +2542,8 @@ const en = {
     title: 'Import workflow',
     formats: {
       json: 'BioNodulo JSON',
-      snakemake: 'SnakeMake',
-      nextflow: 'NextFlow',
+      snakemake: 'Snakemake',
+      nextflow: 'Nextflow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
     },
@@ -2569,8 +2569,8 @@ const en = {
     title: 'Export workflow',
     formats: {
       png: 'PNG / JSON',
-      snakemake: 'SnakeMake',
-      nextflow: 'NextFlow',
+      snakemake: 'Snakemake',
+      nextflow: 'Nextflow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
       references: 'References',

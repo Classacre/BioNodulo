@@ -46,7 +46,7 @@ describe('useWorkflow importWorkflow', () => {
     const importedWorkflow = {
       version: '2.0',
       app: 'bionodulo',
-      name: 'Imported NextFlow Workflow',
+      name: 'Imported Nextflow Workflow',
       description: '',
       nodes: [],
       edges: [],

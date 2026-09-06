@@ -584,7 +584,7 @@ const es = {
       alpha11: {
         items: {
           aiAssistant: 'Asistente de IA con llamadas a herramientas para construir flujos de trabajo',
-          workflowExport: 'Exportacion de flujos de trabajo a Snakemake, NextFlow, CWL y Galaxy',
+          workflowExport: 'Exportacion de flujos de trabajo a Snakemake, Nextflow, CWL y Galaxy',
           nodeRegistry: 'Registro de nodos con metadatos de herramientas bioinformaticas',
           websocketLogs: 'Registros de ejecucion WebSocket en tiempo real',
           hardwareMonitor: 'Panel superpuesto de monitor de hardware',
@@ -2548,8 +2548,8 @@ const es = {
     title: 'Importar flujo de trabajo',
     formats: {
       json: 'JSON de BioNodulo',
-      snakemake: 'SnakeMake',
-      nextflow: 'NextFlow',
+      snakemake: 'Snakemake',
+      nextflow: 'Nextflow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
     },
@@ -2575,8 +2575,8 @@ const es = {
     title: 'Exportar flujo de trabajo',
     formats: {
       png: 'PNG / JSON',
-      snakemake: 'SnakeMake',
-      nextflow: 'NextFlow',
+      snakemake: 'Snakemake',
+      nextflow: 'Nextflow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
       references: 'Referencias',

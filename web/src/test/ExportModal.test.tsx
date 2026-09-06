@@ -187,7 +187,7 @@ describe('ExportModal i18n', () => {
 
     render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Snakemake' }));
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
     await waitFor(() => {
