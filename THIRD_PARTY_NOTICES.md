@@ -1,7 +1,7 @@
 # Third-Party Notices
 
-BioNodulo is paid software distributed under the BioNodulo Closed Alpha
-Commercial License. Third-party components are not relicensed by BioNodulo and
+BioNodulo is free and open-source software distributed under the GNU General
+Public License v3. Third-party components are not relicensed by BioNodulo and
 remain subject to their own license terms.
 
 This notice is an engineering summary for the current closed-alpha repository.
