@@ -1,0 +1,213 @@
+{
+  "schema_version": "0.1",
+  "dimensions": [
+    {
+      "name": "reference_assembly",
+      "description": "Identity of the reference assembly the data is defined against. SAM @SQ AS/M5 tags are the runtime ground truth [S30][S31].",
+      "values": ["unknown", "grch37", "grch38", "grcm39", "wbcel235", "ara_tha_ta10"]
+    },
+    {
+      "name": "sort_order",
+      "description": "Record ordering inside an alignment file; SAM @HD SO values [S30].",
+      "values": ["unknown", "unsorted", "coordinate", "queryname"]
+    },
+    {
+      "name": "strandedness",
+      "description": "Library strandedness convention. Values align to featureCounts -s 0/1/2 [E11] and htseq-count yes/no/reverse [S33].",
+      "values": ["unknown", "unstranded", "forward", "reverse"]
+    },
+    {
+      "name": "normalization_state",
+      "description": "Normalization state of a counts matrix; raw counts are required by count-model tests [S35][S36][S37][S38].",
+      "values": ["unknown", "raw_counts", "cpm", "tpm", "fpkm", "sizefactored"]
+    },
+    {
+      "name": "deduplication_state",
+      "description": "Duplicate-read state carried by an alignment.",
+      "values": ["unknown", "none", "marked", "removed"]
+    }
+  ],
+  "contracts": [
+    {
+      "node_type": "hisat2_align",
+      "source": "expert",
+      "notes": "HISAT2 emits unsorted SAM by default; the reference assembly equals the assembly of the index input.",
+      "inputs": {
+        "reads": [],
+        "index": []
+      },
+      "outputs": {
+        "alignment": [
+          {"dimension": "sort_order", "op": "set", "value": "unsorted"},
+          {"dimension": "reference_assembly", "op": "unknown"},
+          {"dimension": "strandedness", "op": "unknown"}
+        ]
+      }
+    },
+    {
+      "node_type": "samtools_view",
+      "source": "expert",
+      "notes": "samtools view preserves alignment state; it filters records but does not reorder or re-reference them.",
+      "inputs": {
+        "alignment": []
+      },
+      "outputs": {
+        "bam": [
+          {"dimension": "sort_order", "op": "propagate"},
+          {"dimension": "reference_assembly", "op": "propagate"},
+          {"dimension": "strandedness", "op": "propagate"},
+          {"dimension": "deduplication_state", "op": "propagate"}
+        ]
+      }
+    },
+    {
+      "node_type": "samtools_sort",
+      "source": "expert",
+      "notes": "Coordinate sorting is the postcondition of samtools sort.",
+      "inputs": {
+        "alignment": []
+      },
+      "outputs": {
+        "sorted_bam": [
+          {"dimension": "sort_order", "op": "set", "value": "coordinate"},
+          {"dimension": "reference_assembly", "op": "propagate"},
+          {"dimension": "strandedness", "op": "propagate"},
+          {"dimension": "deduplication_state", "op": "propagate"}
+        ]
+      }
+    },
+    {
+      "node_type": "sam_to_bam",
+      "source": "expert",
+      "notes": "Format conversion SAM to BAM; state-preserving.",
+      "inputs": {
+        "input": []
+      },
+      "outputs": {
+        "bam": [
+          {"dimension": "sort_order", "op": "propagate"},
+          {"dimension": "reference_assembly", "op": "propagate"},
+          {"dimension": "strandedness", "op": "propagate"},
+          {"dimension": "deduplication_state", "op": "propagate"}
+        ]
+      }
+    },
+    {
+      "node_type": "samtools_bam_to_cram",
+      "source": "expert",
+      "notes": "BAM to CRAM conversion requires the reference used for encoding; state-preserving.",
+      "inputs": {
+        "input": []
+      },
+      "outputs": {
+        "cram": [
+          {"dimension": "sort_order", "op": "propagate"},
+          {"dimension": "reference_assembly", "op": "propagate"},
+          {"dimension": "strandedness", "op": "propagate"},
+          {"dimension": "deduplication_state", "op": "propagate"}
+        ]
+      }
+    },
+    {
+      "node_type": "samtools_cram_to_bam",
+      "source": "expert",
+      "notes": "CRAM to BAM conversion; state-preserving.",
+      "inputs": {
+        "input": []
+      },
+      "outputs": {
+        "bam": [
+          {"dimension": "sort_order", "op": "propagate"},
+          {"dimension": "reference_assembly", "op": "propagate"},
+          {"dimension": "strandedness", "op": "propagate"},
+          {"dimension": "deduplication_state", "op": "propagate"}
+        ]
+      }
+    },
+    {
+      "node_type": "featurecounts",
+      "source": "expert",
+      "notes": "featureCounts -s must match the library strandedness; a mismatch silently halves or contaminates counts [E8][E11][S34]. The -s parameter maps 0/1/2 to unstranded/forward/reverse, so the assumption is derived from the node's own configuration. Counts are raw.",
+      "inputs": {
+        "alignment": [
+          {"dimension": "strandedness", "op": "param_map", "param": "strand_specificity", "param_map": {"0": "unstranded", "1": "forward", "2": "reverse"}}
+        ]
+      },
+      "outputs": {
+        "counts": [
+          {"dimension": "normalization_state", "op": "set", "value": "raw_counts"}
+        ],
+        "summary": [],
+        "feature_lengths": [],
+        "annotated_bam": [
+          {"dimension": "sort_order", "op": "propagate"},
+          {"dimension": "reference_assembly", "op": "propagate"},
+          {"dimension": "strandedness", "op": "propagate"},
+          {"dimension": "deduplication_state", "op": "propagate"}
+        ]
+      }
+    },
+    {
+      "node_type": "rseqc_infer_experiment",
+      "source": "expert",
+      "notes": "Runtime strandedness detection; the gradual check that resolves unknown [E9][E10].",
+      "inputs": {
+        "input": []
+      },
+      "outputs": {
+        "infer_experiment": []
+      }
+    },
+    {
+      "node_type": "samtools_flagstat",
+      "source": "expert",
+      "notes": "Statistics; requires coordinate or queryname ordering tolerance, consumes state without changing it.",
+      "inputs": {
+        "bam": []
+      },
+      "outputs": {
+        "stats": []
+      }
+    }
+  ],
+  "coercions": [
+    {
+      "id": "sort_unsorted_to_coordinate",
+      "dimension": "sort_order",
+      "from_value": "unsorted",
+      "to_value": "coordinate",
+      "converter_node_type": "samtools_sort",
+      "converter_input_port": "alignment",
+      "converter_output_port": "sorted_bam",
+      "cost": 5,
+      "requires": [],
+      "params": {}
+    },
+    {
+      "id": "sort_unknown_detect",
+      "dimension": "sort_order",
+      "from_value": "unknown",
+      "to_value": "unknown",
+      "converter_node_type": "samtools_flagstat",
+      "converter_input_port": "bam",
+      "converter_output_port": "stats",
+      "cost": 2,
+      "requires": [],
+      "params": {},
+      "detection": true
+    },
+    {
+      "id": "strandedness_unknown_detect",
+      "dimension": "strandedness",
+      "from_value": "unknown",
+      "to_value": "unknown",
+      "converter_node_type": "rseqc_infer_experiment",
+      "converter_input_port": "input",
+      "converter_output_port": "infer_experiment",
+      "cost": 3,
+      "requires": ["reference gene model in BED format"],
+      "params": {},
+      "detection": true
+    }
+  ]
+}
