@@ -1,6 +1,6 @@
 # Round-trip fidelity report
 
-Generated: 2026-09-06T23:22:01.693528+00:00  
+Generated: 2026-09-13T06:20:44.270259+00:00  
 Templates: 23  
 Metric: f_target is the geometric mean of node, edge, parameter,
 label, and annotation preservation per target (dossier section 5.3).

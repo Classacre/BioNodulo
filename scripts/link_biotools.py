@@ -133,7 +133,7 @@ def summarize(record: dict) -> dict:
             None,
         ),
         "license": record.get("license"),
-        "version": record.get("version", [])[:6],
+        "version": record.get("version", [])[-6:],
         "functions": functions,
     }
 

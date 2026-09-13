@@ -17,7 +17,6 @@ from .adapter import (
     gc_fraction,
     read_fasta_records,
     normalize_rna_to_dna,
-    require_dna_cds,
     validate_sequence_literal,
     write_json,
     write_record_table,

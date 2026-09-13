@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
@@ -79,8 +80,9 @@ TARGETS: dict[str, dict[str, Any]] = {
     "cwl": {"export": _export_cwl, "import": _import_cwl},
 }
 
-# Templates that are pure scaffolds (no tool nodes) score trivially and hide
-# real fidelity; they are kept but flagged.
+# Templates whose exportable subgraph is smaller than this are scaffolds:
+# their round-trip score is trivially 1.0 and hides real fidelity, so they
+# are flagged and excluded from the "meaningful" mean.
 MIN_NODES_FOR_SCORING = 3
 
 
@@ -235,7 +237,7 @@ def evaluate_template(template_path: Path) -> dict[str, Any]:
             comparable, excluded = _exportable_subgraph(workflow, export)
             exported = export(comparable)
             workdir = Path(tempfile.mkdtemp(prefix=f"fidelity-{template_path.stem}-{target}-"))
-            roundtripped = import_(exported, workdir)
+            roundtripped = import_(exported, workdir)  # noqa: F841 workdir used by adapter
             # Idempotence: exporting the round-tripped workflow must succeed.
             try:
                 export(roundtripped)
@@ -245,9 +247,12 @@ def evaluate_template(template_path: Path) -> dict[str, Any]:
             scoring = score_roundtrip(comparable, roundtripped)
             scoring["idempotent"] = idempotent
             scoring["excluded_node_types"] = excluded
+            scoring["scaffold"] = len(_nodes(comparable)) < MIN_NODES_FOR_SCORING
             results["targets"][target] = scoring
         except Exception as error:  # noqa: BLE001 - harness reports, never crashes
             results["targets"][target] = {"error": f"{type(error).__name__}: {error}"}
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
     return results
 
 
@@ -319,14 +324,24 @@ def main() -> int:
     print(f"wrote {md_path}")
 
     for target in TARGETS:
-        scores = [
-            t["targets"][target]["f_target"]
+        scored = [
+            t["targets"][target]
             for t in report["templates"]
             if "f_target" in t["targets"].get(target, {})
         ]
-        if scores:
-            mean = round(sum(scores) / len(scores), 4)
-            print(f"  {target}: mean f_target = {mean} over {len(scores)} templates")
+        meaningful = [entry for entry in scored if not entry.get("scaffold")]
+        if scored:
+            mean = round(sum(e["f_target"] for e in scored) / len(scored), 4)
+            meaningful_mean = (
+                round(sum(e["f_target"] for e in meaningful) / len(meaningful), 4)
+                if meaningful
+                else None
+            )
+            print(
+                f"  {target}: mean f_target = {mean} over {len(scored)} templates"
+                f" (meaningful, >= {MIN_NODES_FOR_SCORING} exportable nodes:"
+                f" {meaningful_mean} over {len(meaningful)})"
+            )
         else:
             errors = sum(1 for t in report["templates"] if "error" in t["targets"].get(target, {}))
             print(f"  {target}: no scores ({errors} templates errored)")

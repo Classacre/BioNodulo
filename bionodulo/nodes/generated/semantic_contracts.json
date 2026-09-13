@@ -79,12 +79,12 @@
     {
       "node_type": "sam_to_bam",
       "source": "expert",
-      "notes": "Format conversion SAM to BAM; state-preserving.",
+      "notes": "Format conversion SAM to BAM (Galaxy-style wrapper); state-preserving. Output port is output1 per the registered node class.",
       "inputs": {
         "input": []
       },
       "outputs": {
-        "bam": [
+        "output1": [
           {"dimension": "sort_order", "op": "propagate"},
           {"dimension": "reference_assembly", "op": "propagate"},
           {"dimension": "strandedness", "op": "propagate"},

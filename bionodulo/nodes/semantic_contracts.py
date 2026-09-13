@@ -96,7 +96,7 @@ class Clause(BaseModel):
 
     def resolve_required(self, node_params: dict[str, Any] | None) -> Clause:
         """Return the static clause implied by this clause for a node config."""
-        if self.operator != "param_map":
+        if self.operator != "param_map" or self.param is None:
             return self
         params = node_params or {}
         raw = params.get(self.param)
@@ -219,9 +219,6 @@ class SemanticContractLibrary(BaseModel):
     dimensions: tuple[SemanticDimension, ...]
     contracts: tuple[NodeSemanticContract, ...] = ()
     coercions: tuple[CoercionRule, ...] = ()
-
-    def __init__(self, **data: Any) -> None:
-        super().__init__(**data)
 
     # -- construction ----------------------------------------------------
 

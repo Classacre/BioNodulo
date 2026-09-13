@@ -19,7 +19,6 @@ from typing import Any
 
 from bionodulo.nodes.semantic_contracts import (
     UNKNOWN,
-    Clause,
     CoercionRule,
     Guarantee,
     NodeSemanticContract,
@@ -77,6 +76,32 @@ def _topological_order(nodes: dict[str, dict[str, Any]], edges: list[dict[str, A
         if node_id not in order:
             order.append(node_id)
     return order
+
+
+def _cycle_nodes(
+    nodes: dict[str, dict[str, Any]], edges: list[dict[str, Any]]
+) -> set[str]:
+    """Nodes that Kahn's algorithm never reaches (members of cycles)."""
+    remaining = {node_id: 0 for node_id in nodes}
+    children: dict[str, list[str]] = {node_id: [] for node_id in nodes}
+    for edge in edges:
+        endpoints = _edge_endpoints(edge)
+        if endpoints is None:
+            continue
+        source, _, target, _ = endpoints
+        if source in remaining and target in remaining:
+            remaining[target] += 1
+            children[source].append(target)
+    ready = [node_id for node_id, degree in remaining.items() if degree == 0]
+    emitted: set[str] = set()
+    while ready:
+        node_id = ready.pop()
+        emitted.add(node_id)
+        for child in children[node_id]:
+            remaining[child] -= 1
+            if remaining[child] == 0:
+                ready.append(child)
+    return set(nodes) - emitted
 
 
 # --------------------------------------------------------------------------
@@ -192,6 +217,8 @@ def _resolve_guarantee(
     if guarantee.op == "unknown":
         return UNKNOWN
     if guarantee.op == "param_map":
+        if guarantee.param is None:
+            return UNKNOWN
         raw = (node_params or {}).get(guarantee.param)
         if raw is None:
             return UNKNOWN
@@ -245,14 +272,49 @@ def check_workflow_semantics(
     order = _topological_order(nodes, edges)
     states: dict[str, dict[str, dict[str, str]]] = {}
 
+    # A graph with cycles cannot be fully checked: nodes inside a cycle are
+    # ordered by declaration, so some of their edges resolve out of order.
+    # Warn instead of silently skipping.
+    cycle_nodes = _cycle_nodes(nodes, edges)
+    if cycle_nodes:
+        result.warnings.append(
+            "graph contains a cycle through nodes "
+            + ", ".join(sorted(cycle_nodes))
+            + "; edges inside the cycle are not contract-checked"
+        )
+    for edge in edges:
+        endpoints = _edge_endpoints(edge)
+        if endpoints is None:
+            result.warnings.append(
+                f"edge {edge.get('id', '<unidentified>')} has an unrecognized"
+                " shape and was skipped"
+            )
+            continue
+        source, _, target, _ = endpoints
+        if source == target:
+            result.warnings.append(
+                f"edge {edge.get('id', source)} is a self-edge on node"
+                f" '{source}' and was not contract-checked"
+            )
+        elif source not in nodes or target not in nodes:
+            result.warnings.append(
+                f"edge {edge.get('id', source)} references a missing node"
+                f" ({source if source not in nodes else target}) and was skipped"
+            )
+
+    contracted_nodes: set[str] = set()
+
     for node_id in order:
         node = nodes.get(node_id, {})
         node_type = node.get("type", "")
         params = node.get("params", {}) if isinstance(node.get("params"), dict) else {}
         contract = library.contract_for(node_type)
 
-        # Resolve inbound states from already-computed predecessors
-        # (topological order guarantees they exist).
+        # Resolve inbound states from predecessors that have been processed.
+        # An edge whose source is not yet processed (cycle), whose output port
+        # the producer does not declare, or whose producer has no contract is
+        # surfaced as a warning or treated as fully-unknown state, never
+        # silently dropped.
         incoming: list[tuple[dict[str, Any], dict[str, str]]] = []
         for edge in edges:
             endpoints = _edge_endpoints(edge)
@@ -261,9 +323,21 @@ def check_workflow_semantics(
             source, source_output, target, target_input = endpoints
             if target != node_id or source not in states:
                 continue
-            output_state = states[source].get(source_output)
-            if output_state is not None:
-                incoming.append((edge, output_state))
+            source_states = states[source]
+            if source not in contracted_nodes:
+                # Gradual: an uncontracted producer supplies unknown state,
+                # which the assumption check below reports per dimension.
+                incoming.append((edge, {}))
+                continue
+            output_state = source_states.get(source_output)
+            if output_state is None:
+                result.warnings.append(
+                    f"edge {edge.get('id', source)} references output port"
+                    f" '{source_output}' which node '{source}' does not declare;"
+                    " its state is unchecked"
+                )
+                continue
+            incoming.append((edge, output_state))
 
         merged = _merge_states(
             [state for _, state in incoming], node_id, result
@@ -276,6 +350,23 @@ def check_workflow_semantics(
                     " its data state is unknown"
                 )
             continue
+        contracted_nodes.add(node_id)
+
+        # An assumption nobody feeds is unchecked; say so.
+        supplied_ports: set[str] = set()
+        for edge, _ in incoming:
+            endpoints = _edge_endpoints(edge)
+            if endpoints is not None:
+                supplied_ports.add(endpoints[3])
+        for port, clauses in contract.inputs.items():
+            if port in supplied_ports:
+                continue
+            if any(clause.operator != "any" for clause in clauses):
+                result.warnings.append(
+                    f"node '{node_id}' assumes {clauses[0].dimension} on port"
+                    f" '{port}' but no incoming edge supplies state for it;"
+                    " the assumption is unchecked"
+                )
 
         # Check assumptions on every incoming edge, with blame and coercions.
         for edge, output_state in incoming:
@@ -395,13 +486,14 @@ def apply_suggestions(
     a gene model BED and belong in the user's judgement.
     """
     workflow = dict(workflow)
-    nodes = list(workflow.get("nodes", []))
+    nodes = workflow.get("nodes", [])
     edges = [dict(edge) if isinstance(edge, dict) else dict(edge) for edge in workflow.get("edges", [])]
-    nodes_is_dict = isinstance(workflow.get("nodes"), dict)
-    node_map = (
-        {node_id: dict(node) for node_id, node in nodes.items()} if nodes_is_dict
-        else {node["id"]: dict(node) for node in nodes if isinstance(node, dict) and node.get("id")}
-    )
+    if isinstance(nodes, dict):
+        node_map = {node_id: dict(node) for node_id, node in nodes.items()}
+    else:
+        node_map = {
+            node["id"]: dict(node) for node in nodes if isinstance(node, dict) and node.get("id")
+        }
 
     inserted = 0
     for suggestion in result.suggestions:
@@ -445,5 +537,5 @@ def apply_suggestions(
         )
 
     workflow["edges"] = edges
-    workflow["nodes"] = node_map if nodes_is_dict else list(node_map.values())
+    workflow["nodes"] = node_map if isinstance(nodes, dict) else list(node_map.values())
     return workflow

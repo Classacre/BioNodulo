@@ -183,21 +183,29 @@ def build_run_crate(
             )
 
     mentions: list[dict[str, str]] = []
+    emitted_tools: set[str] = set()
     for node in node_list:
         node_id = node["id"]
         node_type = node.get("type", node_id)
         meta = node_metadata.get(node_type, {})
         tool_ref = _ref(f"#tool-{node_type}")
-        graph.append(
-            _entity(
-                f"#tool-{node_type}",
-                "SoftwareApplication",
-                name=meta.get("display_name") or node_type,
-                softwareVersion=str(meta.get("version") or meta.get("git_commit") or "unknown"),
-                url=meta.get("documentation_url"),
+        if node_type not in emitted_tools:
+            # One tool entity per type; every run of that type references it
+            # (duplicate @id values in @graph fail crate validation).
+            emitted_tools.add(node_type)
+            graph.append(
+                _entity(
+                    f"#tool-{node_type}",
+                    "SoftwareApplication",
+                    name=meta.get("display_name") or node_type,
+                    softwareVersion=str(meta.get("version") or meta.get("git_commit") or "unknown"),
+                    url=meta.get("documentation_url"),
+                )
             )
-        )
-        run_info = (run_summary.get("nodes") or {}).get(node_id, {})
+        run_nodes = run_summary.get("nodes") or {}
+        if not isinstance(run_nodes, dict):
+            run_nodes = {}
+        run_info = run_nodes.get(node_id, {})
         action_props: dict[str, Any] = {
             "instrument": tool_ref,
             "actionStatus": run_info.get(

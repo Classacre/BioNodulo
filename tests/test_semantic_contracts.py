@@ -11,7 +11,6 @@ from __future__ import annotations
 import pytest
 
 from bionodulo.nodes.semantic_contracts import (
-    UNKNOWN,
     Clause,
     CoercionRule,
     Guarantee,
@@ -78,6 +77,83 @@ def test_bundled_library_loads_and_validates() -> None:
 
 
 # --------------------------------------------------------------------------
+# Registry cross-validation: contract ports must match real node ports
+
+
+def _node_class(node_type: str):
+    """Import the registered node class and return it."""
+    import importlib
+    import inspect
+    import json
+    from pathlib import Path
+
+    index = json.loads(
+        (
+            Path(__file__).resolve().parent.parent
+            / "bionodulo"
+            / "nodes"
+            / "node_index.json"
+        ).read_text(encoding="utf-8")
+    )
+    module_path = index.get(node_type)
+    assert module_path, f"node type {node_type} is not in the registry index"
+    module = importlib.import_module(module_path)
+    candidates = [
+        member
+        for _, member in inspect.getmembers(module, inspect.isclass)
+        if member.__module__ == module.__name__
+        and hasattr(member, "RETURN_NAMES")
+        and hasattr(member, "INPUT_TYPES")
+    ]
+    assert candidates, f"no node class with ports defined in {module_path}"
+    node_cls = candidates[0]
+    return node_cls
+
+
+def _declared_ports(node_cls) -> tuple[set[str], set[str]]:
+    raw_inputs = node_cls.INPUT_TYPES
+    input_types = raw_inputs() if callable(raw_inputs) else (raw_inputs or {})
+    input_ports = set()
+    for section in ("required", "optional", "hidden"):
+        input_ports.update((input_types.get(section) or {}).keys())
+    return input_ports, set(node_cls.RETURN_NAMES or ())
+
+
+def test_seed_contract_ports_match_registered_nodes() -> None:
+    """A contract keyed to a port the node does not have is silently inert;
+    this test makes that class of bug impossible to ship."""
+    library = _library()
+    for contract in library.contracts:
+        node_cls = _node_class(contract.node_type)
+        input_ports, output_ports = _declared_ports(node_cls)
+        for port in contract.inputs:
+            assert port in input_ports, (
+                f"{contract.node_type} contract input port '{port}' is not a"
+                " registered input port"
+            )
+        for port in contract.outputs:
+            assert port in output_ports, (
+                f"{contract.node_type} contract output port '{port}' is not a"
+                " registered output port"
+            )
+
+
+def test_coercion_converter_ports_match_registered_nodes() -> None:
+    library = _library()
+    for rule in library.coercions:
+        node_cls = _node_class(rule.converter_node_type)
+        input_ports, output_ports = _declared_ports(node_cls)
+        assert rule.converter_input_port in input_ports, (
+            f"coercion {rule.id} input port '{rule.converter_input_port}' is"
+            f" not a registered port of {rule.converter_node_type}"
+        )
+        assert rule.converter_output_port in output_ports, (
+            f"coercion {rule.id} output port '{rule.converter_output_port}' is"
+            f" not a registered port of {rule.converter_node_type}"
+        )
+
+
+# --------------------------------------------------------------------------
 # Propagation and passing checks
 
 
@@ -140,9 +216,6 @@ def test_strandedness_mismatch_violation_blames_producer_and_consumer() -> None:
     # A reverse-stranded assumption (featureCounts -s 2) fed by a node
     # guaranteeing forward strandedness: the documented silent-halving
     # error [E8][E11].
-    class _Lib(SemanticContractLibrary):
-        pass
-
     library = _library()
     annotated_input = NodeSemanticContract(
         node_type="annotated_aligner",
