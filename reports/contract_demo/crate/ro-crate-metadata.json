@@ -1,0 +1,138 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.1/context",
+    "https://w3id.org/ro/terms/workflow-run/context",
+    {
+      "bionodulo": "https://w3id.org/ro/terms/bionodulo#"
+    }
+  ],
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.1"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/ro/wfrun/workflow/0.5"
+        },
+        {
+          "@id": "https://w3id.org/ro/wfrun/provenance/0.5"
+        },
+        {
+          "@id": "https://w3id.org/ro/terms/bionodulo/profile/0.1"
+        }
+      ],
+      "dateModified": "2026-09-13T07:09:06.767420+00:00",
+      "description": "BioNodulo workflow run with semantic contract records.",
+      "mainEntity": {
+        "@id": "workflow/bionodulo-workflow.json"
+      },
+      "mentions": [
+        {
+          "@id": "#run-table"
+        },
+        {
+          "@id": "#run-cpm"
+        }
+      ],
+      "name": "normalization-real-run (BioNodulo run crate)"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/workflow/0.5",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "Workflow Run Crate 0.5"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/provenance/0.5",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "Provenance Run Crate 0.5"
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/bionodulo/profile/0.1",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "BioNodulo Semantic Run Crate profile 0.1"
+    },
+    {
+      "@id": "workflow/bionodulo-workflow.json",
+      "@type": [
+        "File",
+        "SoftwareSourceCode",
+        "ComputationalWorkflow"
+      ],
+      "encodingFormat": "application/json",
+      "name": "normalization-real-run",
+      "programmingLanguage": "BioNodulo"
+    },
+    {
+      "@id": "#tool-input_file",
+      "@type": "SoftwareApplication",
+      "name": "input_file",
+      "softwareVersion": "unknown"
+    },
+    {
+      "@id": "#run-table",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "instrument": {
+        "@id": "#tool-input_file"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      }
+    },
+    {
+      "@id": "#tool-normalize_data",
+      "@type": "SoftwareApplication",
+      "name": "normalize_data",
+      "softwareVersion": "unknown"
+    },
+    {
+      "@id": "#run-cpm",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "instrument": {
+        "@id": "#tool-normalize_data"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      }
+    },
+    {
+      "@id": "#state-cpm-normalized_table",
+      "@type": "bionodulo:SemanticState",
+      "bionodulo:stateProperty": [
+        {
+          "@type": "PropertyValue",
+          "name": "normalization_state",
+          "value": "cpm"
+        }
+      ]
+    },
+    {
+      "@id": "#output-cpm-normalized_table",
+      "@type": "File",
+      "bionodulo:hasSemanticState": {
+        "@id": "#state-cpm-normalized_table"
+      },
+      "name": "cpm:normalized_table"
+    }
+  ]
+}

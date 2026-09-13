@@ -1,0 +1,263 @@
+{
+  "clauses_compared": 42,
+  "agreement_percent": 64.3,
+  "counts": {
+    "missed_by_inference": 10,
+    "agree": 27,
+    "spurious_from_inference": 5
+  },
+  "detail": [
+    {
+      "node_type": "hisat2_align",
+      "dimension": "sort_order",
+      "value_or_op": "unsorted",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "hisat2_align",
+      "dimension": "reference_assembly",
+      "value_or_op": "unknown",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "hisat2_align",
+      "dimension": "strandedness",
+      "value_or_op": "unknown",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "samtools_view",
+      "dimension": "strandedness",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_view",
+      "dimension": "deduplication_state",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_view",
+      "dimension": "reference_assembly",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_view",
+      "dimension": "sort_order",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_sort",
+      "dimension": "sort_order",
+      "value_or_op": "coordinate",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "samtools_sort",
+      "dimension": "strandedness",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_sort",
+      "dimension": "deduplication_state",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_sort",
+      "dimension": "reference_assembly",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_sort",
+      "dimension": "sort_order",
+      "value_or_op": "propagate",
+      "outcome": "spurious_from_inference"
+    },
+    {
+      "node_type": "sam_to_bam",
+      "dimension": "strandedness",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "sam_to_bam",
+      "dimension": "deduplication_state",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "sam_to_bam",
+      "dimension": "reference_assembly",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "sam_to_bam",
+      "dimension": "sort_order",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_bam_to_cram",
+      "dimension": "strandedness",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_bam_to_cram",
+      "dimension": "deduplication_state",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_bam_to_cram",
+      "dimension": "reference_assembly",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_bam_to_cram",
+      "dimension": "sort_order",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_cram_to_bam",
+      "dimension": "strandedness",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_cram_to_bam",
+      "dimension": "deduplication_state",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_cram_to_bam",
+      "dimension": "reference_assembly",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_cram_to_bam",
+      "dimension": "sort_order",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "featurecounts",
+      "dimension": "normalization_state",
+      "value_or_op": "raw_counts",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "featurecounts",
+      "dimension": "strandedness",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "featurecounts",
+      "dimension": "deduplication_state",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "featurecounts",
+      "dimension": "reference_assembly",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "featurecounts",
+      "dimension": "strandedness",
+      "value_or_op": "param_map",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "featurecounts",
+      "dimension": "sort_order",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_flagstat",
+      "dimension": "strandedness",
+      "value_or_op": "propagate",
+      "outcome": "spurious_from_inference"
+    },
+    {
+      "node_type": "samtools_flagstat",
+      "dimension": "sort_order",
+      "value_or_op": "propagate",
+      "outcome": "spurious_from_inference"
+    },
+    {
+      "node_type": "samtools_flagstat",
+      "dimension": "deduplication_state",
+      "value_or_op": "propagate",
+      "outcome": "spurious_from_inference"
+    },
+    {
+      "node_type": "samtools_flagstat",
+      "dimension": "reference_assembly",
+      "value_or_op": "propagate",
+      "outcome": "spurious_from_inference"
+    },
+    {
+      "node_type": "samtools_index",
+      "dimension": "sort_order",
+      "value_or_op": "coordinate",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "samtools_index",
+      "dimension": "strandedness",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_index",
+      "dimension": "deduplication_state",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_index",
+      "dimension": "reference_assembly",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "samtools_index",
+      "dimension": "sort_order",
+      "value_or_op": "propagate",
+      "outcome": "agree"
+    },
+    {
+      "node_type": "normalize_data",
+      "dimension": "normalization_state",
+      "value_or_op": "param_map",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "deseq2",
+      "dimension": "normalization_state",
+      "value_or_op": "unknown",
+      "outcome": "missed_by_inference"
+    },
+    {
+      "node_type": "deseq2",
+      "dimension": "normalization_state",
+      "value_or_op": "raw_counts",
+      "outcome": "missed_by_inference"
+    }
+  ]
+}

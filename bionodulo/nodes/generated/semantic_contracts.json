@@ -4,27 +4,56 @@
     {
       "name": "reference_assembly",
       "description": "Identity of the reference assembly the data is defined against. SAM @SQ AS/M5 tags are the runtime ground truth [S30][S31].",
-      "values": ["unknown", "grch37", "grch38", "grcm39", "wbcel235", "ara_tha_ta10"]
+      "values": [
+        "unknown",
+        "grch37",
+        "grch38",
+        "grcm39",
+        "wbcel235",
+        "ara_tha_ta10"
+      ]
     },
     {
       "name": "sort_order",
       "description": "Record ordering inside an alignment file; SAM @HD SO values [S30].",
-      "values": ["unknown", "unsorted", "coordinate", "queryname"]
+      "values": [
+        "unknown",
+        "unsorted",
+        "coordinate",
+        "queryname"
+      ]
     },
     {
       "name": "strandedness",
       "description": "Library strandedness convention. Values align to featureCounts -s 0/1/2 [E11] and htseq-count yes/no/reverse [S33].",
-      "values": ["unknown", "unstranded", "forward", "reverse"]
+      "values": [
+        "unknown",
+        "unstranded",
+        "forward",
+        "reverse"
+      ]
     },
     {
       "name": "normalization_state",
       "description": "Normalization state of a counts matrix; raw counts are required by count-model tests [S35][S36][S37][S38].",
-      "values": ["unknown", "raw_counts", "cpm", "tpm", "fpkm", "sizefactored"]
+      "values": [
+        "unknown",
+        "raw_counts",
+        "cpm",
+        "tpm",
+        "fpkm",
+        "sizefactored"
+      ]
     },
     {
       "name": "deduplication_state",
       "description": "Duplicate-read state carried by an alignment.",
-      "values": ["unknown", "none", "marked", "removed"]
+      "values": [
+        "unknown",
+        "none",
+        "marked",
+        "removed"
+      ]
     }
   ],
   "contracts": [
@@ -38,9 +67,19 @@
       },
       "outputs": {
         "alignment": [
-          {"dimension": "sort_order", "op": "set", "value": "unsorted"},
-          {"dimension": "reference_assembly", "op": "unknown"},
-          {"dimension": "strandedness", "op": "unknown"}
+          {
+            "dimension": "sort_order",
+            "op": "set",
+            "value": "unsorted"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "unknown"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "unknown"
+          }
         ]
       }
     },
@@ -53,10 +92,22 @@
       },
       "outputs": {
         "bam": [
-          {"dimension": "sort_order", "op": "propagate"},
-          {"dimension": "reference_assembly", "op": "propagate"},
-          {"dimension": "strandedness", "op": "propagate"},
-          {"dimension": "deduplication_state", "op": "propagate"}
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
         ]
       }
     },
@@ -69,10 +120,23 @@
       },
       "outputs": {
         "sorted_bam": [
-          {"dimension": "sort_order", "op": "set", "value": "coordinate"},
-          {"dimension": "reference_assembly", "op": "propagate"},
-          {"dimension": "strandedness", "op": "propagate"},
-          {"dimension": "deduplication_state", "op": "propagate"}
+          {
+            "dimension": "sort_order",
+            "op": "set",
+            "value": "coordinate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
         ]
       }
     },
@@ -85,10 +149,22 @@
       },
       "outputs": {
         "output1": [
-          {"dimension": "sort_order", "op": "propagate"},
-          {"dimension": "reference_assembly", "op": "propagate"},
-          {"dimension": "strandedness", "op": "propagate"},
-          {"dimension": "deduplication_state", "op": "propagate"}
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
         ]
       }
     },
@@ -101,10 +177,22 @@
       },
       "outputs": {
         "cram": [
-          {"dimension": "sort_order", "op": "propagate"},
-          {"dimension": "reference_assembly", "op": "propagate"},
-          {"dimension": "strandedness", "op": "propagate"},
-          {"dimension": "deduplication_state", "op": "propagate"}
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
         ]
       }
     },
@@ -117,10 +205,22 @@
       },
       "outputs": {
         "bam": [
-          {"dimension": "sort_order", "op": "propagate"},
-          {"dimension": "reference_assembly", "op": "propagate"},
-          {"dimension": "strandedness", "op": "propagate"},
-          {"dimension": "deduplication_state", "op": "propagate"}
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
         ]
       }
     },
@@ -130,20 +230,45 @@
       "notes": "featureCounts -s must match the library strandedness; a mismatch silently halves or contaminates counts [E8][E11][S34]. The -s parameter maps 0/1/2 to unstranded/forward/reverse, so the assumption is derived from the node's own configuration. Counts are raw.",
       "inputs": {
         "alignment": [
-          {"dimension": "strandedness", "op": "param_map", "param": "strand_specificity", "param_map": {"0": "unstranded", "1": "forward", "2": "reverse"}}
+          {
+            "dimension": "strandedness",
+            "op": "param_map",
+            "param": "strand_specificity",
+            "param_map": {
+              "0": "unstranded",
+              "1": "forward",
+              "2": "reverse"
+            }
+          }
         ]
       },
       "outputs": {
         "counts": [
-          {"dimension": "normalization_state", "op": "set", "value": "raw_counts"}
+          {
+            "dimension": "normalization_state",
+            "op": "set",
+            "value": "raw_counts"
+          }
         ],
         "summary": [],
         "feature_lengths": [],
         "annotated_bam": [
-          {"dimension": "sort_order", "op": "propagate"},
-          {"dimension": "reference_assembly", "op": "propagate"},
-          {"dimension": "strandedness", "op": "propagate"},
-          {"dimension": "deduplication_state", "op": "propagate"}
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
         ]
       }
     },
@@ -167,6 +292,87 @@
       },
       "outputs": {
         "stats": []
+      }
+    },
+    {
+      "node_type": "samtools_index",
+      "source": "expert",
+      "notes": "BAI indexing requires a coordinate-sorted BAM; indexing an unsorted alignment is the canonical fail-late sort-order error (samtools index aborts with an unsorted-file error, but only after the workflow has already run to that point).",
+      "inputs": {
+        "bam": [
+          {
+            "dimension": "sort_order",
+            "op": "eq",
+            "value": "coordinate"
+          }
+        ]
+      },
+      "outputs": {
+        "indexed_bam": [
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
+        ],
+        "bai": []
+      }
+    },
+    {
+      "node_type": "normalize_data",
+      "source": "expert",
+      "notes": "Normalization method determines the matrix state; cpm and tpm_from_counts change units, other transforms destroy cross-sample comparability knowledge [S36][S37][S38].",
+      "inputs": {
+        "table": []
+      },
+      "outputs": {
+        "normalized_table": [
+          {
+            "dimension": "normalization_state",
+            "op": "param_map",
+            "param": "method",
+            "param_map": {
+              "cpm": "cpm",
+              "tpm_from_counts": "tpm"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "deseq2",
+      "source": "expert",
+      "notes": "DESeq2 requires raw counts; normalized or transformed inputs violate the count model [S35][E18].",
+      "inputs": {
+        "count_matrix": [
+          {
+            "dimension": "normalization_state",
+            "op": "eq",
+            "value": "raw_counts"
+          }
+        ]
+      },
+      "outputs": {
+        "results_csv": [],
+        "ma_plot": [],
+        "normalized_counts_csv": [
+          {
+            "dimension": "normalization_state",
+            "op": "unknown"
+          }
+        ],
+        "pca_scores_csv": []
       }
     }
   ],
@@ -205,7 +411,9 @@
       "converter_input_port": "input",
       "converter_output_port": "infer_experiment",
       "cost": 3,
-      "requires": ["reference gene model in BED format"],
+      "requires": [
+        "reference gene model in BED format"
+      ],
       "params": {},
       "detection": true
     }

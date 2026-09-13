@@ -1,0 +1,34 @@
+{
+  "edges": [
+    {
+      "from": {
+        "node": "table",
+        "output": "file"
+      },
+      "id": "e1",
+      "to": {
+        "input": "table",
+        "node": "cpm"
+      }
+    }
+  ],
+  "name": "normalization-real-run",
+  "nodes": [
+    {
+      "id": "table",
+      "params": {
+        "file": "D:\\AI\\BioNodulo\\BioNodulo\\reports\\contract_demo\\counts_fixture.tsv"
+      },
+      "type": "input_file"
+    },
+    {
+      "id": "cpm",
+      "params": {
+        "id_columns": "gene",
+        "method": "cpm"
+      },
+      "type": "normalize_data"
+    }
+  ],
+  "version": "2.0"
+}
