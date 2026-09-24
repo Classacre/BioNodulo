@@ -1,6 +1,6 @@
 {
   "name": "bionodulo-web",
-  "version": "0.1.0-alpha.66",
+  "version": "0.1.1-alpha.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:firefox": "playwright test --config playwright.firefox.config.ts"
   },
   "dependencies": {
     "@clerk/clerk-js": "^6.18.1",

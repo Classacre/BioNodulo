@@ -2,12 +2,20 @@
 // node's metadata (type / category / description / ports) and lets you rename it
 // and edit its parameter values. Reuses the same interactive-widget detection as
 // the on-node widgets so the same params are editable here.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WorkflowNode, ObjectInfo, InputSpec } from '../../types';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
-import { isInteractiveWidgetSpec, isColorParam, toHexColor } from '../../utils/nodeLayout';
+import {
+  formatJsonWidgetValue,
+  isInteractiveWidgetSpec,
+  isInlineFileValueSpec,
+  isColorParam,
+  parseJsonWidgetValue,
+  parseNumericWidgetValue,
+  toHexColor,
+} from '../../utils/nodeLayout';
 
 interface NodePropertiesDialogProps {
   node: WorkflowNode;
@@ -17,11 +25,27 @@ interface NodePropertiesDialogProps {
   onClose: () => void;
 }
 
-function ParamField({ pKey, spec, value, onChange }: {
-  pKey: string; spec: InputSpec; value: unknown; onChange: (v: unknown) => void;
+function ParamField({ pKey, spec, value, optional, onChange }: {
+  pKey: string; spec: InputSpec; value: unknown; optional: boolean; onChange: (v: unknown) => void;
 }) {
   const label = spec.label || pKey;
+  const external = value ?? spec.default;
+  const [local, setLocal] = useState<unknown>(external);
+  useEffect(() => { setLocal(external); }, [external]);
   if (spec.type === 'BOOLEAN') {
+    if (optional && spec.default == null) {
+      return (
+        <label className="bio-props-field">
+          <span>{label}</span>
+          <select value={external == null ? '' : String(external)}
+            onChange={e => onChange(e.target.value === '' ? undefined : e.target.value === 'true')}>
+            <option value="">Use tool default</option>
+            <option value="true">True</option>
+            <option value="false">False</option>
+          </select>
+        </label>
+      );
+    }
     return (
       <label className="bio-props-field bio-props-bool">
         <span>{label}</span>
@@ -33,7 +57,8 @@ function ParamField({ pKey, spec, value, onChange }: {
     return (
       <label className="bio-props-field">
         <span>{label}</span>
-        <select value={String(value ?? spec.default ?? '')} onChange={e => onChange(e.target.value)}>
+        <select value={String(value ?? spec.default ?? '')} onChange={e => onChange(e.target.value === '' && !spec.options?.includes('') ? undefined : e.target.value)}>
+          {!spec.options.includes('') && <option value="">{optional ? 'Use tool default' : 'Choose a value'}</option>}
           {spec.options.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       </label>
@@ -44,8 +69,30 @@ function ParamField({ pKey, spec, value, onChange }: {
     return (
       <label className="bio-props-field">
         <span>{label}</span>
-        <input type="number" min={spec.min} max={spec.max} step={step} defaultValue={Number(value ?? spec.default ?? 0)}
-          onBlur={e => onChange(spec.type === 'INT' ? Math.round(Number(e.target.value)) : Number(e.target.value))} />
+        <input type="number" min={spec.min} max={spec.max} step={step} value={local == null ? '' : String(local)}
+          placeholder={optional ? 'Use tool default' : undefined}
+          onChange={e => setLocal(e.target.value)}
+          onBlur={e => onChange(parseNumericWidgetValue(e.target.value, spec.type))} />
+      </label>
+    );
+  }
+  if (spec.type === 'JSON') {
+    return (
+      <label className="bio-props-field">
+        <span>{label}</span>
+        <textarea
+          value={formatJsonWidgetValue(local)}
+          onChange={e => setLocal(e.target.value)}
+          onBlur={e => {
+            try {
+              onChange(optional && !e.target.value.trim() ? undefined : parseJsonWidgetValue(e.target.value));
+              e.target.setCustomValidity('');
+            } catch {
+              e.target.setCustomValidity('Enter valid JSON.');
+              e.target.reportValidity();
+            }
+          }}
+        />
       </label>
     );
   }
@@ -53,14 +100,15 @@ function ParamField({ pKey, spec, value, onChange }: {
     return (
       <label className="bio-props-field">
         <span>{label}</span>
-        <input type="color" defaultValue={toHexColor(value)} onBlur={e => onChange(e.target.value)} />
+        <input type="color" value={toHexColor(local)} onChange={e => setLocal(e.target.value)} onBlur={e => onChange(e.target.value)} />
       </label>
     );
   }
   return (
     <label className="bio-props-field">
       <span>{label}</span>
-      <input type="text" defaultValue={String(value ?? spec.default ?? '')} onBlur={e => onChange(e.target.value)} />
+      <input type="text" value={String(local ?? '')} onChange={e => setLocal(e.target.value)}
+        onBlur={e => onChange(optional && spec.default !== '' && e.target.value === '' ? undefined : e.target.value)} />
     </label>
   );
 }
@@ -71,9 +119,12 @@ export default function NodePropertiesDialog({ node, objectInfo, onRename, onPar
   const [title, setTitle] = useState(node.ui?.title || meta?.display_name || node.type || '');
   const visible = getVisibleInputSpecs(meta, node.params || {});
   const editable = [...Object.entries(visible.required), ...Object.entries(visible.optional)]
-    .filter(([, spec]) => isInteractiveWidgetSpec(spec));
+    .filter(([key, spec]) => isInteractiveWidgetSpec(spec) || isInlineFileValueSpec(meta, key, spec));
   const outputs = resolveNodeOutputs(meta, node.params || {});
-  const ports = [...Object.keys(visible.required), ...Object.keys(visible.optional)].filter(k => !editable.some(([ek]) => ek === k));
+  const ports = [...Object.entries(visible.required), ...Object.entries(visible.optional)]
+    .filter(([key, spec]) => !editable.some(([editableKey]) => editableKey === key)
+      || isInlineFileValueSpec(meta, key, spec))
+    .map(([key]) => key);
 
   return (
     <div className="bn-ui-overlay" role="presentation" onMouseDown={onClose}>
@@ -97,7 +148,8 @@ export default function NodePropertiesDialog({ node, objectInfo, onRename, onPar
             <section className="bio-props-section">
               <h4>{t('canvas.props.parameters')}</h4>
               {editable.map(([key, spec]) => (
-                <ParamField key={key} pKey={key} spec={spec} value={node.params?.[key]} onChange={v => onParamChange(node.id, key, v)} />
+                <ParamField key={key} pKey={key} spec={spec} value={node.params?.[key]}
+                  optional={Object.prototype.hasOwnProperty.call(visible.optional, key)} onChange={v => onParamChange(node.id, key, v)} />
               ))}
             </section>
           )}

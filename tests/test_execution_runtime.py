@@ -1174,9 +1174,17 @@ async def test_workflow_executor_cancels_while_pause_request_is_waiting(tmp_path
     executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
 
     task = asyncio.create_task(executor.execute("pause-cancel-run", workflow, cancel_event=cancel_event))
-    await asyncio.sleep(0.05)
+    pause_path = tmp_path / "pause_requests" / "pause-cancel-run__pause.json"
+    try:
+        async with asyncio.timeout(5):
+            while not pause_path.exists() and not task.done():
+                await asyncio.sleep(0.01)
+    except TimeoutError:
+        cancel_event.set()
+        await asyncio.wait_for(task, timeout=5)
+        raise
 
-    assert (tmp_path / "pause_requests" / "pause-cancel-run__pause.json").exists()
+    assert pause_path.exists()
     assert not task.done()
     cancel_event.set()
     result = await asyncio.wait_for(task, timeout=1)

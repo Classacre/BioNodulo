@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 from slowapi.extension import _rate_limit_exceeded_handler
 
+from bionodulo import __version__
 from bionodulo.api.rate_limits import RateLimitExceeded, SlowAPIMiddleware, limiter
 from bionodulo.api.routes import router
 from bionodulo.api.ai_routes import ai_router
@@ -62,15 +63,7 @@ class ProxyPrefixMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] in {"http", "websocket",
-    "/api/manager/ensure-workflow-env",
-    "/api/manager/create-workflow-env",
-    "/api/manager/environments",
-    "/api/host_status/install-pixi",
-    "/api/workspace/root",
-    "/api/workspace/cloud-download",
-    "/api/workspace/cloud-upload",
-}:
+        if scope["type"] in {"http", "websocket"}:
             path = str(scope.get("path", ""))
             normalised = self._normalise_path(path)
             if normalised != path:
@@ -141,48 +134,33 @@ class SessionTokenMiddleware:
         await self.app(scope, receive, send)
 
 
-# C2 (audit): in shared-editor mode the app is a stateless, multi-tenant
-# backend that must NEVER load or mutate code. These request path prefixes reach
-# routes that upload/reload/install/remove custom nodes (ultimately
-# registry.load_custom_nodes -> exec_module) or run/queue jobs, so they are
-# hard-blocked at the ASGI layer regardless of any router wiring. Paths are the
-# normalised, /api-prefixed form (this runs after ProxyPrefixMiddleware).
-_EDITOR_FORBIDDEN_PREFIXES = (
-    "/api/workspace/upload",
-    "/api/workspace/delete",
-    "/api/workspace/file-operation",
-    "/api/workspace/root",
-    "/api/workspace/cloud-download",
-    "/api/workspace/cloud-upload",
-    "/api/manager/reload",
-    "/api/manager/install-git",
-    "/api/manager/update",
-    "/api/manager/remove",
-    "/api/manager/ensure-workflow-env",
-    "/api/manager/create-workflow-env",
-    "/api/manager/environments",
-    "/api/host_status/install-pixi",
-    "/api/cache/clear",
-    "/api/hpc",
+# The editor is shared between tenants. Only stateless editing endpoints belong
+# here; a denylist left newly added workspace, settings and collaboration routes
+# able to expose or mutate another caller's state. Keep methods explicit too.
+_EDITOR_GET_PATHS = frozenset({
+    "/", "/api/health", "/api/config", "/api/i18n", "/api/host_status", "/api/ai/skills",
+    "/api/workspace/download",  # Route enforces packaged fixtures only in editor mode.
+})
+_EDITOR_GET_PREFIXES = (
+    "/assets", "/biotools-registry", "/api/object_info", "/api/workflow_templates", "/api/docs", "/api/examples/workflows",
 )
+_EDITOR_POST_PATHS = frozenset({
+    "/api/workflow/validate", "/api/workflow/import", "/api/workflow/export", "/api/workflow/extract",
+    "/api/manager/diagnose", "/api/manager/resolve", "/api/ai/chat", "/api/ai/chat/stream",
+})
 
 
-def _is_editor_forbidden(path: str) -> bool:
-    for prefix in _EDITOR_FORBIDDEN_PREFIXES:
-        if path == prefix or path.startswith(prefix + "/"):
-            return True
-    return False
+def _is_editor_allowed(path: str, method: str) -> bool:
+    path = path.rstrip("/") or "/"
+    if method in {"GET", "HEAD"}:
+        return path in _EDITOR_GET_PATHS or any(
+            path == prefix or path.startswith(prefix + "/") for prefix in _EDITOR_GET_PREFIXES
+        )
+    return method == "POST" and path in _EDITOR_POST_PATHS
 
 
 class EditorLockdownMiddleware:
-    """Block code-loading / mutating routes in shared-editor mode (audit C2).
-
-    The main API router (with /workspace/upload, /manager/reload, /manager/*,
-    /workspace/delete, /cache/clear, /hpc/*) is mounted unconditionally, but in
-    editor mode the process is shared and multi-tenant: reaching any of those
-    routes is an authenticated RCE (upload -> reload -> exec_module) or lets one
-    tenant mutate shared state. Rather than rewire every router, we reject the
-    forbidden prefixes here with 403. Added only when editor_mode is true.
+    """Allow only stateless HTTP editing routes in shared-editor mode.
 
     Sits inside ProxyPrefixMiddleware (added before it) so it reads the
     normalised path and can't be bypassed with a proxy prefix.
@@ -192,16 +170,9 @@ class EditorLockdownMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] in {"http", "websocket",
-    "/api/manager/ensure-workflow-env",
-    "/api/manager/create-workflow-env",
-    "/api/manager/environments",
-    "/api/host_status/install-pixi",
-    "/api/workspace/root",
-    "/api/workspace/cloud-download",
-    "/api/workspace/cloud-upload",
-} and _is_editor_forbidden(
-            str(scope.get("path", ""))
+        if scope["type"] in {"http", "websocket"} and (
+            scope["type"] == "websocket"
+            or not _is_editor_allowed(str(scope.get("path", "")), str(scope.get("method", "")))
         ):
             if scope["type"] == "websocket":
                 # Reject the handshake outright.
@@ -328,7 +299,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="BioNodulo",
         description="Visual bioinformatics workflow engine",
-        version="0.1.0a25",
+        version=__version__,
         lifespan=_app_lifespan,
     )
     app.state.limiter = limiter
@@ -468,7 +439,7 @@ def create_app() -> FastAPI:
     # Event hub (must be created before run_queue for emit callback)
     event_hub = EventHub()
     # Settings manager (both modes)
-    settings_manager = SettingsManager(settings.settings_file)
+    settings_manager = SettingsManager(settings.settings_file, persistent=not editor_mode)
 
     # Common app state (both modes)
     app.state.settings = settings
@@ -602,6 +573,9 @@ def create_app() -> FastAPI:
         frontend_build_complete = index_file.exists() and web_assets.exists()
         if web_assets.exists():
             app.mount("/assets", StaticFiles(directory=web_assets), name="assets")
+        registry_assets = web_dist / "biotools-registry"
+        if registry_assets.is_dir():
+            app.mount("/biotools-registry", StaticFiles(directory=registry_assets), name="biotools-registry")
 
         @app.get("/{path:path}")
         async def serve_spa(request: Request, path: str) -> Response:

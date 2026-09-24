@@ -115,6 +115,43 @@ function workflowSaveKey(wf: Workflow): string {
 
 const LOCAL_WORKFLOWS_KEY = 'bionodulo.local.workflows';
 
+function latestRunStatus<T extends string>(previous: T | undefined, incoming: T | undefined): T | undefined {
+  const rank = (status: string) => status === 'pending' ? 0 : status === 'running' ? 1 : 2;
+  return previous && incoming && rank(previous) > rank(incoming) ? previous : incoming ?? previous;
+}
+
+// Socket events can arrive before the HTTP submission response registers the
+// run. Keep those updates and merge registration without resetting progress.
+function mergeRunRecord(previous: RunRecord | undefined, incoming: Partial<RunRecord> & Pick<RunRecord, 'run_id'>): RunRecord {
+  const nodes = new Map((previous?.node_statuses ?? []).map(node => [node.node_id, node]));
+  for (const node of incoming.node_statuses ?? []) {
+    const existing = nodes.get(node.node_id);
+    nodes.set(node.node_id, { ...existing, ...node, status: latestRunStatus(existing?.status, node.status)! });
+  }
+  return {
+    ...previous,
+    ...incoming,
+    run_id: incoming.run_id,
+    workflow_name: incoming.workflow_name || previous?.workflow_name || i18n.t('common.untitled'),
+    status: latestRunStatus(previous?.status, incoming.status) ?? 'pending',
+    node_statuses: [...nodes.values()],
+    execution_plan: [...new Set([...(previous?.execution_plan ?? []), ...(incoming.execution_plan ?? [])])],
+    node_outputs: { ...previous?.node_outputs, ...incoming.node_outputs },
+    previews: { ...previous?.previews, ...incoming.previews },
+    artifacts: { ...previous?.artifacts, ...incoming.artifacts },
+    start_time: incoming.status === 'pending' && previous?.start_time
+      ? previous.start_time : incoming.start_time ?? previous?.start_time,
+  };
+}
+
+function upsertRun(runs: RunRecord[], incoming: Partial<RunRecord> & Pick<RunRecord, 'run_id'>): RunRecord[] {
+  const previous = runs.find(run => run.run_id === incoming.run_id);
+  const merged = mergeRunRecord(previous, incoming);
+  return previous
+    ? runs.map(run => run.run_id === incoming.run_id ? merged : run)
+    : [merged, ...runs];
+}
+
 function loadLocalWorkflows(): { workflows: Workflow[]; activeIndex: number } {
   try {
     const raw = localStorage.getItem(LOCAL_WORKFLOWS_KEY);
@@ -286,11 +323,11 @@ export function useWorkflow() {
   }, [workflows, activeIndex, editorMode]);
 
   const addRun = useCallback((run: RunRecord) => {
-    setRuns(prev => [run, ...prev]);
+    setRuns(prev => upsertRun(prev, run));
   }, []);
 
   const updateRun = useCallback((runId: string, patch: Partial<RunRecord>) => {
-    setRuns(prev => prev.map(r => r.run_id === runId ? { ...r, ...patch } : r));
+    setRuns(prev => upsertRun(prev, { ...patch, run_id: runId }));
   }, []);
 
   const activeWorkflow = workflows[activeIndex] || emptyWorkflow();

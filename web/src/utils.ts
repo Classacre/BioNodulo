@@ -43,6 +43,7 @@ export function defaultsFor(meta: NodeMetadata): Record<string, unknown> {
     if (!inputs?.[section]) continue;
     for (const [key, spec] of Object.entries(inputs[section])) {
       if (spec.default !== undefined) defs[key] = spec.default;
+      else if (section === 'optional') continue;
       else if (spec.type === 'INT') defs[key] = spec.min ?? 0;
       else if (spec.type === 'BOOLEAN') defs[key] = false;
       else if (spec.type === 'FLOAT') defs[key] = spec.min ?? 0;

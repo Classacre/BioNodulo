@@ -22,6 +22,7 @@ from bionodulo.ai.tools import (
     ALL_TOOLS,
     ToolContext,
     aexecute_tool,
+    tool_available,
     tools_to_openai_schema,
 )
 
@@ -714,6 +715,7 @@ async def chat_with_tools(
         active_tools = [tool for tool in ALL_TOOLS if tool.name in wanted]
     else:
         active_tools = ALL_TOOLS
+    active_tools = [tool for tool in active_tools if tool_available(tool.name)]
     tool_schemas = tools_to_openai_schema(active_tools)
     system_prompt = system_prompt or BIONODULO_SYSTEM_PROMPT
 

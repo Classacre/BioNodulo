@@ -72,12 +72,30 @@ describe('deriveLatestPreviews', () => {
     expect(out.n2).toMatchObject({ runId: 'new', path: 't.tsv' });
   });
 
-  it('ignores runs without previews so a running run never hides a finished one', () => {
+  it('suppresses an older preview while a newer run of that node is active', () => {
     const runs = [
       run('running', {}, '2026-03-01T00:00:00Z'),
       run('done', { n1: 'a.png' }, '2026-01-01T00:00:00Z'),
     ];
-    expect(deriveLatestPreviews(runs).n1.runId).toBe('done');
+    runs[0].status = 'running';
+    runs[0].execution_plan = ['n1'];
+    runs[0].node_statuses = [{ node_id: 'n1', status: 'running' }];
+    expect(deriveLatestPreviews(runs).n1).toBeUndefined();
+  });
+
+  it('does not present a successful preview as output of a newer failed attempt', () => {
+    const failed = run('failed', {}, '2026-03-01T00:00:00Z');
+    failed.status = 'error';
+    failed.execution_plan = ['input', 'validate'];
+    failed.node_statuses = [
+      { node_id: 'input', status: 'completed' },
+      { node_id: 'validate', status: 'error', error: 'coordinate contradiction' },
+    ];
+    const out = deriveLatestPreviews([
+      failed,
+      run('successful', { validate: 'head_preview.html' }, '2026-02-01T00:00:00Z'),
+    ]);
+    expect(out.validate).toBeUndefined();
   });
 
   it('returns an empty map when nothing has previews', () => {

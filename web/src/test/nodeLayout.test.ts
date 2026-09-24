@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeMetadata } from '../types';
 import {
+  formatJsonWidgetValue,
   getInteractiveWidgetEntries,
   getPromotableParamKeys,
+  isInlineFileValueSpec,
   isColorParam,
+  parseJsonWidgetValue,
   toHexColor,
 } from '../utils/nodeLayout';
 
@@ -40,6 +43,7 @@ const validatorLikeMeta: NodeMetadata = {
     },
     optional: {
       expected_format: { type: 'STRING', options: ['auto', 'fasta', 'fastq'], default: 'auto' },
+      thresholds: { type: 'JSON', default: [10, 20], multiline: true },
       min_size_bytes: { type: 'INT', default: 0 },
       max_size_bytes: { type: 'INT', default: 0 },
       required_fields: { type: 'STRING', default: '' },
@@ -67,6 +71,7 @@ describe('interactive widget entries', () => {
     const widgets = getInteractiveWidgetEntries(validatorLikeMeta, params);
     expect(widgets.map(widget => widget.key)).toEqual([
       'expected_format',
+      'thresholds',
       'min_size_bytes',
       'max_size_bytes',
       'required_fields',
@@ -76,6 +81,22 @@ describe('interactive widget entries', () => {
     ]);
   });
 
+  it('makes the Input File path editable while keeping it outside promotion', () => {
+    const inputFileMeta: NodeMetadata = {
+      id: 'input_file', display_name: 'Input File', category: 'Input',
+      input_types: {
+        required: { file: { type: 'FILE', description: 'Local path, URL, or accession' } },
+        optional: { source: { type: 'STRING', options: ['auto', 'local'], default: 'auto' } },
+      },
+      return_types: ['FILE'], return_names: ['file'],
+    };
+
+    expect(getInteractiveWidgetEntries(inputFileMeta, {}).map(widget => widget.key)).toEqual(['file', 'source']);
+    expect(getPromotableParamKeys(inputFileMeta, {})).toEqual(['source']);
+    expect(isInlineFileValueSpec(inputFileMeta, 'file', inputFileMeta.input_types?.required?.file)).toBe(true);
+    expect(isInlineFileValueSpec({ ...inputFileMeta, id: 'consumer' }, 'file', { type: 'FILE' })).toBe(false);
+  });
+
 });
 
 describe('promotable param keys', () => {
@@ -83,6 +104,7 @@ describe('promotable param keys', () => {
     // `input` is an ANY data port (not an interactive widget) → not promotable.
     expect(getPromotableParamKeys(validatorLikeMeta, {})).toEqual([
       'expected_format',
+      'thresholds',
       'min_size_bytes',
       'max_size_bytes',
       'required_fields',
@@ -94,5 +116,22 @@ describe('promotable param keys', () => {
 
   it('returns nothing for a null meta', () => {
     expect(getPromotableParamKeys(null, {})).toEqual([]);
+  });
+});
+
+describe('JSON widgets', () => {
+  it('formats structured defaults and parses edited arrays without stringifying their values', () => {
+    expect(formatJsonWidgetValue([10, { enabled: true }])).toBe('[\n  10,\n  {\n    "enabled": true\n  }\n]');
+    expect(parseJsonWidgetValue('[3, 5, 8]')).toEqual([3, 5, 8]);
+    expect(() => parseJsonWidgetValue('[broken')).toThrow();
+  });
+
+  it('keeps JSON editable while ordinary FILE inputs remain ports', () => {
+    expect(getInteractiveWidgetEntries(validatorLikeMeta, {}).map(widget => widget.key)).toContain('thresholds');
+    expect(getPromotableParamKeys(validatorLikeMeta, {})).toContain('thresholds');
+    expect(getInteractiveWidgetEntries({
+      id: 'consumer', display_name: 'Consumer', category: 'test',
+      input_types: { required: { input: { type: 'FILE' } } },
+    }, {})).toEqual([]);
   });
 });

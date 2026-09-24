@@ -1,0 +1,554 @@
+{
+  "schema_version": "0.2",
+  "dimensions": [
+    {
+      "name": "reference_assembly",
+      "description": "Identity of the reference assembly the data is defined against. SAM @SQ AS/M5 tags are the runtime ground truth [S30][S31].",
+      "values": [
+        "unknown",
+        "grch37",
+        "grch38",
+        "grcm39",
+        "wbcel235",
+        "ara_tha_ta10"
+      ]
+    },
+    {
+      "name": "sort_order",
+      "description": "Record ordering inside an alignment file; SAM @HD SO values [S30].",
+      "values": [
+        "unknown",
+        "unsorted",
+        "coordinate",
+        "queryname"
+      ]
+    },
+    {
+      "name": "strandedness",
+      "description": "Library strandedness convention. Values align to featureCounts -s 0/1/2 [E11] and htseq-count yes/no/reverse [S33].",
+      "values": [
+        "unknown",
+        "unstranded",
+        "forward",
+        "reverse"
+      ]
+    },
+    {
+      "name": "normalization_state",
+      "description": "Normalization state of a counts matrix; raw counts are required by count-model tests [S35][S36][S37][S38].",
+      "values": [
+        "unknown",
+        "raw_counts",
+        "cpm",
+        "tpm",
+        "fpkm",
+        "sizefactored"
+      ]
+    },
+    {
+      "name": "deduplication_state",
+      "description": "Duplicate-read state carried by an alignment.",
+      "values": [
+        "unknown",
+        "none",
+        "marked",
+        "removed"
+      ]
+    },
+    {
+      "name": "coordinate_system",
+      "description": "Coordinate origin and interval closure. Runtime artifact validation distinguishes BED zero-based half-open intervals from GFF3/GTF one-based closed intervals.",
+      "values": [
+        "unknown",
+        "zero_based_half_open",
+        "one_based_closed"
+      ]
+    },
+    {
+      "name": "count_unit",
+      "description": "Meaning of numeric abundance/count fields. A whole mixed-schema table is not treated as though every column had the NumReads unit.",
+      "values": [
+        "unknown",
+        "assigned_reads",
+        "assigned_fragments",
+        "mixed_abundance_columns"
+      ]
+    },
+    {
+      "name": "count_value_domain",
+      "description": "Numeric domain of count-like values; separate from whether the unit is reads or fragments.",
+      "values": [
+        "unknown",
+        "nonnegative_integer",
+        "fractional_possible",
+        "mixed_numeric_columns"
+      ]
+    }
+  ],
+  "contracts": [
+    {
+      "node_type": "hisat2_align",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "HISAT2 emits unsorted SAM by default; the reference assembly equals the assembly of the index input.",
+      "inputs": {
+        "reads": [],
+        "index": []
+      },
+      "outputs": {
+        "alignment": [
+          {
+            "dimension": "sort_order",
+            "op": "set",
+            "value": "unsorted"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "unknown"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "unknown"
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "samtools_view",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "samtools view preserves alignment state; it filters records but does not reorder or re-reference them.",
+      "inputs": {
+        "alignment": []
+      },
+      "outputs": {
+        "bam": [
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "samtools_sort",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "Coordinate sorting is the postcondition of samtools sort.",
+      "inputs": {
+        "alignment": []
+      },
+      "outputs": {
+        "sorted_bam": [
+          {
+            "dimension": "sort_order",
+            "op": "set",
+            "value": "coordinate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "sam_to_bam",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "Format conversion SAM to BAM (Galaxy-style wrapper); state-preserving. Output port is output1 per the registered node class.",
+      "inputs": {
+        "input": []
+      },
+      "outputs": {
+        "output1": [
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "samtools_bam_to_cram",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "BAM to CRAM conversion requires the reference used for encoding; state-preserving.",
+      "inputs": {
+        "input": []
+      },
+      "outputs": {
+        "cram": [
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "samtools_cram_to_bam",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "CRAM to BAM conversion; state-preserving.",
+      "inputs": {
+        "input": []
+      },
+      "outputs": {
+        "bam": [
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "featurecounts",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "featureCounts -s must match the library strandedness; a mismatch silently halves or contaminates counts [E8][E11][S34]. The -s parameter maps 0/1/2 to unstranded/forward/reverse, so the assumption is derived from the node's own configuration. Counts are raw.",
+      "inputs": {
+        "alignment": [
+          {
+            "dimension": "strandedness",
+            "op": "param_map",
+            "param": "strand_specificity",
+            "param_map": {
+              "0": "unstranded",
+              "1": "forward",
+              "2": "reverse"
+            }
+          }
+        ]
+      },
+      "outputs": {
+        "counts": [
+          {
+            "dimension": "normalization_state",
+            "op": "set",
+            "value": "raw_counts"
+          },
+          {
+            "dimension": "count_unit",
+            "op": "param_tuple_map",
+            "params": [
+              "paired_end_status",
+              "count_read_pairs"
+            ],
+            "param_map": {
+              "single_end|False": "assigned_reads",
+              "single_end|True": "assigned_fragments",
+              "PE_individual|False": "assigned_reads",
+              "PE_individual|True": "assigned_fragments",
+              "PE_fragments|False": "assigned_fragments",
+              "PE_fragments|True": "assigned_fragments"
+            }
+          },
+          {
+            "dimension": "count_value_domain",
+            "op": "param_tuple_map",
+            "params": [
+              "fraction",
+              "multifeat"
+            ],
+            "param_map": {
+              "False|": "nonnegative_integer",
+              "False|-M": "nonnegative_integer",
+              "False|-O": "nonnegative_integer",
+              "False|-O -M": "nonnegative_integer",
+              "True|-M": "fractional_possible",
+              "True|-O": "fractional_possible",
+              "True|-O -M": "fractional_possible"
+            }
+          }
+        ],
+        "summary": [],
+        "feature_lengths": [],
+        "annotated_bam": [
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "rseqc_infer_experiment",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "Runtime strandedness detection; the gradual check that resolves unknown [E9][E10].",
+      "inputs": {
+        "input": []
+      },
+      "outputs": {
+        "infer_experiment": []
+      }
+    },
+    {
+      "node_type": "samtools_flagstat",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "Statistics; requires coordinate or queryname ordering tolerance, consumes state without changing it.",
+      "inputs": {
+        "bam": []
+      },
+      "outputs": {
+        "stats": []
+      }
+    },
+    {
+      "node_type": "samtools_index",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "BAI indexing requires a coordinate-sorted BAM; indexing an unsorted alignment is the canonical fail-late sort-order error (samtools index aborts with an unsorted-file error, but only after the workflow has already run to that point).",
+      "inputs": {
+        "bam": [
+          {
+            "dimension": "sort_order",
+            "op": "eq",
+            "value": "coordinate"
+          }
+        ]
+      },
+      "outputs": {
+        "indexed_bam": [
+          {
+            "dimension": "sort_order",
+            "op": "propagate"
+          },
+          {
+            "dimension": "reference_assembly",
+            "op": "propagate"
+          },
+          {
+            "dimension": "strandedness",
+            "op": "propagate"
+          },
+          {
+            "dimension": "deduplication_state",
+            "op": "propagate"
+          }
+        ],
+        "bai": []
+      }
+    },
+    {
+      "node_type": "normalize_data",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "Normalization method determines the matrix state; cpm and tpm_from_counts change units, other transforms destroy cross-sample comparability knowledge [S36][S37][S38].",
+      "inputs": {
+        "table": []
+      },
+      "outputs": {
+        "normalized_table": [
+          {
+            "dimension": "normalization_state",
+            "op": "param_map",
+            "param": "method",
+            "param_map": {
+              "cpm": "cpm",
+              "tpm_from_counts": "tpm"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node_type": "deseq2",
+      "source": "repository_seed",
+      "review_status": "unreviewed",
+      "notes": "DESeq2 requires raw counts; normalized or transformed inputs violate the count model [S35][E18].",
+      "inputs": {
+        "count_matrix": [
+          {
+            "dimension": "normalization_state",
+            "op": "eq",
+            "value": "raw_counts"
+          },
+          {
+            "dimension": "count_unit",
+            "op": "in",
+            "values": [
+              "assigned_reads",
+              "assigned_fragments"
+            ]
+          },
+          {
+            "dimension": "count_value_domain",
+            "op": "eq",
+            "value": "nonnegative_integer"
+          }
+        ]
+      },
+      "outputs": {
+        "results_csv": [],
+        "ma_plot": [],
+        "normalized_counts_csv": [
+          {
+            "dimension": "normalization_state",
+            "op": "unknown"
+          }
+        ],
+        "pca_scores_csv": []
+      }
+    },
+    {
+      "node_type": "salmon_quant",
+      "source": "Salmon output-format documentation",
+      "review_status": "documentation_backed",
+      "version": "2.3.4",
+      "notes": "quant.sf is a mixed-schema table (Name, Length, EffectiveLength, TPM, NumReads). NumReads is an estimated abundance field, so the whole file is not an integer count matrix and must not flow directly into DESeq2.",
+      "inputs": {
+        "index": [],
+        "reads": [],
+        "r1": [],
+        "r2": []
+      },
+      "outputs": {
+        "counts": [
+          {
+            "dimension": "count_unit",
+            "op": "set",
+            "value": "mixed_abundance_columns"
+          },
+          {
+            "dimension": "count_value_domain",
+            "op": "set",
+            "value": "mixed_numeric_columns"
+          },
+          {
+            "dimension": "normalization_state",
+            "op": "unknown"
+          }
+        ],
+        "quant_dir": []
+      }
+    },
+    {
+      "node_type": "validate_semantic_artifact",
+      "source": "standards_documentation",
+      "review_status": "runtime_validated",
+      "version": "1.0.0",
+      "notes": "On successful full-scan execution, the unchanged artifact has passed coordinate-core validation for the selected normative format. Assembly parameters and GFF3 genome-build headers remain declarations in the evidence sidecar and are not propagated as verified assembly identity.",
+      "inputs": {
+        "input_file": []
+      },
+      "outputs": {
+        "validated_artifact": [
+          {
+            "dimension": "coordinate_system",
+            "op": "param_map",
+            "param": "format",
+            "param_map": {
+              "bed": "zero_based_half_open",
+              "gff3": "one_based_closed",
+              "gtf": "one_based_closed"
+            }
+          }
+        ],
+        "evidence_json": [],
+        "evidence_sha256_file": [],
+        "evidence_sha256": []
+      }
+    }
+  ],
+  "coercions": [
+    {
+      "id": "sort_unsorted_to_coordinate",
+      "dimension": "sort_order",
+      "from_value": "unsorted",
+      "to_value": "coordinate",
+      "converter_node_type": "samtools_sort",
+      "converter_input_port": "alignment",
+      "converter_output_port": "sorted_bam",
+      "cost": 5,
+      "requires": [],
+      "params": {}
+    },
+    {
+      "id": "strandedness_unknown_detect",
+      "dimension": "strandedness",
+      "from_value": "unknown",
+      "to_value": "unknown",
+      "converter_node_type": "rseqc_infer_experiment",
+      "converter_input_port": "input",
+      "converter_output_port": "infer_experiment",
+      "cost": 3,
+      "requires": [
+        "reference gene model in BED format"
+      ],
+      "params": {},
+      "detection": true
+    }
+  ]
+}

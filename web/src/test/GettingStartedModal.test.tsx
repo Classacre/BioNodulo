@@ -217,7 +217,7 @@ describe('GettingStartedModal i18n', () => {
     expect(i18n.t('gettingStarted.changelog.v2.items.commandPalette')).toBe('Paleta de comandos, atajos, notificaciones, dialogos y flujo de paneles de BioNodulo');
     expect(i18n.t('gettingStarted.changelog.v2.items.templates')).toBe('Redisenio de galeria de plantillas con previsualizaciones, ranking de busqueda, etiquetas y resumenes de pasos del flujo de trabajo');
     expect(i18n.t('gettingStarted.changelog.alpha15.items.isolatedEnvironments')).toBe('Entornos aislados por flujo de trabajo con entornos direccionados por contenido');
-    expect(i18n.t('gettingStarted.changelog.alpha11.items.workflowExport')).toBe('Exportacion de flujos de trabajo a Snakemake, NextFlow, CWL y Galaxy');
+    expect(i18n.t('gettingStarted.changelog.alpha11.items.workflowExport')).toBe('Exportacion de flujos de trabajo a Snakemake, Nextflow, CWL y Galaxy');
     expect(i18n.t('gettingStarted.changelog.alpha10.items.workflowCanvas')).toBe('Lienzo de flujos de trabajo con nodos bioinformaticos personalizados');
     expect(screen.getByText('Paleta de comandos, atajos, notificaciones, dialogos y flujo de paneles de BioNodulo')).toBeInTheDocument();
     expect(screen.getByText('Redisenio de galeria de plantillas con previsualizaciones, ranking de busqueda, etiquetas y resumenes de pasos del flujo de trabajo')).toBeInTheDocument();
@@ -225,14 +225,14 @@ describe('GettingStartedModal i18n', () => {
     expect(screen.getByText('Entornos aislados por flujo de trabajo con entornos direccionados por contenido')).toBeInTheDocument();
     expect(screen.getByText('Soporte HPC para sistemas de colas (SLURM, PBS, SGE)')).toBeInTheDocument();
     expect(screen.getByText('Asistente de IA con llamadas a herramientas para construir flujos de trabajo')).toBeInTheDocument();
-    expect(screen.getByText('Exportacion de flujos de trabajo a Snakemake, NextFlow, CWL y Galaxy')).toBeInTheDocument();
+    expect(screen.getByText('Exportacion de flujos de trabajo a Snakemake, Nextflow, CWL y Galaxy')).toBeInTheDocument();
     expect(screen.queryByText('Asistente de IA con llamadas a herramientas para construir workflows')).not.toBeInTheDocument();
     expect(screen.getByText('Panel superpuesto de monitor de hardware')).toBeInTheDocument();
     expect(screen.getByText('Version inicial de BioNodulo v2')).toBeInTheDocument();
     expect(screen.getByText('Lienzo de flujos de trabajo con nodos bioinformaticos personalizados')).toBeInTheDocument();
     expect(screen.queryByText('Redisenio de galeria de plantillas con previsualizaciones, ranking de busqueda, etiquetas y resumenes de pasos del workflow')).not.toBeInTheDocument();
     expect(screen.queryByText('Entornos aislados por workflow con entornos direccionados por contenido')).not.toBeInTheDocument();
-    expect(screen.queryByText('Exportacion de workflows a Snakemake, NextFlow, CWL y Galaxy')).not.toBeInTheDocument();
+    expect(screen.queryByText('Exportacion de workflows a Snakemake, Nextflow, CWL y Galaxy')).not.toBeInTheDocument();
     expect(screen.queryByText('Lienzo de workflows con nodos bioinformaticos personalizados')).not.toBeInTheDocument();
     expect(screen.queryByText('BioNodulo command palette, keybindings, toasts, dialogs, and panel workflow')).not.toBeInTheDocument();
     expect(screen.queryByText(/toasts/)).not.toBeInTheDocument();

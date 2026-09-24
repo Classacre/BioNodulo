@@ -5,7 +5,7 @@
  * website's PUBLIC /api/collab/join. Guests receive the workflow definition,
  * a pre-minted collab room token (injected into useCollab instead of the
  * team mint), a display-name identity, and — for editor-role invites — a
- * runToken (the invite itself) accepted as a bearer by POST /api/runs.
+ * opaque redeemed-session runToken accepted as a bearer by POST /api/runs.
  *
  * Logged-in members of the owning team get member:true and the SPA uses its
  * normal team path instead.
@@ -23,7 +23,7 @@ export interface CloudInviteSession {
   roomToken: string | null;
   roomHost: string | null;
   roomExpiresAt: number | null;
-  /** The invite token; editor-role guests send it as the run bearer. */
+  /** Opaque redeemed-session token; editor-role guests send it as the run bearer. */
   runToken: string | null;
   name: string;
 }

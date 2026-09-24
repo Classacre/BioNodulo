@@ -5,7 +5,7 @@ Python backend: a native Rust shell bundles a standalone Python runtime + `uv`,
 creates a per-user virtual environment on first run, spawns and supervises the
 FastAPI backend, and loads the BioNodulo web UI from the system webview.
 
-Licensed under the BioNodulo Closed Alpha Commercial License (see `LICENSE` at
+Licensed under the GNU General Public License v3 (see `LICENSE` at
 the repository root).
 
 ## Architecture

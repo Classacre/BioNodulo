@@ -17,8 +17,45 @@ export function isInteractiveWidgetSpec(spec: unknown): spec is InputSpec {
   if (s.type === 'BOOLEAN') return true;
   if (Array.isArray(s.options) && s.options.length > 0) return true;
   if (s.type === 'INT' || s.type === 'FLOAT') return true;
+  if (s.type === 'JSON') return true;
   if (s.type === 'STRING') return true;
   return false;
+}
+
+export function formatJsonWidgetValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value === undefined) return '';
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return '';
+  }
+}
+
+export function parseJsonWidgetValue(value: string): unknown {
+  return JSON.parse(value);
+}
+
+export function parseNumericWidgetValue(value: string, type: string): number | undefined {
+  if (!value.trim()) return undefined;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return undefined;
+  return type === 'INT' ? Math.round(number) : number;
+}
+
+/**
+ * Input File is a source node: users must be able to type/paste its path even
+ * though `file` remains a FILE port so workspace drops and graph links work.
+ * Keep this exception narrow; ordinary FILE inputs should be supplied by an
+ * upstream node rather than a competing stale text parameter.
+ */
+export function isInlineFileValueSpec(
+  meta: NodeMetadata | null | undefined,
+  key: string,
+  spec: unknown,
+): spec is InputSpec {
+  const input = spec as InputSpec | null | undefined;
+  return meta?.id === 'input_file' && key === 'file' && input?.type === 'FILE';
 }
 
 /**
@@ -61,7 +98,8 @@ export function getInteractiveWidgetEntries(
 ): WidgetEntry[] {
   const visibleInputs = getVisibleInputSpecs(meta, params);
   return Object.entries({ ...visibleInputs.required, ...visibleInputs.optional })
-    .filter((entry): entry is [string, InputSpec] => isInteractiveWidgetSpec(entry[1]))
+    .filter((entry): entry is [string, InputSpec] =>
+      isInteractiveWidgetSpec(entry[1]) || isInlineFileValueSpec(meta, entry[0], entry[1]))
     .map(([key, spec]) => ({ key, spec }));
 }
 
@@ -79,4 +117,3 @@ export function getPromotableParamKeys(
     .filter((entry): entry is [string, InputSpec] => isInteractiveWidgetSpec(entry[1]))
     .map(([key]) => key);
 }
-

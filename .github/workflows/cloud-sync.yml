@@ -3,25 +3,26 @@
 # alpha.14 while the app shipped alpha.22 because the sync was manual and got
 # skipped).
 #
-# Triggered by a version bump landing on main (web/package.json is one of the
-# six files scripts/set_version.py rewrites), or by hand via workflow_dispatch
-# (e.g. to repair a half-finished sync).
+# Called by green CI on main, or manually with exact app and website commits.
+# CI may pass CLOUD_SYNC_WEBSITE_REF for a prepared website release; when set,
+# it must be green and ahead of master, and the version match never skips work.
+# Set CLOUD_SYNC_PREPARED_ONLY=true before a coordinated release to reject the
+# default website bump until the prepared ref is supplied.
 #
 # What it does, in the only safe order:
-#   1. Bump apps/web/package.json in the website checkout to this repo's
-#      version and commit it LOCALLY (not pushed yet — a push triggers the
-#      Vercel deploy, and the deploy is fail-closed on site-version ==
-#      editor-version, so it must not run before the pins move).
+#   1. Use the CI-green prepared website commit, or bump apps/web/package.json
+#      locally for the default path (not pushed yet — that triggers Vercel).
 #   2. Build + push the editor-lambda and worker images from THIS commit
 #      (bionodulo-website/infrastructure/deploy-backend.sh), and roll the
 #      editor Lambda over to the new image. The worker image bakes in the app
 #      commit, website commit, and catalog digest.
 #   3. Point the Vercel env pins (BIONODULO_APP_COMMIT, WORKER_APP_COMMIT,
-#      BIONODULO_WEBSITE_COMMIT, BIONODULO_CATALOG_DIGEST, WORKER_IMAGE) at the
+#      BIONODULO_WEBSITE_COMMIT, BIONODULO_CATALOG_DIGEST, WORKER_IMAGE,
+#      WORKER_IMAGE_OCI) at the
 #      new commits/image digest. The worker refuses to boot when these do not
 #      match its baked-in identity, so the pins must never move without a
 #      fresh image — step 2 exists for that reason.
-#   4. Push the website bump commit, which triggers the Vercel production
+#   4. Push the website commit, which triggers the Vercel production
 #      deploy of the site + editor SPA.
 #
 # One-time setup (the job no-ops until enabled):
@@ -29,18 +30,34 @@
 #   repo secrets   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY   (ECR push + Lambda update)
 #                  VERCEL_TOKEN                                (env var API)
 #                  WEBSITE_REPO_PAT                            (push to bionodulo-website)
+#                  OCIR_TOKEN                                  (required OCI worker mirror)
 #   repo variables VERCEL_PROJECT_ID / VERCEL_ORG_ID default to the production
 #                  values below; override only if the project moves.
 name: cloud-sync
 on:
-  push:
-    branches: [main]
-    paths:
-      - web/package.json
+  workflow_call:
+    inputs:
+      website_ref:
+        description: Full prepared website commit SHA ahead of master
+        required: false
+        type: string
   workflow_dispatch:
+    inputs:
+      app_ref:
+        description: Full app commit SHA on main with successful CI
+        required: true
+        type: string
+      website_ref:
+        description: Full prepared website commit SHA ahead of master
+        required: true
+        type: string
 
 permissions:
   contents: read
+
+concurrency:
+  group: cloud-production-sync
+  cancel-in-progress: false
 
 env:
   VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID || 'prj_bbkWlAcuSEpbTGZkjQwWZ20yM0UH' }}
@@ -49,49 +66,121 @@ env:
 
 jobs:
   sync:
-    if: vars.CLOUD_SYNC_ENABLED == 'true'
+    if: vars.CLOUD_SYNC_ENABLED == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
     steps:
+      - name: Require complete production credentials before mutations
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          WEBSITE_REPO_PAT: ${{ secrets.WEBSITE_REPO_PAT }}
+          OCIR_TOKEN: ${{ secrets.OCIR_TOKEN }}
+          WEBSITE_REF: ${{ inputs.website_ref }}
+          PREPARED_ONLY: ${{ vars.CLOUD_SYNC_PREPARED_ONLY }}
+        run: |
+          set -euo pipefail
+          if [ "$PREPARED_ONLY" = true ] && [ -z "$WEBSITE_REF" ]; then
+            echo "Prepared website ref required for this release" >&2; exit 1
+          fi
+          for key in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY VERCEL_TOKEN WEBSITE_REPO_PAT OCIR_TOKEN; do
+            [ -n "${!key}" ] || { echo "Required production secret ${key} is missing" >&2; exit 1; }
+          done
+
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.app_ref || github.sha }}
           path: BioNodulo
+          persist-credentials: false
 
       - name: Check out the website repo
         uses: actions/checkout@v4
         with:
           repository: ${{ env.WEBSITE_REPO }}
           token: ${{ secrets.WEBSITE_REPO_PAT }}
+          ref: ${{ inputs.website_ref || 'master' }}
+          fetch-depth: 0
           path: bionodulo-website
 
-      - name: Resolve release identity and check whether a sync is needed
+      - name: Resolve and validate immutable release sources
         id: rel
+        env:
+          APP_REF: ${{ inputs.app_ref }}
+          WEBSITE_REF: ${{ inputs.website_ref }}
+          GH_TOKEN: ${{ secrets.WEBSITE_REPO_PAT }}
         run: |
           set -euo pipefail
+          app_sha="$(git -C BioNodulo rev-parse HEAD)"
+          web_sha="$(git -C bionodulo-website rev-parse HEAD)"
+          main_sha="$(git ls-remote https://github.com/${GITHUB_REPOSITORY}.git refs/heads/main | cut -f1)"
+          [[ "$app_sha" =~ ^[0-9a-f]{40}$ && "$app_sha" = "$main_sha" ]] || {
+            echo "App commit is no longer main HEAD; refusing stale release" >&2; exit 1;
+          }
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            [[ "$APP_REF" =~ ^[0-9a-f]{40}$ && "$WEBSITE_REF" =~ ^[0-9a-f]{40}$ ]] || {
+              echo "Manual release requires two full commit SHAs" >&2; exit 1;
+            }
+            [ "$app_sha" = "$APP_REF" ] || exit 1
+            # Check the required CI jobs, so a failed cloud-sync job can be
+            # repaired manually without treating its own failure as a red build.
+            ci_runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${app_sha}&branch=main&per_page=30" --jq '.workflow_runs[] | select(.event == "push") | .id')"
+            ci_green=false
+            for ci_run in $ci_runs; do
+              jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${ci_run}/jobs?per_page=100" --paginate --jq '.jobs[] | [.name, .conclusion] | @tsv')"
+              if JOBS="$jobs" python3 - <<'PY'
+          import os
+          jobs = dict(line.split('\t', 1) for line in os.environ['JOBS'].splitlines())
+          required = ['Python 3.11', 'Python 3.12', 'Python 3.13', 'Python quality', 'Frontend', 'Browser E2E', 'Docker image']
+          raise SystemExit(0 if all(jobs.get(name) == 'success' for name in required) else 1)
+          PY
+              then ci_green=true; break; fi
+            done
+            [ "$ci_green" = true ] || { echo "Required app CI jobs did not pass for this SHA" >&2; exit 1; }
+          fi
+          if [ -n "$WEBSITE_REF" ]; then
+            [[ "$WEBSITE_REF" =~ ^[0-9a-f]{40}$ ]] && [ "$web_sha" = "$WEBSITE_REF" ] || {
+              echo "Prepared website ref must resolve to the supplied full SHA" >&2; exit 1;
+            }
+            website_ci="$(gh api "repos/${WEBSITE_REPO}/actions/workflows/ci.yml/runs?head_sha=${web_sha}&per_page=30" --jq '[.workflow_runs[] | select(.event == "push" and .conclusion == "success")] | length')"
+            [ "$website_ci" -gt 0 ] || { echo "No successful website CI run for prepared SHA" >&2; exit 1; }
+            git -C bionodulo-website fetch origin master
+            master_sha="$(git -C bionodulo-website rev-parse origin/master)"
+            [ "$web_sha" != "$master_sha" ] && git -C bionodulo-website merge-base --is-ancestor "$master_sha" "$web_sha" || {
+              echo "Prepared website SHA must be ahead of current master" >&2; exit 1;
+            }
+          fi
           version="$(node -p "require('./BioNodulo/web/package.json').version")"
           site="$(node -p "require('./bionodulo-website/apps/web/package.json').version")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "site=$site" >> "$GITHUB_OUTPUT"
-          echo "app_sha=$(git -C BioNodulo rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "app_sha=$app_sha" >> "$GITHUB_OUTPUT"
+          master_sha="$(git -C bionodulo-website ls-remote origin refs/heads/master | cut -f1)"
+          [[ "$master_sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          echo "master_sha=$master_sha" >> "$GITHUB_OUTPUT"
           digest="$(python3 -c 'import json; print(json.load(open("BioNodulo/bionodulo/nodes/generated/catalog.lock.json"))["catalog_digest"])')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
           echo "catalog_digest=$digest" >> "$GITHUB_OUTPUT"
-          [ "$site" = "$version" ] && echo "current=true" >> "$GITHUB_OUTPUT" || true
+          if [ -n "$WEBSITE_REF" ]; then
+            [ "$site" = "$version" ] || { echo "Prepared site and app versions differ" >&2; exit 1; }
+          elif [ "$site" = "$version" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+            echo "Website master already declares ${version}; use manual prepared refs to repin it."
+          fi
 
       - name: Commit the site version bump locally (pushed last, after the pins)
-        if: steps.rel.outputs.current != 'true'
+        if: inputs.website_ref == '' && steps.rel.outputs.current != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.rel.outputs.version }}
+          APP_SHA: ${{ steps.rel.outputs.app_sha }}
         run: |
           set -euo pipefail
           cd bionodulo-website
-          node -e '
-            const fs = require("fs");
-            const p = "apps/web/package.json";
-            const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
-            pkg.version = process.argv[1];
-            fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
-          ' "${{ steps.rel.outputs.version }}"
+          node -e 'const fs = require("fs"); const p = "apps/web/package.json"; const pkg = JSON.parse(fs.readFileSync(p, "utf8")); pkg.version = process.env.RELEASE_VERSION; fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");'
           git config user.name "bionodulo-cloud-sync[bot]"
           git config user.email "cloud-sync@bionodulo.com"
           git add apps/web/package.json
-          git commit -m "Site version ${{ steps.rel.outputs.version }}; editor pin ${{ steps.rel.outputs.app_sha }}"
+          git commit -m "Site version ${RELEASE_VERSION}; editor pin ${APP_SHA}"
           echo "web_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
         id: bump
 
@@ -103,27 +192,90 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Verify production service access before rollout
+        if: steps.rel.outputs.current != 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OCIR_TOKEN: ${{ secrets.OCIR_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Do not print the response: project environment data is sensitive.
+          curl -fsS --retry 2 --retry-connrefused --connect-timeout 10 --max-time 30 \
+            -o /dev/null \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env?teamId=${VERCEL_ORG_ID}" || {
+              echo "VERCEL_TOKEN cannot read production project environment" >&2; exit 1;
+            }
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          [[ "$account_id" =~ ^[0-9]{12}$ ]] || exit 1
+          aws ecr describe-repositories \
+            --repository-names bionodulo/editor-lambda bionodulo/worker \
+            --region us-east-1 >/dev/null
+          aws lambda get-function \
+            --function-name bionodulo-production-editor \
+            --region us-east-1 >/dev/null
+          # An isolated Docker config avoids retaining registry credentials in
+          # the runner's default config. deploy-backend logs in again.
+          docker_config="$(mktemp -d)"
+          trap 'rm -rf -- "$docker_config"' EXIT
+          aws ecr get-login-password --region us-east-1 | \
+            DOCKER_CONFIG="$docker_config" docker login \
+              --username AWS --password-stdin \
+              "${account_id}.dkr.ecr.us-east-1.amazonaws.com" >/dev/null
+          printf '%s' "$OCIR_TOKEN" | DOCKER_CONFIG="$docker_config" docker login \
+            mel.ocir.io \
+            --username 'axqfnadl7puf/nieuwenhuyzenmikamartin@gmail.com' \
+            --password-stdin >/dev/null
+          echo "Production service access verified"
+
       - name: Build, push, and roll out the backend images
         if: steps.rel.outputs.current != 'true'
         id: images
+        env:
+          OCIR_TOKEN: ${{ secrets.OCIR_TOKEN }}
+          APP_SHA: ${{ steps.rel.outputs.app_sha }}
+          WEBSITE_SHA: ${{ inputs.website_ref || steps.bump.outputs.web_sha }}
         run: |
           set -euo pipefail
+          [ "$(git -C BioNodulo rev-parse HEAD)" = "$APP_SHA" ] || exit 1
+          [ "$(git -C bionodulo-website rev-parse HEAD)" = "$WEBSITE_SHA" ] || exit 1
           cd bionodulo-website/infrastructure
           ./deploy-backend.sh editor
           worker_out="$(./deploy-backend.sh worker)"
           echo "$worker_out"
           # deploy_worker prints the immutable image ref; the closing log line
           # repeats it. Extract the repo@sha256:... token.
-          worker_ref="$(echo "$worker_out" | grep -oE '[a-z0-9./-]+@sha256:[0-9a-f]{64}' | head -1)"
-          [ -n "$worker_ref" ] || { echo "could not parse worker image ref" >&2; exit 1; }
+          worker_ref="$(echo "$worker_out" | grep -oE '[a-z0-9./-]+@sha256:[0-9a-f]{64}' | grep 'dkr.ecr' | tail -1)"
+          [[ "$worker_ref" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "could not parse worker image ref" >&2; exit 1; }
+          digest="${worker_ref##*@}"
+          tag="$(printf '%s\n' "$worker_out" | sed -n 's/.*Image tag: \(rem-[^ ]*\).*/\1/p' | head -1)"
+          [[ "$tag" =~ ^rem-[0-9a-f]{8}-[0-9a-f]{8}-[0-9]{8}$ ]] || exit 1
+          oci_tag="mel.ocir.io/axqfnadl7puf/bionodulo-worker:${tag}"
+          oci_ref="mel.ocir.io/axqfnadl7puf/bionodulo-worker@${digest}"
+          # Verify that the OCIR mirror contains the same manifest as ECR.
+          oci_digest="sha256:$(docker buildx imagetools inspect --raw "$oci_tag" | sha256sum | cut -d' ' -f1)"
+          [ "$oci_digest" = "$digest" ] || { echo "OCIR mirror digest differs from ECR" >&2; exit 1; }
           echo "worker_ref=$worker_ref" >> "$GITHUB_OUTPUT"
+          echo "oci_ref=$oci_ref" >> "$GITHUB_OUTPUT"
 
       - name: Update the Vercel env pins
         if: steps.rel.outputs.current != 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          APP_SHA: ${{ steps.rel.outputs.app_sha }}
+          WEBSITE_SHA: ${{ inputs.website_ref || steps.bump.outputs.web_sha }}
+          CATALOG_DIGEST: ${{ steps.rel.outputs.catalog_digest }}
+          WORKER_REF: ${{ steps.images.outputs.worker_ref }}
+          OCI_REF: ${{ steps.images.outputs.oci_ref }}
+          EXPECTED_MASTER: ${{ steps.rel.outputs.master_sha }}
         run: |
           set -euo pipefail
+          [ "$(git ls-remote https://github.com/${GITHUB_REPOSITORY}.git refs/heads/main | cut -f1)" = "$APP_SHA" ] || {
+            echo "App main moved during image build" >&2; exit 1;
+          }
+          [ "$(git -C bionodulo-website ls-remote origin refs/heads/master | cut -f1)" = "$EXPECTED_MASTER" ] || {
+            echo "Website master moved during image build" >&2; exit 1;
+          }
           put_env() {
             curl -sf -X POST \
               "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?upsert=true&teamId=${VERCEL_ORG_ID}" \
@@ -132,12 +284,18 @@ jobs:
               -d "{\"key\":\"$1\",\"value\":\"$2\",\"target\":[\"production\"],\"type\":\"encrypted\"}" \
               > /dev/null
           }
-          put_env BIONODULO_APP_COMMIT      "${{ steps.rel.outputs.app_sha }}"
-          put_env WORKER_APP_COMMIT         "${{ steps.rel.outputs.app_sha }}"
-          put_env BIONODULO_WEBSITE_COMMIT  "${{ steps.bump.outputs.web_sha }}"
-          put_env BIONODULO_CATALOG_DIGEST  "${{ steps.rel.outputs.catalog_digest }}"
-          put_env WORKER_IMAGE              "${{ steps.images.outputs.worker_ref }}"
+          put_env BIONODULO_APP_COMMIT "$APP_SHA"
+          put_env WORKER_APP_COMMIT "$APP_SHA"
+          put_env BIONODULO_WEBSITE_COMMIT "$WEBSITE_SHA"
+          put_env BIONODULO_CATALOG_DIGEST "$CATALOG_DIGEST"
+          put_env WORKER_IMAGE "$WORKER_REF"
+          put_env WORKER_IMAGE_OCI "$OCI_REF"
 
-      - name: Push the site bump (triggers the Vercel production deploy)
+      - name: Push the website commit (triggers the Vercel production deploy)
         if: steps.rel.outputs.current != 'true'
-        run: git -C bionodulo-website push origin HEAD:master
+        env:
+          WEBSITE_SHA: ${{ inputs.website_ref || steps.bump.outputs.web_sha }}
+        run: |
+          set -euo pipefail
+          [ "$(git -C bionodulo-website rev-parse HEAD)" = "$WEBSITE_SHA" ] || exit 1
+          git -C bionodulo-website push origin HEAD:master

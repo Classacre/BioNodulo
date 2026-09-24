@@ -89,6 +89,13 @@ export interface NodeMetadata {
   git_url?: string;
   git_commit?: string;
   custom_node_package?: CustomNodePackageProvenance;
+  declarative_runtime?: {
+    kind: string;
+    biotools_accession?: string;
+    biotools_uri?: string;
+    source_uri?: string;
+    verification?: string;
+  };
 }
 
 export interface ObjectInfo {
@@ -375,6 +382,8 @@ export interface ResolveReport {
   required_packages: string[];
   env_id: string;
   env_ready: boolean;
+  /** Backend execution policy; absent on older servers that require env_ready. */
+  execution_ready?: boolean;
   installable: boolean;
   errors: string[];
   has_issues: boolean;

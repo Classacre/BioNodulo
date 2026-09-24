@@ -20,6 +20,18 @@ def _node_class(node_id: str) -> type:
     return node_class
 
 
+def _select_mocked_aws_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin CLI transport for tests whose context supplies a fake CLI runner."""
+
+    from bionodulo.nodes.builtin.cloud_storage_family import s3_download
+
+    def fixture_aws(name: str) -> str | None:
+        assert name == "aws"
+        return "/fixture/bin/aws"
+
+    monkeypatch.setattr(s3_download.shutil, "which", fixture_aws)
+
+
 def test_s3_nodes_are_registered_for_frontend_discovery() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
@@ -170,10 +182,19 @@ async def test_s3_upload_executes_aws_cli_and_writes_metadata(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
-async def test_s3_download_executes_aws_cli_and_writes_metadata(tmp_path: Path) -> None:
+async def test_s3_download_executes_aws_cli_and_writes_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     node_class = _node_class("s3_download")
     destination = tmp_path / "downloads" / "summary.tsv"
     commands: list[dict[str, Any]] = []
+
+    # Transport selection is deliberately host-sensitive in production:
+    # anonymous downloads fall back to HTTPS when aws is unavailable. This
+    # test exercises the mocked CLI transport, so select that branch explicitly
+    # instead of depending on the developer/CI host's PATH.
+    _select_mocked_aws_cli(monkeypatch)
 
     async def fake_run_command(cmd: list[str], cwd: str) -> dict[str, Any]:
         commands.append({"cmd": list(cmd), "cwd": cwd})
@@ -284,7 +305,11 @@ def test_s3_nodes_reject_non_transfer_extra_args(node_id: str, tmp_path: Path) -
 
 
 @pytest.mark.asyncio
-async def test_s3_download_never_accepts_a_stale_destination(tmp_path: Path) -> None:
+async def test_s3_download_never_accepts_a_stale_destination(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _select_mocked_aws_cli(monkeypatch)
     node = _node_class("s3_download")()
     destination = tmp_path / "result.txt"
     destination.write_text("stale", encoding="utf-8")
@@ -323,7 +348,11 @@ async def test_s3_upload_fails_closed_without_a_runner_returncode(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_s3_download_resolves_relative_paths_against_the_node_directory(tmp_path: Path) -> None:
+async def test_s3_download_resolves_relative_paths_against_the_node_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _select_mocked_aws_cli(monkeypatch)
     commands: list[list[str]] = []
 
     async def fake_run_command(cmd: list[str], cwd: str) -> dict[str, Any]:

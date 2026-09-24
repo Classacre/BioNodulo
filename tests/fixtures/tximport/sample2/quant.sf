@@ -1,0 +1,4 @@
+Name	Length	EffectiveLength	TPM	NumReads
+tx1	1000	750	100000	10
+tx2	500	250	400000	40
+tx3	1200	950	500000	50

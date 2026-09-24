@@ -51,17 +51,23 @@ class CloudClient:
         params: dict[str, Any] | None = None,
         json: Any = None,
     ) -> Any:
-        token = await self._token_provider.get_token()
         headers = {
-            "Authorization": f"Bearer {token}",
             "User-Agent": USER_AGENT,
         }
+        if self._token_provider is not None:
+            token = await self._token_provider.get_token()
+            headers["Authorization"] = f"Bearer {token}"
         if self._team_id:
             headers["X-Team-Id"] = self._team_id
-        async with httpx.AsyncClient(
-            base_url=self._base_url, headers=headers, timeout=self._timeout
-        ) as client:
-            resp = await client.request(method, path, params=params, json=json)
+        try:
+            async with httpx.AsyncClient(
+                base_url=self._base_url, headers=headers, timeout=self._timeout
+            ) as client:
+                resp = await client.request(method, path, params=params, json=json)
+        except httpx.RequestError as exc:
+            raise ApiError(
+                f"Cannot reach the BioNodulo cloud API ({type(exc).__name__})."
+            ) from exc
         return self._handle(resp, method, path)
 
     @staticmethod

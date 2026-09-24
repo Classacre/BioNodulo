@@ -1,0 +1,206 @@
+{
+  "inferred": {
+    "featurecounts": {
+      "assumes": [],
+      "guarantees": [
+        {
+          "dimension": "sort_order",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "reference_assembly",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "strandedness",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "deduplication_state",
+          "kind": "guarantee",
+          "op": "propagate"
+        }
+      ]
+    },
+    "sam_to_bam": {
+      "assumes": [],
+      "guarantees": [
+        {
+          "dimension": "sort_order",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "reference_assembly",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "strandedness",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "deduplication_state",
+          "kind": "guarantee",
+          "op": "propagate"
+        }
+      ]
+    },
+    "samtools_bam_to_cram": {
+      "assumes": [],
+      "guarantees": [
+        {
+          "dimension": "sort_order",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "reference_assembly",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "strandedness",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "deduplication_state",
+          "kind": "guarantee",
+          "op": "propagate"
+        }
+      ]
+    },
+    "samtools_cram_to_bam": {
+      "assumes": [],
+      "guarantees": [
+        {
+          "dimension": "sort_order",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "reference_assembly",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "strandedness",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "deduplication_state",
+          "kind": "guarantee",
+          "op": "propagate"
+        }
+      ]
+    },
+    "samtools_flagstat": {
+      "assumes": [],
+      "guarantees": [
+        {
+          "dimension": "sort_order",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "reference_assembly",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "strandedness",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "deduplication_state",
+          "kind": "guarantee",
+          "op": "propagate"
+        }
+      ]
+    },
+    "samtools_index": {
+      "assumes": [],
+      "guarantees": [
+        {
+          "dimension": "sort_order",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "reference_assembly",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "strandedness",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "deduplication_state",
+          "kind": "guarantee",
+          "op": "propagate"
+        }
+      ]
+    },
+    "samtools_sort": {
+      "assumes": [],
+      "guarantees": [
+        {
+          "dimension": "sort_order",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "reference_assembly",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "strandedness",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "deduplication_state",
+          "kind": "guarantee",
+          "op": "propagate"
+        }
+      ]
+    },
+    "samtools_view": {
+      "assumes": [],
+      "guarantees": [
+        {
+          "dimension": "sort_order",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "reference_assembly",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "strandedness",
+          "kind": "guarantee",
+          "op": "propagate"
+        },
+        {
+          "dimension": "deduplication_state",
+          "kind": "guarantee",
+          "op": "propagate"
+        }
+      ]
+    }
+  },
+  "schema_version": "0.1",
+  "source": "bio.tools EDAM inference v0.1"
+}

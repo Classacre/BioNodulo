@@ -1,19 +1,27 @@
 // web/src/test/UserPanel.test.tsx
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { authUserAtom, cloudConfigAtom } from '../state/appAtoms';
 import UserPanel from '../components/panels/UserPanel';
+import type { UseClerkAuthResult } from '../hooks/cloud/useClerkAuth';
 
-vi.mock('../hooks/cloud/useClerkAuth', () => ({
-  useClerkAuth: () => ({ clerkEnabled: false, clerkSignedIn: false, openSignIn: vi.fn(), openProfile: vi.fn(), openOrganization: vi.fn(), signOut: vi.fn() }),
-}));
 vi.mock('../hooks/cloud/useDesktopAuth', () => ({
   useDesktopAuth: () => ({ available: false, signInViaBrowser: vi.fn(), pending: false, cancel: vi.fn() }),
 }));
 
-function renderWith(store: ReturnType<typeof createStore>) {
-  return render(<Provider store={store}><UserPanel onClose={() => {}} /></Provider>);
+function renderWith(store: ReturnType<typeof createStore>, clerkAuth: UseClerkAuthResult = {
+  clerkEnabled: false, clerkSignedIn: false, openSignIn: vi.fn(), signOut: vi.fn(),
+}) {
+  return render(<Provider store={store}><UserPanel onClose={() => {}} clerkAuth={clerkAuth} /></Provider>);
 }
+
+it('uses the app-owned Clerk session for sign-in', () => {
+  const store = createStore();
+  const openSignIn = vi.fn();
+  renderWith(store, { clerkEnabled: true, clerkSignedIn: false, openSignIn, signOut: vi.fn() });
+  fireEvent.click(screen.getByRole('button', { name: /sign in to BioNodulo Cloud/i }));
+  expect(openSignIn).toHaveBeenCalledOnce();
+});
 
 it('signed-out with no cloud config still offers a set-name action', () => {
   const store = createStore();

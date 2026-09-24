@@ -18,7 +18,7 @@ class NormalizeDataNode(PythonDataTransformNode):
     CATEGORY = "data_transform"
     DESCRIPTION = (
         "Apply statistical normalization to numeric table data: min-max, z-score, "
-        "MAD z-score, quantile, log transforms, CPM, TPM-like scaling, and CLR."
+        "MAD z-score, quantile, log transforms, CPM, and CLR. TPM requires feature lengths and is not supported."
     )
     SEARCH_ALIASES = [
         "normalize",
@@ -36,7 +36,7 @@ class NormalizeDataNode(PythonDataTransformNode):
     RETURN_TYPES = ("CSV",)
     RETURN_NAMES = ("normalized_table",)
     REQUIRES_EXTERNAL_TOOLS = False
-    VERSION = "1.0.0"
+    VERSION = "1.0.1"
     PRODUCT_SOURCE_COMMIT = "45518cfd3754b40ae44304bd65bc17d5ee6e2816"
     PRODUCT_SOURCE_PATH = "bionodulo/nodes/builtin/data_transform_family/normalize_data.py"
     PRODUCT_SOURCE_SYMBOL = "NormalizeDataNode"
@@ -124,7 +124,10 @@ class NormalizeDataNode(PythonDataTransformNode):
         elif method == "cpm":
             normalised = self._cpm(matrix)
         elif method == "tpm_from_counts":
-            normalised = self._tpm_like(matrix)
+            raise ValueError(
+                "TPM requires gene or effective transcript lengths; tpm_from_counts without lengths is unsupported. "
+                "Use a length-aware quantifier or choose cpm explicitly."
+            )
         elif method == "clr":
             normalised = self._clr(matrix, axis, float(kwargs.get("pseudocount", 1.0) or 1.0))
         else:
@@ -186,8 +189,15 @@ class NormalizeDataNode(PythonDataTransformNode):
         for column in columns:
             order = sorted(range(len(column)), key=lambda index: column[index])
             output = [0.0] * len(column)
-            for rank, row_index in enumerate(order):
-                output[row_index] = rank_means[rank]
+            rank = 0
+            while rank < len(order):
+                end = rank + 1
+                while end < len(order) and column[order[end]] == column[order[rank]]:
+                    end += 1
+                tied_mean = sum(rank_means[rank:end]) / (end - rank)
+                for row_index in order[rank:end]:
+                    output[row_index] = tied_mean
+                rank = end
             normalised_columns.append(output)
         return [list(row) for row in zip(*normalised_columns)]
 
@@ -207,21 +217,14 @@ class NormalizeDataNode(PythonDataTransformNode):
     def _cpm(matrix: list[list[float]]) -> list[list[float]]:
         if not matrix:
             return []
-        column_sums = [sum(row[index] for row in matrix) or 1.0 for index in range(len(matrix[0]))]
+        if any(value < 0 for row in matrix for value in row):
+            raise ValueError("CPM requires non-negative counts")
+        column_sums = [sum(row[index] for row in matrix) for index in range(len(matrix[0]))]
+        if any(total <= 0 or not math.isfinite(total) for total in column_sums):
+            raise ValueError("CPM requires a positive finite library total in every sample")
         return [
             [value / column_sums[index] * 1_000_000 for index, value in enumerate(row)]
             for row in matrix
-        ]
-
-    @classmethod
-    def _tpm_like(cls, matrix: list[list[float]]) -> list[list[float]]:
-        cpm = cls._cpm(matrix)
-        if not cpm:
-            return []
-        column_sums = [sum(row[index] for row in cpm) or 1.0 for index in range(len(cpm[0]))]
-        return [
-            [value / column_sums[index] * 1_000_000 for index, value in enumerate(row)]
-            for row in cpm
         ]
 
     @classmethod
@@ -287,7 +290,10 @@ class NormalizeDataNode(PythonDataTransformNode):
 
     @staticmethod
     def _as_number(value: str) -> float:
-        return float(str(value).strip())
+        number = float(str(value).strip())
+        if not math.isfinite(number):
+            raise ValueError("Normalization requires finite numeric values")
+        return number
 
     @staticmethod
     def _format_scalar(value: Any) -> str:

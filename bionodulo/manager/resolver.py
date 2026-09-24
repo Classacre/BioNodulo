@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,139 @@ from bionodulo.environments.manifest import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _is_declarative_cwl_class(node_class: Any) -> bool:
+    """Return whether *node_class* is bound to the shared CWL runtime."""
+    try:
+        from bionodulo.nodes.declarative_cwl import DECLARATIVE_CWL_FACTORY
+
+        spec = node_class.CONTRACT_SPEC
+        return (
+            spec.cwl_invocation is not None
+            and spec.execution_factory == DECLARATIVE_CWL_FACTORY
+        ) or (
+            spec.cwl_reference is not None
+            and spec.execution_factory == "bionodulo.nodes.cwl_reference_runtime:CwlReferenceNode"
+        )
+    except (AttributeError, ImportError):
+        return False
+
+
+def _verify_declarative_stdout_workspace(spec: Any, workspace_dir: str | Path) -> None:
+    """Require the selected filesystem to support safe stdout publication."""
+    from bionodulo.nodes.contract.artifacts import Cardinality
+    from bionodulo.nodes.contract.outputs import (
+        OutputSpec,
+        StdoutCollector,
+        collect_outputs,
+    )
+
+    if not any(isinstance(output.collector, StdoutCollector) for output in spec.outputs):
+        return
+    workspace = Path(workspace_dir).expanduser().absolute()
+    try:
+        workspace.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".cwl-stdout-capability-", dir=workspace) as temporary:
+            probe = OutputSpec(
+                port_id="stdout_capability_probe",
+                artifact_type="artifact.file",
+                cardinality=Cardinality.ONE,
+                collector=StdoutCollector(
+                    relative_path="stdout-capability-probe.bin",
+                    maximum_bytes=1,
+                ),
+            )
+            collect_outputs(
+                (probe,),
+                temporary,
+                stdout=b"x",
+                stdout_truncated=False,
+            )
+    except (OSError, ValueError) as error:
+        raise RuntimeError(
+            "selected workspace filesystem cannot safely publish declarative CWL stdout; "
+            "use a writable native Linux filesystem workspace (for example under /tmp or /opt), "
+            f"not a Windows-mounted path: {error}"
+        ) from error
+
+
+async def _verify_declarative_cwl_class(
+    node_class: Any,
+    workspace_dir: str | Path,
+) -> str | None:
+    """Verify one configured native CWL runtime without invoking the legacy solver.
+
+    A ``None`` result means that the current host can execute the bound node
+    through the exact executable in its configured prefix.  An error string is deliberately
+    fail-closed and becomes a workflow resolution error.
+    """
+    try:
+        if getattr(node_class.CONTRACT_SPEC, "cwl_reference", None) is not None:
+            from bionodulo.nodes.cwl_reference_runtime import verify_reference_runtime
+            spec = node_class.CONTRACT_SPEC
+            metadata = getattr(node_class, "ENVIRONMENT", None)
+            if not isinstance(metadata, dict) or metadata.get("type") != "declarative_cwl":
+                raise RuntimeError("bound node is missing declarative CWL environment metadata")
+            if metadata.get("name") != spec.environment.environment_id:
+                raise RuntimeError("bound node environment ID does not match its contract")
+            if metadata.get("digest") != spec.environment.environment_digest():
+                raise RuntimeError("bound node environment digest does not match its contract")
+            await verify_reference_runtime(spec, workspace_dir=workspace_dir)
+            return None
+        from bionodulo.execution.subprocess_runner import run_subprocess
+        from bionodulo.nodes.declarative_cwl import (
+            PROBE_TIMEOUT_SECONDS,
+            _assert_supported_host,
+            _environment_digest,
+            _locked_executable,
+            _probe_for,
+            _sha256_file,
+            _validate_bound_spec,
+        )
+
+        spec = _validate_bound_spec(node_class.CONTRACT_SPEC)
+        declared_digest = _environment_digest(spec)
+        environment = spec.environment
+        assert environment is not None
+        metadata = getattr(node_class, "ENVIRONMENT", None)
+        if type(metadata) is not dict or metadata.get("type") != "declarative_cwl":
+            raise RuntimeError("bound node is missing declarative CWL environment metadata")
+        if metadata.get("name") != environment.environment_id:
+            raise RuntimeError("bound node environment ID does not match its contract")
+        if metadata.get("digest") != declared_digest:
+            raise RuntimeError("bound node environment digest does not match its contract")
+
+        _assert_supported_host(spec)
+        _verify_declarative_stdout_workspace(spec, workspace_dir)
+        probe = _probe_for(spec)
+        if probe.fingerprint is None:
+            raise RuntimeError("native declarative CWL probe has no executable fingerprint")
+        executable = _locked_executable(spec, probe)
+        actual_digest = _sha256_file(executable)
+        if actual_digest != probe.fingerprint:
+            raise RuntimeError(
+                f"executable fingerprint mismatch: expected {probe.fingerprint}, got {actual_digest}"
+            )
+        result = await run_subprocess(
+            [str(executable), *probe.version_arguments],
+            cwd=executable.parent,
+            timeout=PROBE_TIMEOUT_SECONDS,
+            node_id=str(getattr(node_class, "NODE_ID", "declarative-cwl-readiness")),
+        )
+        combined = "\n".join((str(result.get("stdout", "")), str(result.get("stderr", ""))))
+        for line in combined.splitlines():
+            if not line.startswith(probe.version_line_prefix):
+                continue
+            remainder = line[len(probe.version_line_prefix) :].strip()
+            if remainder and remainder.split(maxsplit=1)[0] == probe.expected_version:
+                return None
+        raise RuntimeError(
+            f"executable probe {probe.probe_id!r} did not report locked version "
+            f"{probe.expected_version!r}"
+        )
+    except Exception as error:
+        return str(error)
 
 
 def build_node_manifest(
@@ -158,6 +292,10 @@ class ResolutionReport:
     required_packages: list[str] = field(default_factory=list)
     env_id: str = ""
     env_ready: bool = False
+    env_isolation: str = "auto"
+    declarative_runtime_required: bool = False
+    declarative_runtime_ready: bool = False
+    legacy_runtime_required: bool = True
     installable: bool = True
     errors: list[str] = field(default_factory=list)
 
@@ -172,6 +310,24 @@ class ResolutionReport:
         )
 
     @property
+    def execution_ready(self) -> bool:
+        """Separate the selected runtime's readiness from Pixi installation.
+
+        Host execution is permitted only when explicitly selected and no
+        package environment needs verification. A ready Pixi environment does
+        not prove those packages are available to the host interpreter.
+        """
+        if self.has_issues:
+            return False
+        if self.declarative_runtime_required and not self.declarative_runtime_ready:
+            return False
+        if self.env_isolation == "off":
+            return not self.required_packages
+        if self.env_isolation not in {"auto", "always"}:
+            return False
+        return not self.legacy_runtime_required or self.env_ready
+
+    @property
     def summary(self) -> str:
         parts: list[str] = []
         if self.missing_nodes:
@@ -182,8 +338,13 @@ class ResolutionReport:
             parts.append(f"{len(self.missing_packages)} Python package(s)")
         if self.missing_r_packages:
             parts.append(f"{len(self.missing_r_packages)} R package(s)")
-        if not self.env_ready and self.required_packages:
+        if self.env_isolation == "off" and self.required_packages:
+            parts.append("host package requirements are unverified; select an isolated environment")
+        elif not self.env_ready and self.required_packages:
             parts.append(f"env not ready ({len(self.required_packages)} packages)")
+        elif not self.env_ready and self.env_isolation != "off" and self.legacy_runtime_required:
+            parts.append("workflow environment is not installed")
+        parts.extend(self.errors)
         return ", ".join(parts) if parts else "All dependencies satisfied"
 
     def to_dict(self) -> dict[str, Any]:
@@ -228,6 +389,11 @@ class ResolutionReport:
             "required_packages": self.required_packages,
             "env_id": self.env_id,
             "env_ready": self.env_ready,
+            "env_isolation": self.env_isolation,
+            "declarative_runtime_required": self.declarative_runtime_required,
+            "declarative_runtime_ready": self.declarative_runtime_ready,
+            "legacy_runtime_required": self.legacy_runtime_required,
+            "execution_ready": self.execution_ready,
             "installable": self.installable,
             "errors": self.errors,
             "has_issues": self.has_issues,
@@ -347,9 +513,13 @@ async def _resolve_workflow_async(
     workflow: dict[str, Any],
     registry: Any,
     workspace_dir: str | Path = "./workspace",
+    *,
+    env_isolation: str = "auto",
 ) -> ResolutionReport:
     """Async implementation of dependency resolution."""
-    report = ResolutionReport()
+    report = ResolutionReport(env_isolation=env_isolation)
+    if env_isolation not in {"auto", "always", "off"}:
+        report.errors.append(f"Unsupported environment isolation mode: {env_isolation}")
     nodes = workflow.get("nodes", [])
     if isinstance(nodes, dict):
         nodes = list(nodes.values())
@@ -391,8 +561,49 @@ async def _resolve_workflow_async(
         report.missing_executables.extend(missing_executables)
         report.missing_packages.extend(missing_packages)
 
-        for pkg, node_types in node_r_pkgs.items():
-            r_packages_to_check.setdefault(pkg, []).extend(node_types)
+        for r_package_name, node_types in node_r_pkgs.items():
+            r_packages_to_check.setdefault(r_package_name, []).extend(node_types)
+
+    # Declarative CWL nodes run from separately realized, descriptor-bound
+    # prefixes. Verify those prefixes directly instead of asking the legacy
+    # Pixi planner to solve their packages into a second environment.
+    declarative_classes: dict[str, Any] = {}
+    if registry is not None and hasattr(registry, "get"):
+        for node_type in node_type_usages:
+            node_class = registry.get(node_type)
+            if node_class is not None and _is_declarative_cwl_class(node_class):
+                declarative_classes[node_type] = node_class
+    declarative_results = await asyncio.gather(
+        *(
+            _verify_declarative_cwl_class(node_class, workspace_dir)
+            for node_class in declarative_classes.values()
+        )
+    )
+    report.declarative_runtime_required = bool(declarative_classes)
+    report.declarative_runtime_ready = bool(declarative_classes) and all(
+        error is None for error in declarative_results
+    )
+    # Built-in file/graph operations explicitly run in the app process and have
+    # no tool environment. Their presence must not demand an empty Pixi install
+    # before a separately verified generated tool can run.
+    def needs_legacy_runtime(node_type: str) -> bool:
+        if node_type in declarative_classes:
+            return False
+        node_class = registry.get(node_type) if registry is not None and hasattr(registry, "get") else None
+        return not (
+            node_class is not None
+            and getattr(node_class, "__module__", "").startswith("bionodulo.nodes.builtin.")
+            and getattr(node_class, "REQUIRES_EXTERNAL_TOOLS", True) is False
+            and not any(getattr(node_class, key, None) for key in (
+                "REQUIRED_EXECUTABLES", "REQUIRED_CONDA_PACKAGES", "REQUIRED_R_PACKAGES", "ENVIRONMENT",
+            ))
+        )
+
+    report.legacy_runtime_required = any(needs_legacy_runtime(node_type) for node_type in node_type_usages)
+    for node_type, error in zip(declarative_classes, declarative_results, strict=True):
+        if error is not None:
+            report.errors.append(f"declarative CWL runtime for {node_type!r} is not ready: {error}")
+            report.installable = False
 
     # If any node was missing without a git URL, mark as not installable
     if any(not n.git_url for n in report.missing_nodes):
@@ -417,7 +628,7 @@ async def _resolve_workflow_async(
     for exe in deduped_exes.values():
         if shutil.which(exe.name):
             continue  # Available on system PATH
-        if report.env_ready:
+        if report.env_ready and env_isolation != "off":
             # Env is installed — check if binary exists inside it
             env_bins = (
                 env_dir / ".pixi" / "envs" / env_name / "bin" / exe.name
@@ -428,7 +639,7 @@ async def _resolve_workflow_async(
         report.missing_executables.append(exe)
 
     # Filter R packages: available if env is ready (they're in the manifest)
-    if r_packages_to_check and not report.env_ready:
+    if r_packages_to_check and (not report.env_ready or env_isolation == "off"):
         for pkg_name, node_types in r_packages_to_check.items():
             source = (
                 "bioconductor"
@@ -460,20 +671,20 @@ async def _resolve_workflow_async(
 
     # Deduplicate Python packages
     seen_pkgs: dict[str, MissingPackage] = {}
-    for pkg in report.missing_packages:
-        if pkg.name in seen_pkgs:
-            seen_pkgs[pkg.name].node_types.extend(pkg.node_types)
+    for missing_package in report.missing_packages:
+        if missing_package.name in seen_pkgs:
+            seen_pkgs[missing_package.name].node_types.extend(missing_package.node_types)
         else:
-            seen_pkgs[pkg.name] = pkg
+            seen_pkgs[missing_package.name] = missing_package
     report.missing_packages = list(seen_pkgs.values())
 
     # Deduplicate R packages
     seen_r_pkgs: dict[str, MissingRPackage] = {}
-    for pkg in report.missing_r_packages:
-        if pkg.name in seen_r_pkgs:
-            seen_r_pkgs[pkg.name].node_types.extend(pkg.node_types)
+    for missing_r_package in report.missing_r_packages:
+        if missing_r_package.name in seen_r_pkgs:
+            seen_r_pkgs[missing_r_package.name].node_types.extend(missing_r_package.node_types)
         else:
-            seen_r_pkgs[pkg.name] = pkg
+            seen_r_pkgs[missing_r_package.name] = missing_r_package
     report.missing_r_packages = list(seen_r_pkgs.values())
 
     return report
@@ -483,10 +694,12 @@ def resolve_workflow(
     workflow: dict[str, Any],
     registry: Any,
     workspace_dir: str | Path = "./workspace",
+    *,
+    env_isolation: str = "auto",
 ) -> ResolutionReport:
     """Resolve dependencies for a workflow.
 
     This is a synchronous wrapper around the async implementation.
     Callers inside an async context should await _resolve_workflow_async directly.
     """
-    return asyncio.run(_resolve_workflow_async(workflow, registry, workspace_dir))
+    return asyncio.run(_resolve_workflow_async(workflow, registry, workspace_dir, env_isolation=env_isolation))

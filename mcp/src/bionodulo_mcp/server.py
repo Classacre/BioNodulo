@@ -119,7 +119,7 @@ async def get_account_info() -> Any:
 @_guard
 async def get_service_health() -> Any:
     """Check the BioNodulo cloud service health (public endpoint, no auth)."""
-    return await _cloud_client().get("/api/health")
+    return await CloudClient(_settings.api_url, token_provider=None).get("/api/health")
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})

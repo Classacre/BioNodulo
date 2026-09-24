@@ -11,7 +11,7 @@ import pytest
 
 from bionodulo.converter.cwl_converter import export_to_cwl
 from bionodulo.converter.galaxy_converter import export_to_galaxy
-from bionodulo.converter.nextflow_converter import export_to_nextflow
+from bionodulo.converter.nextflow_converter import export_to_nextflow, import_from_nextflow
 from bionodulo.converter.snakemake_converter import export_to_snakemake
 from bionodulo.workflow.export import export_workflow
 
@@ -215,6 +215,29 @@ def test_export_workflow_delegates_to_pipeline_converters() -> None:
     assert "fastqc -o" in nextflow
     assert "workflow.cwl" in cwl
     assert "\"a_galaxy_workflow\": \"true\"" in galaxy
+
+
+@pytest.mark.parametrize("fmt", ["snakemake", "nextflow", "cwl", "galaxy"])
+def test_pipeline_exports_ignore_decorative_notes_without_mutating_the_workflow(fmt: str) -> None:
+    workflow = _frontend_connected_workflow()
+    workflow["nodes"].insert(0, {"id": "canvas_note", "type": "note", "params": {"text": "Protocol notes"}})
+    original = json.dumps(workflow, sort_keys=True)
+
+    exported = export_workflow(workflow, fmt)
+
+    assert "canvas_note" not in exported
+    assert "fastqc" in exported
+    assert "multiqc" in exported
+    assert json.dumps(workflow, sort_keys=True) == original
+    assert "canvas_note" in export_workflow(workflow, "json")
+
+
+def test_nextflow_script_block_roundtrips_the_actual_command() -> None:
+    exported = export_to_nextflow(_workflow("fastqc"))
+    imported = import_from_nextflow(exported)
+
+    assert len(imported["nodes"]) == 1
+    assert imported["nodes"][0]["type"] == "fastqc"
 
 
 def test_export_workflow_rejects_unavailable_converter_instead_of_placeholder(

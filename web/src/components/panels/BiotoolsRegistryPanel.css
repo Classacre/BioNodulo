@@ -1,0 +1,9 @@
+.biotools-registry-panel .rail-panel-body { display: flex; flex-direction: column; min-height: 0; }
+.biotools-explanation, .biotools-summary { margin: 6px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.biotools-results { overflow-y: auto; min-height: 0; flex: 1; }
+.biotools-result { padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 5px; overflow-wrap: anywhere; }
+.biotools-result > a { font-weight: 600; }
+.biotools-result > p { margin: 0; font-size: 12px; line-height: 1.5; }
+.biotools-result > small { color: var(--muted); }
+.biotools-result > button { align-self: flex-start; }
+.biotools-pagination { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; }

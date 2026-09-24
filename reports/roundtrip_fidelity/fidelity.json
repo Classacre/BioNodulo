@@ -1,0 +1,3463 @@
+{
+  "generated_at": "2026-09-13T06:20:44.270259+00:00",
+  "template_count": 23,
+  "templates": [
+    {
+      "template": "assembly_pipeline",
+      "node_count": 19,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.75,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 3,
+              "roundtripped": 4,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "switch",
+            "retry",
+            "megahit",
+            "merge",
+            "input_fasta",
+            "quast",
+            "data_validator",
+            "gate",
+            "bp_seq_stats",
+            "bar_chart",
+            "aggregate",
+            "table_preview"
+          ],
+          "scaffold": false
+        },
+        "nextflow": {
+          "s_nodes": 0.6667,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 0.6667,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 3,
+              "roundtripped": 2,
+              "lost": 1
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": [
+              "spades"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "switch",
+            "retry",
+            "megahit",
+            "merge",
+            "input_fasta",
+            "quast",
+            "data_validator",
+            "gate",
+            "bp_seq_stats",
+            "bar_chart",
+            "aggregate",
+            "table_preview"
+          ],
+          "scaffold": false
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 3,
+              "roundtripped": 3,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "switch",
+            "retry",
+            "megahit",
+            "merge",
+            "data_validator",
+            "gate",
+            "quast",
+            "bp_seq_stats",
+            "bar_chart",
+            "aggregate",
+            "table_preview"
+          ],
+          "scaffold": false
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 3,
+              "roundtripped": 3,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "switch",
+            "retry",
+            "megahit",
+            "merge",
+            "input_fasta",
+            "quast",
+            "data_validator",
+            "gate",
+            "bp_seq_stats",
+            "bar_chart",
+            "aggregate",
+            "table_preview"
+          ],
+          "scaffold": false
+        }
+      }
+    },
+    {
+      "template": "biopython_analysis_pipeline",
+      "node_count": 15,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "ncbi_efetch",
+            "bp_seqio_read",
+            "bp_seq_stats",
+            "bp_blast",
+            "bp_seqio_write",
+            "input_fasta",
+            "bp_translate",
+            "r_biostrings_stats",
+            "table_preview",
+            "r_plot",
+            "text_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "ncbi_efetch",
+            "bp_seqio_read",
+            "bp_seq_stats",
+            "bp_blast",
+            "bp_seqio_write",
+            "input_fasta",
+            "bp_translate",
+            "r_biostrings_stats",
+            "table_preview",
+            "r_plot",
+            "text_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "ncbi_efetch",
+            "bp_seqio_read",
+            "bp_seq_stats",
+            "bp_blast",
+            "bp_seqio_write",
+            "input_fasta",
+            "bp_translate",
+            "r_biostrings_stats",
+            "table_preview",
+            "r_plot",
+            "text_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "ncbi_efetch",
+            "bp_seqio_read",
+            "bp_seq_stats",
+            "bp_blast",
+            "bp_seqio_write",
+            "input_fasta",
+            "bp_translate",
+            "r_biostrings_stats",
+            "table_preview",
+            "r_plot",
+            "text_preview"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "chip_seq_pipeline",
+      "node_count": 27,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.875,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 0.6,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 7,
+              "roundtripped": 8,
+              "lost": 0
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 0,
+              "lost": 2
+            },
+            "types_lost": [
+              "samtools_index",
+              "samtools_sort"
+            ]
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_file",
+            "bedtools_sortbed",
+            "samtools_view",
+            "bowtie2_align",
+            "gate",
+            "macs2_callpeak",
+            "deeptools_bamcoverage",
+            "bedtools_closest",
+            "coverage_plot",
+            "table_preview",
+            "input_fasta",
+            "bowtie2_build"
+          ],
+          "scaffold": false
+        },
+        "nextflow": {
+          "s_nodes": 0.5714,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 0.4,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 7,
+              "roundtripped": 4,
+              "lost": 3
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": [
+              "multiqc",
+              "samtools_index",
+              "samtools_sort"
+            ]
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_file",
+            "bedtools_sortbed",
+            "samtools_view",
+            "bowtie2_align",
+            "gate",
+            "macs2_callpeak",
+            "deeptools_bamcoverage",
+            "bedtools_closest",
+            "coverage_plot",
+            "table_preview",
+            "input_fasta",
+            "bowtie2_build"
+          ],
+          "scaffold": false
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 7,
+              "roundtripped": 7,
+              "lost": 0
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_file",
+            "bedtools_sortbed",
+            "bedtools_closest",
+            "table_preview",
+            "input_fasta",
+            "bowtie2_build",
+            "gate",
+            "bowtie2_align",
+            "samtools_view",
+            "macs2_callpeak",
+            "deeptools_bamcoverage",
+            "coverage_plot"
+          ],
+          "scaffold": false
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 7,
+              "roundtripped": 7,
+              "lost": 0
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_file",
+            "bedtools_sortbed",
+            "samtools_view",
+            "bowtie2_align",
+            "gate",
+            "macs2_callpeak",
+            "deeptools_bamcoverage",
+            "bedtools_closest",
+            "coverage_plot",
+            "table_preview",
+            "input_fasta",
+            "bowtie2_build"
+          ],
+          "scaffold": false
+        }
+      }
+    },
+    {
+      "template": "crispr_editing_pipeline",
+      "node_count": 17,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "guide_rna_design",
+            "cas_offinder",
+            "crispresso2",
+            "mageck_count",
+            "mageck_test",
+            "input_fastq",
+            "input_file",
+            "gate",
+            "table_preview",
+            "html_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "guide_rna_design",
+            "cas_offinder",
+            "crispresso2",
+            "mageck_count",
+            "mageck_test",
+            "input_fastq",
+            "input_file",
+            "gate",
+            "table_preview",
+            "html_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "guide_rna_design",
+            "cas_offinder",
+            "input_fastq",
+            "crispresso2",
+            "input_file",
+            "mageck_count",
+            "mageck_test",
+            "gate",
+            "table_preview",
+            "html_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "guide_rna_design",
+            "cas_offinder",
+            "crispresso2",
+            "mageck_count",
+            "mageck_test",
+            "input_fastq",
+            "input_file",
+            "gate",
+            "table_preview",
+            "html_preview"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "deseq2_differential_expression",
+      "node_count": 20,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "deseq2_analysis",
+            "r_pheatmap",
+            "volcano_plot",
+            "ma_plot",
+            "scatter_plot",
+            "filter_rows",
+            "transpose_table",
+            "intersect_genes",
+            "string_db",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "deseq2_analysis",
+            "r_pheatmap",
+            "volcano_plot",
+            "ma_plot",
+            "scatter_plot",
+            "filter_rows",
+            "transpose_table",
+            "intersect_genes",
+            "string_db",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "deseq2_analysis",
+            "r_pheatmap",
+            "volcano_plot",
+            "ma_plot",
+            "scatter_plot",
+            "filter_rows",
+            "transpose_table",
+            "intersect_genes",
+            "string_db",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 0.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": [
+              "filter_rows"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "deseq2_analysis",
+            "r_pheatmap",
+            "volcano_plot",
+            "ma_plot",
+            "scatter_plot",
+            "transpose_table",
+            "intersect_genes",
+            "string_db",
+            "table_preview"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "differential_expression",
+      "node_count": 14,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.5,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 1,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "salmon_index",
+            "salmon_quant",
+            "kallisto_index",
+            "kallisto_quant",
+            "extract_columns",
+            "join_tables",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 0.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": [
+              "multiqc"
+            ]
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "salmon_index",
+            "salmon_quant",
+            "kallisto_index",
+            "kallisto_quant",
+            "extract_columns",
+            "join_tables",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "salmon_index",
+            "kallisto_index",
+            "kallisto_quant",
+            "extract_columns",
+            "join_tables",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 0.6667,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 4,
+              "roundtripped": 4,
+              "lost": 0
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": [
+              "extract_columns"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "salmon_index",
+            "kallisto_index",
+            "kallisto_quant",
+            "join_tables",
+            "table_preview"
+          ],
+          "scaffold": false
+        }
+      }
+    },
+    {
+      "template": "fastq_qc_pipeline",
+      "node_count": 10,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.75,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 3,
+              "roundtripped": 4,
+              "lost": 0
+            },
+            "edges": {
+              "original": 3,
+              "roundtripped": 0,
+              "lost": 3
+            },
+            "types_lost": []
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "html_preview",
+            "data_validator",
+            "gate",
+            "qc_dashboard"
+          ],
+          "scaffold": false
+        },
+        "nextflow": {
+          "s_nodes": 0.6667,
+          "s_edges": 0.3333,
+          "s_params": 0.0,
+          "s_labels": 0.6667,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 3,
+              "roundtripped": 2,
+              "lost": 1
+            },
+            "edges": {
+              "original": 3,
+              "roundtripped": 1,
+              "lost": 2
+            },
+            "types_lost": [
+              "fastp"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "html_preview",
+            "data_validator",
+            "gate",
+            "qc_dashboard"
+          ],
+          "scaffold": false
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 0.6667,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 3,
+              "roundtripped": 3,
+              "lost": 0
+            },
+            "edges": {
+              "original": 3,
+              "roundtripped": 2,
+              "lost": 1
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "qc_dashboard",
+            "html_preview",
+            "data_validator",
+            "gate"
+          ],
+          "scaffold": false
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 0.6667,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 3,
+              "roundtripped": 3,
+              "lost": 0
+            },
+            "edges": {
+              "original": 3,
+              "roundtripped": 2,
+              "lost": 1
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "html_preview",
+            "data_validator",
+            "gate",
+            "qc_dashboard"
+          ],
+          "scaffold": false
+        }
+      }
+    },
+    {
+      "template": "long_read_ont_pipeline",
+      "node_count": 16,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_directory",
+            "input_fasta",
+            "samtools_faidx",
+            "dorado_basecaller",
+            "gate",
+            "samtools_fastx",
+            "data_validator",
+            "chopper_filter",
+            "nanoplot",
+            "modkit_pileup",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_directory",
+            "input_fasta",
+            "samtools_faidx",
+            "dorado_basecaller",
+            "gate",
+            "samtools_fastx",
+            "data_validator",
+            "chopper_filter",
+            "nanoplot",
+            "modkit_pileup",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_directory",
+            "input_fasta",
+            "samtools_faidx",
+            "dorado_basecaller",
+            "gate",
+            "samtools_fastx",
+            "data_validator",
+            "chopper_filter",
+            "nanoplot",
+            "modkit_pileup",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_directory",
+            "input_fasta",
+            "samtools_faidx",
+            "dorado_basecaller",
+            "gate",
+            "samtools_fastx",
+            "data_validator",
+            "chopper_filter",
+            "nanoplot",
+            "modkit_pileup",
+            "table_preview"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "metabolomics_lcms_pipeline",
+      "node_count": 6,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "xcms_peak_detection",
+            "xcms_retention_correction",
+            "camera_annotation"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "xcms_peak_detection",
+            "xcms_retention_correction",
+            "camera_annotation"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "xcms_peak_detection",
+            "xcms_retention_correction",
+            "camera_annotation"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "xcms_peak_detection",
+            "xcms_retention_correction",
+            "camera_annotation"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "metagenomics_pipeline",
+      "node_count": 31,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.8,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 4,
+              "roundtripped": 5,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 0,
+              "lost": 1
+            },
+            "types_lost": []
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_directory",
+            "metaphlan_build_index",
+            "input_file",
+            "krona_build_taxonomy",
+            "gate",
+            "retry",
+            "bracken",
+            "bar_chart",
+            "metaphlan",
+            "humann",
+            "qc_dashboard",
+            "html_preview",
+            "table_preview",
+            "krona"
+          ],
+          "scaffold": false
+        },
+        "nextflow": {
+          "s_nodes": 0.5,
+          "s_edges": 0.3333,
+          "s_params": 0.0,
+          "s_labels": 0.5,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 4,
+              "roundtripped": 2,
+              "lost": 2
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 3,
+              "lost": 0
+            },
+            "types_lost": [
+              "fastqc",
+              "kraken2"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_directory",
+            "metaphlan_build_index",
+            "input_file",
+            "krona_build_taxonomy",
+            "gate",
+            "retry",
+            "bracken",
+            "bar_chart",
+            "metaphlan",
+            "humann",
+            "qc_dashboard",
+            "html_preview",
+            "table_preview",
+            "krona"
+          ],
+          "scaffold": false
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 4,
+              "roundtripped": 4,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_directory",
+            "metaphlan_build_index",
+            "input_file",
+            "krona_build_taxonomy",
+            "retry",
+            "humann",
+            "bar_chart",
+            "table_preview",
+            "gate",
+            "metaphlan",
+            "bracken",
+            "krona",
+            "qc_dashboard",
+            "html_preview"
+          ],
+          "scaffold": false
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 4,
+              "roundtripped": 4,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_directory",
+            "metaphlan_build_index",
+            "input_file",
+            "krona_build_taxonomy",
+            "gate",
+            "retry",
+            "bracken",
+            "bar_chart",
+            "metaphlan",
+            "humann",
+            "qc_dashboard",
+            "html_preview",
+            "table_preview",
+            "krona"
+          ],
+          "scaffold": false
+        }
+      }
+    },
+    {
+      "template": "pangenomics_graph_pipeline",
+      "node_count": 7,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "pggb",
+            "odgi_build",
+            "odgi_viz",
+            "odgi_stats",
+            "image_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "pggb",
+            "odgi_build",
+            "odgi_viz",
+            "odgi_stats",
+            "image_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "pggb",
+            "odgi_build",
+            "odgi_viz",
+            "odgi_stats",
+            "image_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "pggb",
+            "odgi_build",
+            "odgi_viz",
+            "odgi_stats",
+            "image_preview"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "phylogenetics_pipeline",
+      "node_count": 9,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.5,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 1,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "ncbi_efetch",
+            "mafft",
+            "data_validator",
+            "gate",
+            "bp_msa_view",
+            "image_preview",
+            "phylo_tree_viewer"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "ncbi_efetch",
+            "mafft",
+            "data_validator",
+            "gate",
+            "bp_msa_view",
+            "image_preview",
+            "phylo_tree_viewer"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "ncbi_efetch",
+            "data_validator",
+            "mafft",
+            "gate",
+            "bp_msa_view",
+            "image_preview",
+            "phylo_tree_viewer"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "ncbi_efetch",
+            "mafft",
+            "data_validator",
+            "gate",
+            "bp_msa_view",
+            "image_preview",
+            "phylo_tree_viewer"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "protein_structure_database_workflow",
+      "node_count": 9,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "uniprot_search",
+            "uniprot_retrieve",
+            "alphafold_db",
+            "pdb_download",
+            "table_preview",
+            "text_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "uniprot_search",
+            "uniprot_retrieve",
+            "alphafold_db",
+            "pdb_download",
+            "table_preview",
+            "text_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "uniprot_search",
+            "uniprot_retrieve",
+            "alphafold_db",
+            "pdb_download",
+            "table_preview",
+            "text_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "uniprot_search",
+            "uniprot_retrieve",
+            "alphafold_db",
+            "pdb_download",
+            "table_preview",
+            "text_preview"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "proteomics_sage_percolator_pipeline",
+      "node_count": 8,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "input_fasta",
+            "sage_search",
+            "percolator",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "input_fasta",
+            "sage_search",
+            "percolator",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "input_fasta",
+            "sage_search",
+            "percolator",
+            "table_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "input_fasta",
+            "sage_search",
+            "percolator",
+            "table_preview"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "r_visualization_pipeline",
+      "node_count": 11,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "r_dataframe_builder",
+            "r_plot",
+            "input_file",
+            "r_pheatmap",
+            "volcano_plot",
+            "ma_plot"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "r_dataframe_builder",
+            "r_plot",
+            "input_file",
+            "r_pheatmap",
+            "volcano_plot",
+            "ma_plot"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "r_dataframe_builder",
+            "r_plot",
+            "input_file",
+            "r_pheatmap",
+            "volcano_plot",
+            "ma_plot"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "r_dataframe_builder",
+            "r_plot",
+            "input_file",
+            "r_pheatmap",
+            "volcano_plot",
+            "ma_plot"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "rna_seq_pipeline",
+      "node_count": 22,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.8333,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 0.8,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 5,
+              "roundtripped": 6,
+              "lost": 0
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 0,
+              "lost": 2
+            },
+            "types_lost": [
+              "samtools_sort"
+            ]
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "hisat2_build",
+            "gate",
+            "hisat2_align",
+            "samtools_view",
+            "input_gff",
+            "normalize_data",
+            "r_pheatmap",
+            "qualimap",
+            "samtools_flagstat",
+            "qc_dashboard",
+            "html_preview",
+            "table_preview"
+          ],
+          "scaffold": false
+        },
+        "nextflow": {
+          "s_nodes": 0.6,
+          "s_edges": 0.5,
+          "s_params": 0.0,
+          "s_labels": 0.4,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 5,
+              "roundtripped": 3,
+              "lost": 2
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 1,
+              "lost": 1
+            },
+            "types_lost": [
+              "featurecounts",
+              "multiqc",
+              "samtools_sort"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "hisat2_build",
+            "gate",
+            "hisat2_align",
+            "samtools_view",
+            "input_gff",
+            "normalize_data",
+            "r_pheatmap",
+            "qualimap",
+            "samtools_flagstat",
+            "qc_dashboard",
+            "html_preview",
+            "table_preview"
+          ],
+          "scaffold": false
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 5,
+              "roundtripped": 5,
+              "lost": 0
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "hisat2_build",
+            "input_gff",
+            "gate",
+            "hisat2_align",
+            "samtools_view",
+            "qualimap",
+            "samtools_flagstat",
+            "table_preview",
+            "qc_dashboard",
+            "html_preview",
+            "normalize_data",
+            "r_pheatmap"
+          ],
+          "scaffold": false
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 0.8333,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 6,
+              "roundtripped": 6,
+              "lost": 0
+            },
+            "edges": {
+              "original": 3,
+              "roundtripped": 3,
+              "lost": 0
+            },
+            "types_lost": [
+              "normalize_data"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "hisat2_build",
+            "gate",
+            "hisat2_align",
+            "samtools_view",
+            "input_gff",
+            "r_pheatmap",
+            "qualimap",
+            "samtools_flagstat",
+            "qc_dashboard",
+            "html_preview",
+            "table_preview"
+          ],
+          "scaffold": false
+        }
+      }
+    },
+    {
+      "template": "robust_designer",
+      "node_count": 43,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "input_file",
+            "accession_gate",
+            "note",
+            "campaign_config_builder",
+            "subgraph",
+            "campaign_results_builder",
+            "string_primitive",
+            "merge"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "input_file",
+            "accession_gate",
+            "note",
+            "campaign_config_builder",
+            "subgraph",
+            "campaign_results_builder",
+            "string_primitive",
+            "merge"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "input_file",
+            "accession_gate",
+            "note",
+            "subgraph",
+            "campaign_results_builder",
+            "string_primitive",
+            "merge",
+            "campaign_config_builder"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "input_file",
+            "accession_gate",
+            "note",
+            "campaign_config_builder",
+            "subgraph",
+            "campaign_results_builder",
+            "string_primitive",
+            "merge"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "single_cell_pipeline",
+      "node_count": 12,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "input_gff",
+            "star_index",
+            "input_fastq",
+            "starsolo_count",
+            "qc_dashboard",
+            "html_preview",
+            "scanpy_umap",
+            "image_preview"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "input_gff",
+            "star_index",
+            "input_fastq",
+            "starsolo_count",
+            "qc_dashboard",
+            "html_preview",
+            "scanpy_umap",
+            "image_preview"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "input_gff",
+            "star_index",
+            "input_fastq",
+            "starsolo_count",
+            "qc_dashboard",
+            "html_preview",
+            "scanpy_umap",
+            "image_preview"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fasta",
+            "input_gff",
+            "star_index",
+            "input_fastq",
+            "starsolo_count",
+            "qc_dashboard",
+            "html_preview",
+            "scanpy_umap",
+            "image_preview"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "spatial_transcriptomics_qc_clustering",
+      "node_count": 6,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_directory",
+            "squidpy_qc",
+            "image_preview",
+            "scanpy_spatial"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_directory",
+            "squidpy_qc",
+            "image_preview",
+            "scanpy_spatial"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_directory",
+            "squidpy_qc",
+            "image_preview",
+            "scanpy_spatial"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_directory",
+            "squidpy_qc",
+            "image_preview",
+            "scanpy_spatial"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "synthetic_biology_design_simulation",
+      "node_count": 5,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "sbol_design_import",
+            "copasi_simulation"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "sbol_design_import",
+            "copasi_simulation"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "sbol_design_import",
+            "copasi_simulation"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 1.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 1.0,
+          "ledger": {
+            "nodes": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "edges": {
+              "original": 0,
+              "roundtripped": 0,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_file",
+            "sbol_design_import",
+            "copasi_simulation"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "variant_calling_pipeline",
+      "node_count": 29,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.8,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 0.5,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 4,
+              "roundtripped": 5,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 0,
+              "lost": 1
+            },
+            "types_lost": [
+              "samtools_index",
+              "samtools_sort"
+            ]
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "samtools_faidx",
+            "bwa_index",
+            "samtools_view",
+            "samtools_collate",
+            "samtools_fixmate",
+            "bwa_mem",
+            "samtools_markdup",
+            "samtools_flagstat",
+            "gatk_haplotype_caller",
+            "gatk_genotype_gvcfs",
+            "retry",
+            "bcftools_filter",
+            "input_file",
+            "snpeff_build",
+            "snpeff",
+            "filter_vcf",
+            "vcf_stats_chart",
+            "coverage_plot",
+            "manta_call",
+            "delly_call",
+            "gate"
+          ],
+          "scaffold": false
+        },
+        "nextflow": {
+          "s_nodes": 0.5,
+          "s_edges": 0.3333,
+          "s_params": 0.0,
+          "s_labels": 0.25,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 4,
+              "roundtripped": 2,
+              "lost": 2
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 3,
+              "lost": 0
+            },
+            "types_lost": [
+              "fastqc",
+              "samtools_index",
+              "samtools_sort"
+            ]
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "samtools_faidx",
+            "bwa_index",
+            "samtools_view",
+            "samtools_collate",
+            "samtools_fixmate",
+            "bwa_mem",
+            "samtools_markdup",
+            "samtools_flagstat",
+            "gatk_haplotype_caller",
+            "gatk_genotype_gvcfs",
+            "retry",
+            "bcftools_filter",
+            "input_file",
+            "snpeff_build",
+            "snpeff",
+            "filter_vcf",
+            "vcf_stats_chart",
+            "coverage_plot",
+            "manta_call",
+            "delly_call",
+            "gate"
+          ],
+          "scaffold": false
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 5,
+              "roundtripped": 5,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "samtools_faidx",
+            "bwa_index",
+            "input_file",
+            "snpeff_build",
+            "samtools_view",
+            "samtools_collate",
+            "samtools_fixmate",
+            "samtools_markdup",
+            "samtools_flagstat",
+            "retry",
+            "gatk_haplotype_caller",
+            "gatk_genotype_gvcfs",
+            "bcftools_filter",
+            "snpeff",
+            "filter_vcf",
+            "vcf_stats_chart",
+            "gate",
+            "coverage_plot",
+            "manta_call",
+            "delly_call"
+          ],
+          "scaffold": false
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 5,
+              "roundtripped": 5,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "samtools_faidx",
+            "bwa_index",
+            "samtools_view",
+            "samtools_collate",
+            "samtools_fixmate",
+            "samtools_markdup",
+            "samtools_flagstat",
+            "gatk_haplotype_caller",
+            "gatk_genotype_gvcfs",
+            "retry",
+            "bcftools_filter",
+            "input_file",
+            "snpeff_build",
+            "snpeff",
+            "filter_vcf",
+            "vcf_stats_chart",
+            "coverage_plot",
+            "manta_call",
+            "delly_call",
+            "gate"
+          ],
+          "scaffold": false
+        }
+      }
+    },
+    {
+      "template": "wgbs_methylation_pipeline",
+      "node_count": 15,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.6667,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 2,
+              "roundtripped": 3,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 0,
+              "lost": 1
+            },
+            "types_lost": []
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_directory",
+            "input_fasta",
+            "bismark_align",
+            "gate",
+            "bismark_methylation_extractor",
+            "samtools_faidx",
+            "methyldackel",
+            "table_preview",
+            "bismark_genome_preparation"
+          ],
+          "scaffold": true
+        },
+        "nextflow": {
+          "s_nodes": 0.5,
+          "s_edges": 0.5,
+          "s_params": 0.0,
+          "s_labels": 0.5,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 2,
+              "roundtripped": 1,
+              "lost": 1
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": [
+              "samtools_index"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_directory",
+            "input_fasta",
+            "bismark_align",
+            "gate",
+            "bismark_methylation_extractor",
+            "samtools_faidx",
+            "methyldackel",
+            "table_preview",
+            "bismark_genome_preparation"
+          ],
+          "scaffold": true
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_directory",
+            "input_fasta",
+            "samtools_faidx",
+            "bismark_genome_preparation",
+            "bismark_align",
+            "gate",
+            "bismark_methylation_extractor",
+            "table_preview",
+            "methyldackel"
+          ],
+          "scaffold": true
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 1,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_directory",
+            "input_fasta",
+            "bismark_align",
+            "gate",
+            "bismark_methylation_extractor",
+            "samtools_faidx",
+            "methyldackel",
+            "table_preview",
+            "bismark_genome_preparation"
+          ],
+          "scaffold": true
+        }
+      }
+    },
+    {
+      "template": "wgs_variant_pipeline",
+      "node_count": 29,
+      "targets": {
+        "snakemake": {
+          "s_nodes": 0.8333,
+          "s_edges": 0.0,
+          "s_params": 0.0,
+          "s_labels": 0.6,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 5,
+              "roundtripped": 6,
+              "lost": 0
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 0,
+              "lost": 1
+            },
+            "types_lost": [
+              "samtools_index",
+              "samtools_sort"
+            ]
+          },
+          "idempotent": false,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "samtools_faidx",
+            "bwa_index",
+            "samtools_view",
+            "samtools_collate",
+            "samtools_fixmate",
+            "bwa_mem",
+            "samtools_markdup",
+            "freebayes",
+            "bcftools_filter",
+            "input_file",
+            "snpeff_build",
+            "snpeff",
+            "filter_vcf",
+            "vcf_stats_chart",
+            "coverage_plot",
+            "manta_call",
+            "delly_call",
+            "gate"
+          ],
+          "scaffold": false
+        },
+        "nextflow": {
+          "s_nodes": 0.6,
+          "s_edges": 0.5,
+          "s_params": 0.0,
+          "s_labels": 0.4,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 5,
+              "roundtripped": 3,
+              "lost": 2
+            },
+            "edges": {
+              "original": 1,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": [
+              "multiqc",
+              "samtools_index",
+              "samtools_sort"
+            ]
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "samtools_faidx",
+            "bwa_index",
+            "samtools_view",
+            "samtools_collate",
+            "samtools_fixmate",
+            "bwa_mem",
+            "samtools_markdup",
+            "freebayes",
+            "bcftools_filter",
+            "input_file",
+            "snpeff_build",
+            "snpeff",
+            "filter_vcf",
+            "vcf_stats_chart",
+            "coverage_plot",
+            "manta_call",
+            "delly_call",
+            "gate"
+          ],
+          "scaffold": false
+        },
+        "galaxy": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 6,
+              "roundtripped": 6,
+              "lost": 0
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "samtools_faidx",
+            "bwa_index",
+            "input_file",
+            "snpeff_build",
+            "samtools_view",
+            "samtools_collate",
+            "samtools_fixmate",
+            "samtools_markdup",
+            "freebayes",
+            "bcftools_filter",
+            "snpeff",
+            "filter_vcf",
+            "vcf_stats_chart",
+            "gate",
+            "coverage_plot",
+            "manta_call",
+            "delly_call"
+          ],
+          "scaffold": false
+        },
+        "cwl": {
+          "s_nodes": 1.0,
+          "s_edges": 1.0,
+          "s_params": 0.0,
+          "s_labels": 1.0,
+          "s_ann": 1.0,
+          "f_target": 0.0,
+          "ledger": {
+            "nodes": {
+              "original": 6,
+              "roundtripped": 6,
+              "lost": 0
+            },
+            "edges": {
+              "original": 2,
+              "roundtripped": 2,
+              "lost": 0
+            },
+            "types_lost": []
+          },
+          "idempotent": true,
+          "excluded_node_types": [
+            "note",
+            "input_fastq",
+            "input_fasta",
+            "samtools_faidx",
+            "bwa_index",
+            "samtools_view",
+            "samtools_collate",
+            "samtools_fixmate",
+            "samtools_markdup",
+            "freebayes",
+            "bcftools_filter",
+            "input_file",
+            "snpeff_build",
+            "snpeff",
+            "filter_vcf",
+            "vcf_stats_chart",
+            "coverage_plot",
+            "manta_call",
+            "delly_call",
+            "gate"
+          ],
+          "scaffold": false
+        }
+      }
+    }
+  ]
+}

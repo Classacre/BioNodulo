@@ -1,13 +1,13 @@
 """Every declared version agrees.
 
-The version is written in six places, in two spellings: npm's `0.1.0-alpha.7`
+The version is written in nine places, in two spellings: npm's `0.1.0-alpha.7`
 and PEP 440's `0.1.0a7`. Bumping them by hand drifted three releases running --
 the desktop app shipped as alpha.7 while the editor's title bar still said
 alpha.3 and the Python package said 0.1.0a3 -- because a release touched only
 the files it needed and nothing checked the rest. A user reported the editor
 showing a version that had been superseded twice.
 
-`scripts/set_version.py` writes all five; this fails the build if they diverge.
+`scripts/set_version.py` writes all nine; this fails the build if they diverge.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import set_version  # noqa: E402
 def test_every_declared_version_is_identical() -> None:
     versions = set_version.read_versions()
 
-    assert len(versions) == 6, f"expected six declarations, found {sorted(versions)}"
+    assert len(versions) == 9, f"expected nine declarations, found {sorted(versions)}"
     distinct = set(versions.values())
     assert len(distinct) == 1, (
         "version declarations disagree — run scripts/set_version.py:\n  "
@@ -45,6 +45,16 @@ def test_the_python_package_reports_the_same_version() -> None:
     declared = set_version.read_versions()["pyproject.toml"]
 
     assert set_version.to_npm(bionodulo.__version__) == declared
+
+
+def test_openapi_reports_the_package_version(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import bionodulo
+    from server import create_app
+
+    monkeypatch.setenv("BIONODULO_ROOT", str(tmp_path))
+    app = create_app()
+
+    assert app.openapi()["info"]["version"] == bionodulo.__version__
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ObjectInfo, NodeMetadata } from '../../types';
@@ -15,6 +15,8 @@ import Icon from '../ui/Icon';
 import { SkeletonList } from '../ui/Skeleton';
 import { Spinner } from '../ui';
 import { deleteBlueprint, listBlueprints, subscribeBlueprints, type SubgraphBlueprint } from '../../state/subgraphLibrary';
+
+const BiotoolsRegistryPanel = lazy(() => import('./BiotoolsRegistryPanel'));
 
 interface NodeLibraryPanelProps {
   objectInfo: ObjectInfo;
@@ -237,6 +239,7 @@ function NodeLibraryResult({
 export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
+  const [showRegistry, setShowRegistry] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['Input', 'Quality Control', 'Subgraphs']));
   const [blueprints, setBlueprints] = useState<SubgraphBlueprint[]>(() => listBlueprints());
   useEffect(() => {
@@ -364,6 +367,12 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
     }
   };
 
+  if (showRegistry) return (
+    <Suspense fallback={<Spinner label={t('registry.loading', 'Loading registry metadata…')} />}>
+      <BiotoolsRegistryPanel objectInfo={objectInfo} onAddNode={chooseNode} onBack={() => setShowRegistry(false)} onClose={onClose} />
+    </Suspense>
+  );
+
   return (
     <div className="rail-panel node-library-panel">
       <div className="rail-panel-header">
@@ -373,6 +382,9 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
         </button>
       </div>
       <div className="rail-panel-body">
+        <button type="button" className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => setShowRegistry(true)}>
+          {t('registry.browse', 'Browse bio.tools registry')}
+        </button>
         <div className="node-search-wrap">
           <input
             className="palette-search node-search-input"

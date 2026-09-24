@@ -9,7 +9,18 @@ from typing import Annotated, Self
 
 from pydantic import Field, StringConstraints, ValidationError, field_validator, model_validator
 
-from bionodulo.nodes.contract.artifacts import ArtifactId, ArtifactPort, _StrictFrozenModel
+from bionodulo.nodes.contract.artifacts import ArtifactId, ArtifactPort, Cardinality, _StrictFrozenModel
+from bionodulo.nodes.contract.cwl import (
+    CWL_ADAPTER_RESERVED_INPUT_IDS,
+    CwlInputKind,
+    CwlInvocation,
+    DECLARATIVE_CWL_FACTORY,
+)
+from bionodulo.nodes.contract.cwl_reference import (
+    CWL_REFERENCE_FACTORY,
+    CwlReferenceContract,
+    validate_cwl_reference_environment,
+)
 from bionodulo.nodes.contract.environments import (
     ContainerEnvironment,
     ExecutableProbe,
@@ -326,6 +337,8 @@ class NodeSpec(_StrictFrozenModel):
     evidence: EvidenceRecord | None = None
     retained_evidence: RetainedEvidenceInventory | None = None
     maturity: MaturityRecord | None = None
+    cwl_invocation: CwlInvocation | None = Field(default=None, exclude_if=lambda value: value is None)
+    cwl_reference: CwlReferenceContract | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @field_validator("execution_factory")
     @classmethod
@@ -335,6 +348,8 @@ class NodeSpec(_StrictFrozenModel):
     @model_validator(mode="after")
     def _validate_composition(self) -> Self:
         self._validate_input_and_output_ids()
+        self._validate_cwl_invocation()
+        self._validate_cwl_reference()
         self._validate_port_aliases()
         self._validate_execution_environment()
         self._validate_ownership_and_evidence()
@@ -344,7 +359,7 @@ class NodeSpec(_StrictFrozenModel):
         return self
 
     def contract_projection(self) -> dict[str, object]:
-        return {
+        projection: dict[str, object] = {
             "identity": self.identity.model_dump(mode="json", round_trip=True),
             "presentation": self.presentation.model_dump(mode="json", round_trip=True),
             "artifact_inputs": {
@@ -376,6 +391,13 @@ class NodeSpec(_StrictFrozenModel):
                 None if self.runtime_binding is None else self.runtime_binding.model_dump(mode="json", round_trip=True)
             ),
         }
+        # Preserve every historical contract digest. Descriptor data is part of
+        # the contract only for explicitly descriptor-backed nodes.
+        if self.cwl_invocation is not None:
+            projection["cwl_invocation"] = self.cwl_invocation.model_dump(mode="json", round_trip=True)
+        if self.cwl_reference is not None:
+            projection["cwl_reference"] = self.cwl_reference.model_dump(mode="json", round_trip=True)
+        return projection
 
     def contract_digest(self) -> str:
         payload = _canonical_json_bytes(self.contract_projection(), label="node contract projection")
@@ -435,6 +457,129 @@ class NodeSpec(_StrictFrozenModel):
                     f"conditional output {output.port_id} expected value is unreachable by parameter "
                     f"{collector.condition_key}"
                 ) from error
+
+    def _validate_cwl_invocation(self) -> None:
+        invocation = self.cwl_invocation
+        if invocation is None:
+            return
+        if self.execution_factory != DECLARATIVE_CWL_FACTORY:
+            raise ValueError("CWL invocation requires the shared declarative CWL execution factory")
+        if self.execution_kind not in (ExecutionKind.ARGV, ExecutionKind.CONTAINER):
+            raise ValueError("CWL invocation requires argv or container execution")
+        if self.value_inputs or self.secrets:
+            raise ValueError("the native CWL profile does not support value inputs or secrets")
+
+        artifact_inputs = {port.port_id: port for port in self.artifact_inputs}
+        parameters = {parameter.parameter_id: parameter for parameter in self.parameters}
+        declared_ids = set(artifact_inputs) | set(parameters)
+        reserved = sorted(declared_ids & CWL_ADAPTER_RESERVED_INPUT_IDS)
+        if reserved:
+            raise ValueError(f"CWL input IDs are reserved by the execution adapter: {reserved}")
+        binding_ids = {binding.input_id for binding in invocation.input_bindings}
+        if not binding_ids <= declared_ids:
+            unknown = sorted(binding_ids - declared_ids)
+            raise ValueError(f"CWL invocation contains undeclared input bindings: {unknown}")
+        parameter_kinds = {
+            CwlInputKind.STRING: ValueKind.STRING,
+            CwlInputKind.INTEGER: ValueKind.INTEGER,
+            CwlInputKind.NUMBER: ValueKind.NUMBER,
+            CwlInputKind.BOOLEAN: ValueKind.BOOLEAN,
+        }
+        for binding in invocation.input_bindings:
+            if binding.kind is CwlInputKind.FILE:
+                port = artifact_inputs.get(binding.input_id)
+                if port is None or port.artifact_type != "artifact.file":
+                    raise ValueError(f"CWL File binding {binding.input_id} requires artifact.file input")
+                expected = Cardinality.ONE if binding.required else Cardinality.OPTIONAL_ONE
+                if port.cardinality is not expected:
+                    raise ValueError(f"CWL File binding {binding.input_id} has inconsistent cardinality")
+                continue
+            parameter = parameters.get(binding.input_id)
+            if parameter is None or parameter.kind is not parameter_kinds[binding.kind]:
+                raise ValueError(f"CWL scalar binding {binding.input_id} has inconsistent parameter kind")
+            if (
+                parameter.required != binding.required
+                or parameter.has_default != binding.has_default
+                or parameter.default != binding.default
+            ):
+                raise ValueError(f"CWL scalar binding {binding.input_id} has inconsistent default or requiredness")
+        if not self.outputs:
+            raise ValueError("CWL invocation requires at least one declared output")
+
+    def _validate_cwl_reference(self) -> None:
+        reference = self.cwl_reference
+        if reference is None:
+            return
+        if self.cwl_invocation is not None:
+            raise ValueError("a node cannot combine native and reference-engine CWL contracts")
+        if self.execution_factory != CWL_REFERENCE_FACTORY or self.execution_kind is not ExecutionKind.ARGV:
+            raise ValueError("CWL reference contract requires the shared argv reference-engine factory")
+        if self.value_inputs or self.secrets:
+            raise ValueError("CWL reference contract does not support value inputs or secrets")
+        if self.runtime_binding is None or self.runtime_binding.package_name != reference.primary_package:
+            raise ValueError("CWL reference runtime binding must name its primary locked package")
+        if self.identity.tool_version is None:
+            raise ValueError("CWL reference contract requires an exact primary package version")
+        if self.environment is None:
+            raise ValueError("CWL reference contract requires a locked execution environment")
+        validate_cwl_reference_environment(
+            self.environment,
+            primary_package=reference.primary_package,
+            primary_package_version=self.identity.tool_version,
+        )
+
+        artifacts = {item.port_id: item for item in self.artifact_inputs}
+        parameters = {item.parameter_id: item for item in self.parameters}
+        outputs = {item.port_id: item for item in self.outputs}
+        mapped_inputs = {item.port_id: item for item in reference.input_mappings}
+        mapped_outputs = {item.port_id: item for item in reference.output_mappings}
+        if set(mapped_inputs) != set(artifacts) | set(parameters):
+            raise ValueError("CWL reference input mappings must exactly cover declared inputs")
+        if set(mapped_outputs) != set(outputs):
+            raise ValueError("CWL reference output mappings must exactly cover declared outputs")
+        for port_id, mapping in mapped_inputs.items():
+            if mapping.kind in {"file", "directory"}:
+                port = artifacts.get(port_id)
+                expected_artifact_type = f"artifact.{mapping.kind}"
+                if port is None or port.artifact_type != expected_artifact_type:
+                    raise ValueError(
+                        f"CWL reference {mapping.kind} mapping {port_id} requires "
+                        f"{expected_artifact_type} input"
+                    )
+                if mapping.array and port.cardinality is not Cardinality.MANY:
+                    raise ValueError(f"CWL reference artifact array mapping {port_id} requires many cardinality")
+                if not mapping.array:
+                    expected = Cardinality.OPTIONAL_ONE if mapping.nullable else Cardinality.ONE
+                    if port.cardinality is not expected:
+                        raise ValueError(f"CWL reference File mapping {port_id} has inconsistent cardinality")
+            else:
+                parameter = parameters.get(port_id)
+                if parameter is None:
+                    raise ValueError(f"CWL reference scalar mapping {port_id} requires a parameter")
+                expected_kind = {
+                    "string": ValueKind.STRING,
+                    "enum": ValueKind.STRING,
+                    "integer": ValueKind.INTEGER,
+                    "number": ValueKind.NUMBER,
+                    "boolean": ValueKind.BOOLEAN,
+                    "json": ValueKind.JSON,
+                }[mapping.kind]
+                if parameter.kind is not expected_kind:
+                    raise ValueError(f"CWL reference scalar mapping {port_id} has inconsistent parameter kind")
+        for port_id, output_mapping in mapped_outputs.items():
+            output = outputs[port_id]
+            expected = (
+                Cardinality.MANY
+                if output_mapping.array
+                else Cardinality.OPTIONAL_ONE if output_mapping.nullable else Cardinality.ONE
+            )
+            expected_type = (
+                f"artifact.{output_mapping.kind}"
+                if output_mapping.kind in {"file", "directory"}
+                else "artifact.file"
+            )
+            if output.artifact_type != expected_type or output.cardinality is not expected:
+                raise ValueError(f"CWL reference output mapping {port_id} has inconsistent contract")
 
     def _validate_port_aliases(self) -> None:
         declared: dict[PortAliasScope, set[str]] = {
@@ -501,12 +646,18 @@ class NodeSpec(_StrictFrozenModel):
         if not is_core_python:
             if self.identity.tool_id is None or self.identity.tool_version is None:
                 raise ValueError("only a BioNodulo-owned in-process core Python node may omit its exact tool identity")
-            if self.evidence is None:
+            if self.evidence is None and self.cwl_invocation is None and self.cwl_reference is None:
                 raise ValueError("only a BioNodulo-owned in-process core Python node may omit tool evidence")
 
         if self.evidence is None:
-            if self.identity.tool_id is not None:
+            if self.identity.tool_id is not None and self.cwl_invocation is None and self.cwl_reference is None:
                 raise ValueError("declared tool identity requires a matching evidence record")
+            if (
+                (self.cwl_invocation is not None or self.cwl_reference is not None)
+                and self.maturity is not None
+                and self.maturity.released
+            ):
+                raise ValueError("an unverified imported CWL descriptor cannot be released")
             return
         if self.identity.tool_id != self.evidence.tool_id or self.identity.tool_version != self.evidence.tool_version:
             raise ValueError("evidence tool ID and version must equal the declared tool identity")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Set the product version everywhere it is declared.
 
-The version lives in six places, in two spellings: npm's `0.1.0-alpha.7` and
+The version lives in nine places, in two spellings: npm's `0.1.0-alpha.7` and
 PEP 440's `0.1.0a7`. Bumping them by hand has drifted three releases running --
 the desktop app shipped as alpha.7 while the editor's title bar said alpha.3 and
 the Python package said 0.1.0a3 -- because a release only ever touched the files
@@ -26,6 +26,10 @@ JSON_TARGETS = (
     Path("web/package.json"),
     Path("desktop/package.json"),
     Path("desktop/src-tauri/tauri.conf.json"),
+)
+NPM_LOCKS = (
+    Path("web/package-lock.json"),
+    Path("desktop/package-lock.json"),
 )
 
 CARGO = Path("desktop/src-tauri/Cargo.toml")
@@ -65,9 +69,24 @@ def read_versions() -> dict[str, str]:
     for rel in JSON_TARGETS:
         found[str(rel)] = json.loads((REPO / rel).read_text())["version"]
 
+    for rel in NPM_LOCKS:
+        lock = json.loads((REPO / rel).read_text())
+        top = lock["version"]
+        root = lock["packages"][""]["version"]
+        if top != root:
+            raise ValueError(f"{rel} root versions disagree: {top!r} != {root!r}")
+        found[str(rel)] = top
+
     cargo = re.search(r'^version = "([^"]+)"', (REPO / CARGO).read_text(), re.M)
     if cargo:
         found[str(CARGO)] = cargo.group(1)
+
+    cargo_lock = re.search(
+        r'(?ms)^\[\[package\]\]\nname = "bionodulo-desktop"\nversion = "([^"]+)"',
+        (REPO / "desktop/src-tauri/Cargo.lock").read_text(),
+    )
+    if cargo_lock:
+        found["desktop/src-tauri/Cargo.lock"] = cargo_lock.group(1)
 
     pyproject = re.search(r'^version = "([^"]+)"', (REPO / PYPROJECT).read_text(), re.M)
     if pyproject:
@@ -92,7 +111,24 @@ def write_version(npm_version: str) -> list[str]:
             r'("version"\s*:\s*)"[^"]+"', rf'\1"{npm_version}"', text, count=1
         )
         if count and updated != text:
-            path.write_text(updated)
+            path.write_text(updated, encoding="utf-8", newline="\n")
+            changed.append(str(rel))
+
+    for rel in NPM_LOCKS:
+        path = REPO / rel
+        text = path.read_text()
+        # package-lock v3 repeats the project version at the document root and
+        # in packages[""]. Limit replacement to those first two occurrences.
+        updated, count = re.subn(
+            r'("version"\s*:\s*)"[^"]+"',
+            rf'\1"{npm_version}"',
+            text,
+            count=2,
+        )
+        if count != 2:
+            raise ValueError(f"expected two root version fields in {rel}, found {count}")
+        if updated != text:
+            path.write_text(updated, encoding="utf-8", newline="\n")
             changed.append(str(rel))
 
     path = REPO / CARGO
@@ -101,8 +137,22 @@ def write_version(npm_version: str) -> list[str]:
         r'^version = "[^"]+"', f'version = "{npm_version}"', text, count=1, flags=re.M
     )
     if count and updated != text:
-        path.write_text(updated)
+        path.write_text(updated, encoding="utf-8", newline="\n")
         changed.append(str(CARGO))
+
+    path = REPO / "desktop/src-tauri/Cargo.lock"
+    text = path.read_text()
+    updated, count = re.subn(
+        r'(?ms)(^\[\[package\]\]\nname = "bionodulo-desktop"\nversion = )"[^"]+"',
+        rf'\1"{npm_version}"',
+        text,
+        count=1,
+    )
+    if count != 1:
+        raise ValueError(f"expected bionodulo-desktop package in {path.relative_to(REPO)}")
+    if updated != text:
+        path.write_text(updated, encoding="utf-8", newline="\n")
+        changed.append(str(path.relative_to(REPO)))
 
     path = REPO / PYPROJECT
     text = path.read_text()
@@ -110,7 +160,7 @@ def write_version(npm_version: str) -> list[str]:
         r'^version = "[^"]+"', f'version = "{to_pep440(npm_version)}"', text, count=1, flags=re.M
     )
     if count and updated != text:
-        path.write_text(updated)
+        path.write_text(updated, encoding="utf-8", newline="\n")
         changed.append(str(PYPROJECT))
 
     path = REPO / INIT
@@ -123,7 +173,7 @@ def write_version(npm_version: str) -> list[str]:
         flags=re.M,
     )
     if count and updated != text:
-        path.write_text(updated)
+        path.write_text(updated, encoding="utf-8", newline="\n")
         changed.append(str(INIT))
 
     return changed

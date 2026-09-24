@@ -12,7 +12,9 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, edge_target_port, node_outputs
+from bionodulo.converter.edge_utils import (
+    edge_source, edge_source_port, edge_target, edge_target_port, executable_nodes, node_outputs,
+)
 
 
 def export_to_galaxy(
@@ -28,7 +30,7 @@ def export_to_galaxy(
     Returns:
         The Galaxy workflow JSON as a string.
     """
-    nodes: dict[str, dict[str, Any]] = {n["id"]: n for n in workflow.get("nodes", [])}
+    nodes = executable_nodes(workflow)
     edges: list[dict[str, Any]] = workflow.get("edges", [])
 
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}

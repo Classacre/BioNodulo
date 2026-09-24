@@ -126,16 +126,16 @@ describe('ImportModal i18n', () => {
     render(<ImportModal onImport={() => undefined} onClose={() => undefined} />);
 
     expect(screen.getByRole('button', { name: 'JSON de BioNodulo' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'SnakeMake' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'NextFlow' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Snakemake' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nextflow' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'CWL' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Galaxy (.ga)' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/"version": "2.0"/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Snakemake' }));
     expect(screen.getByPlaceholderText(/regla ejemplo/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'NextFlow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Nextflow' }));
     expect(screen.getByPlaceholderText(/proceso alinear/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'CWL' }));
@@ -153,7 +153,7 @@ describe('ImportModal i18n', () => {
     const importedWorkflow = {
       version: '2.0',
       app: 'bionodulo',
-      name: 'Imported SnakeMake Workflow',
+      name: 'Imported Snakemake Workflow',
       description: '',
       nodes: [],
       edges: [],
@@ -163,7 +163,7 @@ describe('ImportModal i18n', () => {
     apiMocks.apiPost.mockResolvedValueOnce({ workflow: importedWorkflow });
 
     render(<ImportModal onImport={onImport} onClose={onClose} />);
-    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Snakemake' }));
     fireEvent.change(screen.getByPlaceholderText(/rule example/), {
       target: { value: snakefile },
     });
@@ -187,7 +187,7 @@ describe('ImportModal i18n', () => {
     apiMocks.apiPost.mockRejectedValueOnce(converterError);
 
     render(<ImportModal onImport={() => undefined} onClose={() => undefined} />);
-    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Snakemake' }));
     fireEvent.change(screen.getByPlaceholderText(/regla ejemplo/), {
       target: { value: 'not valid snakemake or json' },
     });

@@ -12,6 +12,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from bionodulo.core.config import CloudSettings
+from bionodulo.core.credentials import redact_tree
+
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1182,7 +1185,7 @@ def _resolve_dependencies(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
 
 
 def _get_settings(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-    return {"settings": _settings_dict(ctx)}
+    return {"settings": redact_tree(_settings_dict(ctx))}
 
 
 def _update_setting(ctx: ToolContext, key: str, value: Any, **kwargs: Any) -> dict[str, Any]:
@@ -1899,6 +1902,25 @@ from bionodulo.ai.skills import SKILL_TOOLS as _SKILL_TOOLS  # noqa: E402
 ALL_TOOLS = ALL_TOOLS + _SKILL_TOOLS
 
 
+# These tools only inspect the request's graph, draft graph changes, read
+# bundled metadata, or query public literature. Shared editor workers must
+# never read/write tenant files, execute commands, or access global settings.
+_EDITOR_TOOLS = frozenset({
+    "get_current_workflow", "get_workflow_summary", "list_available_nodes", "get_node_info",
+    "validate_workflow", "get_dependency_report", "resolve_dependencies", "list_workflow_templates",
+    "add_node", "update_node", "remove_node", "add_edge", "remove_edge", "load_template",
+    "set_workflow_name", "set_workflow_description", "add_group", "add_note", "extract_subgraph",
+    "add_subgraph_instance", "list_flow_control_nodes", "search_literature", "literature_search",
+    "pubmed_search", "arxiv_search", "europepmc_search", "clinicaltrials_search", "get_paper",
+    "citation_lookup", "list_skills", "load_skill",
+})
+
+
+def tool_available(name: str) -> bool:
+    """Apply the same boundary when advertising and dispatching a tool."""
+    return not CloudSettings.from_env().editor_mode or name in _EDITOR_TOOLS
+
+
 def get_tool(name: str) -> ToolDefinition | None:
     """Get a tool by name."""
     for tool in ALL_TOOLS:
@@ -1916,6 +1938,8 @@ def execute_tool(name: str, arguments: dict[str, Any], ctx: ToolContext) -> dict
     tool = get_tool(name)
     if not tool:
         return {"status": "error", "error": f"Tool '{name}' not found"}
+    if not tool_available(name):
+        return {"status": "error", "error": f"Tool '{name}' is disabled in shared editor mode"}
     try:
         result = tool.execute(ctx, **arguments)
         if inspect.isawaitable(result):
@@ -1937,6 +1961,8 @@ async def aexecute_tool(name: str, arguments: dict[str, Any], ctx: ToolContext) 
     tool = get_tool(name)
     if not tool:
         return {"status": "error", "error": f"Tool '{name}' not found"}
+    if not tool_available(name):
+        return {"status": "error", "error": f"Tool '{name}' is disabled in shared editor mode"}
     try:
         result = tool.execute(ctx, **arguments)
         if inspect.isawaitable(result):

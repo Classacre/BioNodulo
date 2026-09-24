@@ -187,11 +187,11 @@ describe('ExportModal i18n', () => {
 
     render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'SnakeMake' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Snakemake' }));
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
     await waitFor(() => {
-      expect(screen.getByText('HTTP 500 Server Error (/api/workflow/export)')).toBeInTheDocument();
+      expect(screen.getByText('Converter for snakemake is unavailable')).toBeInTheDocument();
     });
     expect(loggingMock.logError).toHaveBeenCalledWith('exportModal.generate', exportError);
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();

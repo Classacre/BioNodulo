@@ -1,0 +1,64 @@
+{
+  "files": [
+    {
+      "file": "cat3-nodocker.cwl",
+      "git_blob_sha1": "03cfa7b4038b5b8f04c3dd9f164e131c913d2aeb",
+      "note": "File positional input; literal output glob and stdout filename",
+      "profile": "supported",
+      "sha256": "sha256:57986abc34ef042d20cfea94aa0a0492b18956d1832e5c7b3c5a5e010b03bf3e",
+      "size_bytes": 376,
+      "source_url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/ae6899d159b5d62411f5f16d797f1d8e2176c5ba/tests/cat3-nodocker.cwl",
+      "upstream_path": "tests/cat3-nodocker.cwl"
+    },
+    {
+      "file": "sorttool.cwl",
+      "git_blob_sha1": "e03bc30fa849497d4aa49a4f08a79e3ce5e7f2f1",
+      "note": "File positional input plus boolean prefix; literal output glob and stdout filename",
+      "profile": "supported",
+      "sha256": "sha256:a2b598323f2bfbabfd6c91019894f7ead0cff87abe279393d6c6e7582c2323fe",
+      "size_bytes": 1070,
+      "source_url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/ae6899d159b5d62411f5f16d797f1d8e2176c5ba/tests/sorttool.cwl",
+      "upstream_path": "tests/sorttool.cwl"
+    },
+    {
+      "file": "echo-file-tool.cwl",
+      "git_blob_sha1": "f6e4f58cc8fa476910082abbf4f79427e1397530",
+      "note": "String positional input and type stdout; optional unbound string may be rejected if nullable inputs are outside importer profile",
+      "profile": "bounded-edge",
+      "sha256": "sha256:3934c1b36095c37a12da608afb62c8d58c01cc9d56ecd4ff325fb13363cffb9d",
+      "size_bytes": 192,
+      "source_url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/ae6899d159b5d62411f5f16d797f1d8e2176c5ba/tests/echo-file-tool.cwl",
+      "upstream_path": "tests/echo-file-tool.cwl"
+    },
+    {
+      "file": "file-literal.yml",
+      "git_blob_sha1": "604f9ece93d7a7e207332add546e365bf8edf5b1",
+      "note": "Official inline File job for cat3-nodocker.cwl",
+      "profile": "official-job-fixture",
+      "sha256": "sha256:a863356547d1755b12cd9b0e1db2237fc6da1e99f5a50b88f317e00eb6c6a0a2",
+      "size_bytes": 54,
+      "source_url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/ae6899d159b5d62411f5f16d797f1d8e2176c5ba/tests/file-literal.yml",
+      "upstream_path": "tests/file-literal.yml"
+    },
+    {
+      "file": "LICENSE.txt",
+      "git_blob_sha1": "d645695673349e3947e8e5ae42332d0ac3164cd7",
+      "note": "Repository Apache-2.0 license text",
+      "profile": "license",
+      "sha256": "sha256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "size_bytes": 11358,
+      "source_url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/ae6899d159b5d62411f5f16d797f1d8e2176c5ba/LICENSE.txt",
+      "upstream_path": "LICENSE.txt"
+    }
+  ],
+  "license": {
+    "source_file": "LICENSE.txt",
+    "source_url": "https://raw.githubusercontent.com/common-workflow-language/cwl-v1.2/ae6899d159b5d62411f5f16d797f1d8e2176c5ba/LICENSE.txt",
+    "spdx": "Apache-2.0"
+  },
+  "repository": "https://github.com/common-workflow-language/cwl-v1.2",
+  "retrieved_at": "2026-09-23",
+  "upstream_commit": "ae6899d159b5d62411f5f16d797f1d8e2176c5ba",
+  "upstream_tag": "v1.2.1",
+  "verbatim": true
+}

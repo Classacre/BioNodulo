@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 
+def executable_nodes(workflow: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Exclude canvas notes, which have no runtime ports or execution semantics."""
+    return {node["id"]: node for node in workflow.get("nodes", []) if node.get("type") != "note"}
+
+
 def node_outputs(node: dict[str, Any]) -> dict[str, Any]:
     outputs = node.get("outputs")
     if isinstance(outputs, dict) and outputs:

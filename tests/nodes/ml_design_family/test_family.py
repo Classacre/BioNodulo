@@ -887,8 +887,6 @@ def test_codon_metrics_accepts_rna_uracil(tmp_path):
     the first live execution failed closed on the uracil. Metrics must
     normalise U to T instead of rejecting the panel."""
     import asyncio
-    import json
-    from pathlib import Path
     from types import SimpleNamespace
 
     from bionodulo.nodes.builtin.codon_design_family.codon_metrics import CodonMetricsNode
@@ -906,7 +904,6 @@ def test_predictor_train_drops_na_target_rows(tmp_path):
     first live e3 execution failed on it. Rows with NA targets must be
     dropped, not fatal."""
     import asyncio
-    from pathlib import Path
     from types import SimpleNamespace
 
     from bionodulo.nodes.builtin.ml_design_family.simple_predictor_train import (

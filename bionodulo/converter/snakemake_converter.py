@@ -11,7 +11,9 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, node_output_path, node_outputs
+from bionodulo.converter.edge_utils import (
+    edge_source, edge_source_port, edge_target, executable_nodes, node_output_path, node_outputs,
+)
 
 
 def export_to_snakemake(
@@ -29,9 +31,7 @@ def export_to_snakemake(
     Returns:
         The Snakefile content as a string.
     """
-    nodes: dict[str, dict[str, Any]] = {
-        n["id"]: n for n in workflow.get("nodes", [])
-    }
+    nodes = executable_nodes(workflow)
     edges: list[dict[str, Any]] = workflow.get("edges", [])
 
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
@@ -120,9 +120,9 @@ def export_to_snakemake(
 
     content = "\n".join(lines)
     if output_path:
-        out = Path(output_path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(content, encoding="utf-8")
+        destination = Path(output_path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(content, encoding="utf-8")
     return content
 
 

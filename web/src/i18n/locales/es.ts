@@ -584,7 +584,7 @@ const es = {
       alpha11: {
         items: {
           aiAssistant: 'Asistente de IA con llamadas a herramientas para construir flujos de trabajo',
-          workflowExport: 'Exportacion de flujos de trabajo a Snakemake, NextFlow, CWL y Galaxy',
+          workflowExport: 'Exportacion de flujos de trabajo a Snakemake, Nextflow, CWL y Galaxy',
           nodeRegistry: 'Registro de nodos con metadatos de herramientas bioinformaticas',
           websocketLogs: 'Registros de ejecucion WebSocket en tiempo real',
           hardwareMonitor: 'Panel superpuesto de monitor de hardware',
@@ -937,6 +937,7 @@ const es = {
     cloudHint: 'Haz clic derecho en un archivo para descargarlo.',
     cloudEmpty: 'Aún no hay archivos en la nube.',
     cloudListError: 'No se pudieron listar los archivos en la nube.',
+    listError: 'No se pudieron listar los archivos del espacio de trabajo.',
     rootHint: 'Workspace root: {{path}}',
     rootLabel: 'Raiz del espacio de trabajo',
     rootPlaceholder: '/ruta/al/espacio',
@@ -2376,6 +2377,7 @@ const es = {
     canAutoInstall: 'Se puede instalar automaticamente',
   },
   resolveReport: {
+    checkFailed: 'No se pudieron comprobar las dependencias del flujo de trabajo. Vuelve a intentarlo antes de ejecutar.',
     bannerTitle: 'Workflow has unresolved dependencies',
     bannerBody: 'Some nodes reference tools or paths that are not available.',
     bannerOpen: 'Open report',
@@ -2548,8 +2550,8 @@ const es = {
     title: 'Importar flujo de trabajo',
     formats: {
       json: 'JSON de BioNodulo',
-      snakemake: 'SnakeMake',
-      nextflow: 'NextFlow',
+      snakemake: 'Snakemake',
+      nextflow: 'Nextflow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
     },
@@ -2575,8 +2577,8 @@ const es = {
     title: 'Exportar flujo de trabajo',
     formats: {
       png: 'PNG / JSON',
-      snakemake: 'SnakeMake',
-      nextflow: 'NextFlow',
+      snakemake: 'Snakemake',
+      nextflow: 'Nextflow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
       references: 'Referencias',

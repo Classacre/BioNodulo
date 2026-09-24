@@ -662,6 +662,7 @@ async def workflow_validate(request: Request, body: ValidationRequest) -> dict[s
         "errors": result.errors,
         "warnings": result.warnings,
         "sorted_node_order": result.sorted_node_order,
+        "semantics": result.semantics,
         "environment": _environment_readiness(body.workflow, registry),
     }
 
@@ -694,6 +695,17 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
         **({"target_nodes": body.target_nodes} if body.target_nodes else {}),
         **({"parameters": body.parameters} if body.parameters else {}),
     }
+    executor = getattr(queue, "executor", None)
+    if executor is not None and hasattr(executor, "check_semantics"):
+        try:
+            semantics = executor.check_semantics(body.workflow, execution_options)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not semantics.ok:
+            raise HTTPException(status_code=400, detail={
+                "message": "Workflow violates semantic contracts",
+                "semantics": semantics.to_dict(),
+            })
     resume_checkpoint = _resolve_resume_checkpoint(settings, body.resume_checkpoint)
     if resume_checkpoint:
         execution_options["resume_checkpoint"] = resume_checkpoint
@@ -1221,6 +1233,17 @@ async def get_run_report(request: Request, run_id: str) -> PlainTextResponse:
     return PlainTextResponse(html_text, media_type="text/html; charset=utf-8")
 
 
+@router.get("/runs/{run_id}/ro-crate")
+async def get_run_ro_crate(request: Request, run_id: str) -> JSONResponse:
+    """Return persisted run evidence, including experimental contract records."""
+    run_dir = _safe_run_dir(_get_settings(request), run_id)
+    path = run_dir / "ro-crate" / "ro-crate-metadata.json"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="RO-Crate metadata is unavailable for this run")
+    payload = json.loads(await asyncio.to_thread(path.read_text, encoding="utf-8"))
+    return JSONResponse(payload, headers={"Content-Disposition": 'attachment; filename="ro-crate-metadata.json"'})
+
+
 @router.get("/runs/{run_id}/manifest")
 async def get_run_manifest(request: Request, run_id: str) -> JSONResponse:
     """Return the JSON provenance manifest for a finished run."""
@@ -1250,7 +1273,7 @@ async def get_run_manifest(request: Request, run_id: str) -> JSONResponse:
                 result = queue_record.get("result") or {}
                 if isinstance(result, dict):
                     artifacts = result.get("artifacts") or artifacts
-                    node_results = result.get("nodes") or node_results
+                    node_results = result.get("node_results") or result.get("nodes") or node_results
         except Exception:  # noqa: BLE001 - missing queue data must not break manifest export
             pass
 
@@ -1444,7 +1467,15 @@ async def download_file(request: Request, path: str) -> FileResponse:
     """
     settings = _get_settings(request)
     try:
-        target = _safe_cloud_input_source(path, settings.project_root)
+        if app_state(request).cloud_settings.editor_mode:
+            prefix = "templates/data/"
+            if "\\" in path or not path.startswith(prefix):
+                raise HTTPException(status_code=403, detail="Only packaged template data is available in editor mode")
+            # Ignore the writable workspace, including files shadowing public
+            # fixture paths. It is shared by unrelated editor callers.
+            target = ensure_within(Path(path[len(prefix):]), _BUNDLED_TEMPLATE_DATA_ROOT)
+        else:
+            target = _safe_cloud_input_source(path, settings.project_root)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not target.exists() or not target.is_file():
@@ -2432,7 +2463,10 @@ async def manager_diagnose(
     registry = _get_registry(request)
     settings = _get_settings(request)
     result = validate_workflow(body.workflow, registry)
-    report = await _resolve_workflow_async(body.workflow, registry, settings.project_root)
+    report = await _resolve_workflow_async(
+        body.workflow, registry, settings.project_root,
+        env_isolation=settings.execution.env_isolation,
+    )
 
     return {
         "valid": result.valid,
@@ -2472,7 +2506,10 @@ async def manager_resolve(
 
     registry = _get_registry(request)
     settings = _get_settings(request)
-    report = await _resolve_workflow_async(body.workflow, registry, settings.project_root)
+    report = await _resolve_workflow_async(
+        body.workflow, registry, settings.project_root,
+        env_isolation=settings.execution.env_isolation,
+    )
     return report.to_dict()
 
 

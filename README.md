@@ -11,7 +11,7 @@
 <p align="center">
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FClassacre%2FBioNodulo%2Fmain%2Fpyproject.toml&amp;query=%24.project.version&amp;label=version&amp;color=0d9488&amp;logo=github" alt="Version" /></a>
   <a href="https://discord.gg/baNKVhZq6k"><img src="https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&amp;logoColor=white" alt="Discord" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Closed%20Alpha%20Commercial-f59e0b" alt="License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License" /></a>
   <a href="https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" /></a>
   <a href="mcp/"><img src="https://img.shields.io/badge/MCP-Server-6B5B95?logo=modelcontextprotocol&amp;logoColor=white" alt="MCP Server" /></a>
   <a href="mcp/"><img src="https://img.shields.io/badge/Claude-D97757?logo=claude&amp;logoColor=fff" alt="Claude" /></a>
@@ -259,10 +259,8 @@ BioNodulo runs locally with no external services. For larger deployments you can
 
 ## License
 
-BioNodulo is paid software distributed under the [BioNodulo Closed Alpha Commercial License](LICENSE).
+BioNodulo is free and open-source software distributed under the [GNU General Public License v3](LICENSE).
 
-Access during the current closed-alpha development phase is limited to authorized users and institutions with a written license, trial agreement, or closed-alpha invitation. BioNodulo may not be freely redistributed, mirrored, sublicensed, hosted for third parties, or used outside the licensed scope.
-
-Third-party open-source and proprietary dependencies, command-line tools, datasets, containers, models, APIs, and services remain subject to their own license terms. See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for the current compliance summary. Institutions can contact `nieuwenhuyzemikamartin@gmail.com` to discuss licensing and pricing.
+Third-party open-source and proprietary dependencies, command-line tools, datasets, containers, models, APIs, and services remain subject to their own license terms. See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for the current compliance summary.
 
 BioNodulo is an independent bioinformatics workflow platform built specifically for bioinformatics pipeline design, execution, and sharing.

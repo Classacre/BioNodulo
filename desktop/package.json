@@ -1,10 +1,10 @@
 {
   "name": "@bionodulo/desktop",
-  "version": "0.1.0-alpha.66",
+  "version": "0.1.1-alpha.1",
   "private": true,
   "description": "BioNodulo Desktop \u2014 Node-based bioinformatics workflows (Tauri shell)",
   "author": "BioNodulo",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "GPL-3.0-or-later",
   "scripts": {
     "prepare:backend": "node scripts/prepare-backend.mjs",
     "prepare:python": "node scripts/prepare-python.mjs",

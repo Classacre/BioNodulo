@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from bionodulo.ai.tools import ToolContext, ToolDefinition, ToolParameter, _workspace_root
+from bionodulo.core.config import CloudSettings
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,8 @@ SKILL_ERRORS: dict[str, list[dict[str, str]]] = {}
 
 
 def _cache_key(workspace_dir: Path | None) -> str:
+    if CloudSettings.from_env().editor_mode:
+        return "shared-editor-bundled-only"
     return str(workspace_dir.resolve()) if workspace_dir is not None else ""
 
 
@@ -158,9 +161,10 @@ def discover_skills(workspace_dir: Path | None = None) -> dict[str, Skill]:
     skills: dict[str, Skill] = {}
     errors: list[dict[str, str]] = []
     _scan_root(BUNDLED_SKILLS_DIR, "bundled", skills, errors)
-    _scan_root(USER_SKILLS_DIR, "user", skills, errors)
-    if workspace_dir is not None:
-        _scan_root(Path(workspace_dir) / "skills", "workspace", skills, errors)
+    if not CloudSettings.from_env().editor_mode:
+        _scan_root(USER_SKILLS_DIR, "user", skills, errors)
+        if workspace_dir is not None:
+            _scan_root(Path(workspace_dir) / "skills", "workspace", skills, errors)
     SKILL_CACHE[key] = skills
     SKILL_ERRORS[key] = errors
     return skills

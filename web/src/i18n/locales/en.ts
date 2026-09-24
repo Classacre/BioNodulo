@@ -580,7 +580,7 @@ const en = {
       alpha11: {
         items: {
           aiAssistant: 'AI assistant with tool-calling for workflow building',
-          workflowExport: 'Workflow export to Snakemake, NextFlow, CWL, Galaxy',
+          workflowExport: 'Workflow export to Snakemake, Nextflow, CWL, Galaxy',
           nodeRegistry: 'Node registry with bioinformatics tool metadata',
           websocketLogs: 'Real-time WebSocket execution logs',
           hardwareMonitor: 'Hardware monitor overlay',
@@ -933,6 +933,7 @@ const en = {
     cloudHint: 'Right-click a file to download.',
     cloudEmpty: 'No cloud files yet.',
     cloudListError: 'Could not list cloud files.',
+    listError: 'Could not list workspace files.',
     rootHint: 'Workspace root: {{path}}',
     rootLabel: 'Workspace Root',
     rootPlaceholder: '/path/to/workspace',
@@ -2370,6 +2371,7 @@ const en = {
     canAutoInstall: 'Can be auto-installed',
   },
   resolveReport: {
+    checkFailed: 'Could not check workflow dependencies. Try again before running.',
     bannerTitle: 'Workflow has unresolved dependencies',
     bannerBody: 'Some nodes reference tools or paths that are not available.',
     bannerOpen: 'Open report',
@@ -2542,8 +2544,8 @@ const en = {
     title: 'Import workflow',
     formats: {
       json: 'BioNodulo JSON',
-      snakemake: 'SnakeMake',
-      nextflow: 'NextFlow',
+      snakemake: 'Snakemake',
+      nextflow: 'Nextflow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
     },
@@ -2569,8 +2571,8 @@ const en = {
     title: 'Export workflow',
     formats: {
       png: 'PNG / JSON',
-      snakemake: 'SnakeMake',
-      nextflow: 'NextFlow',
+      snakemake: 'Snakemake',
+      nextflow: 'Nextflow',
       cwl: 'CWL',
       galaxy: 'Galaxy (.ga)',
       references: 'References',

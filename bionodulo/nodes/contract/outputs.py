@@ -1,11 +1,13 @@
 import ctypes
 import errno
 import fnmatch
+import hashlib
 import json
 import math
 import os
 import re
 import stat
+import sys
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -27,6 +29,7 @@ MAX_GLOB_SCAN_ENTRIES: Final = 100_000
 MAX_DIRECTORY_ENTRIES: Final = 100_000
 MAX_STDOUT_BYTES: Final = 16 * 1024 * 1024
 MAX_CONTENT_VALIDATOR_BYTES: Final = 16 * 1024 * 1024
+COLLECTED_OUTPUTS_MANIFEST_SCHEMA_VERSION: Final = 2
 
 _DEFAULT_STDOUT_BYTES: Final = 1024 * 1024
 _DEFAULT_CONTENT_BYTES: Final = 1024 * 1024
@@ -35,6 +38,17 @@ _MAX_RELATIVE_PATH_BYTES: Final = 4_096
 _MAX_PATH_COMPONENTS: Final = 256
 _MAX_DIRECTORY_DEPTH: Final = 256
 _AT_EMPTY_PATH: Final = 0x1000
+_INOTIFY_MUTATION_MASK: Final = (
+    0x00000002  # IN_MODIFY
+    | 0x00000004  # IN_ATTRIB
+    | 0x00000008  # IN_CLOSE_WRITE
+    | 0x00000040  # IN_MOVED_FROM
+    | 0x00000080  # IN_MOVED_TO
+    | 0x00000100  # IN_CREATE
+    | 0x00000200  # IN_DELETE
+    | 0x00000400  # IN_DELETE_SELF
+    | 0x00000800  # IN_MOVE_SELF
+)
 _EXTENSION_RE = re.compile(r"^\.[A-Za-z0-9][A-Za-z0-9_+-]*(?:\.[A-Za-z0-9][A-Za-z0-9_+-]*)*$")
 _WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
 
@@ -44,6 +58,7 @@ _StdoutBound = Annotated[int, Field(ge=1, le=MAX_STDOUT_BYTES)]
 _ContentBound = Annotated[int, Field(ge=1, le=MAX_CONTENT_VALIDATOR_BYTES)]
 _NonnegativeInt = Annotated[int, Field(ge=0)]
 _ConditionValue: TypeAlias = str | int | float | bool | None
+_DirectoryMonitoringScope: TypeAlias = Literal["linux-inotify", "metadata-and-name-rescan"]
 
 
 class OutputCollectionError(ValueError):
@@ -241,11 +256,23 @@ class CollectedTreeEntry(_StrictFrozenModel):
     relative_path: str
     container: ArtifactContainer
     identity: ObjectIdentity
+    content_fingerprint: str | None = None
 
     @field_validator("relative_path")
     @classmethod
     def _validate_path(cls, value: str) -> str:
         return _validate_relative_path(value, pattern=False)
+
+    @model_validator(mode="after")
+    def _validate_content_fingerprint(self) -> Self:
+        if self.container is ArtifactContainer.FILE and self.content_fingerprint is None:
+            raise ValueError(
+                "file tree entries require a content fingerprint; "
+                "legacy manifests without fingerprints cannot be verified"
+            )
+        if self.container is ArtifactContainer.DIRECTORY and self.content_fingerprint is not None:
+            raise ValueError("directory tree entries cannot contain a content fingerprint")
+        return self
 
 
 class CollectedArtifact(_StrictFrozenModel):
@@ -254,6 +281,8 @@ class CollectedArtifact(_StrictFrozenModel):
     identity: ObjectIdentity
     root_identity: ObjectIdentity
     entries: tuple[CollectedTreeEntry, ...] = ()
+    content_fingerprint: str | None = None
+    directory_monitoring_scope: _DirectoryMonitoringScope | None = None
 
     @field_validator("relative_path")
     @classmethod
@@ -264,6 +293,20 @@ class CollectedArtifact(_StrictFrozenModel):
     def _validate_entries(self) -> Self:
         if self.container is ArtifactContainer.FILE and self.entries:
             raise ValueError("file artifacts cannot contain directory entries")
+        if self.container is ArtifactContainer.FILE and self.content_fingerprint is None:
+            raise ValueError(
+                "file artifacts require a content fingerprint; "
+                "legacy manifests without fingerprints cannot be verified"
+            )
+        if self.container is ArtifactContainer.DIRECTORY and self.content_fingerprint is not None:
+            raise ValueError("directory artifacts cannot contain a content fingerprint")
+        if self.container is ArtifactContainer.FILE and self.directory_monitoring_scope is not None:
+            raise ValueError("file artifacts cannot contain a directory monitoring scope")
+        if self.container is ArtifactContainer.DIRECTORY and self.directory_monitoring_scope is None:
+            raise ValueError(
+                "directory artifacts require a monitoring scope; "
+                "legacy manifests without monitoring evidence cannot be verified"
+            )
         paths = tuple(entry.relative_path for entry in self.entries)
         if paths != tuple(sorted(paths)) or len(paths) != len(set(paths)):
             raise ValueError("directory entries must be unique and canonically ordered")
@@ -289,7 +332,16 @@ class CollectedArtifact(_StrictFrozenModel):
                 )
             except (OSError, OutputCollectionError) as error:
                 raise OutputIdentityError(f"output path '{self.relative_path}' changed") from error
-            if captured is None or captured.identity != self.identity or captured.entries != self.entries:
+            if (
+                captured is None
+                or captured.identity != self.identity
+                or captured.entries != self.entries
+                or captured.content_fingerprint != self.content_fingerprint
+                or (
+                    self.directory_monitoring_scope == "linux-inotify"
+                    and captured.directory_monitoring_scope != "linux-inotify"
+                )
+            ):
                 raise OutputIdentityError(f"output path '{self.relative_path}' changed")
         finally:
             if captured is not None:
@@ -298,6 +350,14 @@ class CollectedArtifact(_StrictFrozenModel):
 
     @contextmanager
     def open_verified(self, root: str | os.PathLike[str]) -> Iterator[BinaryIO]:
+        """Open after verification and repeat verification after normal context exit.
+
+        This does not lock the file or make the yielded stream immutable. A writer
+        that changes bytes, lets the caller consume them, and restores the original
+        bytes and metadata before normal exit can evade the post-check. If the caller
+        raises, its exception is preserved rather than replaced by a verification error.
+        """
+
         type(self).model_validate(self)
         if self.container is not ArtifactContainer.FILE:
             raise OutputIdentityError(f"output path '{self.relative_path}' is not a regular file")
@@ -318,7 +378,11 @@ class CollectedArtifact(_StrictFrozenModel):
                 )
             except (OSError, OutputCollectionError) as error:
                 raise OutputIdentityError(f"output path '{self.relative_path}' changed") from error
-            if captured is None or captured.identity != self.identity:
+            if (
+                captured is None
+                or captured.identity != self.identity
+                or captured.content_fingerprint != self.content_fingerprint
+            ):
                 raise OutputIdentityError(f"output path '{self.relative_path}' changed")
             opened = cast(BinaryIO, os.fdopen(captured.fd, "rb", closefd=True))
             captured = None
@@ -328,6 +392,8 @@ class CollectedArtifact(_StrictFrozenModel):
             except (OSError, ValueError) as error:
                 raise OutputIdentityError(f"output path '{self.relative_path}' changed") from error
             if final_identity != self.identity:
+                raise OutputIdentityError(f"output path '{self.relative_path}' changed")
+            if _file_content_fingerprint(opened.fileno(), final_identity.size) != self.content_fingerprint:
                 raise OutputIdentityError(f"output path '{self.relative_path}' changed")
         except BaseException:
             primary_error = True
@@ -393,10 +459,21 @@ class CollectedOutput(_StrictFrozenModel):
 
 
 class CollectedOutputs(_StrictFrozenModel, Mapping[str, object]):
+    manifest_schema_version: int | None = None
     outputs: tuple[CollectedOutput, ...]
 
     @model_validator(mode="after")
     def _validate_ports(self) -> Self:
+        if self.manifest_schema_version is None:
+            raise ValueError(
+                "collected output manifest schema version is missing; "
+                "legacy manifests are unsupported"
+            )
+        if self.manifest_schema_version != COLLECTED_OUTPUTS_MANIFEST_SCHEMA_VERSION:
+            raise ValueError(
+                "unsupported collected output manifest schema version "
+                f"{self.manifest_schema_version!r}; expected {COLLECTED_OUTPUTS_MANIFEST_SCHEMA_VERSION}"
+            )
         seen: set[str] = set()
         for output in self.outputs:
             if output.port_id in seen:
@@ -427,7 +504,32 @@ class _CapturedObject:
     identity: ObjectIdentity
     entries: tuple[CollectedTreeEntry, ...]
     fd: int
+    content_fingerprint: str | None = None
+    directory_monitoring_scope: _DirectoryMonitoringScope | None = None
     created: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _DirectoryMutationWatch:
+    fd: int
+
+    def changed(self) -> bool:
+        try:
+            return bool(os.read(self.fd, 4096))
+        except BlockingIOError:
+            return False
+        except OSError:
+            return True
+
+    def close(self) -> None:
+        os.close(self.fd)
+
+
+@dataclass(frozen=True, slots=True)
+class _OpenedChild:
+    fd: int
+    stat_result: os.stat_result
+    mutation_watch: _DirectoryMutationWatch | None
 
 
 def _require_descriptor_primitives() -> None:
@@ -504,6 +606,57 @@ def _kind_name(mode: int) -> str:
     return "special file"
 
 
+def _file_content_fingerprint(fd: int, size: int) -> str:
+    """Hash the full descriptor contents with bounded memory and no offset change."""
+
+    digest = hashlib.sha256()
+    digest.update(size.to_bytes(16, "big"))
+    remaining = size
+    position = 0
+    while remaining:
+        chunk = cast(Any, os).pread(fd, min(65_536, remaining), position)
+        if not chunk:
+            break
+        digest.update(chunk)
+        position += len(chunk)
+        remaining -= len(chunk)
+    if remaining:
+        raise OSError(errno.EIO, "file changed while content fingerprint was read")
+    return f"sha256-full:{digest.hexdigest()}"
+
+
+def _watch_directory_mutations(fd: int) -> _DirectoryMutationWatch | None:
+    """Watch one open Linux directory for transient changes during its scan."""
+
+    if not sys.platform.startswith("linux"):
+        return None
+    watch_fd = -1
+    try:
+        library = ctypes.CDLL(None, use_errno=True)
+        init = library.inotify_init1
+        add_watch = library.inotify_add_watch
+        init.argtypes = (ctypes.c_int,)
+        init.restype = ctypes.c_int
+        add_watch.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32)
+        add_watch.restype = ctypes.c_int
+        ctypes.set_errno(0)
+        watch_fd = init(os.O_NONBLOCK | os.O_CLOEXEC)
+        if watch_fd < 0:
+            return None
+        descriptor_path = f"/proc/self/fd/{fd}".encode("ascii")
+        if add_watch(watch_fd, descriptor_path, _INOTIFY_MUTATION_MASK) < 0:
+            os.close(watch_fd)
+            return None
+        return _DirectoryMutationWatch(fd=watch_fd)
+    except (AttributeError, OSError, ValueError):
+        if watch_fd >= 0:
+            try:
+                os.close(watch_fd)
+            except OSError:
+                pass
+        return None
+
+
 def _stat_entry(parent_fd: int, name: str) -> os.stat_result | None:
     try:
         return os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
@@ -573,7 +726,7 @@ def _open_child(
     *,
     port_id: str,
     relative_path: str,
-) -> tuple[int, os.stat_result] | None:
+) -> _OpenedChild | None:
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     try:
         child_fd = os.open(name, flags, dir_fd=parent_fd)
@@ -593,7 +746,11 @@ def _open_child(
     except BaseException:
         os.close(child_fd)
         raise
-    return child_fd, child_stat
+    return _OpenedChild(
+        fd=child_fd,
+        stat_result=child_stat,
+        mutation_watch=_watch_directory_mutations(child_fd) if stat.S_ISDIR(child_stat.st_mode) else None,
+    )
 
 
 def _directory_names(
@@ -627,87 +784,123 @@ def _scan_directory_tree(
     relative_path: str,
     *,
     expected_identity: ObjectIdentity,
+    mutation_watch: _DirectoryMutationWatch | None,
     maximum_entries: int,
     port_id: str,
-) -> tuple[CollectedTreeEntry, ...]:
+) -> tuple[tuple[CollectedTreeEntry, ...], _DirectoryMonitoringScope]:
     collected: list[CollectedTreeEntry] = []
+    monitoring_scope: _DirectoryMonitoringScope = "linux-inotify"
 
     def visit(
         current_fd: int,
         prefix: str,
         depth: int,
         expected_identity: ObjectIdentity,
+        mutation_watch: _DirectoryMutationWatch | None,
     ) -> None:
+        nonlocal monitoring_scope
+        if mutation_watch is None:
+            monitoring_scope = "metadata-and-name-rescan"
         try:
-            identity_before = _identity_from_stat(os.fstat(current_fd))
-        except OSError as error:
-            raise _path_error(port_id, prefix, "directory changed before collection") from error
-        if identity_before != expected_identity:
-            raise _path_error(port_id, prefix, "directory changed before collection")
-        remaining = maximum_entries - len(collected)
-        names = _directory_names(
-            current_fd,
-            limit=remaining,
-            configured_limit=maximum_entries,
-            port_id=port_id,
-            relative_path=relative_path,
-        )
-        for name in names:
-            child_path = f"{prefix}/{name}"
             try:
-                _validate_relative_path(child_path, pattern=False)
-            except ValueError as error:
-                raise _path_error(port_id, child_path, "directory entry path exceeds safe bounds") from error
-            opened = _open_child(
+                identity_before = _identity_from_stat(os.fstat(current_fd))
+            except OSError as error:
+                raise _path_error(port_id, prefix, "directory changed before collection") from error
+            if identity_before != expected_identity or (mutation_watch is not None and mutation_watch.changed()):
+                raise _path_error(port_id, prefix, "directory changed before collection")
+            remaining = maximum_entries - len(collected)
+            names = _directory_names(
                 current_fd,
-                name,
+                limit=remaining,
+                configured_limit=maximum_entries,
                 port_id=port_id,
-                relative_path=child_path,
+                relative_path=relative_path,
             )
-            if opened is None:
-                raise _path_error(port_id, child_path, "changed during collection")
-            child_fd, child_stat = opened
-            try:
-                if stat.S_ISREG(child_stat.st_mode):
-                    container = ArtifactContainer.FILE
-                elif stat.S_ISDIR(child_stat.st_mode):
-                    container = ArtifactContainer.DIRECTORY
-                else:
-                    kind = _kind_name(child_stat.st_mode)
-                    raise _path_error(port_id, child_path, f"unsafe object kind: {kind}")
-                collected.append(
-                    CollectedTreeEntry(
-                        relative_path=child_path,
-                        container=container,
-                        identity=_identity_from_stat(child_stat),
-                    )
+            for name in names:
+                child_path = f"{prefix}/{name}"
+                try:
+                    _validate_relative_path(child_path, pattern=False)
+                except ValueError as error:
+                    raise _path_error(port_id, child_path, "directory entry path exceeds safe bounds") from error
+                opened = _open_child(
+                    current_fd,
+                    name,
+                    port_id=port_id,
+                    relative_path=child_path,
                 )
-                if len(collected) > maximum_entries:
-                    raise _path_error(
-                        port_id,
-                        relative_path,
-                        f"directory exceeds maximum of {maximum_entries} entries",
+                if opened is None:
+                    raise _path_error(port_id, child_path, "changed during collection")
+                child_fd = opened.fd
+                child_stat = opened.stat_result
+                child_watch = opened.mutation_watch
+                try:
+                    if stat.S_ISREG(child_stat.st_mode):
+                        container = ArtifactContainer.FILE
+                        child_fingerprint = _file_content_fingerprint(child_fd, child_stat.st_size)
+                        if _identity_from_stat(os.fstat(child_fd)) != _identity_from_stat(child_stat):
+                            raise _path_error(port_id, child_path, "changed during collection")
+                    elif stat.S_ISDIR(child_stat.st_mode):
+                        container = ArtifactContainer.DIRECTORY
+                        child_fingerprint = None
+                    else:
+                        kind = _kind_name(child_stat.st_mode)
+                        raise _path_error(port_id, child_path, f"unsafe object kind: {kind}")
+                    collected.append(
+                        CollectedTreeEntry(
+                            relative_path=child_path,
+                            container=container,
+                            identity=_identity_from_stat(child_stat),
+                            content_fingerprint=child_fingerprint,
+                        )
                     )
-                if container is ArtifactContainer.DIRECTORY:
-                    if depth >= _MAX_DIRECTORY_DEPTH:
-                        raise _path_error(port_id, child_path, "directory tree exceeds safe depth")
-                    visit(
-                        child_fd,
-                        child_path,
-                        depth + 1,
-                        _identity_from_stat(child_stat),
-                    )
-            finally:
-                os.close(child_fd)
-        try:
-            identity_after = _identity_from_stat(os.fstat(current_fd))
-        except OSError as error:
-            raise _path_error(port_id, prefix, "directory changed during collection") from error
-        if identity_after != identity_before:
-            raise _path_error(port_id, prefix, "directory changed during collection")
+                    if len(collected) > maximum_entries:
+                        raise _path_error(
+                            port_id,
+                            relative_path,
+                            f"directory exceeds maximum of {maximum_entries} entries",
+                        )
+                    if container is ArtifactContainer.DIRECTORY:
+                        if depth >= _MAX_DIRECTORY_DEPTH:
+                            raise _path_error(port_id, child_path, "directory tree exceeds safe depth")
+                        nested_watch = child_watch
+                        child_watch = None
+                        visit(
+                            child_fd,
+                            child_path,
+                            depth + 1,
+                            _identity_from_stat(child_stat),
+                            nested_watch,
+                        )
+                finally:
+                    if child_watch is not None:
+                        child_watch.close()
+                    os.close(child_fd)
+            try:
+                identity_after = _identity_from_stat(os.fstat(current_fd))
+            except OSError as error:
+                raise _path_error(port_id, prefix, "directory changed during collection") from error
+            names_after = _directory_names(
+                current_fd,
+                limit=len(names) + 1,
+                configured_limit=maximum_entries,
+                port_id=port_id,
+                relative_path=relative_path,
+            )
+            if (
+                identity_after != identity_before
+                or names_after != names
+                or (mutation_watch is not None and mutation_watch.changed())
+            ):
+                raise _path_error(port_id, prefix, "directory changed during collection")
+        finally:
+            if mutation_watch is not None:
+                mutation_watch.close()
 
-    visit(directory_fd, relative_path, 0, expected_identity)
-    return tuple(sorted(collected, key=lambda entry: entry.relative_path))
+    visit(directory_fd, relative_path, 0, expected_identity, mutation_watch)
+    return (
+        tuple(sorted(collected, key=lambda entry: entry.relative_path)),
+        monitoring_scope,
+    )
 
 
 def _open_existing_artifact(
@@ -733,7 +926,9 @@ def _open_existing_artifact(
         os.close(parent_fd)
     if opened is None:
         return None
-    artifact_fd, artifact_stat = opened
+    artifact_fd = opened.fd
+    artifact_stat = opened.stat_result
+    mutation_watch = opened.mutation_watch
     try:
         if container is ArtifactContainer.FILE:
             if not stat.S_ISREG(artifact_stat.st_mode):
@@ -744,6 +939,10 @@ def _open_existing_artifact(
                     f"expected a regular file, found {kind}",
                 )
             entries: tuple[CollectedTreeEntry, ...] = ()
+            content_fingerprint = _file_content_fingerprint(artifact_fd, artifact_stat.st_size)
+            directory_monitoring_scope = None
+            if _identity_from_stat(os.fstat(artifact_fd)) != _identity_from_stat(artifact_stat):
+                raise _path_error(port_id, relative_path, "changed during collection")
         else:
             if not stat.S_ISDIR(artifact_stat.st_mode):
                 kind = _kind_name(artifact_stat.st_mode)
@@ -752,21 +951,29 @@ def _open_existing_artifact(
                     relative_path,
                     f"expected a directory, found {kind}",
                 )
-            entries = _scan_directory_tree(
+            scan_watch = mutation_watch
+            mutation_watch = None
+            entries, directory_monitoring_scope = _scan_directory_tree(
                 artifact_fd,
                 relative_path,
                 expected_identity=_identity_from_stat(artifact_stat),
+                mutation_watch=scan_watch,
                 maximum_entries=directory_limit,
                 port_id=port_id,
             )
+            content_fingerprint = None
         return _CapturedObject(
             relative_path=relative_path,
             container=container,
             identity=_identity_from_stat(artifact_stat),
             entries=entries,
             fd=artifact_fd,
+            content_fingerprint=content_fingerprint,
+            directory_monitoring_scope=directory_monitoring_scope,
         )
     except BaseException:
+        if mutation_watch is not None:
+            mutation_watch.close()
         os.close(artifact_fd)
         raise
 
@@ -862,6 +1069,8 @@ def _collect_glob(
                                 for entry in artifact.entries
                             ),
                             fd=artifact.fd,
+                            content_fingerprint=artifact.content_fingerprint,
+                            directory_monitoring_scope=artifact.directory_monitoring_scope,
                         )
                     )
                 except BaseException:
@@ -883,7 +1092,8 @@ def _collect_glob(
             )
             if opened is None:
                 continue
-            child_fd, child_stat = opened
+            child_fd = opened.fd
+            child_stat = opened.stat_result
             try:
                 if stat.S_ISLNK(child_stat.st_mode):
                     raise _path_error(port_id, candidate, "unsafe object kind: symlink")
@@ -894,6 +1104,8 @@ def _collect_glob(
                     raise _path_error(port_id, candidate, f"expected a directory, found {kind}")
                 visit(child_fd, index + 1, candidate_parts)
             finally:
+                if opened.mutation_watch is not None:
+                    opened.mutation_watch.close()
                 os.close(child_fd)
 
     try:
@@ -947,6 +1159,7 @@ def _create_stdout_artifact(
             identity=identity,
             entries=(),
             fd=artifact_fd,
+            content_fingerprint=_file_content_fingerprint(artifact_fd, identity.size),
             created=True,
         )
     except BaseException:
@@ -1024,7 +1237,10 @@ def _publish_stdout_artifact(
     if verified is None:
         raise _path_error(port_id, artifact.relative_path, "published target changed")
     try:
-        if verified.identity != published_identity:
+        if (
+            verified.identity != published_identity
+            or verified.content_fingerprint != artifact.content_fingerprint
+        ):
             raise _path_error(port_id, artifact.relative_path, "published target changed")
     finally:
         os.close(verified.fd)
@@ -1034,6 +1250,8 @@ def _publish_stdout_artifact(
         identity=published_identity,
         entries=artifact.entries,
         fd=artifact.fd,
+        content_fingerprint=artifact.content_fingerprint,
+        directory_monitoring_scope=artifact.directory_monitoring_scope,
     )
 
 
@@ -1396,12 +1614,17 @@ def collect_outputs(
                             identity=artifact.identity,
                             root_identity=root_identity,
                             entries=artifact.entries,
+                            content_fingerprint=artifact.content_fingerprint,
+                            directory_monitoring_scope=artifact.directory_monitoring_scope,
                         )
                         for artifact in artifacts
                     ),
                 )
             )
-        return CollectedOutputs(outputs=tuple(collected_outputs))
+        return CollectedOutputs(
+            manifest_schema_version=COLLECTED_OUTPUTS_MANIFEST_SCHEMA_VERSION,
+            outputs=tuple(collected_outputs),
+        )
     except BaseException:
         for artifacts in all_captured:
             for artifact in artifacts:
@@ -1422,6 +1645,7 @@ def collect_outputs(
 
 
 __all__ = [
+    "COLLECTED_OUTPUTS_MANIFEST_SCHEMA_VERSION",
     "CollectedArtifact",
     "CollectedOutput",
     "CollectedOutputs",

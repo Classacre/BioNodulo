@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 
 // Full-fidelity round trip: render the shipped ROBUST Designer template to a
 // PNG thumbnail, embed the complete workflow JSON in its tEXt chunk, decode it
-// back, and assert the graph survives byte-for-byte. Also writes the official
-// template thumbnail artifact next to the JSON.
-test('robust designer thumbnail embeds and restores the workflow', async ({ page }) => {
+// back, and assert the graph survives byte-for-byte. Keep the rendered artifact
+// in the test output directory so running tests cannot overwrite shipped assets.
+test('robust designer thumbnail embeds and restores the workflow', async ({ page }, testInfo) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('button', { name: /Run workflow/ })).toBeVisible();
 
@@ -28,7 +28,7 @@ test('robust designer thumbnail embeds and restores the workflow', async ({ page
   expect(result.restored.edges.length).toBe(workflow.edges.length);
   expect(result.restored.outputs).toEqual(workflow.outputs);
 
-  const pngPath = templatePath.replace('robust_designer.json', 'robust_designer.png');
+  const pngPath = testInfo.outputPath('robust_designer.png');
   writeFileSync(pngPath, Buffer.from(result.bytes));
   console.log('thumbnail written:', pngPath);
 });

@@ -29,6 +29,67 @@ function workflowStatusLabel(t: (key: string) => string, status: unknown): strin
   }
 }
 
+function reconcileRunSnapshot(
+  runId: string,
+  finalStatus: RunRecord['status'],
+  timestamp: string,
+  updateRun: (runId: string, partial: Partial<RunRecord>) => void,
+): void {
+  // Terminal queue events can overtake individual node events. The persisted
+  // run is authoritative, including detailed node_results on servers whose
+  // top-level progress snapshot is incomplete.
+  apiGet<Record<string, unknown>>(`/api/runs/${runId}`)
+    .then(runData => {
+      if (!runData) return;
+      const result = runData.result as Record<string, unknown> | undefined;
+      const progress: Partial<RunRecord> = { status: finalStatus, end_time: timestamp };
+      const nodeStatuses = new Map<string, NodeStatus>();
+      if (Array.isArray(runData.node_statuses)) {
+        for (const node of runData.node_statuses as NodeStatus[]) nodeStatuses.set(node.node_id, node);
+      }
+      // Older servers omitted failures and cache hits from the top-level
+      // summary. Detailed results override it when both sources name a node.
+      if (result?.node_results && typeof result.node_results === 'object') {
+        for (const [nodeId, raw] of Object.entries(result.node_results)) {
+          if (!raw || typeof raw !== 'object') continue;
+          const node = raw as Record<string, unknown>;
+          const status = node.status === 'failed' ? 'error' : node.status;
+          if (typeof status !== 'string' || !['pending', 'running', 'cached', 'completed', 'error', 'skipped'].includes(status)) continue;
+          nodeStatuses.set(nodeId, {
+            ...nodeStatuses.get(nodeId), node_id: nodeId, status: status as NodeStatus['status'],
+            ...(typeof node.error === 'string' ? { error: node.error } : {}),
+          });
+        }
+      }
+      if (Array.isArray(runData.node_statuses) || nodeStatuses.size > 0) progress.node_statuses = [...nodeStatuses.values()];
+      if (Array.isArray(runData.execution_plan)) {
+        progress.execution_plan = [...new Set([...runData.execution_plan as string[], ...nodeStatuses.keys()])];
+      } else if (nodeStatuses.size > 0) {
+        progress.execution_plan = [...nodeStatuses.keys()];
+      }
+      updateRun(runId, progress);
+      if (!result) return;
+      const previews: Record<string, string> = {};
+      const previewList = result.previews as Array<{ node_id?: string; path?: string }> | undefined;
+      if (previewList) {
+        for (const preview of previewList) {
+          if (preview.node_id && preview.path) previews[preview.node_id] = preview.path;
+        }
+      }
+      const artifacts: Record<string, string> = {};
+      const artifactList = result.artifacts as Array<{ node_id?: string; path?: string }> | undefined;
+      if (artifactList) {
+        for (const artifact of artifactList) {
+          if (artifact.node_id && artifact.path) artifacts[artifact.node_id] = artifact.path;
+        }
+      }
+      updateRun(runId, { previews, artifacts });
+    })
+    .catch(() => {
+      /* Run details are best-effort; immediate terminal state remains valid. */
+    });
+}
+
 export interface UseWorkflowMessagesArgs {
   onMessage: (handler: (msg: unknown) => void) => () => void;
   addLog: (entry: LogEntry) => void;
@@ -308,35 +369,7 @@ export function useWorkflowMessages({
             }),
           });
         }
-        // Fetch full run details to populate previews/artifacts
-        apiGet<Record<string, unknown>>(`/api/runs/${finishedRunId}`)
-          .then(runData => {
-            if (!runData) return;
-            const result = runData.result as Record<string, unknown> | undefined;
-            if (!result) return;
-            const previews: Record<string, string> = {};
-            const previewList = result.previews as
-              | Array<{ node_id?: string; path?: string }>
-              | undefined;
-            if (previewList) {
-              for (const p of previewList) {
-                if (p.node_id && p.path) previews[p.node_id] = p.path;
-              }
-            }
-            const artifacts: Record<string, string> = {};
-            const artifactList = result.artifacts as
-              | Array<{ node_id?: string; path?: string }>
-              | undefined;
-            if (artifactList) {
-              for (const a of artifactList) {
-                if (a.node_id && a.path) artifacts[a.node_id] = a.path;
-              }
-            }
-            updateRun(finishedRunId, { previews, artifacts });
-          })
-          .catch(() => {
-            /* ignore — run details are best-effort */
-          });
+        reconcileRunSnapshot(finishedRunId, finalStatus, ts, updateRun);
       } else if (data.type === 'queue_error') {
         addLog({
           run_id: String(payload.run_id),
@@ -369,6 +402,9 @@ export function useWorkflowMessages({
             return { ...run, node_statuses: promoted };
           }),
         );
+        // The sweep above is only a temporary fallback. Restore completed
+        // upstream nodes and the exact failed node from persisted run details.
+        reconcileRunSnapshot(erroredRunId, 'error', ts, updateRun);
       } else if (data.type === 'queue_interrupt') {
         addLog({
           run_id: String(payload.run_id),

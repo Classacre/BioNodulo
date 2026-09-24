@@ -4,7 +4,7 @@ import type { Workflow } from '../../types';
 import { saveToFile } from '../../utils';
 import { embedWorkflowInPngDataUrl } from '../../utils/pngMetadata';
 import { renderWorkflowThumbnailPng } from '../../utils/workflowThumbnail';
-import { apiPost } from '../../api/client';
+import { apiPost, ApiError } from '../../api/client';
 import { logError } from '../../state/logging';
 import Dialog from '../ui/Dialog';
 
@@ -40,6 +40,14 @@ function triggerDownload(blob: Blob, filename: string) {
   link.click();
   document.body.removeChild(link);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.body && typeof error.body === 'object') {
+    const detail = (error.body as { detail?: unknown }).detail;
+    if (typeof detail === 'string' && detail.trim()) return detail;
+  }
+  return error instanceof Error ? error.message : String(error);
 }
 
 export default function ExportModal({ workflow, onClose }: ExportModalProps) {
@@ -93,7 +101,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
       }
     } catch (err) {
       logError('exportModal.generate', err);
-      setError(format === 'png' && !pngJsonOnly ? thumbnailRenderError() : err instanceof Error ? err.message : String(err));
+      setError(format === 'png' && !pngJsonOnly ? thumbnailRenderError() : exportErrorMessage(err));
       setContent('');
       setPngPreview(null);
     }
@@ -148,7 +156,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
       } catch (err) {
         if (!cancelled) {
           logError('exportModal.generate', err);
-          setError(err instanceof Error ? err.message : String(err));
+          setError(exportErrorMessage(err));
           setContent('');
         }
       } finally {

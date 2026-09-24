@@ -39,6 +39,17 @@ def _get_run_queue(request: Request) -> Any:
 
 
 def _llm_runtime_settings(request: Request, body: AIChatRequest) -> tuple[str, str | None, str | None, str | None, float, int]:
+    if app_state(request).cloud_settings.editor_mode:
+        # The website supplies the authenticated caller's token separately from
+        # AWS SigV4 Authorization. Never use shared settings/provider secrets or
+        # caller-selected model endpoints in this multi-tenant process.
+        token = bearer_from_headers({
+            "authorization": request.headers.get("x-bionodulo-authorization", ""),
+        })
+        if not token or not is_hosted_enabled():
+            raise HTTPException(status_code=401, detail=hosted_unavailable_reason())
+        return HOSTED_PROVIDER, HOSTED_MODEL, token, hosted_api_base(), 0.2, 4096
+
     provider = str(body.provider or setting_literal(request, "bionodulo.llm.provider", "openai") or "openai")
     model_value = body.model or setting_literal(request, "bionodulo.llm.model", None)
     model = str(model_value) if model_value else None

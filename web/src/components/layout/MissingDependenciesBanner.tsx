@@ -34,6 +34,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
   }, [install, workflow, onOpenConsole, onResolve]);
 
   const summary = report.summary || t('resolveReport.missingCount', { count: totalMissing });
+  const canInstallEnvironment = !report.env_ready && report.installable;
 
   return (
     <div className="dep-banner">
@@ -50,7 +51,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
           )}
         </span>
         <div className="dep-banner-actions">
-          {!report.env_ready && (
+          {canInstallEnvironment && (
             <button className="btn btn-primary btn-sm" onClick={startInstall} disabled={installing}>
               {installing ? <><Icon name="spinner" size={12} /> {t('resolveReport.installing')}</> : <><Icon name="download" size={12} /> {t('resolveReport.installEnv')}</>}
             </button>
@@ -66,6 +67,16 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
           </button>
         </div>
       </div>
+
+      {!report.installable && report.errors.length > 0 && (
+        <div className="dep-banner-details" role="alert" style={{ borderTop: '1px solid var(--border)' }}>
+          <ul>
+            {report.errors.map((error, index) => (
+              <li key={index} className="dep-banner-error">{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {installing && jobStatus && (
         <div className="dep-banner-details" style={{ borderTop: '1px solid var(--border)' }}>
@@ -131,7 +142,7 @@ export default function MissingDependenciesBanner({ report, workflow, onDismiss,
             </div>
           )}
 
-          {report.errors.length > 0 && (
+          {report.installable && report.errors.length > 0 && (
             <div className="dep-banner-section">
               <h4>{t('resolveReport.errors')}</h4>
               <ul>

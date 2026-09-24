@@ -7,7 +7,14 @@
 import { memo, useContext, useEffect, useState } from 'react';
 import { Handle, Position, useNodeConnections } from '@xyflow/react';
 import type { InputSpec, NodeMetadata } from '../../types';
-import { getInteractiveWidgetEntries, isColorParam, toHexColor } from '../../utils/nodeLayout';
+import {
+  formatJsonWidgetValue,
+  getInteractiveWidgetEntries,
+  isColorParam,
+  parseJsonWidgetValue,
+  parseNumericWidgetValue,
+  toHexColor,
+} from '../../utils/nodeLayout';
 import { BioNodeActionsContext } from './bioNodeActions';
 
 // Input dot beside a promoted widget: a native target <Handle> (id = param key)
@@ -30,6 +37,7 @@ interface WidgetRowProps {
   pKey: string;
   spec: InputSpec;
   value: unknown;
+  optional: boolean;
   onSet: (id: string, key: string, value: unknown, history?: boolean) => void;
 }
 
@@ -38,7 +46,7 @@ interface WidgetRowProps {
 // the node's params only on blur / pointer-up. Discrete inputs (checkbox/select)
 // commit immediately. This is React Flow's interactive-node pattern (local state
 // + commit) and keeps large graphs responsive.
-function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
+function WidgetRow({ nodeId, pKey, spec, value, optional, onSet }: WidgetRowProps) {
   const label = spec.label || pKey;
   const external = value ?? spec.default;
   const [local, setLocal] = useState<unknown>(external);
@@ -47,6 +55,19 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
 
   // Boolean -> toggle checkbox (commit immediately).
   if (spec.type === 'BOOLEAN') {
+    if (optional && spec.default == null) {
+      return (
+        <label className="bio-widget nodrag nopan" title={spec.tooltip || label}>
+          <span className="bio-widget-label">{label}</span>
+          <select value={external == null ? '' : String(external)}
+            onChange={e => onSet(nodeId, pKey, e.target.value === '' ? undefined : e.target.value === 'true', true)}>
+            <option value="">Use tool default</option>
+            <option value="true">True</option>
+            <option value="false">False</option>
+          </select>
+        </label>
+      );
+    }
     return (
       <label className="bio-widget bio-widget-bool nodrag nopan" title={spec.tooltip || label}>
         <span className="bio-widget-label">{label}</span>
@@ -67,8 +88,9 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
         <select
           className="nodrag nopan"
           value={String(external ?? '')}
-          onChange={(e) => onSet(nodeId, pKey, e.target.value, true)}
+          onChange={(e) => onSet(nodeId, pKey, e.target.value === '' && !spec.options?.includes('') ? undefined : e.target.value, true)}
         >
+          {!spec.options.includes('') && <option value="">{optional ? 'Use tool default' : 'Choose a value'}</option>}
           {spec.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
         </select>
       </label>
@@ -78,10 +100,10 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
   // Numeric -> slider (when display:'slider' with bounds) or number input.
   if (spec.type === 'INT' || spec.type === 'FLOAT') {
     const step = spec.step ?? (spec.type === 'INT' ? 1 : 0.1);
-    const num = typeof local === 'number' ? local : Number(local ?? 0);
+    const num = local == null || local === '' ? NaN : Number(local);
     const shown = Number.isFinite(num) ? num : (spec.min ?? 0);
-    const coerce = (v: string) => (spec.type === 'INT' ? Math.round(Number(v)) : Number(v));
-    if (spec.display === 'slider' && typeof spec.min === 'number' && typeof spec.max === 'number') {
+    const coerce = (v: string) => parseNumericWidgetValue(v, spec.type);
+    if (spec.display === 'slider' && (!optional || typeof spec.default === 'number') && typeof spec.min === 'number' && typeof spec.max === 'number') {
       return (
         <label className="bio-widget bio-widget-slider nodrag nopan" title={spec.tooltip || label}>
           <span className="bio-widget-label">{label}</span>
@@ -109,8 +131,32 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
           max={spec.max}
           step={step}
           value={Number.isFinite(num) ? num : ''}
+          placeholder={optional ? 'Use tool default' : undefined}
           onChange={(e) => setLocal(coerce(e.target.value))}
           onBlur={(e) => onSet(nodeId, pKey, coerce(e.target.value), true)}
+        />
+      </label>
+    );
+  }
+
+  if (spec.type === 'JSON') {
+    const text = formatJsonWidgetValue(local);
+    return (
+      <label className="bio-widget nodrag nopan" title={spec.tooltip || spec.description || label}>
+        <span className="bio-widget-label">{label}</span>
+        <textarea
+          className="nodrag nopan"
+          value={text}
+          onChange={(e) => setLocal(e.target.value)}
+          onBlur={(e) => {
+            try {
+              onSet(nodeId, pKey, optional && !e.target.value.trim() ? undefined : parseJsonWidgetValue(e.target.value), true);
+              e.target.setCustomValidity('');
+            } catch {
+              e.target.setCustomValidity('Enter valid JSON.');
+              e.target.reportValidity();
+            }
+          }}
         />
       </label>
     );
@@ -134,14 +180,14 @@ function WidgetRow({ nodeId, pKey, spec, value, onSet }: WidgetRowProps) {
 
   // String -> text input (commit on blur).
   return (
-    <label className="bio-widget nodrag nopan" title={spec.tooltip || label}>
+    <label className="bio-widget nodrag nopan" title={spec.tooltip || spec.description || label}>
       <span className="bio-widget-label">{label}</span>
       <input
         type="text"
         className="nodrag nopan"
         value={String(local ?? '')}
         onChange={(e) => setLocal(e.target.value)}
-        onBlur={(e) => onSet(nodeId, pKey, e.target.value, true)}
+        onBlur={(e) => onSet(nodeId, pKey, optional && spec.default !== '' && e.target.value === '' ? undefined : e.target.value, true)}
       />
     </label>
   );
@@ -165,7 +211,8 @@ function NodeWidgetsComponent({ nodeId, meta, params, promoted }: {
         return (
           <div className={`bio-widget-wrap ${isPromoted ? 'has-input' : ''}`} key={key}>
             {isPromoted && <WidgetHandle pKey={key} />}
-            <WidgetRow nodeId={nodeId} pKey={key} spec={spec} value={params[key]} onSet={actions.setParam} />
+            <WidgetRow nodeId={nodeId} pKey={key} spec={spec} value={params[key]}
+              optional={Object.prototype.hasOwnProperty.call(meta?.input_types?.optional || {}, key)} onSet={actions.setParam} />
           </div>
         );
       })}
