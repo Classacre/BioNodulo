@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import BiotoolsRegistryPanel from '../components/panels/BiotoolsRegistryPanel';
 import type { ObjectInfo } from '../types';
@@ -7,70 +7,90 @@ import '../i18n';
 const objectInfo: ObjectInfo = { fastqc: { id: 'fastqc', display_name: 'FastQC', category: 'QC',
   description: 'Read QC', input_types: { required: {} }, return_types: [] } };
 
-function tools() {
-  return Array.from({ length: 42 }, (_, index) => ({ id: `tool${index}`, name: `Tool ${index}`,
+function entries() {
+  return Array.from({ length: 42 }, (_, index) => ({
+    node_id: `biotools_${index}`, accession: `tool${index}`, name: `Tool ${index}`,
     description: index === 41 ? 'CRISPR assay discovery' : 'Sequence analysis',
-    types: ['Command-line tool'], topics: [], nodes: index === 0 ? ['fastqc'] : [] }));
+    tool_types: ['Command-line tool'], topics: [], operations: [],
+    execution_status: 'definition_only', blockers: ['No verified execution binding'],
+    reference_url: `https://bio.tools/tool${index}`,
+    linked_node_ids: index === 0 ? ['fastqc'] : [], runnable_node_ids: [],
+  }));
 }
 
-function setup(records = tools(), reported = records.length, catalog = objectInfo) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({
-    records: reported, updated_at: '2026-09-19T00:00:00Z', tools: records,
-  }) }));
-  const onAddNode = vi.fn();
-  const onBack = vi.fn();
-  render(<BiotoolsRegistryPanel objectInfo={catalog} onAddNode={onAddNode} onBack={onBack} onClose={vi.fn()} />);
-  return { onAddNode, onBack };
-}
-
-afterEach(() => vi.unstubAllGlobals());
-
-describe('complete bio.tools discovery', () => {
-  it('links a generated node by exact accession without a curated snapshot link', async () => {
-    const generated = { ...objectInfo.fastqc, id: 'auto_unknown_123', display_name: 'Generated QC',
-      declarative_runtime: { kind: 'cwl_reference_command_line_tool', biotools_accession: 'FASTQC', verification: 'unverified' } };
-    const { onAddNode } = setup([{ id: 'fastqc', name: 'FastQC', description: 'Read QC', types: [], topics: [], nodes: [] }], 1,
-      { auto_unknown_123: generated });
-    fireEvent.click(await screen.findByRole('button', { name: 'Add Generated QC' }));
-    expect(onAddNode).toHaveBeenCalledWith(generated);
-    expect(screen.queryByText('Metadata only · no linked app node')).not.toBeInTheDocument();
+function setup(records = entries(), catalog = objectInfo) {
+  const requests: URL[] = [];
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), 'http://localhost');
+    requests.push(url);
+    const query = (url.searchParams.get('q') ?? '').toLowerCase();
+    const offset = Number(url.searchParams.get('offset') ?? 0);
+    const limit = Number(url.searchParams.get('limit') ?? 40);
+    const matching = records.filter(record =>
+      `${record.accession} ${record.name} ${record.description}`.toLowerCase().includes(query));
+    return { ok: true, json: async () => ({
+      schema_version: 1, total: records.length, matched_count: matching.length, offset, limit,
+      snapshot: { records: records.length, sha256: 'test-digest', updated_at: '2026-09-24T00:00:00Z' },
+      entries: matching.slice(offset, offset + limit),
+    }) };
   });
+  vi.stubGlobal('fetch', fetchMock);
+  const onAddNode = vi.fn();
+  const onAddGeneratedNode = vi.fn(async () => {});
+  const onBack = vi.fn();
+  render(<BiotoolsRegistryPanel objectInfo={catalog} onAddNode={onAddNode}
+    onAddGeneratedNode={onAddGeneratedNode} onBack={onBack} onClose={vi.fn()} />);
+  return { onAddNode, onAddGeneratedNode, onBack, requests, fetchMock };
+}
 
-  it('searches beyond the first page and never offers metadata as an executable node', async () => {
-    setup();
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+describe('bio.tools generated toolbox definitions', () => {
+  it('adds every registry record through its stable generated node ID without claiming execution', async () => {
+    const { onAddNode, onAddGeneratedNode } = setup();
     await screen.findByText(/42 matches/);
     expect(screen.getAllByRole('article')).toHaveLength(40);
-    expect(screen.queryByRole('link', { name: 'Tool 41' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Execution unavailable for this generated definition')).toHaveLength(40);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add reference node' })[1]);
+    await waitFor(() => expect(onAddGeneratedNode).toHaveBeenCalledWith('biotools_1'));
+    expect(onAddNode).not.toHaveBeenCalled();
+  });
+
+  it('offers exact linked app nodes separately from reference definitions', async () => {
+    const { onAddNode, onAddGeneratedNode } = setup();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add FastQC' }));
+    expect(onAddNode).toHaveBeenCalledWith(objectInfo.fastqc);
+    expect(onAddGeneratedNode).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('button', { name: 'Add reference node' })).toHaveLength(40);
+  });
+
+  it('searches the full catalog on the server and paginates without loading all metadata', async () => {
+    const { requests, onBack } = setup();
+    await screen.findByText(/42 matches/);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(2));
+    expect(requests.at(-1)?.searchParams.get('offset')).toBe('40');
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'CRISPR' } });
     await screen.findByRole('link', { name: 'Tool 41' });
     expect(screen.getAllByRole('article')).toHaveLength(1);
-    expect(screen.getByText('Metadata only · no linked app node')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Add / })).not.toBeInTheDocument();
-  });
-
-  it('paginates and adds only linked definitions already present in the app catalog', async () => {
-    const { onAddNode, onBack } = setup();
-    fireEvent.click(await screen.findByRole('button', { name: 'Add FastQC' }));
-    expect(onAddNode).toHaveBeenCalledWith(objectInfo.fastqc);
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    expect(screen.getAllByRole('article')).toHaveLength(2);
+    expect(requests.at(-1)?.searchParams.get('q')).toBe('CRISPR');
+    expect(requests.at(-1)?.searchParams.get('offset')).toBe('0');
     fireEvent.click(screen.getByRole('button', { name: 'Back to nodes' }));
     expect(onBack).toHaveBeenCalledOnce();
   });
 
-  it('rejects an incomplete snapshot instead of presenting partial coverage', async () => {
-    setup(tools(), 500);
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('snapshot is unavailable'));
+  it('reports API and add failures while keeping the reference action available', async () => {
+    const { fetchMock, onAddGeneratedNode } = setup();
+    await screen.findByText(/42 matches/);
+    onAddGeneratedNode.mockRejectedValueOnce(new Error('metadata unavailable'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add reference node' })[0]);
+    await screen.findByRole('alert');
+    expect(screen.getByRole('alert')).toHaveTextContent('metadata unavailable');
+    fetchMock.mockRejectedValueOnce(new Error('registry offline'));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Registry nodes are unavailable'));
     expect(screen.queryByRole('article')).not.toBeInTheDocument();
-  });
-
-  it('ranks an exact registry identity ahead of descriptive matches', async () => {
-    setup([
-      { id: 'another', name: 'Related tool', description: 'Uses FastQC', types: [], topics: [], nodes: [] },
-      { id: 'fastqc', name: 'FastQC', description: 'Read QC', types: [], topics: [], nodes: ['fastqc'] },
-    ]);
-    await screen.findByText(/2 matches/);
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'fastqc' } });
-    await waitFor(() => expect(screen.getAllByRole('article')[0]).toHaveTextContent('Add FastQC'));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.getAllByRole('article')).toHaveLength(2));
   });
 });

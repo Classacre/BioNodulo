@@ -288,7 +288,7 @@ def bind_registry_definition(definition: dict[str, Any]) -> type[BaseNode]:
     })
 
 
-def registry_execution_blockers(workflow: dict[str, Any], registry: Any) -> list[str]:
+def registry_execution_blockers(workflow: dict[str, Any], registry: Any = None) -> list[str]:
     """Definitions cannot execute, even with forged client flags or missing catalog.
 
     Executable adapters use their own contract-derived IDs. No custom class may

@@ -723,7 +723,7 @@ async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]
     _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
     from bionodulo.nodes.registry_catalog import registry_execution_blockers
 
-    blockers = registry_execution_blockers(body.workflow, _get_registry(request))
+    blockers = registry_execution_blockers(body.workflow)
     if blockers:
         raise HTTPException(status_code=400, detail={
             "message": "Generated registry definitions require an executable binding before running",
@@ -3085,7 +3085,7 @@ async def hpc_submit(request: Request, body: HPCSubmitRequest) -> dict[str, Any]
     _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
     from bionodulo.nodes.registry_catalog import registry_execution_blockers
 
-    blockers = registry_execution_blockers(body.workflow, _get_registry(request))
+    blockers = registry_execution_blockers(body.workflow)
     if blockers:
         raise HTTPException(status_code=400, detail={
             "message": "Generated registry definitions require an executable binding before running",

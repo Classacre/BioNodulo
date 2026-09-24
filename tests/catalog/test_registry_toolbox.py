@@ -89,6 +89,20 @@ def test_search_pagination_unicode_and_literal_wildcards(catalog):
             reader.search(**kwargs)
 
 
+def test_search_ranks_exact_accession_and_name_before_partial_matches(tmp_path):
+    records = [
+        {"biotoolsID": "partial", "name": "A partial Needle match"},
+        {"biotoolsID": "Needle", "name": "Z exact accession"},
+        {"biotoolsID": "exact-name", "name": "Needle"},
+    ]
+    source, manifest = _snapshot(tmp_path, records)
+    path = tmp_path / "ranking.sqlite"
+    generate_catalog(source, manifest, path)
+    result = RegistryCatalog(path).search("NEEDLE", limit=2)
+    assert result["matched_count"] == 3
+    assert {entry["accession"] for entry in result["entries"]} == {"Needle", "exact-name"}
+
+
 def test_generation_atomic_on_bad_digest_duplicate_and_count(catalog, tmp_path):
     reader, records, source, manifest = catalog
     previous = reader.path.read_bytes()
