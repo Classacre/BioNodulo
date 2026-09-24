@@ -1,0 +1,12 @@
+{
+  "cwltool": "/opt/bionodulo-phd/venv/bin/cwltool",
+  "cwltool_sha256": "sha256:0f17688e337b77101e86737473f1bfd803d020fc7bd16d3cbb8bab7bb411947e",
+  "cwltool_version": "3.2.20260720092025",
+  "docker": "/usr/bin/docker",
+  "docker_sha256": "sha256:7ed12b00293d64742419a6601ae97960a367a0ce97c88b06e3278cc0a409557b",
+  "nodejs": "/usr/bin/node",
+  "nodejs_sha256": "sha256:f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d",
+  "nodejs_version": "v18.19.1",
+  "max_cores": 2,
+  "max_ram_mib": 2048
+}

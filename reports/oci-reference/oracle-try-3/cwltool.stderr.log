@@ -1,0 +1,26 @@
+INFO /opt/bionodulo-phd/venv/bin/cwltool 3.2.20260720092025
+INFO Resolved '/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/tool.oci.cwl' to 'file:///mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/tool.oci.cwl'
+INFO [job tool.oci.cwl] /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/engine-tmp/out-_z1wzt3k$ docker \
+    run \
+    -i \
+    --mount=type=bind,source=/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/engine-tmp/out-_z1wzt3k,target=/tNMelO \
+    --mount=type=bind,source=/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/engine-tmp/tmp-f6caqbi1,target=/tmp \
+    --mount=type=bind,source=/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/tiny.fa,target=/var/lib/cwl/stgd7ad0775-5249-493f-8704-619c974870e2/tiny.fa,readonly \
+    --workdir=/tNMelO \
+    --read-only=true \
+    --net=none \
+    --log-driver=none \
+    --user=0:0 \
+    --rm \
+    --cidfile=/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/container-ids/20260924160706-681006.cid \
+    --env=TMPDIR=/tmp \
+    --env=HOME=/tNMelO \
+    --memory=1024m \
+    --cpus=1 \
+    registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73 \
+    faToTwoBit \
+    /var/lib/cwl/stgd7ad0775-5249-493f-8704-619c974870e2/tiny.fa \
+    tiny.2bit > /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/engine-tmp/out-_z1wzt3k/fa_to_twobit_stdout.log 2> /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/oracle-try-3/engine-tmp/out-_z1wzt3k/fa_to_twobit_stderr.log
+INFO [job tool.oci.cwl] completed success
+INFO Final process status is success
+Error response from daemon: cannot kill container: 123fac025564d0c6cce68fd45e43b59550a9def9359ca170e20365c35bd5c606: No such container: 123fac025564d0c6cce68fd45e43b59550a9def9359ca170e20365c35bd5c606

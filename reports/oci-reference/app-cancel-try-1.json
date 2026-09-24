@@ -1,0 +1,67 @@
+{
+  "run_id": "Cancel_OCI_sleep_audit_20260924_075349_a0a044",
+  "container_id": "3c42cbed9c4c5d9440857475d3e0c8a1ffc4561680afbd46803cb070c1dfc40a",
+  "attempt_label": "71800ece36ebbe3f64552f39f2ae172e",
+  "cancelled": {
+    "run_id": "Cancel_OCI_sleep_audit_20260924_075349_a0a044",
+    "status": "cancelled"
+  },
+  "run": {
+    "run_id": "Cancel_OCI_sleep_audit_20260924_075349_a0a044",
+    "status": "cancelled",
+    "workflow_name": "Untitled",
+    "created_at": 1790236429.1213803,
+    "started_at": 1790236429.1331203,
+    "finished_at": null,
+    "execution_plan": [
+      "sleep"
+    ],
+    "node_statuses": [],
+    "event_count": 2,
+    "workflow": {
+      "name": "Cancel OCI sleep audit",
+      "nodes": [
+        {
+          "id": "sleep",
+          "type": "generated_oci_sleep_audit",
+          "params": {
+            "seconds": 90
+          }
+        }
+      ],
+      "edges": []
+    },
+    "result": null
+  },
+  "failure_receipt": {
+    "profile": "oci-reference",
+    "source_uri": "file:///mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/tests/fixtures/oci/long_sleep.cwl",
+    "source_sha256": "sha256:097c21a727643b5e05834af2b57d9f06fc81642767ea02ed5b737592958ecfde",
+    "image_platform": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+    "runtime": {
+      "cwltool_sha256": "sha256:0f17688e337b77101e86737473f1bfd803d020fc7bd16d3cbb8bab7bb411947e",
+      "cwltool_version": "3.2.20260720092025",
+      "docker_sha256": "sha256:7ed12b00293d64742419a6601ae97960a367a0ce97c88b06e3278cc0a409557b",
+      "docker_server_version": "29.1.3",
+      "docker_server_platform": "linux/amd64",
+      "nodejs_sha256": "sha256:f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d",
+      "nodejs_version": "v18.19.1",
+      "image_index": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+      "image_platform": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+      "source_sha256": "sha256:097c21a727643b5e05834af2b57d9f06fc81642767ea02ed5b737592958ecfde",
+      "resource_cap_cores": "2",
+      "resource_cap_ram_mib": "2048",
+      "source_request_cores_upper": "1",
+      "source_request_ram_mib_upper": "1024",
+      "docker_wrapper_sha256": "sha256:f2a556fa4a1906910c57aa98823a09ad6353dae341f1e4d0ac83566a306737ad",
+      "attempt_label": "71800ece36ebbe3f64552f39f2ae172e",
+      "effective_source_sha256": "sha256:bfe5309d60568fb5cb6703a85fe0fead35b2e387f7ed662291b0401bc33c1731"
+    },
+    "error_type": "CommandCancelledError",
+    "error": "Command cancelled: /opt/bionodulo-phd/venv/bin/cwltool --disable-pull --disable-color --custom-net none --strict-memory-limit --strict-cpu-limit --rm-container --cidfile-dir /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/container-ids --outdir /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/engine-output --tmpdir-prefix /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/engine-tmp/tmp- --tmp-outdir-prefix /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/engine-tmp/out- /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/tool.oci.cwl /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/job.json",
+    "cleanup_error": null,
+    "stderr_tail": "INFO /opt/bionodulo-phd/venv/bin/cwltool 3.2.20260720092025\nINFO Resolved '/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/tool.oci.cwl' to 'file:///mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/tool.oci.cwl'\nINFO [job tool.oci.cwl] /mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/engine-tmp/out-j8xbskke$ docker \\\n    run \\\n    -i \\\n    --mount=type=bind,source=/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/engine-tmp/out-j8xbskke,target=/icmaSy \\\n    --mount=type=bind,source=/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/engine-tmp/tmp-dg6u74zq,target=/tmp \\\n    --workdir=/icmaSy \\\n    --read-only=true \\\n    --net=none \\\n    --user=0:0 \\\n    --rm \\\n    --cidfile=/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/reports/oci-reference/app-cancel-workspace-try-1/test_queue_cancellation_remove0/app/runs/Cancel_OCI_sleep_audit_20260924_075349_a0a044/sleep/.cwl-oci-attempt-vkfgkqwi/container-ids/20260924155351-087052.cid \\\n    --env=TMPDIR=/tmp \\\n    --env=HOME=/icmaSy \\\n    --memory=1024m \\\n    --cpus=1 \\\n    registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73 \\\n    sleep \\\n    90\n",
+    "result_tail": "3c42cbed9c4c5d9440857475d3e0c8a1ffc4561680afbd46803cb070c1dfc40a\n"
+  },
+  "container_absent_after_cancel": true
+}

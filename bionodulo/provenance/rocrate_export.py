@@ -253,6 +253,18 @@ def build_run_crate(
             _BIONODULO_PREFIX + "executionStatus": status,
             "error": run_info.get("error"),
         }
+        oci_runs = metadata.get("cwl_oci", {})
+        oci_receipt = oci_runs.get(node_id) if isinstance(oci_runs, dict) else None
+        if isinstance(oci_receipt, dict):
+            for key in (
+                "source_uri", "source_sha256", "source_docker_pull", "image_index", "image_platform",
+                "cwltool_sha256", "docker_sha256", "nodejs_sha256", "docker_wrapper_sha256",
+                "effective_source_sha256", "environment_digest", "contract_digest",
+                "resource_cap_cores", "resource_cap_ram_mib",
+            ):
+                value = oci_receipt.get(key)
+                if isinstance(value, str):
+                    action_props[_BIONODULO_PREFIX + "oci" + key.title().replace("_", "")] = value
         checks = check_records.get(node_id)
         if checks:
             action_props[_BIONODULO_PREFIX + "hasContractCheck"] = [

@@ -52,10 +52,10 @@ REFERENCE_DIRECTORY_MAX_DEPTH = 64
 _MISSING = object()
 
 
-def _reference(spec: NodeSpec) -> CwlReferenceContract:
-    reference = spec.cwl_reference
+def _reference(spec: NodeSpec) -> Any:
+    reference = spec.cwl_reference or spec.cwl_oci
     if reference is None:
-        raise ValueError("CWL reference runtime requires NodeSpec.cwl_reference")
+        raise ValueError("CWL runtime requires a reference or OCI contract")
     return reference
 
 
@@ -294,6 +294,7 @@ async def _run_process(
     cwd: Path,
     context: object | None,
     env: dict[str, str] | None = None,
+    replace_env: bool = False,
     stdout_path: Path | None = None,
     stderr_path: Path | None = None,
     stdout_binary: bool = False,
@@ -306,6 +307,7 @@ async def _run_process(
         command,
         cwd=cwd,
         env=env,
+        replace_env=replace_env,
         stdout_path=stdout_path,
         stderr_path=stderr_path,
         emit=emit if callable(emit) else None,

@@ -133,6 +133,9 @@ class NodeRegistry:
         elif parsed.cwl_reference is not None:
             from bionodulo.nodes.cwl_reference_runtime import bind_cwl_reference_node as bind_node
             factory = "bionodulo.nodes.cwl_reference_runtime:CwlReferenceNode"
+        elif parsed.cwl_oci is not None:
+            from bionodulo.nodes.cwl_oci_runtime import bind_cwl_oci_node as bind_node
+            factory = "bionodulo.nodes.cwl_oci_runtime:CwlOciNode"
         else:
             raise ValueError("declarative catalog requires a CWL invocation")
         if parsed.execution_factory != factory:
@@ -743,6 +746,16 @@ def _to_node_info(
             "engine_version": reference.engine_version,
             "unfulfilled_hints": list(reference.unfulfilled_hints),
             "verification": "released" if contract.maturity and contract.maturity.released else "unverified",
+        }
+    elif contract is not None and getattr(contract, "cwl_oci", None) is not None:
+        reference = contract.cwl_oci
+        info["declarative_runtime"] = {
+            "kind": "cwl_oci_command_line_tool",
+            "contract_digest": contract.contract_digest(),
+            "source_uri": reference.source_uri,
+            "source_sha256": reference.source_sha256,
+            "image_platform": reference.image_platform,
+            "verification": "unverified",
         }
     return info
 
