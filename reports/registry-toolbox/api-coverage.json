@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "snapshot_sha256": "4bc2dff4e6f60b6098876977a3ea5228745d6891c316a7fe3fd3d830edadac13",
+  "api_records": 34248,
+  "api_pages": 343,
+  "duplicate_ids": 0,
+  "samples": [
+    {
+      "accession": "aurocch",
+      "node_id": "biotools_6ad52ac36a1d9a22ee47f2d2e5f454b8",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "WBCs-segmentation",
+      "node_id": "biotools_4ef47e58273d7c468fc940490f0378b1",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "bambus",
+      "node_id": "biotools_ca318883e539942653fd36d410f92ae1",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "biovalidator",
+      "node_id": "biotools_0e3fdcf35d53eb1fe0beb28366442544",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "caver_analyst",
+      "node_id": "biotools_8a3f83075965fcd85ad91ec573347c86",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "clinehelpr",
+      "node_id": "biotools_3768b1fe0575bd187ccbe6cf1741e92f",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "covid-19-scenarios",
+      "node_id": "biotools_4c244e8f6a0e2b3747ad05f3ba2c3e29",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "ddna",
+      "node_id": "biotools_999fd43e37cc43732303a37a9f7acf0b",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "dizyme",
+      "node_id": "biotools_45cd9ba4a8e8f0f82c771e720ecf3766",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "emma-cad",
+      "node_id": "biotools_684438d17aa10f404e9ebbdd6aa0c6de",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "fcchumon",
+      "node_id": "biotools_e453a5200081775e9098fceb6a6b6d62",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "gamut",
+      "node_id": "biotools_d0c971951b4c12445bbcb3a04debfe85",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "ginmapper",
+      "node_id": "biotools_7a2038c822b4dd7a1e889ccbcdf1ed51",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "hashseq",
+      "node_id": "biotools_bdc73e0e163ae48253993e8b84ce9aa6",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "icv",
+      "node_id": "biotools_a79bd60c06948c91a021f4c6a6ae096b",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "ismara",
+      "node_id": "biotools_ad610bde3377de569be7b48a7fcf0feb",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "liftofftools",
+      "node_id": "biotools_103eee102a2bc2a8015d3cdc38ab4e4e",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "mass-p",
+      "node_id": "biotools_93a8a9fd339b948f441151a21e2f699b",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "metradisc",
+      "node_id": "biotools_f23f126275177475db2d74842dbdd058",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "moma",
+      "node_id": "biotools_546f028dac5bbe1b967cdb7009e03526",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "nachrdb",
+      "node_id": "biotools_8f11cec782bd5a41a101ee1838a48987",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "cuDNN",
+      "node_id": "biotools_81bd03474eec0c8779a0cec81248f592",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "parsecnv2",
+      "node_id": "biotools_e9d812bec7f4e9560d5acc16cf2841ea",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "phospho.elm",
+      "node_id": "biotools_cc351636d3d43d286fe12d7adc22c8e3",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "PPR-SSM",
+      "node_id": "biotools_5fe1c6eccd61c767fb87ee78ed3c20b6",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "pulser",
+      "node_id": "biotools_39656939cf9e72c1eb007e8e2cc32f4f",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "rci",
+      "node_id": "biotools_174e37f431822c65d80880130a667c43",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "rnbeads",
+      "node_id": "biotools_791c45d104faa5a69930e903e699fd29",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "scint",
+      "node_id": "biotools_f9b3b548228d93a17c3a5fbe1a89aceb",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "signature",
+      "node_id": "biotools_1a2fc26dc7ea5a2a4748b7cb2b1ef193",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "spaced_words",
+      "node_id": "biotools_00ada46a91e635b90ce6c839e54c4b63",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "swissbiopics",
+      "node_id": "biotools_2a4a6b2126e7629104dee1eca2dc3b80",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "tockylocus",
+      "node_id": "biotools_2558a780f71f0a983dd463f3be5a289a",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "varadb",
+      "node_id": "biotools_4767da229da97d1dd7667ad3cff5e327",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    },
+    {
+      "accession": "bioconductor-xeva",
+      "node_id": "biotools_217d83925673481a3485b22b580f0031",
+      "metadata_status": 200,
+      "execution_ready": false,
+      "run_admission_status": 400
+    }
+  ],
+  "elapsed_seconds": 29.969,
+  "scope": "Every catalog entry exposed by API; deterministic metadata/readiness/refusal samples, no tool execution."
+}

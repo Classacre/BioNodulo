@@ -21,6 +21,10 @@ record has one matching definition, every definition's actual app metadata
 round-trips through workflow JSON, and every shared adapter refuses execution.
 The verifier also samples actual lazy registry lookups deterministically.
 The full packaged projection and its digest are checked in CI.
+The [live API receipt](../reports/registry-toolbox/api-coverage.json) additionally
+enumerates all 343 pages (34,248 unique entries), with 35 deterministic metadata,
+readiness and refused-run checks against the running app. No tools are selected
+by a hand-maintained test list for this catalog acceptance pass.
 
 This is **100% definition coverage of a dated snapshot**, not 100% executable
 coverage. The crawl is not transactional: start/end counts, page lengths,
@@ -50,6 +54,7 @@ outputs are scientifically validated.
 python -m scripts.sync_biotools_registry --output-dir <snapshot-directory> --workers 2
 python -m scripts.generate_registry_toolbox --snapshot <snapshot-directory>/registry.jsonl --manifest <snapshot-directory>/manifest.json
 python -m scripts.verify_registry_toolbox --snapshot <snapshot-directory>/registry.jsonl --manifest <snapshot-directory>/manifest.json --report reports/registry-toolbox/coverage.json
+python -m scripts.probe_registry_toolbox_api --base-url http://127.0.0.1:8187 --report reports/registry-toolbox/api-coverage.json
 python -m scripts.acquire_typed_cwl_links --help
 ```
 
