@@ -255,6 +255,13 @@ class NodeRegistry:
             return node
         if self._lazy_import(node_id):
             return self._nodes.get(node_id)
+        if node_id.startswith("biotools_"):
+            from bionodulo.nodes.registry_catalog import RegistryCatalog, bind_registry_definition
+
+            definition = RegistryCatalog().get(node_id)
+            if definition is not None:
+                self.register(bind_registry_definition(definition))
+                return self._nodes[node_id]
         return None
 
     def _lazy_import(self, node_id: str) -> bool:
@@ -292,7 +299,7 @@ class NodeRegistry:
         if node_id in self._node_index:
             self._lazy_import(node_id)
             return node_id in self._nodes
-        return False
+        return self.get(node_id) is not None if node_id.startswith("biotools_") else False
 
     def all(self) -> dict[str, Type[BaseNode]]:
         """Return all registered node classes.
@@ -312,7 +319,7 @@ class NodeRegistry:
             Dictionary of node metadata keyed by node ID.
         """
         if node_id is not None:
-            node_class = self._nodes.get(node_id)
+            node_class = self.get(node_id)
             if node_class is None:
                 return {}
             return _to_node_info(
@@ -726,6 +733,8 @@ def _to_node_info(
     }
     if custom_node_package is not None:
         info["custom_node_package"] = dict(custom_node_package)
+    if getattr(node_class, "REGISTRY_ORIGIN", None):
+        info["registry_origin"] = dict(getattr(node_class, "REGISTRY_ORIGIN"))
     contract = getattr(node_class, "CONTRACT_SPEC", None)
     if contract is not None and getattr(contract, "cwl_invocation", None) is not None:
         invocation = contract.cwl_invocation

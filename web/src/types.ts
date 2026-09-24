@@ -96,6 +96,14 @@ export interface NodeMetadata {
     source_uri?: string;
     verification?: string;
   };
+  registry_origin?: {
+    accession: string;
+    source_snapshot_sha256?: string;
+    source_record_sha256?: string;
+    reference_url?: string;
+    execution_status: string;
+    blockers: string[];
+  };
 }
 
 export interface ObjectInfo {

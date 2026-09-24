@@ -535,6 +535,14 @@ async def _resolve_workflow_async(
 ) -> ResolutionReport:
     """Async implementation of dependency resolution."""
     report = ResolutionReport(env_isolation=env_isolation)
+    from bionodulo.nodes.registry_catalog import registry_execution_blockers
+
+    blockers = registry_execution_blockers(workflow, registry)
+    if blockers:
+        report.errors.extend(blockers)
+        report.installable = False
+        report.legacy_runtime_required = False
+        return report
     if env_isolation not in {"auto", "always", "off"}:
         report.errors.append(f"Unsupported environment isolation mode: {env_isolation}")
     nodes = workflow.get("nodes", [])

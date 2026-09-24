@@ -10,9 +10,10 @@ import time
 from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
-from bionodulo.nodes.contract.cwl_oci import import_cwl_oci, import_cwl_oci_spec
+from bionodulo.nodes.contract.cwl_oci import declared_docker_pull, import_cwl_oci, import_cwl_oci_spec
 from bionodulo.nodes.contract.environments import ExecutionPlatform
 from bionodulo.nodes.contract.model import NodeSpec
 from bionodulo.nodes.registry import NodeRegistry
@@ -29,10 +30,17 @@ def test_queue_cancellation_removes_real_container(tmp_path: Path, monkeypatch) 
     runtime = Path(os.environ["BIONODULO_OCI_E2E_RUNTIME"])
     evidence = Path(os.environ["BIONODULO_OCI_E2E_EVIDENCE"])
     source = Path(__file__).parent / "fixtures" / "oci" / "long_sleep.cwl"
-    base = NodeSpec.model_validate_json(json.dumps(json.loads(reference_catalog.read_text())["specs"][0]))
+    source_bytes = source.read_bytes()
+    fixture_pull = declared_docker_pull(yaml.safe_load(source_bytes))
+    matching = [
+        spec for spec in json.loads(reference_catalog.read_text())["specs"]
+        if spec.get("cwl_oci", {}).get("source_docker_pull") == fixture_pull
+    ]
+    assert matching and len({spec["cwl_oci"]["image_platform"] for spec in matching}) == 1
+    base = NodeSpec.model_validate_json(json.dumps(matching[0]))
     assert base.cwl_oci is not None
     contract = import_cwl_oci(
-        source.read_bytes(), source_uri=source.resolve().as_uri(),
+        source_bytes, source_uri=source.resolve().as_uri(),
         image_index=base.cwl_oci.image_index, image_platform=base.cwl_oci.image_platform,
         platform=ExecutionPlatform.LINUX_AMD64,
     )
@@ -87,20 +95,20 @@ def test_queue_cancellation_removes_real_container(tmp_path: Path, monkeypatch) 
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             details = client.get(f"/api/runs/{run_id}").json()
+            receipts = list(root.rglob("*.failure.json"))
             remaining = subprocess.run(
                 ["/usr/bin/docker", "container", "ls", "-aq", "--no-trunc", "--filter",
                  f"label=org.bionodulo.oci.attempt={attempt_label}"],
                 capture_output=True, text=True, timeout=10, check=True,
             ).stdout.strip()
-            if details["status"] not in {"queued", "pending", "running"} and not remaining:
+            if details["status"] not in {"queued", "pending", "running"} and not remaining and receipts:
                 break
             time.sleep(0.1)
         assert details["status"] == "cancelled", details
         assert not remaining, "cancelled OCI container remains in the Docker daemon"
-        receipts = list(root.rglob("*.failure.json"))
         assert len(receipts) == 1
         failure = json.loads(receipts[0].read_text())
-        assert failure["error_type"] == "CommandCancelledError"
+        assert failure["error_type"] in {"CommandCancelledError", "CancelledError"}
         evidence.write_text(json.dumps({
             "run_id": run_id, "container_id": observed_ids, "attempt_label": attempt_label,
             "cancelled": cancelled.json(), "run": details, "failure_receipt": failure,

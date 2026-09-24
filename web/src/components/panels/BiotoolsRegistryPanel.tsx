@@ -1,77 +1,101 @@
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { apiGet } from '../../api/client';
 import type { NodeMetadata, ObjectInfo } from '../../types';
 import './BiotoolsRegistryPanel.css';
 
-interface RegistryTool {
-  id: string;
+interface RegistryEntry {
+  node_id: string;
+  accession: string;
   name: string;
   description: string;
-  types: string[];
+  tool_types: string[];
   topics: string[];
-  nodes: string[];
+  operations: string[];
+  execution_status: 'definition_only';
+  blockers: string[];
+  reference_url: string;
+  linked_node_ids: string[];
+  runnable_node_ids: string[];
 }
 
-interface RegistrySnapshot {
-  records: number;
-  updated_at: string;
-  tools: RegistryTool[];
+interface RegistryPage {
+  schema_version: number;
+  total: number;
+  matched_count: number;
+  offset: number;
+  limit: number;
+  snapshot: { records: number; sha256: string; updated_at: string };
+  entries: RegistryEntry[];
 }
 
 const PAGE_SIZE = 40;
 
-export default function BiotoolsRegistryPanel({ objectInfo, onAddNode, onBack, onClose }: {
+export default function BiotoolsRegistryPanel({ objectInfo, onAddNode, onAddGeneratedNode, onBack, onClose }: {
   objectInfo: ObjectInfo;
   onAddNode: (node: NodeMetadata) => void;
+  onAddGeneratedNode: (nodeId: string) => Promise<void>;
   onBack: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const [snapshot, setSnapshot] = useState<RegistrySnapshot | null>(null);
-  const [error, setError] = useState(false);
   const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
-  const deferredQuery = useDeferredValue(query);
+  const [result, setResult] = useState<RegistryPage | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const requestRevision = useRef(0);
+  const edited = useRef(false);
+
+  useEffect(() => {
+    if (!edited.current) return;
+    const timer = window.setTimeout(() => {
+      setPage(0);
+      setSearch(query.trim());
+      if (edited.current) {
+        edited.current = false;
+        setRetry(value => value + 1);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${import.meta.env.BASE_URL}biotools-registry/index.json`, { signal: controller.signal })
-      .then(async response => {
-        if (!response.ok) throw new Error('Registry snapshot unavailable');
-        const data = await response.json() as RegistrySnapshot;
-        if (!Array.isArray(data.tools) || data.tools.length !== data.records) {
-          throw new Error('Incomplete registry snapshot');
+    const revision = ++requestRevision.current;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    const params = new URLSearchParams({ q: search, offset: String(page * PAGE_SIZE), limit: String(PAGE_SIZE) });
+    apiGet<RegistryPage>(`/registry/nodes?${params}`, { signal: controller.signal })
+      .then(data => {
+        if (data.schema_version !== 1 || !Array.isArray(data.entries) || !Number.isFinite(data.matched_count)) {
+          throw new Error('Invalid registry response');
         }
-        if (!controller.signal.aborted) setSnapshot(data);
+        if (!controller.signal.aborted && revision === requestRevision.current) setResult(data);
       })
-      .catch(() => { if (!controller.signal.aborted) setError(true); });
+      .catch(reason => { if (!controller.signal.aborted && revision === requestRevision.current) setError(reason instanceof Error ? reason.message : String(reason)); })
+      .finally(() => { if (!controller.signal.aborted && revision === requestRevision.current) setLoading(false); });
     return () => controller.abort();
-  }, []);
-  const searchable = useMemo(() => snapshot?.tools.map(tool => ({ tool, text:
-    [tool.id, tool.name, tool.description, ...tool.types, ...tool.topics].join(' ').toLocaleLowerCase(),
-  })) ?? [], [snapshot]);
-  const generatedLinks = useMemo(() => {
-    const links = new Map<string, string[]>();
-    for (const [id, node] of Object.entries(objectInfo)) {
-      const accession = node.declarative_runtime?.biotools_accession?.toLowerCase();
-      if (accession) links.set(accession, [...(links.get(accession) ?? []), id]);
+  }, [search, page, retry]);
+
+  const addDefinition = async (entry: RegistryEntry) => {
+    setAdding(entry.node_id);
+    setAddError(null);
+    try {
+      await onAddGeneratedNode(entry.node_id);
+    } catch (reason) {
+      setAddError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setAdding(null);
     }
-    return links;
-  }, [objectInfo]);
-  const matches = useMemo(() => {
-    const normalized = deferredQuery.trim().toLocaleLowerCase();
-    const terms = normalized.split(/\s+/).filter(Boolean);
-    const found = searchable.filter(row => terms.every(term => row.text.includes(term))).map(row => row.tool);
-    if (!normalized) return found;
-    const priority = (tool: RegistryTool) => {
-      const id = tool.id.toLocaleLowerCase();
-      const name = tool.name.toLocaleLowerCase();
-      return id === normalized || name === normalized ? 0 : id.startsWith(normalized) || name.startsWith(normalized) ? 1 : 2;
-    };
-    return found.sort((a, b) => priority(a) - priority(b));
-  }, [searchable, deferredQuery]);
-  const pages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pages - 1);
-  const visible = matches.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  };
+
+  const pages = result ? Math.max(1, Math.ceil(result.matched_count / PAGE_SIZE)) : 1;
   return (
     <div className="rail-panel node-library-panel biotools-registry-panel">
       <div className="rail-panel-header">
@@ -80,37 +104,43 @@ export default function BiotoolsRegistryPanel({ objectInfo, onAddNode, onBack, o
         <button type="button" className="btn btn-sm" onClick={onClose} aria-label={t('common.close', 'Close')}>×</button>
       </div>
       <div className="rail-panel-body">
-        <p className="biotools-explanation">{t('registry.explanation', 'Discover registry tools. Metadata does not mean a tool is installed, executable here, or scientifically validated.')}</p>
+        <p className="biotools-explanation">{t('registry.generatedExplanation', 'Every bio.tools record can be added as a reference node. These generated definitions have no execution binding or inferred ports. Exact linked app nodes are shown separately where available.')}</p>
         <input className="palette-search" type="search" value={query}
           aria-label={t('registry.search', 'Search bio.tools registry')}
           placeholder={t('registry.search', 'Search bio.tools registry')}
-          onChange={event => { setQuery(event.target.value); setPage(0); }} />
+          onChange={event => { requestRevision.current++; edited.current = true; setResult(null); setLoading(true); setQuery(event.target.value); }} />
         <p className="biotools-summary" role="status">
-          {error ? t('registry.unavailable', 'The registry snapshot is unavailable in this build.') : !snapshot
-            ? t('registry.loading', 'Loading registry metadata…')
-            : t('registry.matches', { defaultValue: '{{matches}} matches · {{total}} registry records', matches: matches.length.toLocaleString(), total: snapshot.records.toLocaleString() })}
+          {error ? t('registry.unavailable', 'Registry nodes are unavailable.') : loading
+            ? t('registry.loading', 'Loading registry nodes…')
+            : result && t('registry.matches', { defaultValue: '{{matches}} matches · {{total}} registry records', matches: result.matched_count.toLocaleString(), total: result.total.toLocaleString() })}
         </p>
-        {snapshot && <p className="biotools-summary">{t('registry.updated', 'Snapshot')}: {snapshot.updated_at.slice(0, 10)} · <a href="https://bio.tools" target="_blank" rel="noreferrer">bio.tools contributors</a> · CC BY 4.0</p>}
+        {error && <button type="button" className="btn btn-sm" onClick={() => setRetry(value => value + 1)}>{t('registry.retry', 'Retry')}</button>}
+        {result && <p className="biotools-summary">{t('registry.updated', 'Snapshot')}: {result.snapshot.updated_at.slice(0, 10)} · <a href="https://bio.tools" target="_blank" rel="noreferrer">bio.tools contributors</a> · CC BY 4.0</p>}
+        {addError && <p className="biotools-error" role="alert">{t('registry.addFailed', 'Could not add registry node')}: {addError}</p>}
         <div className="biotools-results">
-          {visible.map(tool => {
-            const linkedNodes = [...new Set([...tool.nodes, ...(generatedLinks.get(tool.id.toLowerCase()) ?? [])])]
-              .map(id => objectInfo[id]).filter(Boolean);
-            return <article className="biotools-result" key={tool.id}>
-              <a href={`https://bio.tools/${encodeURIComponent(tool.id)}`} target="_blank" rel="noreferrer">{tool.name}</a>
-              <small>{tool.id} · {tool.types.join(', ') || t('registry.unspecifiedType', 'Type unspecified')}</small>
-              <p>{tool.description}</p>
-              <small>{linkedNodes.length ? t('registry.linked', 'Linked app nodes; execution depends on your environment') : t('registry.metadataOnly', 'Metadata only · no linked app node')}</small>
-              {linkedNodes.map(node => <button className="btn btn-sm" type="button" key={node.id} onClick={() => onAddNode(node)}
-                title={node.declarative_runtime ? t('registry.generatedUnverified', 'Generated from an upstream executable description; scientific validation is pending') : undefined}>
+          {result?.entries.map(entry => {
+            const linkedNodes = [...new Set(entry.linked_node_ids ?? [])].map(id => objectInfo[id]).filter((node): node is NodeMetadata => Boolean(node));
+            return <article className="biotools-result" key={entry.node_id}>
+              <a href={entry.reference_url} target="_blank" rel="noreferrer">{entry.name}</a>
+              <small>{entry.accession} · {entry.tool_types.join(', ') || t('registry.unspecifiedType', 'Type unspecified')}</small>
+              {(entry.topics.length > 0 || entry.operations.length > 0) && <small>{[...entry.topics, ...entry.operations].join(' · ')}</small>}
+              {entry.description && <p>{entry.description}</p>}
+              <small>{t('registry.definitionOnly', 'Execution unavailable for this generated definition')}</small>
+              {entry.blockers.length > 0 && <small>{entry.blockers.join('; ')}</small>}
+              <button className="btn btn-sm" type="button" disabled={adding !== null} onClick={() => void addDefinition(entry)}>
+                {adding === entry.node_id ? t('registry.adding', 'Adding…') : t('registry.addDefinition', 'Add reference node')}
+              </button>
+              {linkedNodes.length > 0 && <small>{t('registry.exactLinked', 'Exact linked app nodes (execution depends on your environment):')}</small>}
+              {linkedNodes.map(node => <button className="btn btn-sm" type="button" key={node.id} onClick={() => onAddNode(node)}>
                 {t('registry.addLinked', { defaultValue: 'Add {{name}}', name: node.display_name || node.id })}
               </button>)}
             </article>;
           })}
         </div>
-        {snapshot && <div className="biotools-pagination">
-          <button className="btn btn-sm" type="button" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>{t('registry.previous', 'Previous')}</button>
-          <span>{currentPage + 1} / {pages}</span>
-          <button className="btn btn-sm" type="button" disabled={currentPage + 1 >= pages} onClick={() => setPage(currentPage + 1)}>{t('registry.next', 'Next')}</button>
+        {result && <div className="biotools-pagination">
+          <button className="btn btn-sm" type="button" disabled={page === 0} onClick={() => setPage(value => value - 1)}>{t('registry.previous', 'Previous')}</button>
+          <span>{page + 1} / {pages}</span>
+          <button className="btn btn-sm" type="button" disabled={page + 1 >= pages} onClick={() => setPage(value => value + 1)}>{t('registry.next', 'Next')}</button>
         </div>}
       </div>
     </div>

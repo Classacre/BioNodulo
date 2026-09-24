@@ -105,7 +105,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
       {/* Native React Flow toolbar — the "menu when clicking / hovering a node".
           Portalled + viewport-synced by React Flow, so no custom overlay math. */}
       <NodeToolbar isVisible={showToolbar} position={Position.Top} className="bio-node-toolbar">
-        <button type="button" title={t('canvas.menu.run')} aria-label={t('canvas.menu.run')} onClick={() => actions?.run(id)}><span aria-hidden>▶</span></button>
+        <button type="button" title={g.meta?.registry_origin?.execution_status === 'definition_only' ? t('registry.definitionOnly', 'Execution unavailable for this generated definition') : t('canvas.menu.run')} aria-label={g.meta?.registry_origin?.execution_status === 'definition_only' ? t('registry.definitionOnly', 'Execution unavailable for this generated definition') : t('canvas.menu.run')} disabled={g.meta?.registry_origin?.execution_status === 'definition_only'} onClick={() => actions?.run(id)}><span aria-hidden>▶</span></button>
         <button type="button" title={t('canvas.menu.rename')} aria-label={t('canvas.menu.rename')} onClick={() => actions?.rename(id)}><span aria-hidden>A</span></button>
         <button type="button" title={t('canvas.menu.duplicate')} aria-label={t('canvas.menu.duplicate')} onClick={() => actions?.duplicate(id)}><span aria-hidden>⧉</span></button>
         <button type="button" title={t('canvas.menu.collapse')} aria-label={t('canvas.menu.collapse')} onClick={() => actions?.toggleCollapse(id)}><span aria-hidden>{g.collapsed ? '▸' : '▾'}</span></button>
@@ -123,6 +123,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
 
       <div className="bio-node-header" style={{ height: NODE_HEADER_H, background: g.color }}>
         {g.isSubgraph && <span className="bio-node-subgraph-chip">{t('canvas.subgraphChip')}</span>}
+        {g.meta?.registry_origin?.execution_status === 'definition_only' && <span className="bio-node-subgraph-chip" title={t('registry.definitionOnly', 'Execution unavailable for this generated definition')}>{t('registry.referenceChip', 'Reference only')}</span>}
         <span className="bio-node-title" title={g.title}>{g.title}</span>
         {g.pinned && <span className="bio-node-flag" aria-hidden>📌</span>}
       </div>

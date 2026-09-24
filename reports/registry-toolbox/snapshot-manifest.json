@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "source": "https://bio.tools/api/tool/",
+  "source_documentation": "https://biotools.readthedocs.io/en/latest/api_reference.html",
+  "license": "CC-BY-4.0",
+  "attribution": "bio.tools registry contributors",
+  "started_at": "2026-09-24T08:44:17.241561+00:00",
+  "completed_at": "2026-09-24T08:59:41.503934+00:00",
+  "reported_count_start": 34248,
+  "reported_count_end": 34248,
+  "records": 34248,
+  "unique_casefold_ids": 34248,
+  "pages": 343,
+  "page_size": 100,
+  "ordering": "name asc (API); lowercase ID asc (snapshot)",
+  "sha256": "4bc2dff4e6f60b6098876977a3ea5228745d6891c316a7fe3fd3d830edadac13",
+  "snapshot": "registry.jsonl",
+  "database": "registry.sqlite",
+  "complete": true,
+  "consistency": "Non-transactional API crawl; counts, page lengths, unique IDs and first-page ordering verified. Metadata may change within the recorded time window.",
+  "execution_status": "metadata_only; no installation, wrapper execution or scientific validation implied"
+}

@@ -6,6 +6,7 @@ References app.state for registry, settings, queue, and event_hub.
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 import inspect
 import json
 import logging
@@ -22,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 
 from bionodulo.api.app_state import app_state, setting_literal
@@ -596,10 +597,37 @@ async def list_object_info(request: Request) -> dict[str, Any]:
 async def get_object_info(request: Request, node_id: str) -> dict[str, Any]:
     """Get metadata for a single registered node."""
     registry = _get_registry(request)
-    meta = registry.object_info(node_id)
+    from bionodulo.nodes.registry_catalog import RegistryCatalogError
+
+    try:
+        meta = registry.object_info(node_id)
+    except (RegistryCatalogError, sqlite3.Error) as error:
+        raise HTTPException(status_code=503, detail="Generated bio.tools catalog is unavailable") from error
     if not meta:
         raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found")
     return meta
+
+
+@router.get("/registry/nodes")
+async def list_registry_nodes(
+    request: Request, q: str = Query("", max_length=256),
+    offset: int = Query(0, ge=0), limit: int = Query(40, ge=1, le=100),
+) -> dict[str, Any]:
+    """Search all automatically generated definitions without loading their classes."""
+    from bionodulo.nodes.registry_catalog import RegistryCatalog, RegistryCatalogError
+
+    try:
+        result = await asyncio.to_thread(RegistryCatalog().search, q, offset=offset, limit=limit)
+    except (RegistryCatalogError, sqlite3.Error) as error:
+        raise HTTPException(status_code=503, detail="Generated bio.tools catalog is unavailable") from error
+    links: dict[str, list[str]] = {}
+    for node_id, metadata in _get_registry(request).object_info().items():
+        accession = metadata.get("declarative_runtime", {}).get("biotools_accession")
+        if isinstance(accession, str):
+            links.setdefault(accession.casefold(), []).append(node_id)
+    for entry in result["entries"]:
+        entry["linked_node_ids"] = sorted(links.get(entry["accession"].casefold(), []))
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -618,6 +646,13 @@ def _environment_readiness(workflow: dict[str, Any], registry: Any) -> dict[str,
     ``lock_available: None`` means "could not determine".
     """
     import tempfile
+
+    from bionodulo.nodes.registry_catalog import registry_execution_blockers
+
+    blockers = registry_execution_blockers(workflow, registry)
+    if blockers:
+        return {"id": None, "packages": [], "lock_available": False,
+                "execution_ready": False, "blockers": blockers}
 
     from bionodulo.environments.manifest import (
         get_environment_plan_id,
@@ -686,6 +721,14 @@ def _generate_run_id(workflow_name: str) -> str:
 async def create_run(request: Request, body: RunCreateRequest) -> dict[str, Any]:
     """Submit a workflow for execution, or preview it when dry_run is true."""
     _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
+    from bionodulo.nodes.registry_catalog import registry_execution_blockers
+
+    blockers = registry_execution_blockers(body.workflow, _get_registry(request))
+    if blockers:
+        raise HTTPException(status_code=400, detail={
+            "message": "Generated registry definitions require an executable binding before running",
+            "blockers": blockers,
+        })
     queue = _get_queue(request)
     settings = _get_settings(request)
 
@@ -3040,6 +3083,14 @@ async def hpc_configure(
 async def hpc_submit(request: Request, body: HPCSubmitRequest) -> dict[str, Any]:
     """Submit a workflow as an HPC job."""
     _require_execute_permission(request, body.workflow_id or body.workflow.get("id"))
+    from bionodulo.nodes.registry_catalog import registry_execution_blockers
+
+    blockers = registry_execution_blockers(body.workflow, _get_registry(request))
+    if blockers:
+        raise HTTPException(status_code=400, detail={
+            "message": "Generated registry definitions require an executable binding before running",
+            "blockers": blockers,
+        })
     hpc = getattr(request.app.state, "hpc_backend", None)
     if hpc is None:
         raise HTTPException(status_code=503, detail="HPC backend not configured")

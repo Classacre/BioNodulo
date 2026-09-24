@@ -393,6 +393,11 @@ class WorkflowExecutor:
     def check_semantics(self, workflow: dict[str, Any], options: dict[str, Any] | None = None) -> Any:
         """Check the effective parameters and selected graph before any tool executes."""
         from bionodulo.workflow.semantic_checks import check_workflow_semantics
+        from bionodulo.nodes.registry_catalog import registry_execution_blockers
+
+        blockers = registry_execution_blockers(workflow, self.registry)
+        if blockers:
+            raise ValueError("; ".join(blockers))
 
         options = options or {}
         parameters = self._resolve_workflow_parameters(workflow.get("parameters", []), options.get("parameters", {}))

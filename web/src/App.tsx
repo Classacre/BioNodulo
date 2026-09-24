@@ -301,7 +301,20 @@ export default function App() {
   // which applies the active palette and its light/dark class on load and on change.
   const { palettes, setPalette } = usePaletteTheme();
   const { getBinding } = useKeybindings();
-  const { objectInfo, loading: objectInfoLoading, error: objectInfoError, refresh: refreshObjectInfo } = useObjectInfo();
+  const { objectInfo, loading: objectInfoLoading, error: objectInfoError, refresh: refreshObjectInfo, registerNode } = useObjectInfo();
+  const restoredRegistryTypes = useRef(new Set<string>());
+  useEffect(() => {
+    for (const workflow of workflows) {
+      for (const node of workflow.nodes) {
+        if (!/^biotools_[a-f0-9]{32}$/.test(node.type) || objectInfo[node.type] || restoredRegistryTypes.current.has(node.type)) continue;
+        restoredRegistryTypes.current.add(node.type);
+        void registerNode(node.type).catch(error => {
+          restoredRegistryTypes.current.delete(node.type);
+          logError('registry.restoreNode', error);
+        });
+      }
+    }
+  }, [workflows, objectInfo, registerNode]);
   const registeredPanels = usePanelRegistry();
 
   // Surface node-registry load failures. An empty/failed registry silently
@@ -3511,6 +3524,20 @@ export default function App() {
               ui: { title: meta.display_name },
             };
             handleNodesChange([...activeWorkflow.nodes, newNode]);
+            pushHistory();
+            if (closeLibraryAfterAdd) closePanel(tab);
+          }}
+          onAddGeneratedNode={async (nodeId) => {
+            const meta = await registerNode(nodeId);
+            const newNode: WorkflowNode = {
+              id: `${meta.id}_${Date.now()}`,
+              type: meta.id,
+              position: newNodePosition(),
+              params: defaultsFor(meta),
+              node_info: meta,
+              ui: { title: meta.display_name },
+            };
+            handleNodesChange([...activeWorkflowRef.current.nodes, newNode]);
             pushHistory();
             if (closeLibraryAfterAdd) closePanel(tab);
           }}

@@ -1,0 +1,16 @@
+{
+  "accessions_with_typed_cwl_links": 5,
+  "acquisition_status_counts": {
+    "fetched": 6,
+    "unsupported_link": 2
+  },
+  "explicit_package_identity_matches": 0,
+  "native_reference_inspectable": 6,
+  "network_requests": 6,
+  "parsed": 6,
+  "registry_records": 34248,
+  "schema_version": 1,
+  "scope": "explicitly typed CWL links only; source evidence, no execution admission",
+  "snapshot_sha256": "4bc2dff4e6f60b6098876977a3ea5228745d6891c316a7fe3fd3d830edadac13",
+  "typed_cwl_links": 8
+}
