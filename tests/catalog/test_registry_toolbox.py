@@ -73,6 +73,23 @@ def test_every_record_generates_one_stable_definition_without_executable_claim(c
             asyncio.run(registry.get(node_id)().run())
 
 
+def test_custom_registration_cannot_shadow_a_generated_definition(catalog):
+    from bionodulo.nodes.registry_catalog import bind_registry_definition
+
+    reader, records, _, _ = catalog
+    node_id = generated_node_id(records[0]["biotoolsID"])
+    registry = NodeRegistry.create_isolated()
+    # Even a class carrying apparently legitimate origin metadata cannot claim an ID.
+    custom_class = bind_registry_definition(reader.get(node_id))
+    for loaded in (False, True):
+        if loaded:
+            registry.get(node_id)
+        with pytest.raises(ValueError, match="namespace is reserved"):
+            registry.register(custom_class, custom_node_source="custom-package")
+    assert registry.object_info(node_id)["registry_origin"]["accession"] == records[0]["biotoolsID"]
+    assert node_id not in registry._custom_node_sources
+
+
 def test_search_pagination_unicode_and_literal_wildcards(catalog):
     reader, records, _, _ = catalog
     first = reader.search(limit=1)

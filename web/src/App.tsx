@@ -60,6 +60,7 @@ import { nodePreviewsAtom } from './state/nodePreviews';
 import { deriveLatestPreviews } from './utils/nodePreview';
 import { offerUpdateOnStartup } from './utils/appUpdate';
 import { useObjectInfo } from './hooks/data';
+import { useRegistryNodeHydration } from './hooks/data/useRegistryNodeHydration';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
 import { useHPC } from './hooks/useHPC';
@@ -302,19 +303,23 @@ export default function App() {
   const { palettes, setPalette } = usePaletteTheme();
   const { getBinding } = useKeybindings();
   const { objectInfo, loading: objectInfoLoading, error: objectInfoError, refresh: refreshObjectInfo, registerNode } = useObjectInfo();
-  const restoredRegistryTypes = useRef(new Set<string>());
+  const { failures: registryRestoreFailures, retry: retryRegistryRestore } = useRegistryNodeHydration(workflows, objectInfo, registerNode);
   useEffect(() => {
-    for (const workflow of workflows) {
-      for (const node of workflow.nodes) {
-        if (!/^biotools_[a-f0-9]{32}$/.test(node.type) || objectInfo[node.type] || restoredRegistryTypes.current.has(node.type)) continue;
-        restoredRegistryTypes.current.add(node.type);
-        void registerNode(node.type).catch(error => {
-          restoredRegistryTypes.current.delete(node.type);
-          logError('registry.restoreNode', error);
-        });
-      }
+    const failedIds = Object.keys(registryRestoreFailures);
+    if (failedIds.length === 0) {
+      toast.dismiss('registry-node-restore-error');
+      return;
     }
-  }, [workflows, objectInfo, registerNode]);
+    toast.show({
+      id: 'registry-node-restore-error', tone: 'error', dismissible: true, duration: 0,
+      title: t('registry.restoreErrorTitle', 'Could not load bio.tools node details'),
+      message: t('registry.restoreErrorMessage', {
+        defaultValue: 'Details for {{count}} reference node(s) could not be loaded. Execution remains unavailable.',
+        count: failedIds.length,
+      }),
+      actions: [{ label: t('registry.retry', 'Retry'), onClick: retryRegistryRestore, dismiss: true }],
+    });
+  }, [registryRestoreFailures, retryRegistryRestore, t]);
   const registeredPanels = usePanelRegistry();
 
   // Surface node-registry load failures. An empty/failed registry silently

@@ -201,6 +201,8 @@ class NodeRegistry:
         node_id = node_class.NODE_ID
         if not node_id:
             raise ValueError(f"Node class {node_class.__name__} missing NODE_ID")
+        if re.fullmatch(r"biotools_[a-f0-9]{32}", node_id):
+            raise ValueError("The biotools generated definition namespace is reserved for the verified catalog")
         validate_metadata_contract = getattr(node_class, "validate_metadata_contract", None)
         if callable(validate_metadata_contract):
             validate_metadata_contract()
@@ -260,7 +262,10 @@ class NodeRegistry:
 
             definition = RegistryCatalog().get(node_id)
             if definition is not None:
-                self.register(bind_registry_definition(definition))
+                # Reserved definitions come only from the verified packaged catalog.
+                # Public registration must never let a custom adapter shadow them.
+                self._nodes[node_id] = bind_registry_definition(definition)
+                self._object_info_cache = None
                 return self._nodes[node_id]
         return None
 

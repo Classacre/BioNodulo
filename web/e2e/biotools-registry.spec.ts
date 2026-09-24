@@ -30,6 +30,7 @@ test.beforeEach(async ({ context, page }) => {
     if (url.pathname.endsWith('/object_info')) body = objectInfo;
     if (url.pathname.endsWith('/config')) body = { cloudMode: false, editorMode: false };
     if (url.pathname.endsWith('/host_status')) body = { ready: true };
+    if (url.pathname.endsWith('/workflow/validate')) body = { valid: true, errors: [] };
     if (url.pathname.endsWith('/registry/nodes')) {
       const query = url.searchParams.get('q') ?? '';
       const offset = Number(url.searchParams.get('offset') ?? 0);
@@ -92,4 +93,46 @@ test('keeps a failed definition fetch off the canvas', async ({ page }) => {
   await panel.getByRole('button', { name: 'Add reference node' }).click();
   await expect(panel.getByRole('alert')).toContainText('Could not add registry node');
   await expect(page.locator('.bio-node[data-node-id^="biotools_84_"]')).toHaveCount(0);
+});
+
+test('restores nested imported references and retries failed metadata visibly', async ({ page }) => {
+  test.setTimeout(45_000);
+  const nodeId = `biotools_${'a'.repeat(32)}`;
+  let calls = 0;
+  let available = false;
+  await page.route(`**/api/object_info/${nodeId}`, async route => {
+    calls += 1;
+    if (!available) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"detail":"temporary outage"}' });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      name: nodeId, display_name: 'Recovered reference', category: 'bio.tools',
+      input: { required: {}, optional: {} }, output: [], output_name: [],
+      registry_origin: { accession: 'recovered', execution_status: 'definition_only', blockers: ['No binding'] },
+    }) });
+  });
+  await page.evaluate(id => localStorage.setItem('bionodulo.local.workflows', JSON.stringify({
+    version: 1, activeIndex: 0, workflows: [{ id: 'imported', name: 'Nested import', version: '2.0',
+      app: 'bionodulo', nodes: [{ id: 'host', type: 'subgraph', position: [0, 0],
+        params: { workflow: { nodes: [{ id: 'ref', type: id, position: [100, 0], params: {} }], edges: [] },
+          input_ports: [], output_ports: [] } }], edges: [], groups: [], outputs: {} }],
+  })), nodeId);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.locator('.bio-node[data-node-id="host"]').dblclick();
+  const nested = page.locator('.bio-node[data-node-id="host.ref"]');
+  await expect(nested).toContainText('Reference only');
+  await nested.click();
+  const runButton = page.locator('.bio-node-toolbar button[aria-label="Execution unavailable for this generated definition"]');
+  await expect(runButton).toBeDisabled();
+  await expect(page.getByText('Could not load bio.tools node details')).toBeVisible();
+  await expect.poll(() => calls, { timeout: 15_000 }).toBe(3);
+  available = true;
+  await page.locator('.island-pill').click();
+  await page.getByRole('button', { name: 'Retry' }).click();
+  await expect(nested).toContainText('Recovered reference');
+  await expect(nested).toContainText('Reference only');
+  await expect(nested).toBeVisible();
+  await nested.click();
+  await expect(runButton).toBeDisabled();
 });
