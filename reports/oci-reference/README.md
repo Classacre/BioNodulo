@@ -130,3 +130,11 @@ on Windows-mounted temporary storage; all passed in the 623-test rerun using
 native Linux `/tmp`. These are not Windows container execution proofs. Earlier
 attempts and setup logs remain in the local audit archive; only bounded final
 receipts are included here. Full repository GitHub CI remains a separate gate.
+
+After bringing in released main, the catalog compilation checks, export tests,
+and generated-catalog app E2E passed together: **13 passed**. This closes the
+stale-projection failure above. The final catalog uses canonical LF bytes on
+both Windows and Linux; its SHA-256 is
+`315a26320c159b8acc8cbb4b1335e5daabe08259167a8ed781523b0f30504bbc`.
+The final app receipt records that exact hash. Line endings are preserved by
+`.gitattributes`, and the exporter writes canonical bytes independently of host OS.
