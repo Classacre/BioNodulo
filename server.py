@@ -139,6 +139,7 @@ class SessionTokenMiddleware:
 # able to expose or mutate another caller's state. Keep methods explicit too.
 _EDITOR_GET_PATHS = frozenset({
     "/", "/api/health", "/api/config", "/api/i18n", "/api/host_status", "/api/ai/skills",
+    "/api/registry/nodes",  # Read-only generated definitions from the packaged snapshot.
     "/api/workspace/download",  # Route enforces packaged fixtures only in editor mode.
 })
 _EDITOR_GET_PREFIXES = (

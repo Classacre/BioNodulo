@@ -40,6 +40,9 @@ def test_shared_editor_blocks_stateful_routes_and_proxy_prefixes(editor_client: 
         ("GET", "/desktop/session"),
         ("POST", "/runs"),
         ("POST", "/object_info"),
+        ("POST", "/registry/nodes"),
+        ("DELETE", "/registry/nodes"),
+        ("GET", "/registry/nodes/private"),
     ]:
         for prefix in ("/api", "/proxy/8000/api"):
             response = editor_client.request(method, prefix + path, json={})
@@ -52,6 +55,23 @@ def test_shared_editor_keeps_stateless_editing_available(editor_client: TestClie
     assert editor_client.get("/api/object_info").status_code == 200
     assert editor_client.get("/api/workflow_templates").status_code == 200
     assert editor_client.post("/api/workflow/validate", json={"workflow": {"nodes": [], "edges": []}}).status_code == 200
+
+
+def test_shared_editor_serves_packaged_registry_search_and_generated_metadata(editor_client: TestClient) -> None:
+    first = editor_client.get("/api/registry/nodes", params={"limit": 1})
+    assert first.status_code == 200
+    page = first.json()
+    assert page["total"] == page["snapshot"]["records"] > 1
+    entry = page["entries"][0]
+    search = editor_client.get("/proxy/8000/api/registry/nodes", params={"q": entry["accession"], "limit": 1})
+    assert search.status_code == 200
+    assert search.json()["entries"][0]["node_id"] == entry["node_id"]
+    info = editor_client.get(f"/api/object_info/{entry['node_id']}")
+    assert info.status_code == 200
+    assert info.json()["registry_origin"]["source_snapshot_sha256"] == page["snapshot"]["sha256"]
+    assert info.json()["registry_origin"]["execution_status"] == "definition_only"
+    assert editor_client.get("/api/registry/nodes", headers={"X-Bionodulo-Session": ""}).status_code == 401
+    assert editor_client.get("/api/registry/nodes?limit=101").status_code == 422
 
 
 def test_shared_editor_does_not_load_old_shared_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
