@@ -60,6 +60,7 @@ import { nodePreviewsAtom } from './state/nodePreviews';
 import { deriveLatestPreviews } from './utils/nodePreview';
 import { offerUpdateOnStartup } from './utils/appUpdate';
 import { useObjectInfo } from './hooks/data';
+import { useRegistryNodeHydration } from './hooks/data/useRegistryNodeHydration';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
 import { useHPC } from './hooks/useHPC';
@@ -301,7 +302,24 @@ export default function App() {
   // which applies the active palette and its light/dark class on load and on change.
   const { palettes, setPalette } = usePaletteTheme();
   const { getBinding } = useKeybindings();
-  const { objectInfo, loading: objectInfoLoading, error: objectInfoError, refresh: refreshObjectInfo } = useObjectInfo();
+  const { objectInfo, loading: objectInfoLoading, error: objectInfoError, refresh: refreshObjectInfo, registerNode } = useObjectInfo();
+  const { failures: registryRestoreFailures, retry: retryRegistryRestore } = useRegistryNodeHydration(workflows, objectInfo, registerNode);
+  useEffect(() => {
+    const failedIds = Object.keys(registryRestoreFailures);
+    if (failedIds.length === 0) {
+      toast.dismiss('registry-node-restore-error');
+      return;
+    }
+    toast.show({
+      id: 'registry-node-restore-error', tone: 'error', dismissible: true, duration: 0,
+      title: t('registry.restoreErrorTitle', 'Could not load bio.tools node details'),
+      message: t('registry.restoreErrorMessage', {
+        defaultValue: 'Details for {{count}} reference node(s) could not be loaded. Execution remains unavailable.',
+        count: failedIds.length,
+      }),
+      actions: [{ label: t('registry.retry', 'Retry'), onClick: retryRegistryRestore, dismiss: true }],
+    });
+  }, [registryRestoreFailures, retryRegistryRestore, t]);
   const registeredPanels = usePanelRegistry();
 
   // Surface node-registry load failures. An empty/failed registry silently
@@ -3511,6 +3529,20 @@ export default function App() {
               ui: { title: meta.display_name },
             };
             handleNodesChange([...activeWorkflow.nodes, newNode]);
+            pushHistory();
+            if (closeLibraryAfterAdd) closePanel(tab);
+          }}
+          onAddGeneratedNode={async (nodeId) => {
+            const meta = await registerNode(nodeId);
+            const newNode: WorkflowNode = {
+              id: `${meta.id}_${Date.now()}`,
+              type: meta.id,
+              position: newNodePosition(),
+              params: defaultsFor(meta),
+              node_info: meta,
+              ui: { title: meta.display_name },
+            };
+            handleNodesChange([...activeWorkflowRef.current.nodes, newNode]);
             pushHistory();
             if (closeLibraryAfterAdd) closePanel(tab);
           }}

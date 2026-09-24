@@ -418,7 +418,9 @@ def _external_schema_hint(document: Mapping[str, Any]) -> bool:
     return True
 
 
-def inspect_reference_document(document: dict[str, Any]) -> CwlReferenceInspection:
+def inspect_reference_document(
+    document: dict[str, Any], *, allow_container_requirement: bool = False
+) -> CwlReferenceInspection:
     """Validate and project a reference-engine document without an environment."""
 
     if type(document) is not dict:
@@ -431,13 +433,16 @@ def inspect_reference_document(document: dict[str, Any]) -> CwlReferenceInspecti
         raise CwlReferenceImportError("CWL reference profile supports CommandLineTool only")
 
     required = _requirement_classes(document.get("requirements"), label="CWL requirements")
-    unsupported_required = sorted(set(required) - _SAFE_REQUIRED)
+    supported_required = _SAFE_REQUIRED | ({"DockerRequirement"} if allow_container_requirement else set())
+    unsupported_required = sorted(set(required) - supported_required)
     if unsupported_required:
         raise CwlReferenceImportError(
             "native CWL reference backend cannot honor required feature(s): " + ", ".join(unsupported_required)
         )
     hints = _requirement_classes(document.get("hints"), label="CWL hints")
     unfulfilled = set(hints) & _UNFULFILLED_HINTS | (set(hints) - _SAFE_REQUIRED)
+    if allow_container_requirement:
+        unfulfilled.discard("DockerRequirement")
     if _external_schema_hint(document):
         unfulfilled.add("external_schema_not_loaded")
     unfulfilled_hints = tuple(sorted(unfulfilled))

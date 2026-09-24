@@ -1,0 +1,1224 @@
+{
+  "schema_version": 1,
+  "source_revision": "810495363e06f80529633389ec25f8bb6b961844",
+  "source_denominator": 147,
+  "counts": {
+    "outside_missing_software_cohort": 109,
+    "oci_image_unresolved": 29,
+    "oci_profile_unsupported": 8,
+    "oci_source_only_unverified": 1
+  },
+  "records": [
+    {
+      "descriptor": "GATK/GATK-ApplyBQSR.cwl",
+      "source_sha256": "sha256:d762539a1c6eef32c55466af681a117bfce9d6a617f2d1266bf820e9a2f07c9d",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'ExcludeIntervals' supports multi-type unions only for records or scalar/array forms of one artifact type",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-BaseRecalibrator.cwl",
+      "source_sha256": "sha256:21eb51ce6233412931571d3a37a1ddf7c17bab31657c7ba900ddec4c300bf801",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 6b9b006b56164e04",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-CNNScoreVariants.cwl",
+      "source_sha256": "sha256:4109f455fc35e642e5f201629cdb7b5e9b2ccbcdb350aa05f42a335942fbc74f",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 73fb888cb317a3c6",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-FilterMutectCalls.cwl",
+      "source_sha256": "sha256:08cb8a53bfdfb125baf9f5a7bbfaf13fad02e67697bd998b46baa769cadcc117",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 73fb888cb317a3c6",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-FilterVariantTranches.cwl",
+      "source_sha256": "sha256:e261612ca3bff86c62aec23ad6f74b184b554cbc3d20175077502a14019649a1",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 73fb888cb317a3c6",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-FixMateInformation.cwl",
+      "source_sha256": "sha256:7529dfa45c76da11a4ff193b0500072ba03ea0578c542770f7538fe2c4d68d7b",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 6b9b006b56164e04",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-HaplotypeCaller.cwl",
+      "source_sha256": "sha256:004911458c70dda26afaf5daaeef3054a134310d161829d42889e2aa29d4058a",
+      "prior_status": "unsupported",
+      "prior_reason": "native CWL reference backend cannot honor required feature(s): SchemaDefRequirement",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-MarkDuplicates.cwl",
+      "source_sha256": "sha256:cccb4571e6eac3660083966b8f9c5df9eeaa64b0e714a71b3fa64b665db40f86",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 6b9b006b56164e04",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-SelectVariants.cwl",
+      "source_sha256": "sha256:bed44f53b0ff505525e12440e56a70d1456c064719041a1a2a732cd9c653c325",
+      "prior_status": "unsupported",
+      "prior_reason": "native CWL reference backend cannot honor required feature(s): SchemaDefRequirement",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-SplitNCigarReads.cwl",
+      "source_sha256": "sha256:8a598ada25f8e362d695f415d8e74004092395862b860b44c299e4899f2d5654",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'read_filter' supports multi-type unions only for records or scalar/array forms of one artifact type",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "GATK/GATK-VariantFiltration.cwl",
+      "source_sha256": "sha256:e213ce725f896b57b8ca05668f712db174555d9df21901eabba99e5b0be7cb8a",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'keep-intervals' supports multi-type unions only for records or scalar/array forms of one artifact type",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "Kallisto/Kallisto-Index.cwl",
+      "source_sha256": "sha256:d9b8fe5bbae282dfb0eccbeb4386d0d57c1110f891c0a49f6e4eabe9be59735b",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "Kallisto/Kallisto-Quant.cwl",
+      "source_sha256": "sha256:f7f140fe5edac7a7e0f2c15dc6d6f73ddee1df3235884e51ca8a776d41087e93",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "Lancet/Lancet.cwl",
+      "source_sha256": "sha256:e574d0845e4d5c75b9915512d81424c1a889193b880f157f19afc670b7046560",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 3cd40d263a85bf36",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "Pizzly/Pizzly.cwl",
+      "source_sha256": "sha256:8b079d60986f9edca7ad94f1c02fe0cae23ccfcf298e468413ec6de228ac7541",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "STAR/STAR-Align.cwl",
+      "source_sha256": "sha256:e2d2048a3e69fc2a33573e149c439119dd2d4fafdcab52d0419629b87b118967",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "STAR/STAR-Index.cwl",
+      "source_sha256": "sha256:8efa738e4f793b632c90e0f8117a0693ae550eca9b0efd7ae81535ec1de8b633",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bamtools/bamtools_stats.cwl",
+      "source_sha256": "sha256:d9c08c7aa8418e2a8143a6a0820cc337cb2f8907e616d656d462ef5d03b9439f",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 421847d5887335d4",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bandage/bandage-image.cwl",
+      "source_sha256": "sha256:782956485dff6cb5fb5c22528ed80bd58139947b8575f7689472b740f75890c3",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 39e33f9da4ea364c",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bandage/bandage-info.cwl",
+      "source_sha256": "sha256:175301f622f013e9444f73ddb3f8d78332f62cd6e139942d4132432e2c908628",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 39e33f9da4ea364c",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bash/Gunzip.cwl",
+      "source_sha256": "sha256:24e2af79bb92b8f2ae0b135dc6e6f8252b01b808c3d03c0873371cd4e4666e23",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "ubuntu:xenial",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "bash/bedgraph_sort.cwl",
+      "source_sha256": "sha256:7d2ec46210d48670cbc46dbd2f47cd8fb9be85b6014a5ba90c2ebecc81d64f38",
+      "prior_status": "unsupported",
+      "prior_reason": "package coreutils does not have exactly one version pin",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bash/custom_bash.cwl",
+      "source_sha256": "sha256:a3b6a634be2e25de6fe9f3e5a19471bfe55d7ad1c52bc7a07a10f2a10b512b9d",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "debian:stable",
+      "oci_status": "oci_profile_unsupported",
+      "oci_reason": "CWL input 'param' supports multi-type unions only for records or scalar/array forms of one artifact type"
+    },
+    {
+      "descriptor": "bash/extract_fastq.cwl",
+      "source_sha256": "sha256:eb459f6198201ed64f8d87b28cecbc1a1e0f019dc2a45ea957256609fd4a4292",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/scidap:v0.0.3",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "bedtools/bedtools_bamtobed_1.cwl",
+      "source_sha256": "sha256:76717151cf6692cf1e6ffd5b7ebe9a5fee874ea015c1ec38d401cd2b89acbdd4",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bedtools/bedtools_bamtobed_2.cwl",
+      "source_sha256": "sha256:8343d8e8260dd59af63d55211097d6db459dcebd8f0a408ac12938e34d80de5a",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bedtools/bedtools_bedtobam.cwl",
+      "source_sha256": "sha256:2a5c2d7c9f60610000a256674bc09c53f7aefd7f81d964c9a25e8454771707a3",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bedtools/bedtools_genomecov.cwl",
+      "source_sha256": "sha256:f8bdfda44d497da6b01db1793a1a5bf8184107a535914886c3a85a3e07cffe86",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bedtools/bedtools_genomecov_bed2bedgraph.cwl",
+      "source_sha256": "sha256:1a00192af646089c78a65b1dacbb55ae1ab3948e863747c7995d8f1264373480",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bedtools/bedtools_getfasta.cwl",
+      "source_sha256": "sha256:a3665f91430c56139019a105f4991e85485fa3a8350183901d7a9b635de5c073",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bedtools/bedtools_intersect.cwl",
+      "source_sha256": "sha256:56cb63fe1065cd38ecbe51cd4f7c0c2365e173a73a774b6241cb37f707d13b36",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bedtools/bedtools_merge.cwl",
+      "source_sha256": "sha256:52fa5d18584b91b4786eebfdcac38dfb4cd9ea99ba0beb5916af22077f2f6387",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bedtools/bedtools_slop_clip_to_chrom_boundaries.cwl",
+      "source_sha256": "sha256:0c2001d0208e4374b49117b3f2aea30b8173e7378099bd7e9e52d939ca8f6b80",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bismark/bismark_align.cwl",
+      "source_sha256": "sha256:c060d73e5a8ebf6086e802d05b7d3960c09a85b988ab7c1ddb27aa4236100255",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 3dbaafe8640b8838",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bismark/bismark_extract_methylation.cwl",
+      "source_sha256": "sha256:6f0fcaa89e849ad7c1354283430bd9452cb348349a34c1b2ad55fa4e1ef663bf",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 3dbaafe8640b8838",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bismark/bismark_prepare_genome.cwl",
+      "source_sha256": "sha256:cea9a57386156359975b6585cf9ac59d3517b9d6c36fdb689db0257055617824",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 3dbaafe8640b8838",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bismark/bismark_report.cwl",
+      "source_sha256": "sha256:46501afcb9f40a80931e51953f95eaf57c030cb627345534e8d6a0822172e27d",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 3dbaafe8640b8838",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bowtie/bowtie_align.cwl",
+      "source_sha256": "sha256:3c62fab189e1cad44b1888ee3eba686ddffef294cbce6226cd55ea6fe4e331fd",
+      "prior_status": "unsupported",
+      "prior_reason": "invalid CWL reference projection: 1 validation error for CwlReferenceInspection\n  Value error, CWL input IDs collide after deterministic port normalization [type=value_error, input_value={'cwl_version': 'v1.0', '...nal_schema_not_loaded')}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bowtie/bowtie_build.cwl",
+      "source_sha256": "sha256:abe48bd0b988e6c25842fa117c6cffb7db16a2c198807ac3ea4ade7e02fc5192",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bowtie2/bowtie2.cwl",
+      "source_sha256": "sha256:a1754b5a384e6dfc56ebcc8063717b869c53ea2c2cf73adb5189a59c8095d43a",
+      "prior_status": "unsupported",
+      "prior_reason": "native CWL reference backend cannot honor required feature(s): StepInputExpressionRequirement",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bowtie2/bowtie2_align.cwl",
+      "source_sha256": "sha256:7da9867cc308d08be02467ef00016b51cbc5bed55cc53fd75e8b8b7f5af1b762",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bowtie2/bowtie2_build.cwl",
+      "source_sha256": "sha256:492890df78ca219f7d4f53f89b3b7f7b791f0a3755b7015884c9a4aaf9bbfc90",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bwa/BWA-Index.cwl",
+      "source_sha256": "sha256:ee4580d969f2bf2cccfdd67cf1e185407d51c517f7b9f521a1d23a3810c15889",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bwa/BWA-Mem.cwl",
+      "source_sha256": "sha256:b02e4b80c8f7450f7fc6346bdeb2e1f4a0c32f30a3d5573c5088f7cd2235a73e",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bwa/BWA-Mem2-index.cwl",
+      "source_sha256": "sha256:9be44718bba43a3125e0427b79801cf0c45be4bc5d66a0fc0455a7f3a0b8affc",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bwa/BWA-Mem2-paired.cwl",
+      "source_sha256": "sha256:b58ac269836fd0bcd077825e533a8ed222436bf2778ede7cb400cb5daaa8ec39",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "oci_status": "oci_profile_unsupported",
+      "oci_reason": "exactly one source-declared DockerRequirement.dockerPull is required"
+    },
+    {
+      "descriptor": "bwa/BWA-Mem2-single.cwl",
+      "source_sha256": "sha256:5d7e04e636e5a6c86291ce70a2dc5890c510528a78648653bd59d2e0e915e54b",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "oci_status": "oci_profile_unsupported",
+      "oci_reason": "exactly one source-declared DockerRequirement.dockerPull is required"
+    },
+    {
+      "descriptor": "bwa/BWA-Mem2.cwl",
+      "source_sha256": "sha256:8d807ed8f445301ad2bff16d69ab2a33c720316fe4f0b2264af7198ce456368d",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "bwa/ReadGroup.cwl",
+      "source_sha256": "sha256:0d4425ec963633efa82a113956626082b8a3cc30ee96c087d679514ea8e7dcd5",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "oci_status": "oci_profile_unsupported",
+      "oci_reason": "exactly one source-declared DockerRequirement.dockerPull is required"
+    },
+    {
+      "descriptor": "bzip2/bzip2_compress.cwl",
+      "source_sha256": "sha256:7faa2167251e9c3734939465fd13175afb4f587759bb1702eb6eee2dfa1090b6",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/scidap:v0.0.2",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "cellranger/cellranger-aggr.cwl",
+      "source_sha256": "sha256:5e62de656683c00e2d9f9e224eda65382638d0726cde19274ee1177e8586ec22",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "cumulusprod/cellranger:4.0.0",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "cellranger/cellranger-arc-aggr.cwl",
+      "source_sha256": "sha256:dca4889193e46114ad8dccbdedfd8a032deeca2fe1f9ff32fcfe22fc8966508e",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "cumulusprod/cellranger-arc:2.0.0",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "cellranger/cellranger-arc-count.cwl",
+      "source_sha256": "sha256:1ac372f87d6091fb5a527bc3cb3670e442301d12b3eb3dcfb35b78fbad0f90e6",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "cumulusprod/cellranger-arc:2.0.0",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "cellranger/cellranger-arc-mkref.cwl",
+      "source_sha256": "sha256:06df387c18f2e91ce0dc2bebdaf8629370d067bb2397d6981e27652bd3c28bb5",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "cumulusprod/cellranger-arc:2.0.0",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "cellranger/cellranger-count.cwl",
+      "source_sha256": "sha256:c1a3ffb59ee6b5c9e58f2fd5d26b5d1e6fecdd14255af1a91c3ff0bd954cb409",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "cumulusprod/cellranger:4.0.0",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "cellranger/cellranger-mkref.cwl",
+      "source_sha256": "sha256:71204b9e1ccfa8ad3a1627fba2c18f8c0b3ead5f3ca1c99c67ba003e8400c142",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "cumulusprod/cellranger:4.0.0",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "cellranger/cellranger-reanalyze.cwl",
+      "source_sha256": "sha256:30cff4515b5662f9a7fbb106d26a8006f3a5ce4dcc7717a27b2429224c72633c",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "cumulusprod/cellranger:4.0.0",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "crossmap/crossmap.cwl",
+      "source_sha256": "sha256:3f37455b60e6f4ccf44d7830fd42ca45f6e92c652e673e37fe62cd41809d2f46",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 53e3a0c15f0430a3",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "cutadapt/cutadapt-paired.cwl",
+      "source_sha256": "sha256:5175ebbaf09d13a07bc9fab80d5a394e8f9afcce723f90013c11aaf8b8841c95",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "deeptools/deeptools_alignmentsieve.cwl",
+      "source_sha256": "sha256:f233317150349ea2aaa9b2de8fdfa9e064a88d29b0373acd304cf481e0cdc706",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "deeptools/deeptools_bamCoverage.cwl",
+      "source_sha256": "sha256:9a9a32795764786fceb9bd69fd528cfa0d8939433d85ea929eb88a6972d4028b",
+      "prior_status": "unsupported",
+      "prior_reason": "native CWL reference backend cannot honor required feature(s): StepInputExpressionRequirement",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "deeptools/deeptools_plotCoverage.cwl",
+      "source_sha256": "sha256:c267a3699f761010cac19bbe03d097bf84b17318349ac126f45d0bd1fe635fd5",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "deeptools/deeptools_plotFingerprint.cwl",
+      "source_sha256": "sha256:216c638a0a0b1fa7f26aebf3e768aec4d9ce2e1ae7a13feabfbcd0786f4e3072",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "deseq/deseq_advanced.cwl",
+      "source_sha256": "sha256:ef7db55de01585345868f91c6bb8ff65e35c22774c7815ea5b0fa6283459c01b",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group f55525d94a553642",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "fastp/fastp.cwl",
+      "source_sha256": "sha256:2f1e8379d01812c4070347d213f793e3ba6dd30bbc51c9d3454b68c3e29f63de",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "fastqc/fastqc_1.cwl",
+      "source_sha256": "sha256:da2d6eb44e95ece5402aae58541e48fe4214bb9caf58368619740aedfb857b99",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "fastqc/fastqc_2.cwl",
+      "source_sha256": "sha256:6d411dc57a1afa63ea28ee725e4dd29285fc72557c224879cae653b572df6831",
+      "prior_status": "unsupported",
+      "prior_reason": "package fastqc does not have exactly one version pin",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "fastx_toolkit/fastx_quality_stats.cwl",
+      "source_sha256": "sha256:488d7a562e9e2afea1da705350479f4971610fc408e80dc516971a655ae1ab44",
+      "prior_status": "unsupported",
+      "prior_reason": "mapping values are not allowed here\n  in \"<unicode string>\", line 7, column 18:\n        expressionLib:\n                     ^",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "gat/gat-run.cwl",
+      "source_sha256": "sha256:3fbd8fc8f9aedb1db1a69da4d3b74543b1d4176469c8bd71e683448618f15098",
+      "prior_status": "unsupported",
+      "prior_reason": "package gat does not have exactly one version pin",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "gffread/gffread.cwl",
+      "source_sha256": "sha256:5047ce6c79aeb1c331ee3c749b551bfaf3633ced506bee8e9d8160816d352720",
+      "prior_status": "unsupported",
+      "prior_reason": "package gffread does not have exactly one version pin",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "graph-genome-segmentation/component_segmentation.cwl",
+      "source_sha256": "sha256:783015aa18aa143c14ad4f627d0f364d83f4ae92355fa691183ef2bf92dfa422",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "oci_status": "oci_profile_unsupported",
+      "oci_reason": "exactly one source-declared DockerRequirement.dockerPull is required"
+    },
+    {
+      "descriptor": "gsea/gseapy.cwl",
+      "source_sha256": "sha256:a326d21c8dc78fd050a9596846df90466890ab3f1bc705e836c999cb2f2e1524",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'gene_set_database' supports multi-type unions only for records or scalar/array forms of one artifact type",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "hal/halliftover.cwl",
+      "source_sha256": "sha256:11c8f503f64576f95c4cdef14491a2a2256da9deea7b56739cb3e88d95cb7ae3",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/hal:v0.0.1",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "haltools/halliftover.cwl",
+      "source_sha256": "sha256:92547da0a76c7bb56afbc0b6cdcd480ab034a1c0e691d9be18106e8291d607ad",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/hal:v0.0.1",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "homer/homer-annotate-peaks-hist.cwl",
+      "source_sha256": "sha256:21ea10a16f6b5067ecc99bbaf888739483308f263c810af7f61c0a1af160fd14",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'hist_width' supports multi-type unions only for records or scalar/array forms of one artifact type",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "homer/homer-make-metagene-profile.cwl",
+      "source_sha256": "sha256:fc4002aa5fe6df8204953c2ee0d5182645ede5f44f666f41d44211536b64667c",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 56cc2a09179f0dbe",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "homer/homer-make-tag-directory.cwl",
+      "source_sha256": "sha256:a9c6fa8c427adad7967c0da095f837349b9e97fadd009b526f4cee9c9c38d4ee",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'fragment_size' supports multi-type unions only for records or scalar/array forms of one artifact type",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "hopach/hopach.cwl",
+      "source_sha256": "sha256:290ba85a679f34ecd7d5a02b7d731988e452b9e9528b7fb1b4ce07f1260cf653",
+      "prior_status": "unsupported",
+      "prior_reason": "mapping values are not allowed here\n  in \"<unicode string>\", line 7, column 15:\n        dockerPull: biowardrobe2/hopach:v0.0.6\n                  ^",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "intervene/intervene.cwl",
+      "source_sha256": "sha256:66b2cf716fa0edf9c002fcdd1ebacf74c72809e7f4049fed491b28f8685fcce4",
+      "prior_status": "unsupported",
+      "prior_reason": "package intervene does not have exactly one version pin",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "iqtree/iqtree.cwl",
+      "source_sha256": "sha256:79f0cefa1e6f2c0073becce77e3be8ba360dc35dfc629b50a2bcc3ae56d0ad02",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "ivar/ivar_trim.cwl",
+      "source_sha256": "sha256:d87721e473155ea3bfaca21c683627f475490ab35ff21bd79250bb2aa7d12538",
+      "prior_status": "unsupported",
+      "prior_reason": "unsupported package name or definition",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "kraken2/kraken2.cwl",
+      "source_sha256": "sha256:bbffe8e4a40aadcfa3409f6296b54315a1efafa33ca083ebcd002abb664cfc5c",
+      "prior_status": "unsupported",
+      "prior_reason": "native CWL reference backend cannot honor required feature(s): ResourceRequirement",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "lofreq/lofreq_call.cwl",
+      "source_sha256": "sha256:fb9bd00cefbbff076a1095d8fa44981b1ae3ed7f700a11ea690506e19eab44a2",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "lofreq/lofreq_viterbi.cwl",
+      "source_sha256": "sha256:75a7a58237bf787d593a7676907ed83154f77dde83f2112f9080bfd79c0ae69d",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "mafft/mafft.cwl",
+      "source_sha256": "sha256:c0e6724548ca5d7d4ccc9e780d12929aa6559d430d60ceea92977fda3c73d8f8",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group d2fe79749b21b595",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "manorm/manorm.cwl",
+      "source_sha256": "sha256:58fb457c061d470a7c7f35ac6083071362ecffc2426fa55dea4d765cce82e990",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group fc68f4367d0ecc79",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "mashmap/MashMap.cwl",
+      "source_sha256": "sha256:ba0afbb9e373a12d88bcc12be17e2069359f0da5c1eb7fd14ceb961fdbcf620b",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "megahit/megahit.cwl",
+      "source_sha256": "sha256:1033776684e09699193c7dcf0a15a160ee64856b8abff9d3d039e3fa8dc1b112",
+      "prior_status": "unsupported",
+      "prior_reason": "package megahit does not have exactly one version pin",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "metfrag/metfrag.cwl",
+      "source_sha256": "sha256:e593a4a311b72f3a74076e6fa44dc82dde3cceee8111db6d744ea46fd9b957a4",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "docker.io/zmahnoor/maw-metfrag_2.5.0:1.0.4",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "minimap2/minimap2_paf.cwl",
+      "source_sha256": "sha256:6dcdef6c6655ae7126d6c9e774597f5d764be7aed617dd52b8206937b4e3c609",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "minimap2/minimap2_sam.cwl",
+      "source_sha256": "sha256:957285125726d2df0aa02fb1b16ed0cf7d3e1d5aa1263c093c6f4b2a3bd067ce",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "multiqc/multiqc.cwl",
+      "source_sha256": "sha256:8150818550b127dfc4872616b70b1bd3d382bca9b007ec676b04c0d2d0761bd2",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'qc_files_array_of_array' nested or nullable array items are unsupported",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "nanoplot/nanoplot.cwl",
+      "source_sha256": "sha256:a889118b2f785449c2d57269d997e2588376e2e712279185abe85ae8881fb1ca",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 5a342d37df2e9df2",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "nextclade/nextclade.cwl",
+      "source_sha256": "sha256:9c141c9164d601440571c607d15b62d3a1eb171eef33ee7d51e2d440b345e580",
+      "prior_status": "unsupported",
+      "prior_reason": "expected one explicit bio.tools package identity, found 0",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "nucleoatac/nucleoatac.cwl",
+      "source_sha256": "sha256:0f776d4a3de8cb0046e312ee4cadf715f308e6c4868bf9865b37a6594e20d534",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "quay.io/biocontainers/nucleoatac:0.3.4--py27h984c793_7",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "odgi/odgi_bin.cwl",
+      "source_sha256": "sha256:7ad99d30bae5c969454b04365bcd7977069970581b89aaae46f6c4e1eb7e2808",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "odgi/odgi_build.cwl",
+      "source_sha256": "sha256:c51e2dfb87ce49fd97d36d24863f056fe24f10c08dc4864fab878ffc4c4a5ad2",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "odgi/odgi_pathindex.cwl",
+      "source_sha256": "sha256:874bf7ac80e21d86b688194e1218796ac4f6973b1a52d251e441e8f8f94d90a5",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "odgi/odgi_sort.cwl",
+      "source_sha256": "sha256:8f7fcf1956befe4b4aebd3c1eee9b776c2eb9ff7682fbf850232ca17ffeb6d03",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "odgi/odgi_viz.cwl",
+      "source_sha256": "sha256:2a4f3c684eb8dccc129fbc2f2ccadaa086f74f45daf99c6277a69776eb05476d",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "pca/pca.cwl",
+      "source_sha256": "sha256:9470604574c22a55f321d635015002d343930b82fb321fac49431f26e4fff429",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/pca:v0.0.4",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "phantompeakqualtools/phantompeakqualtools.cwl",
+      "source_sha256": "sha256:eb8998476088e56f07359f7397f0c6e76ebe840ff178c451e47aebd0e624bbfd",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 9a38b37a6619fcd3",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "picard/picard_AddOrReplaceReadGroups.cwl",
+      "source_sha256": "sha256:669f92a542b2bc907b4db7699f0dbc6c9d1e0fcf61a8150e0351d2837d975e80",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "picard/picard_CreateSequenceDictionary.cwl",
+      "source_sha256": "sha256:c334d1e851bbdc332c8ab7ae629b48549c1357ceae3621c1edf56fd425c55893",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "picard/picard_MarkDuplicates.cwl",
+      "source_sha256": "sha256:d8266bd01ac516a1c110cb17db598adbd067bff448bc09b1517fa4b2245db235",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "picard/picard_SortSam.cwl",
+      "source_sha256": "sha256:925e01a4844652bc05ff1e15a17a7970caa6d8d9bd6349c3396e2e2be6eec08c",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "preseq/preseq_lc_extrap.cwl",
+      "source_sha256": "sha256:26f4780773b2f1aa854e7ead0aee8f7c29dbed5fc479ac52290d6ec5e49da919",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 4c29686a8a5bc85b",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "qualimap/qualimap_rnaseq.cwl",
+      "source_sha256": "sha256:7fe33cc2ad2f46a95168050ff730d442270e3230f0527a3666cddf1dba541c0a",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 91478c3b1471d73b",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "rgt/rgt-thor.cwl",
+      "source_sha256": "sha256:aeaccaf4a2bc79457dc130935ea3b4b59ebec4415b31b7f8e5785a72a24e7a0e",
+      "prior_status": "unsupported",
+      "prior_reason": "package rgt does not have exactly one version pin",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "rose/rose.cwl",
+      "source_sha256": "sha256:e1f4af8607c2126b78744a0bcfd505fc2de4a998b58662d1042fb4406700fe89",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/rose:v0.0.2",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "samtools/samtools_faidx.cwl",
+      "source_sha256": "sha256:ce1075e62ca55fb0a181dc731ad4c9eb5030c5e8a5c4d5badba12b8fe814608c",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "samtools/samtools_fastq.cwl",
+      "source_sha256": "sha256:04df7ae43059410d2aeeb082c0e81433dc5acd3e502fa7a57b02082a2fd052de",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "samtools/samtools_index.cwl",
+      "source_sha256": "sha256:45a74a84c336e453fe80653e6b1a2fb78bfd9734b8496cdd367962c74fe2e5b4",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "samtools/samtools_merge.cwl",
+      "source_sha256": "sha256:7bdf2c5252a36319bd48a4e4953df3b0eaf28326fa620fe00824f46463aee378",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "samtools/samtools_sort.cwl",
+      "source_sha256": "sha256:cc3eab15efe4cabf025815995a3fbe44e2c186b770bcc71082220751ff2e0dfa",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "samtools/samtools_stats.cwl",
+      "source_sha256": "sha256:2e0d70c8afae1b3344bacf4dd7f060ad7097329097199bcba522ccdf8a0e2abe",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'required_flag' supports multi-type unions only for records or scalar/array forms of one artifact type",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "samtools/samtools_view_count_alignments.cwl",
+      "source_sha256": "sha256:c2443ad0c458fcd9c28f32536586e22d68495819d30d75ec8cea60f77cf1c9a8",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "samtools/samtools_view_filter.cwl",
+      "source_sha256": "sha256:84c434e9d5e6585c8bc51681344867b71b7d6f486f3546b929373c39274eeacd",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "samtools/samtools_view_sam2bam.cwl",
+      "source_sha256": "sha256:7fb0858f456b3d76cfca9acb367fa63e0989b11585d1cff5f262531eb78a9d4f",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "seqkit/seqkit_rmdup.cwl",
+      "source_sha256": "sha256:ce3e6a2706fe0c9ee2818b3f61fd21abcd105238ad0d771ba7b5fe1a28d237cd",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "sirius/sirius.cwl",
+      "source_sha256": "sha256:ef632783edbe97b369b1612d6bf165387b26127175258bc1ce3dff38b60eae42",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "docker.io/zmahnoor/maw-sirius5:dev",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "snp-sites/snp-sites.cwl",
+      "source_sha256": "sha256:7b3f387c4b637b959f4473a280102c6684805429a2ef5a18d153c997f8c4b897",
+      "prior_status": "unsupported",
+      "prior_reason": "expected one explicit bio.tools package identity, found 0",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "spades/spades.cwl",
+      "source_sha256": "sha256:04eb87abace157add743c63b5addea5898d0e669834188e292ad3ceabb6b2864",
+      "prior_status": "unsupported",
+      "prior_reason": "CWL input 'cov_state' enum requires nonempty string symbols",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "sratoolkit/fastq_dump.cwl",
+      "source_sha256": "sha256:6cb2a65d41eac7141f0e521ee179558b771a7ee4a586fefacc72192f2de0dca9",
+      "prior_status": "generated_unverified",
+      "prior_reason": "",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "sratoolkit/prefetch.cwl",
+      "source_sha256": "sha256:88077dd60b1d172cb85dea30729ab2fbc64487928ecc06165d4feab571216435",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 4e83bb84ae435dd7",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "sratoolkit/prefetch_fastq.cwl",
+      "source_sha256": "sha256:146ace9cfe5362b6c289eebf3ebc5267b44851c8ed0e68ebd36d10af6e00ee38",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "oci_status": "oci_profile_unsupported",
+      "oci_reason": "exactly one source-declared DockerRequirement.dockerPull is required"
+    },
+    {
+      "descriptor": "subread/featureCounts.cwl",
+      "source_sha256": "sha256:fdab93be1e2ad9f151dd62803f3f225f2959a33c7b31a9e6bfac4c1aeac9b192",
+      "prior_status": "unsupported",
+      "prior_reason": "package featureCounts does not have exactly one version pin",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "tar/tar-compress.cwl",
+      "source_sha256": "sha256:b76222d25ecaae7145268f26cc1f2b577efba6e1325fc5dcc53253ddb4ab1db0",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/scidap:v0.0.3",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "tb-profiler/tb-profiler-profile.cwl",
+      "source_sha256": "sha256:d6c144c0583b09ceac904db2c2a7e590d289a442e7880b72117a800c85ce9b37",
+      "prior_status": "unsupported",
+      "prior_reason": "conflicting software requirements",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "trim_galore/trim_galore.cwl",
+      "source_sha256": "sha256:11d89b2f829cc38a19574d70b4b159f5bed487c1144c4e1fa1409e9ec5af8054",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 1cca50f9943c775f",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-bedgraphtobigwig.cwl",
+      "source_sha256": "sha256:2d84fd61b2edc85604958d2d090927b45a5cd16e059d3c2ddd8ca55631d0d899",
+      "prior_status": "environment_unavailable",
+      "prior_reason": "EnvironmentUnavailableError: no complete verified environment receipts for group 4bc9f6aeec511da2",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-bedtobigbed.cwl",
+      "source_sha256": "sha256:4be6ac94f040ad37f6fd2f5f5b47ae0deffb1088f290092cbc61256edcad6056",
+      "prior_status": "unsupported",
+      "prior_reason": "expected one explicit bio.tools package identity, found 0",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-bigwigtowig.cwl",
+      "source_sha256": "sha256:38ef48df554fadc376425dde61fc231481e485d8348eae8c7288ad8555217cc3",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/ucscuserapps:v358",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-fa-to-twobit.cwl",
+      "source_sha256": "sha256:03fe3ce8d1664c3fae90f99b4dd9f14ee34bb979b70c1e11f9ec43618876390e",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/ucscuserapps:v358",
+      "oci_status": "oci_source_only_unverified",
+      "resolution": {
+        "source_pull": "biowardrobe2/ucscuserapps:v358",
+        "image_index": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+        "image_platform": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+        "platform": "linux/amd64",
+        "index_media_type": "application/vnd.docker.distribution.manifest.v2+json",
+        "manifest_media_type": "application/vnd.docker.distribution.manifest.v2+json",
+        "config_digest": "sha256:e887dc146bade8a71cc70f78f085a170388c9dd1e9171d352c3b797860cfaeb0",
+        "provenance": "registry_metadata_only"
+      },
+      "contract": {
+        "source_uri": "https://raw.githubusercontent.com/common-workflow-library/bio-cwl-tools/810495363e06f80529633389ec25f8bb6b961844/ucscuserapps/ucsc-fa-to-twobit.cwl",
+        "source_text": "#!/usr/bin/env cwl-runner\ncwlVersion: v1.0\nclass: CommandLineTool\n\n\nhints:\n- class: DockerRequirement\n  dockerPull: biowardrobe2/ucscuserapps:v358\n\n\nrequirements:\n- class: InlineJavascriptRequirement\n  expressionLib:\n  - var default_output_filename = function() {\n          if (inputs.output_filename == \"\"){\n            var root = inputs.fasta_file.basename.split('.').slice(0,-1).join('.');\n            return (root == \"\")?inputs.fasta_file.basename+\".2bit\":root+\".2bit\";\n          } else {\n            return inputs.output_filename;\n          }\n        };\n\n\ninputs:\n\n  fasta_file:\n    type: File\n    inputBinding:\n      position: 5\n    doc: \"Reference genome FASTA file\"\n\n  output_filename:\n    type: string?\n    default: \"\"\n    inputBinding:\n      valueFrom: $(default_output_filename())\n      position: 6\n    doc: \"Output file name\"\n\n\noutputs:\n\n  twobit_file:\n    type: File\n    outputBinding:\n      glob: $(default_output_filename())\n    doc: \"Reference genome 2bit file\"\n\n  stdout_log:\n    type: stdout\n\n  stderr_log:\n    type: stderr\n\n\nbaseCommand: [\"faToTwoBit\"]\nstdout: fa_to_twobit_stdout.log\nstderr: fa_to_twobit_stderr.log\n\n\n$namespaces:\n  s: http://schema.org/\n\n$schemas:\n- https://schema.org/version/latest/schemaorg-current-https.rdf\n\ns:name: \"ucsc-fa-to-twobit\"\ns:license: http://www.apache.org/licenses/LICENSE-2.0\n\ns:creator:\n- class: s:Organization\n  s:legalName: \"Cincinnati Children's Hospital Medical Center\"\n  s:location:\n  - class: s:PostalAddress\n    s:addressCountry: \"USA\"\n    s:addressLocality: \"Cincinnati\"\n    s:addressRegion: \"OH\"\n    s:postalCode: \"45229\"\n    s:streetAddress: \"3333 Burnet Ave\"\n    s:telephone: \"+1(513)636-4200\"\n  s:logo: \"https://www.cincinnatichildrens.org/-/media/cincinnati%20childrens/global%20shared/childrens-logo-new.png\"\n  s:department:\n  - class: s:Organization\n    s:legalName: \"Allergy and Immunology\"\n    s:department:\n    - class: s:Organization\n      s:legalName: \"Barski Research Lab\"\n      s:member:\n      - class: s:Person\n        s:name: Michael Kotliar\n        s:email: mailto:misha.kotliar@gmail.com\n        s:sameAs:\n        - id: http://orcid.org/0000-0002-6486-3898\n\n\ndoc: |\n  faToTwoBit - Convert DNA from fasta to 2bit format\n",
+        "source_sha256": "sha256:03fe3ce8d1664c3fae90f99b4dd9f14ee34bb979b70c1e11f9ec43618876390e",
+        "source_size_bytes": 2203,
+        "source_docker_pull": "biowardrobe2/ucscuserapps:v358",
+        "image_index": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+        "image_platform": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+        "platform": "linux/amd64",
+        "inspection": {
+          "cwl_version": "v1.0",
+          "artifact_inputs": [
+            {
+              "port_id": "fasta_file",
+              "artifact_type": "artifact.file",
+              "cardinality": "one"
+            }
+          ],
+          "parameters": [
+            {
+              "parameter_id": "output_filename",
+              "kind": "string",
+              "required": false,
+              "has_default": true,
+              "default": "",
+              "choices": null,
+              "minimum": null,
+              "maximum": null,
+              "min_length": null,
+              "max_length": null,
+              "pattern": null,
+              "description": "Output file name"
+            }
+          ],
+          "outputs": [
+            {
+              "port_id": "stderr_log",
+              "artifact_type": "artifact.file",
+              "cardinality": "one",
+              "collector": {
+                "kind": "glob",
+                "pattern": "published/stderr_log/*",
+                "minimum": 1,
+                "maximum": 1,
+                "container": "file",
+                "maximum_directory_entries": 10000
+              },
+              "require_nonempty": false,
+              "allowed_extensions": [],
+              "validators": []
+            },
+            {
+              "port_id": "stdout_log",
+              "artifact_type": "artifact.file",
+              "cardinality": "one",
+              "collector": {
+                "kind": "glob",
+                "pattern": "published/stdout_log/*",
+                "minimum": 1,
+                "maximum": 1,
+                "container": "file",
+                "maximum_directory_entries": 10000
+              },
+              "require_nonempty": false,
+              "allowed_extensions": [],
+              "validators": []
+            },
+            {
+              "port_id": "twobit_file",
+              "artifact_type": "artifact.file",
+              "cardinality": "one",
+              "collector": {
+                "kind": "glob",
+                "pattern": "published/twobit_file/*",
+                "minimum": 1,
+                "maximum": 1,
+                "container": "file",
+                "maximum_directory_entries": 10000
+              },
+              "require_nonempty": false,
+              "allowed_extensions": [],
+              "validators": []
+            }
+          ],
+          "input_mappings": [
+            {
+              "cwl_id": "fasta_file",
+              "port_id": "fasta_file",
+              "kind": "file",
+              "array": false,
+              "nullable": false
+            },
+            {
+              "cwl_id": "output_filename",
+              "port_id": "output_filename",
+              "kind": "string",
+              "array": false,
+              "nullable": true
+            }
+          ],
+          "output_mappings": [
+            {
+              "cwl_id": "stderr_log",
+              "port_id": "stderr_log",
+              "kind": "file",
+              "array": false,
+              "nullable": false
+            },
+            {
+              "cwl_id": "stdout_log",
+              "port_id": "stdout_log",
+              "kind": "file",
+              "array": false,
+              "nullable": false
+            },
+            {
+              "cwl_id": "twobit_file",
+              "port_id": "twobit_file",
+              "kind": "file",
+              "array": false,
+              "nullable": false
+            }
+          ],
+          "docker_hint_present": true,
+          "unfulfilled_hints": [
+            "external_schema_not_loaded"
+          ]
+        },
+        "profile": "oci-reference",
+        "verification": "source_only_unverified"
+      }
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-genepredtogtf.cwl",
+      "source_sha256": "sha256:86b280fdc261d2f5a94e569205422f24aa42c5056c9dd0c603d5ace191e66f7c",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/ucscuserapps:v358_2",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-twobit-to-fa.cwl",
+      "source_sha256": "sha256:e0fc0b4b773d158373e24239d7131f7ab96b4fe59fbffbd9208cec52926b0bbc",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "biowardrobe2/ucscuserapps:v358_2",
+      "oci_status": "oci_profile_unsupported",
+      "oci_reason": "CWL input 'chr_list' supports multi-type unions only for records or scalar/array forms of one artifact type"
+    },
+    {
+      "descriptor": "unicycler/unicycler.cwl",
+      "source_sha256": "sha256:4097987ecd45efd6d497fab5afb7189a82402abb295e1ef9d31cab7dbb9309a8",
+      "prior_status": "unsupported",
+      "prior_reason": "1 validation error for ParameterSpec\n  Value error, default must be a member of choices [type=value_error, input_value={'parameter_id': 'fastq2_...fastq_file_type=paired'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+      "oci_status": "outside_missing_software_cohort"
+    },
+    {
+      "descriptor": "util/awk.cwl",
+      "source_sha256": "sha256:809529bc0e6faafbaa99fcd0de3674b139b73496f7403c8148b867db35193af9",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "busybox:latest",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "util/grep.cwl",
+      "source_sha256": "sha256:41309d39eb1898dc6d32a85fe149c244e190cfccc18ffdda44a8f252a2e84362",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "busybox:latest",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "util/rename.cwl",
+      "source_sha256": "sha256:98ecd7a1520085750043eb3d68fa570f4be7166f80cce827d4af82a015a983b1",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "oci_status": "oci_profile_unsupported",
+      "oci_reason": "exactly one source-declared DockerRequirement.dockerPull is required"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-calc-basic-stats.cwl",
+      "source_sha256": "sha256:9e64ddece899b44180429e219085c41ad3723cb861bba68ba6f766c9f1c45566",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "yyasumizu/vdjtools",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-calc-diversity-stats.cwl",
+      "source_sha256": "sha256:f266462eecffd602ed7b8b26d5302b9988754deb4255ddf8dce8d89b17d12d8a",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "yyasumizu/vdjtools",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-calc-spectratype.cwl",
+      "source_sha256": "sha256:a550bffa12f906c599523748e4b058e5179c5bcb42e468b100109aa1ac0761f3",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "yyasumizu/vdjtools",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-convert-mixcr.cwl",
+      "source_sha256": "sha256:a5a32af7367b72baa3145205028b31af8e519d7070ec5982935a382f213a6767",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "yyasumizu/vdjtools",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-join-samples.cwl",
+      "source_sha256": "sha256:39cb3b15d1c1aa61245e544b5cd64458963d7b900b00816f9f4c866d3d76ee5c",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "yyasumizu/vdjtools",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-plot-fancy-spectratype.cwl",
+      "source_sha256": "sha256:513c45e6790c9ad0b749dcbdf65dd1fe8ad84260445098e17a50c7fb69c2108b",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "yyasumizu/vdjtools",
+      "oci_status": "oci_image_unresolved"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-plot-quantile-stats.cwl",
+      "source_sha256": "sha256:f5f6be3438747c89b8edbaa6d6b69c1c7013189b47c093a0f32f02fede3e76b9",
+      "prior_status": "unsupported",
+      "prior_reason": "no machine-readable SoftwareRequirement",
+      "source_docker_pull": "yyasumizu/vdjtools",
+      "oci_status": "oci_image_unresolved"
+    }
+  ],
+  "boundary": "OCI source contracts are not registered executable nodes; a digest and proven local container runtime are required."
+}

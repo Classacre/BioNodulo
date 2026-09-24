@@ -133,6 +133,9 @@ class NodeRegistry:
         elif parsed.cwl_reference is not None:
             from bionodulo.nodes.cwl_reference_runtime import bind_cwl_reference_node as bind_node
             factory = "bionodulo.nodes.cwl_reference_runtime:CwlReferenceNode"
+        elif parsed.cwl_oci is not None:
+            from bionodulo.nodes.cwl_oci_runtime import bind_cwl_oci_node as bind_node
+            factory = "bionodulo.nodes.cwl_oci_runtime:CwlOciNode"
         else:
             raise ValueError("declarative catalog requires a CWL invocation")
         if parsed.execution_factory != factory:
@@ -198,6 +201,8 @@ class NodeRegistry:
         node_id = node_class.NODE_ID
         if not node_id:
             raise ValueError(f"Node class {node_class.__name__} missing NODE_ID")
+        if re.fullmatch(r"biotools_[a-f0-9]{32}", node_id):
+            raise ValueError("The biotools generated definition namespace is reserved for the verified catalog")
         validate_metadata_contract = getattr(node_class, "validate_metadata_contract", None)
         if callable(validate_metadata_contract):
             validate_metadata_contract()
@@ -252,6 +257,16 @@ class NodeRegistry:
             return node
         if self._lazy_import(node_id):
             return self._nodes.get(node_id)
+        if node_id.startswith("biotools_"):
+            from bionodulo.nodes.registry_catalog import RegistryCatalog, bind_registry_definition
+
+            definition = RegistryCatalog().get(node_id)
+            if definition is not None:
+                # Reserved definitions come only from the verified packaged catalog.
+                # Public registration must never let a custom adapter shadow them.
+                self._nodes[node_id] = bind_registry_definition(definition)
+                self._object_info_cache = None
+                return self._nodes[node_id]
         return None
 
     def _lazy_import(self, node_id: str) -> bool:
@@ -289,7 +304,7 @@ class NodeRegistry:
         if node_id in self._node_index:
             self._lazy_import(node_id)
             return node_id in self._nodes
-        return False
+        return self.get(node_id) is not None if node_id.startswith("biotools_") else False
 
     def all(self) -> dict[str, Type[BaseNode]]:
         """Return all registered node classes.
@@ -309,7 +324,7 @@ class NodeRegistry:
             Dictionary of node metadata keyed by node ID.
         """
         if node_id is not None:
-            node_class = self._nodes.get(node_id)
+            node_class = self.get(node_id)
             if node_class is None:
                 return {}
             return _to_node_info(
@@ -723,6 +738,8 @@ def _to_node_info(
     }
     if custom_node_package is not None:
         info["custom_node_package"] = dict(custom_node_package)
+    if getattr(node_class, "REGISTRY_ORIGIN", None):
+        info["registry_origin"] = dict(getattr(node_class, "REGISTRY_ORIGIN"))
     contract = getattr(node_class, "CONTRACT_SPEC", None)
     if contract is not None and getattr(contract, "cwl_invocation", None) is not None:
         invocation = contract.cwl_invocation
@@ -743,6 +760,16 @@ def _to_node_info(
             "engine_version": reference.engine_version,
             "unfulfilled_hints": list(reference.unfulfilled_hints),
             "verification": "released" if contract.maturity and contract.maturity.released else "unverified",
+        }
+    elif contract is not None and getattr(contract, "cwl_oci", None) is not None:
+        reference = contract.cwl_oci
+        info["declarative_runtime"] = {
+            "kind": "cwl_oci_command_line_tool",
+            "contract_digest": contract.contract_digest(),
+            "source_uri": reference.source_uri,
+            "source_sha256": reference.source_sha256,
+            "image_platform": reference.image_platform,
+            "verification": "unverified",
         }
     return info
 

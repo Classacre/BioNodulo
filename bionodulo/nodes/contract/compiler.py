@@ -335,6 +335,16 @@ class CatalogCompiler:
                     "environment": _json_model(spec.environment),
                     "runtime_binding": _json_model(spec.runtime_binding),
                 }
+            if spec.cwl_oci is not None:
+                runtime_entry["runtime_descriptor"] = {
+                    "kind": "cwl_oci_command_line_tool",
+                    "reference": _json_model(spec.cwl_oci),
+                    "artifact_inputs": [_json_model(item) for item in spec.artifact_inputs],
+                    "parameters": [_json_model(item) for item in spec.parameters],
+                    "outputs": [_json_model(item) for item in spec.outputs],
+                    "environment": _json_model(spec.environment),
+                    "runtime_binding": _json_model(spec.runtime_binding),
+                }
             runtime_nodes[stable_id] = runtime_entry
             ui_nodes[stable_id] = {
                 "identity": _json_model(spec.identity),

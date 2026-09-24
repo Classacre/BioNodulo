@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ObjectInfo, NodeMetadata } from '../../types';
 import { groupNodesByCategory } from '../../utils';
+import { apiGet } from '../../api/client';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { useNodeSearch, useRecentNodes, useNodeUsageStats } from '../../utils/nodeSearch';
 import {
@@ -22,6 +23,7 @@ interface NodeLibraryPanelProps {
   objectInfo: ObjectInfo;
   loading?: boolean;
   onAddNode: (meta: NodeMetadata) => void;
+  onAddGeneratedNode: (nodeId: string) => Promise<void>;
   onAddBlueprint?: (blueprint: SubgraphBlueprint) => void;
   onClose: () => void;
 }
@@ -236,10 +238,20 @@ function NodeLibraryResult({
   );
 }
 
-export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
+export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAddGeneratedNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [showRegistry, setShowRegistry] = useState(false);
+  const [registryTotal, setRegistryTotal] = useState<number | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    apiGet<{ schema_version: number; total: number }>('/registry/nodes?offset=0&limit=1', { signal: controller.signal })
+      .then(data => {
+        if (!controller.signal.aborted && data.schema_version === 1 && Number.isFinite(data.total)) setRegistryTotal(data.total);
+      })
+      .catch(() => { /* The registry panel owns its retry and error state. */ });
+    return () => controller.abort();
+  }, []);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['Input', 'Quality Control', 'Subgraphs']));
   const [blueprints, setBlueprints] = useState<SubgraphBlueprint[]>(() => listBlueprints());
   useEffect(() => {
@@ -369,7 +381,9 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
 
   if (showRegistry) return (
     <Suspense fallback={<Spinner label={t('registry.loading', 'Loading registry metadata…')} />}>
-      <BiotoolsRegistryPanel objectInfo={objectInfo} onAddNode={chooseNode} onBack={() => setShowRegistry(false)} onClose={onClose} />
+      <BiotoolsRegistryPanel objectInfo={objectInfo} onAddNode={chooseNode} onAddGeneratedNode={async nodeId => {
+        await onAddGeneratedNode(nodeId);
+      }} onBack={() => setShowRegistry(false)} onClose={onClose} />
     </Suspense>
   );
 
@@ -383,7 +397,7 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
       </div>
       <div className="rail-panel-body">
         <button type="button" className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => setShowRegistry(true)}>
-          {t('registry.browse', 'Browse bio.tools registry')}
+          {t('registry.browse', 'Browse bio.tools registry')}{registryTotal !== null ? ` · ${registryTotal.toLocaleString()} ${t('registry.referenceDefinitions', 'reference definitions')}` : ''}
         </button>
         <div className="node-search-wrap">
           <input
@@ -407,7 +421,7 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
               </span>
             ) : hasQuery
               ? `${t('nodeLibrary.matchCount', { count: searchedNodes.length })}${categoryFilters.size ? ` ${t('nodeLibrary.filteredSuffix')}` : ''}`
-              : t('nodeLibrary.nodesAvailable', { count: totalNodes })}
+              : <>{t('nodeLibrary.nodesAvailable', { count: totalNodes })}{registryTotal !== null && ` · ${registryTotal.toLocaleString()} ${t('registry.referenceDefinitions', 'bio.tools reference definitions')}`}</>}
           </span>
           {!hasQuery && recentNodes.length > 0 && (
             <button className="node-search-clear" type="button" onClick={clearRecentNodes} title={t('nodeLibrary.clearRecentNodes')}>

@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "source_revision": "810495363e06f80529633389ec25f8bb6b961844",
+  "source_denominator": 147,
+  "resolved_source_contracts": 30,
+  "counts": {
+    "denied": 14,
+    "source_only_unverified": 16
+  },
+  "records": [
+    {
+      "descriptor": "bash/Gunzip.cwl",
+      "source_sha256": "sha256:24e2af79bb92b8f2ae0b135dc6e6f8252b01b808c3d03c0873371cd4e4666e23",
+      "node_id": "generated_oci_bash_gunzip_248c972b2bb9",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "bash/extract_fastq.cwl",
+      "source_sha256": "sha256:eb459f6198201ed64f8d87b28cecbc1a1e0f019dc2a45ea957256609fd4a4292",
+      "node_id": "generated_oci_bash_extract_fastq_bd95b0b7e4ad",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "bzip2/bzip2_compress.cwl",
+      "source_sha256": "sha256:7faa2167251e9c3734939465fd13175afb4f587759bb1702eb6eee2dfa1090b6",
+      "node_id": "generated_oci_bzip2_bzip2_compress_1436528d2fae",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "cellranger/cellranger-aggr.cwl",
+      "source_sha256": "sha256:5e62de656683c00e2d9f9e224eda65382638d0726cde19274ee1177e8586ec22",
+      "node_id": "generated_oci_cellranger_cellranger_aggr_6d17fcacb55b",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "cellranger/cellranger-arc-aggr.cwl",
+      "source_sha256": "sha256:dca4889193e46114ad8dccbdedfd8a032deeca2fe1f9ff32fcfe22fc8966508e",
+      "node_id": "generated_oci_cellranger_cellranger_arc_aggr_c4ae8b52f2a3",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "cellranger/cellranger-arc-count.cwl",
+      "source_sha256": "sha256:1ac372f87d6091fb5a527bc3cb3670e442301d12b3eb3dcfb35b78fbad0f90e6",
+      "node_id": "generated_oci_cellranger_cellranger_arc_count_b38e097d1261",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "cellranger/cellranger-arc-mkref.cwl",
+      "source_sha256": "sha256:06df387c18f2e91ce0dc2bebdaf8629370d067bb2397d6981e27652bd3c28bb5",
+      "node_id": "generated_oci_cellranger_cellranger_arc_mkref_f0eb8d889b6c",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "cellranger/cellranger-count.cwl",
+      "source_sha256": "sha256:c1a3ffb59ee6b5c9e58f2fd5d26b5d1e6fecdd14255af1a91c3ff0bd954cb409",
+      "node_id": "generated_oci_cellranger_cellranger_count_2ab13a731484",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "cellranger/cellranger-mkref.cwl",
+      "source_sha256": "sha256:71204b9e1ccfa8ad3a1627fba2c18f8c0b3ead5f3ca1c99c67ba003e8400c142",
+      "node_id": "generated_oci_cellranger_cellranger_mkref_e5d8b94c726f",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "cellranger/cellranger-reanalyze.cwl",
+      "source_sha256": "sha256:30cff4515b5662f9a7fbb106d26a8006f3a5ce4dcc7717a27b2429224c72633c",
+      "node_id": "generated_oci_cellranger_cellranger_reanalyze_2bc139d74aed",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "hal/halliftover.cwl",
+      "source_sha256": "sha256:11c8f503f64576f95c4cdef14491a2a2256da9deea7b56739cb3e88d95cb7ae3",
+      "node_id": "generated_oci_hal_halliftover_4836a4fe6b16",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "haltools/halliftover.cwl",
+      "source_sha256": "sha256:92547da0a76c7bb56afbc0b6cdcd480ab034a1c0e691d9be18106e8291d607ad",
+      "node_id": "generated_oci_haltools_halliftover_0fbcb38014e0",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "metfrag/metfrag.cwl",
+      "source_sha256": "sha256:e593a4a311b72f3a74076e6fa44dc82dde3cceee8111db6d744ea46fd9b957a4",
+      "node_id": "generated_oci_metfrag_metfrag_251a6fbf8869",
+      "projection_status": "denied",
+      "reason": "OCI app projection is invalid: 1 validation error for NodeSpec\n  Value error, OCI app execution of a multiarch index requires retained index-to-platform proof [type=value_error, input_value={'identity': NodeIdentity...ource_only_unverified')}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/value_error"
+    },
+    {
+      "descriptor": "nucleoatac/nucleoatac.cwl",
+      "source_sha256": "sha256:0f776d4a3de8cb0046e312ee4cadf715f308e6c4868bf9865b37a6594e20d534",
+      "node_id": "generated_oci_nucleoatac_nucleoatac_25746123d329",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "pca/pca.cwl",
+      "source_sha256": "sha256:9470604574c22a55f321d635015002d343930b82fb321fac49431f26e4fff429",
+      "node_id": "generated_oci_pca_pca_27e1147d300e",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "rose/rose.cwl",
+      "source_sha256": "sha256:e1f4af8607c2126b78744a0bcfd505fc2de4a998b58662d1042fb4406700fe89",
+      "node_id": "generated_oci_rose_rose_f6b790bfc937",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "sirius/sirius.cwl",
+      "source_sha256": "sha256:ef632783edbe97b369b1612d6bf165387b26127175258bc1ce3dff38b60eae42",
+      "node_id": "generated_oci_sirius_sirius_c1a035cc87b6",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "tar/tar-compress.cwl",
+      "source_sha256": "sha256:b76222d25ecaae7145268f26cc1f2b577efba6e1325fc5dcc53253ddb4ab1db0",
+      "node_id": "generated_oci_tar_tar_compress_c6b8528ce55b",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-bigwigtowig.cwl",
+      "source_sha256": "sha256:38ef48df554fadc376425dde61fc231481e485d8348eae8c7288ad8555217cc3",
+      "node_id": "generated_oci_ucscuserapps_ucsc_bigwigtowig_ffd3fc056cb2",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-fa-to-twobit.cwl",
+      "source_sha256": "sha256:03fe3ce8d1664c3fae90f99b4dd9f14ee34bb979b70c1e11f9ec43618876390e",
+      "node_id": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+      "projection_status": "source_only_unverified"
+    },
+    {
+      "descriptor": "ucscuserapps/ucsc-genepredtogtf.cwl",
+      "source_sha256": "sha256:86b280fdc261d2f5a94e569205422f24aa42c5056c9dd0c603d5ace191e66f7c",
+      "node_id": "generated_oci_ucscuserapps_ucsc_genepredtogtf_ef1ec1caf37d",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "util/awk.cwl",
+      "source_sha256": "sha256:809529bc0e6faafbaa99fcd0de3674b139b73496f7403c8148b867db35193af9",
+      "node_id": "generated_oci_util_awk_3f4c5594549e",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "util/grep.cwl",
+      "source_sha256": "sha256:41309d39eb1898dc6d32a85fe149c244e190cfccc18ffdda44a8f252a2e84362",
+      "node_id": "generated_oci_util_grep_80b825092744",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-calc-basic-stats.cwl",
+      "source_sha256": "sha256:9e64ddece899b44180429e219085c41ad3723cb861bba68ba6f766c9f1c45566",
+      "node_id": "generated_oci_vdjtools_vdjtools_calc_basic_stats_6c3772972cc0",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-calc-diversity-stats.cwl",
+      "source_sha256": "sha256:f266462eecffd602ed7b8b26d5302b9988754deb4255ddf8dce8d89b17d12d8a",
+      "node_id": "generated_oci_vdjtools_vdjtools_calc_diversity_stats_446f6280f230",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-calc-spectratype.cwl",
+      "source_sha256": "sha256:a550bffa12f906c599523748e4b058e5179c5bcb42e468b100109aa1ac0761f3",
+      "node_id": "generated_oci_vdjtools_vdjtools_calc_spectratype_f0334a6c45f9",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-convert-mixcr.cwl",
+      "source_sha256": "sha256:a5a32af7367b72baa3145205028b31af8e519d7070ec5982935a382f213a6767",
+      "node_id": "generated_oci_vdjtools_vdjtools_convert_mixcr_3492aed2e1f8",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-join-samples.cwl",
+      "source_sha256": "sha256:39cb3b15d1c1aa61245e544b5cd64458963d7b900b00816f9f4c866d3d76ee5c",
+      "node_id": "generated_oci_vdjtools_vdjtools_join_samples_02219ed4e8ed",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-plot-fancy-spectratype.cwl",
+      "source_sha256": "sha256:513c45e6790c9ad0b749dcbdf65dd1fe8ad84260445098e17a50c7fb69c2108b",
+      "node_id": "generated_oci_vdjtools_vdjtools_plot_fancy_spectratype_40fed7bcac6c",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    },
+    {
+      "descriptor": "vdjtools/vdjtools-plot-quantile-stats.cwl",
+      "source_sha256": "sha256:f5f6be3438747c89b8edbaa6d6b69c1c7013189b47c093a0f32f02fede3e76b9",
+      "node_id": "generated_oci_vdjtools_vdjtools_plot_quantile_stats_da88e2d54652",
+      "projection_status": "denied",
+      "reason": "app projection requires a source-declared numeric container release tag"
+    }
+  ],
+  "boundary": "Generated catalog data is source-only and unverified; local runtime readiness and execution proof are separate gates."
+}

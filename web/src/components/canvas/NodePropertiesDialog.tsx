@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { WorkflowNode, ObjectInfo, InputSpec } from '../../types';
+import { isGeneratedRegistryNodeId } from '../../utils/registryNodes';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
 import {
@@ -142,6 +143,7 @@ export default function NodePropertiesDialog({ node, objectInfo, onRename, onPar
             <div><b>{t('canvas.props.type')}:</b> {node.type}</div>
             {meta?.category && <div><b>{t('canvas.props.category')}:</b> {meta.category}</div>}
             {meta?.description && <p className="bio-props-desc">{meta.description}</p>}
+            {(isGeneratedRegistryNodeId(node.type) || meta?.registry_origin?.execution_status === 'definition_only') && <p className="bio-props-desc" role="status">{t('registry.definitionOnly', 'Execution unavailable for this generated definition')}{meta?.registry_origin?.blockers?.length ? `: ${meta.registry_origin.blockers.join('; ')}` : ''}</p>}
           </div>
 
           {editable.length > 0 && (

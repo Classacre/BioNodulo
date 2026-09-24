@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { InputSpec, ObjectInfo, NodeMetadata } from '../../types';
 import { safeValidateObjectInfo } from '../../api/validators';
 import { apiGet, ApiError } from '../../api/client';
@@ -159,12 +159,16 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
       git_commit: optionalString(raw.git_commit),
       custom_node_package: normalizeCustomNodePackage(raw.custom_node_package),
       declarative_runtime: normalizeDeclarativeRuntime(raw.declarative_runtime),
+      registry_origin: raw.registry_origin && typeof raw.registry_origin === 'object'
+        ? raw.registry_origin as NodeMetadata['registry_origin'] : undefined,
     } satisfies NodeMetadata];
   }));
 }
 
 export function useObjectInfo() {
   const [objectInfo, setObjectInfo] = useState<ObjectInfo>({});
+  const generatedRef = useRef<ObjectInfo>({});
+  const inFlightRef = useRef(new Map<string, Promise<NodeMetadata>>());
   const [loading, setLoading] = useState(true);
   // Surface fetch failures instead of silently leaving the registry empty. An
   // empty registry makes every node resolve `meta=null`, which strips its
@@ -182,11 +186,11 @@ export function useObjectInfo() {
       // per-key normaliser already tolerates missing inner fields.
       const validation = safeValidateObjectInfo(data);
       if (validation.ok) {
-        setObjectInfo(normalizeObjectInfo(validation.value));
+        setObjectInfo({ ...normalizeObjectInfo(validation.value), ...generatedRef.current });
       } else {
         // Fall back to the raw normaliser so a backend rolling out a
         // schema change doesn't leave the panel empty.
-        setObjectInfo(normalizeObjectInfo(data));
+        setObjectInfo({ ...normalizeObjectInfo(data), ...generatedRef.current });
       }
       setError(null);
     } catch (err) {
@@ -202,5 +206,25 @@ export function useObjectInfo() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  return { objectInfo, loading, error, refresh };
+  const registerNode = useCallback((nodeId: string): Promise<NodeMetadata> => {
+    const existing = generatedRef.current[nodeId];
+    if (existing) return Promise.resolve(existing);
+    const pending = inFlightRef.current.get(nodeId);
+    if (pending) return pending;
+    const request = apiGet<unknown>(`/object_info/${encodeURIComponent(nodeId)}`)
+      .then(raw => {
+        const meta = normalizeObjectInfo({ [nodeId]: raw })[nodeId];
+        if (!meta || !meta.registry_origin || meta.registry_origin.execution_status !== 'definition_only') {
+          throw new Error(`Invalid generated node metadata for ${nodeId}`);
+        }
+        generatedRef.current = { ...generatedRef.current, [nodeId]: meta };
+        setObjectInfo(previous => ({ ...previous, [nodeId]: meta }));
+        return meta;
+      })
+      .finally(() => { inFlightRef.current.delete(nodeId); });
+    inFlightRef.current.set(nodeId, request);
+    return request;
+  }, []);
+
+  return { objectInfo, loading, error, refresh, registerNode };
 }

@@ -38,6 +38,9 @@ def _is_declarative_cwl_class(node_class: Any) -> bool:
         ) or (
             spec.cwl_reference is not None
             and spec.execution_factory == "bionodulo.nodes.cwl_reference_runtime:CwlReferenceNode"
+        ) or (
+            spec.cwl_oci is not None
+            and spec.execution_factory == "bionodulo.nodes.cwl_oci_runtime:CwlOciNode"
         )
     except (AttributeError, ImportError):
         return False
@@ -92,6 +95,20 @@ async def _verify_declarative_cwl_class(
     fail-closed and becomes a workflow resolution error.
     """
     try:
+        if getattr(node_class.CONTRACT_SPEC, "cwl_oci", None) is not None:
+            from bionodulo.nodes.cwl_oci_runtime import configured_oci_runtime, prove_oci_runtime
+
+            spec = node_class.CONTRACT_SPEC
+            metadata = getattr(node_class, "ENVIRONMENT", None)
+            if not isinstance(metadata, dict) or metadata.get("type") != "declarative_oci":
+                raise RuntimeError("bound OCI node is missing container environment metadata")
+            if metadata.get("name") != spec.environment.environment_id:
+                raise RuntimeError("bound OCI environment ID differs from contract")
+            if metadata.get("digest") != spec.environment.environment_digest():
+                raise RuntimeError("bound OCI environment digest differs from contract")
+            prove_oci_runtime(spec.cwl_oci, configured_oci_runtime())
+            _verify_declarative_stdout_workspace(spec, workspace_dir)
+            return None
         if getattr(node_class.CONTRACT_SPEC, "cwl_reference", None) is not None:
             from bionodulo.nodes.cwl_reference_runtime import verify_reference_runtime
             spec = node_class.CONTRACT_SPEC
@@ -518,6 +535,14 @@ async def _resolve_workflow_async(
 ) -> ResolutionReport:
     """Async implementation of dependency resolution."""
     report = ResolutionReport(env_isolation=env_isolation)
+    from bionodulo.nodes.registry_catalog import registry_execution_blockers
+
+    blockers = registry_execution_blockers(workflow, registry)
+    if blockers:
+        report.errors.extend(blockers)
+        report.installable = False
+        report.legacy_runtime_required = False
+        return report
     if env_isolation not in {"auto", "always", "off"}:
         report.errors.append(f"Unsupported environment isolation mode: {env_isolation}")
     nodes = workflow.get("nodes", [])

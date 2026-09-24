@@ -1,3 +1,5 @@
 # The environment compiler hashes and parses canonical Pixi lock bytes.
 # Preserve LF on Windows checkouts as well as POSIX checkouts.
 pixi.lock text eol=lf
+# OCI audit receipts hash the generated catalog bytes across hosts.
+reports/oci-reference/*.json text eol=lf

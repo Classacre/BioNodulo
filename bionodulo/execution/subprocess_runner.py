@@ -261,6 +261,7 @@ async def run_subprocess(
     cmd: str | list[str],
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
+    replace_env: bool = False,
     stdout_path: str | Path | None = None,
     stderr_path: str | Path | None = None,
     emit: Callable[[str, dict[str, Any]], None] | None = None,
@@ -276,6 +277,7 @@ async def run_subprocess(
         cmd: Shell command string or argument list.
         cwd: Working directory for the subprocess.
         env: Additional environment variables (merged with current env).
+        replace_env: Use exactly the supplied environment, without parent inheritance.
         stdout_path: Path to write captured stdout. If *None*, stdout is
             discarded after streaming.
         stderr_path: Path to write captured stderr. If *None*, stderr is
@@ -330,7 +332,12 @@ async def run_subprocess(
     # Always start from a SANITIZED copy of the parent env; any var the node
     # explicitly declares (env) is layered on top (a node can still opt a
     # specific credential in intentionally).
-    merged_env = {**_sanitized_parent_env(), **(env or {})}
+    if replace_env:
+        if env is None:
+            raise ValueError("replace_env requires an explicit environment")
+        merged_env = dict(env)
+    else:
+        merged_env = {**_sanitized_parent_env(), **(env or {})}
 
     cmd_str = cmd if isinstance(cmd, str) else " ".join(cmd)
 

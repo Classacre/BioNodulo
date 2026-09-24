@@ -1,0 +1,546 @@
+{
+  "catalog_sha256": "sha256:315a26320c159b8acc8cbb4b1335e5daabe08259167a8ed781523b0f30504bbc",
+  "catalog_spec_count": 16,
+  "tested_node_id": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+  "workflow": {
+    "name": "Pinned UCSC FASTA to 2bit",
+    "nodes": [
+      {
+        "id": "convert",
+        "type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+        "params": {
+          "fasta_file": "/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/tests/fixtures/oci/tiny.fa"
+        }
+      }
+    ],
+    "edges": []
+  },
+  "discovery": {
+    "input": {
+      "required": {
+        "fasta_file": [
+          "FILE",
+          {}
+        ]
+      },
+      "optional": {
+        "output_filename": [
+          "STRING",
+          {
+            "description": "Output file name",
+            "default": ""
+          }
+        ]
+      },
+      "hidden": {}
+    },
+    "output": [
+      "FILE",
+      "FILE",
+      "FILE"
+    ],
+    "output_name": [
+      "stderr_log",
+      "stdout_log",
+      "twobit_file"
+    ],
+    "name": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+    "display_name": "Generated Oci Ucscuserapps Ucsc Fa To Twobit 2F224B223Bc5",
+    "description": "Experimental CWL container from https://raw.githubusercontent.com/common-workflow-library/bio-cwl-tools/810495363e06f80529633389ec25f8bb6b961844/ucscuserapps/ucsc-fa-to-twobit.cwl.",
+    "search_aliases": [],
+    "category": "Generated/CWL/OCI",
+    "output_node": false,
+    "inline_preview": false,
+    "visual_only": false,
+    "experimental": true,
+    "requires_external_tools": true,
+    "requires_gpu": false,
+    "version": "1.0.0+oci.03fe3ce8d166.c20b52737a16",
+    "deprecated": false,
+    "deprecation_message": "",
+    "replaced_by": "",
+    "lifecycle": {
+      "status": "active",
+      "deprecated": false,
+      "deprecation_message": "",
+      "replaced_by": ""
+    },
+    "versioning": {
+      "current": "1.0.0+oci.03fe3ce8d166.c20b52737a16",
+      "previous": [],
+      "migrations": []
+    },
+    "builtin": false,
+    "python_class": "bionodulo.nodes.cwl_oci_runtime.CwlOciNode_generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+    "git_url": "",
+    "git_commit": "",
+    "required_executables": [],
+    "required_conda_packages": [],
+    "required_r_packages": [],
+    "documentation_url": "",
+    "citation_dois": [],
+    "citation_urls": [],
+    "citation_text": "",
+    "declarative_runtime": {
+      "kind": "cwl_oci_command_line_tool",
+      "contract_digest": "sha256:7cc8c4e8a47ca218cc8e1383fde3aa61df7dd42fd1ee10445679b4153fa6bcea",
+      "source_uri": "https://raw.githubusercontent.com/common-workflow-library/bio-cwl-tools/810495363e06f80529633389ec25f8bb6b961844/ucscuserapps/ucsc-fa-to-twobit.cwl",
+      "source_sha256": "sha256:03fe3ce8d1664c3fae90f99b4dd9f14ee34bb979b70c1e11f9ec43618876390e",
+      "image_platform": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+      "verification": "unverified"
+    }
+  },
+  "denied_readiness": {
+    "missing_nodes": [],
+    "missing_executables": [],
+    "missing_packages": [],
+    "missing_r_packages": [],
+    "required_packages": [],
+    "env_id": "44136fa355b3678a",
+    "env_ready": false,
+    "env_isolation": "auto",
+    "declarative_runtime_required": true,
+    "declarative_runtime_ready": false,
+    "legacy_runtime_required": false,
+    "execution_ready": false,
+    "installable": false,
+    "errors": [
+      "declarative CWL runtime for 'generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5' is not ready: BIONODULO_OCI_RUNTIME_CONFIG is not configured"
+    ],
+    "has_issues": true,
+    "summary": "declarative CWL runtime for 'generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5' is not ready: BIONODULO_OCI_RUNTIME_CONFIG is not configured"
+  },
+  "ready": {
+    "missing_nodes": [],
+    "missing_executables": [],
+    "missing_packages": [],
+    "missing_r_packages": [],
+    "required_packages": [],
+    "env_id": "44136fa355b3678a",
+    "env_ready": false,
+    "env_isolation": "auto",
+    "declarative_runtime_required": true,
+    "declarative_runtime_ready": true,
+    "legacy_runtime_required": false,
+    "execution_ready": true,
+    "installable": true,
+    "errors": [],
+    "has_issues": false,
+    "summary": "All dependencies satisfied"
+  },
+  "run": {
+    "run_id": "Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02",
+    "status": "completed",
+    "workflow_name": "Untitled",
+    "created_at": 1790238117.5817049,
+    "started_at": 1790238117.5858748,
+    "finished_at": 1790238123.1107605,
+    "execution_plan": [
+      "convert"
+    ],
+    "node_statuses": [
+      {
+        "node_id": "convert",
+        "status": "completed"
+      }
+    ],
+    "event_count": 4,
+    "previews": {
+      "convert": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/_head_preview/head_preview.html"
+    },
+    "artifacts": {
+      "convert": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit"
+    },
+    "workflow": {
+      "name": "Pinned UCSC FASTA to 2bit",
+      "nodes": [
+        {
+          "id": "convert",
+          "type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+          "params": {
+            "fasta_file": "/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/tests/fixtures/oci/tiny.fa"
+          }
+        }
+      ],
+      "edges": []
+    },
+    "result": {
+      "status": "completed",
+      "run_id": "Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02",
+      "outputs": {
+        "convert": {
+          "stderr_log": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/0000-fa_to_twobit_stderr.log",
+          "stdout_log": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stdout_log/0000-fa_to_twobit_stdout.log",
+          "twobit_file": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit"
+        }
+      },
+      "previews": [
+        {
+          "path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/_head_preview/head_preview.html",
+          "label": "convert (head)",
+          "node_id": "convert"
+        }
+      ],
+      "artifacts": [
+        {
+          "node_id": "convert",
+          "node_type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+          "port": "stderr_log",
+          "path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/0000-fa_to_twobit_stderr.log",
+          "size": 0
+        },
+        {
+          "node_id": "convert",
+          "node_type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+          "port": "stdout_log",
+          "path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stdout_log/0000-fa_to_twobit_stdout.log",
+          "size": 0
+        },
+        {
+          "node_id": "convert",
+          "node_type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+          "port": "twobit_file",
+          "path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit",
+          "size": 89
+        }
+      ],
+      "metadata": {
+        "run_id": "Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02",
+        "forced": false,
+        "target_nodes": [],
+        "workflow_parameters": {},
+        "nodes": {
+          "convert": {
+            "type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+            "status": "completed",
+            "cache_key": null
+          }
+        },
+        "semantics": {
+          "ok": true,
+          "violations": [],
+          "suggestions": [],
+          "warnings": [
+            "node 'convert' (type generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5) has no semantic contract; its data state is unknown"
+          ],
+          "node_states": {
+            "convert": {}
+          },
+          "checks": [],
+          "verification": "unverified",
+          "scope": "static declared contracts only; file contents and binary identity are not inspected here. Successful artifact-validation nodes emit separate runtime evidence",
+          "evidence_basis": {
+            "edge_states": "declared_postconditions",
+            "artifact_contents": "not_inspected",
+            "binary_identity": "not_inspected"
+          }
+        },
+        "execution_options": {
+          "force": false,
+          "stop_on_error": true,
+          "embed_provenance": true
+        },
+        "cwl_oci": {
+          "convert": {
+            "profile": "oci-reference",
+            "source_uri": "https://raw.githubusercontent.com/common-workflow-library/bio-cwl-tools/810495363e06f80529633389ec25f8bb6b961844/ucscuserapps/ucsc-fa-to-twobit.cwl",
+            "source_sha256": "sha256:03fe3ce8d1664c3fae90f99b4dd9f14ee34bb979b70c1e11f9ec43618876390e",
+            "source_size_bytes": 2203,
+            "source_docker_pull": "biowardrobe2/ucscuserapps:v358",
+            "contract_digest": "sha256:7cc8c4e8a47ca218cc8e1383fde3aa61df7dd42fd1ee10445679b4153fa6bcea",
+            "environment_digest": "sha256:a88ae882883efb0d64fe48ce622a8908052b533359a020a14f757957d227069d",
+            "input_staging": [
+              {
+                "source_path": "/mnt/d/AI/BioNodulo/BioNodulo-oci-coverage/tests/fixtures/oci/tiny.fa",
+                "source_sha256": "sha256:d309bc23a5c676aa3d1626d0794f28b5ef73338025fa2072e782fbbb67831638",
+                "staged_path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/inputs/fasta_file/0000/tiny.fa",
+                "port_id": "fasta_file"
+              }
+            ],
+            "output_publication": [
+              {
+                "port_id": "stderr_log",
+                "kind": "file",
+                "source_path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/engine-output/fa_to_twobit_stderr.log",
+                "published_path": "published/stderr_log/0000-fa_to_twobit_stderr.log",
+                "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "size_bytes": 0
+              },
+              {
+                "port_id": "stdout_log",
+                "kind": "file",
+                "source_path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/engine-output/fa_to_twobit_stdout.log",
+                "published_path": "published/stdout_log/0000-fa_to_twobit_stdout.log",
+                "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "size_bytes": 0
+              },
+              {
+                "port_id": "twobit_file",
+                "kind": "file",
+                "source_path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/engine-output/tiny.2bit",
+                "published_path": "published/twobit_file/0000-tiny.2bit",
+                "sha256": "sha256:94534d5910fa143a19f747ad176ff887a780a6f8fbe44af51ca95cf9d0be45fb",
+                "size_bytes": 89
+              }
+            ],
+            "attempt_workspace": ".cwl-oci-attempt-ipsqt1ee",
+            "cwltool_sha256": "sha256:0f17688e337b77101e86737473f1bfd803d020fc7bd16d3cbb8bab7bb411947e",
+            "cwltool_version": "3.2.20260720092025",
+            "docker_sha256": "sha256:7ed12b00293d64742419a6601ae97960a367a0ce97c88b06e3278cc0a409557b",
+            "docker_server_version": "29.1.3",
+            "docker_server_platform": "linux/amd64",
+            "nodejs_sha256": "sha256:f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d",
+            "nodejs_version": "v18.19.1",
+            "image_index": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+            "image_platform": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+            "resource_cap_cores": "2",
+            "resource_cap_ram_mib": "2048",
+            "source_request_cores_upper": "1",
+            "source_request_ram_mib_upper": "1024",
+            "docker_wrapper_sha256": "sha256:955e8352731125615ecf0451ea1c30c89ee621a0b2f4db563c40821faf196d5f",
+            "attempt_label": "39c3aa6fa2e09f5bee1bb796b69d57ea",
+            "effective_source_sha256": "sha256:709a32da70d8405bc40e92eb9346e3d9c3e0121a50d73c68f887fbb9d39ce9f2",
+            "container_cleanup_count": "0"
+          }
+        },
+        "status": "completed",
+        "failed_nodes": [],
+        "skipped_nodes": [],
+        "artifacts": [
+          {
+            "node_id": "convert",
+            "node_type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+            "port": "stderr_log",
+            "path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/0000-fa_to_twobit_stderr.log",
+            "size": 0
+          },
+          {
+            "node_id": "convert",
+            "node_type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+            "port": "stdout_log",
+            "path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stdout_log/0000-fa_to_twobit_stdout.log",
+            "size": 0
+          },
+          {
+            "node_id": "convert",
+            "node_type": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+            "port": "twobit_file",
+            "path": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit",
+            "size": 89
+          }
+        ]
+      },
+      "node_results": {
+        "convert": {
+          "status": "completed",
+          "outputs": {
+            "stderr_log": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/0000-fa_to_twobit_stderr.log",
+            "stdout_log": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stdout_log/0000-fa_to_twobit_stdout.log",
+            "twobit_file": "/tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit"
+          },
+          "cache_key": null,
+          "attempts": 1
+        }
+      }
+    }
+  },
+  "crate": {
+    "@context": [
+      "https://w3id.org/ro/crate/1.1/context",
+      "https://w3id.org/ro/terms/workflow-run/context",
+      {
+        "bionodulo": "https://github.com/Classacre/BioNodulo/terms/experimental#"
+      }
+    ],
+    "@graph": [
+      {
+        "@id": "ro-crate-metadata.json",
+        "@type": "CreativeWork",
+        "about": {
+          "@id": "./"
+        },
+        "conformsTo": {
+          "@id": "https://w3id.org/ro/crate/1.1"
+        }
+      },
+      {
+        "@id": "./",
+        "@type": "Dataset",
+        "bionodulo:conformanceStatus": "Experimental extension; Workflow Run and Provenance Run profiles have not been validated",
+        "bionodulo:semanticVerification": "unverified",
+        "conformsTo": [
+          {
+            "@id": "https://w3id.org/ro/crate/1.1"
+          }
+        ],
+        "dateModified": "2026-09-24T08:22:03.107341+00:00",
+        "datePublished": "2026-09-24T08:22:03.107341+00:00",
+        "description": "BioNodulo workflow run with semantic contract records.",
+        "hasPart": [
+          {
+            "@id": "workflow/bionodulo-workflow.json"
+          },
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/0000-fa_to_twobit_stderr.log"
+          },
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stdout_log/0000-fa_to_twobit_stdout.log"
+          },
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit"
+          }
+        ],
+        "license": "Reuse terms are unspecified; consult the data custodian.",
+        "mainEntity": {
+          "@id": "workflow/bionodulo-workflow.json"
+        },
+        "mentions": [
+          {
+            "@id": "#run-convert"
+          },
+          {
+            "@id": "#workflow-run"
+          }
+        ],
+        "name": "Pinned UCSC FASTA to 2bit (BioNodulo run crate)"
+      },
+      {
+        "@id": "https://w3id.org/ro/wfrun/workflow/0.5",
+        "@type": [
+          "CreativeWork",
+          "Profile"
+        ],
+        "name": "Workflow Run Crate 0.5"
+      },
+      {
+        "@id": "https://w3id.org/ro/wfrun/provenance/0.5",
+        "@type": [
+          "CreativeWork",
+          "Profile"
+        ],
+        "name": "Provenance Run Crate 0.5"
+      },
+      {
+        "@id": "https://w3id.org/ro/terms/bionodulo/profile/0.1",
+        "@type": [
+          "CreativeWork",
+          "Profile"
+        ],
+        "name": "BioNodulo Semantic Run Crate profile 0.1"
+      },
+      {
+        "@id": "workflow/bionodulo-workflow.json",
+        "@type": [
+          "File",
+          "SoftwareSourceCode",
+          "ComputationalWorkflow"
+        ],
+        "encodingFormat": "application/json",
+        "name": "Pinned UCSC FASTA to 2bit",
+        "programmingLanguage": {
+          "@id": "#bionodulo-language"
+        }
+      },
+      {
+        "@id": "#bionodulo-language",
+        "@type": "ComputerLanguage",
+        "name": "BioNodulo workflow JSON"
+      },
+      {
+        "@id": "#engine",
+        "@type": "SoftwareApplication",
+        "name": "BioNodulo"
+      },
+      {
+        "@id": "#tool-generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+        "@type": "SoftwareApplication",
+        "name": "generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5",
+        "softwareVersion": "unknown"
+      },
+      {
+        "@id": "#run-convert",
+        "@type": "CreateAction",
+        "actionStatus": "CompletedActionStatus",
+        "bionodulo:executionStatus": "completed",
+        "bionodulo:ociContractDigest": "sha256:7cc8c4e8a47ca218cc8e1383fde3aa61df7dd42fd1ee10445679b4153fa6bcea",
+        "bionodulo:ociCwltoolSha256": "sha256:0f17688e337b77101e86737473f1bfd803d020fc7bd16d3cbb8bab7bb411947e",
+        "bionodulo:ociDockerSha256": "sha256:7ed12b00293d64742419a6601ae97960a367a0ce97c88b06e3278cc0a409557b",
+        "bionodulo:ociDockerWrapperSha256": "sha256:955e8352731125615ecf0451ea1c30c89ee621a0b2f4db563c40821faf196d5f",
+        "bionodulo:ociEffectiveSourceSha256": "sha256:709a32da70d8405bc40e92eb9346e3d9c3e0121a50d73c68f887fbb9d39ce9f2",
+        "bionodulo:ociEnvironmentDigest": "sha256:a88ae882883efb0d64fe48ce622a8908052b533359a020a14f757957d227069d",
+        "bionodulo:ociImageIndex": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+        "bionodulo:ociImagePlatform": "registry-1.docker.io/biowardrobe2/ucscuserapps@sha256:c20b52737a16a2d554e686ae7d1b448d5d2dc5251d23432ab0a381bac1e61a73",
+        "bionodulo:ociNodejsSha256": "sha256:f3f93db342d5ac5bb61656d0599a603a73779e98befd9342171e550002725f4d",
+        "bionodulo:ociResourceCapCores": "2",
+        "bionodulo:ociResourceCapRamMib": "2048",
+        "bionodulo:ociSourceDockerPull": "biowardrobe2/ucscuserapps:v358",
+        "bionodulo:ociSourceSha256": "sha256:03fe3ce8d1664c3fae90f99b4dd9f14ee34bb979b70c1e11f9ec43618876390e",
+        "bionodulo:ociSourceUri": "https://raw.githubusercontent.com/common-workflow-library/bio-cwl-tools/810495363e06f80529633389ec25f8bb6b961844/ucscuserapps/ucsc-fa-to-twobit.cwl",
+        "instrument": {
+          "@id": "#tool-generated_oci_ucscuserapps_ucsc_fa_to_twobit_2f224b223bc5"
+        },
+        "object": {
+          "@id": "workflow/bionodulo-workflow.json"
+        },
+        "result": [
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/0000-fa_to_twobit_stderr.log"
+          },
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stdout_log/0000-fa_to_twobit_stdout.log"
+          },
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit"
+          }
+        ]
+      },
+      {
+        "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/0000-fa_to_twobit_stderr.log",
+        "@type": "File",
+        "bionodulo:sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "contentSize": 0,
+        "encodingFormat": "application/octet-stream",
+        "name": "0000-fa_to_twobit_stderr.log"
+      },
+      {
+        "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stdout_log/0000-fa_to_twobit_stdout.log",
+        "@type": "File",
+        "bionodulo:sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "contentSize": 0,
+        "encodingFormat": "application/octet-stream",
+        "name": "0000-fa_to_twobit_stdout.log"
+      },
+      {
+        "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit",
+        "@type": "File",
+        "bionodulo:sha256": "94534d5910fa143a19f747ad176ff887a780a6f8fbe44af51ca95cf9d0be45fb",
+        "contentSize": 89,
+        "encodingFormat": "application/octet-stream",
+        "name": "0000-tiny.2bit"
+      },
+      {
+        "@id": "#workflow-run",
+        "@type": "CreateAction",
+        "actionStatus": "CompletedActionStatus",
+        "agent": {
+          "@id": "#engine"
+        },
+        "instrument": {
+          "@id": "workflow/bionodulo-workflow.json"
+        },
+        "name": "Pinned UCSC FASTA to 2bit",
+        "result": [
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stderr_log/0000-fa_to_twobit_stderr.log"
+          },
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/stdout_log/0000-fa_to_twobit_stdout.log"
+          },
+          {
+            "@id": "file:///tmp/bionodulo-oci-root-final/test_oci_app_discovery_readine0/app/runs/Pinned_UCSC_FASTA_to_2bit_20260924_082157_abbb02/convert/.cwl-oci-attempt-ipsqt1ee/published/twobit_file/0000-tiny.2bit"
+          }
+        ]
+      }
+    ]
+  }
+}

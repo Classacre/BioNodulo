@@ -21,6 +21,7 @@ from bionodulo.nodes.contract.cwl_reference import (
     CwlReferenceContract,
     validate_cwl_reference_environment,
 )
+from bionodulo.nodes.contract.cwl_oci import CwlOciContract
 from bionodulo.nodes.contract.environments import (
     ContainerEnvironment,
     ExecutableProbe,
@@ -339,6 +340,7 @@ class NodeSpec(_StrictFrozenModel):
     maturity: MaturityRecord | None = None
     cwl_invocation: CwlInvocation | None = Field(default=None, exclude_if=lambda value: value is None)
     cwl_reference: CwlReferenceContract | None = Field(default=None, exclude_if=lambda value: value is None)
+    cwl_oci: CwlOciContract | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @field_validator("execution_factory")
     @classmethod
@@ -350,6 +352,7 @@ class NodeSpec(_StrictFrozenModel):
         self._validate_input_and_output_ids()
         self._validate_cwl_invocation()
         self._validate_cwl_reference()
+        self._validate_cwl_oci()
         self._validate_port_aliases()
         self._validate_execution_environment()
         self._validate_ownership_and_evidence()
@@ -397,6 +400,8 @@ class NodeSpec(_StrictFrozenModel):
             projection["cwl_invocation"] = self.cwl_invocation.model_dump(mode="json", round_trip=True)
         if self.cwl_reference is not None:
             projection["cwl_reference"] = self.cwl_reference.model_dump(mode="json", round_trip=True)
+        if self.cwl_oci is not None:
+            projection["cwl_oci"] = self.cwl_oci.model_dump(mode="json", round_trip=True)
         return projection
 
     def contract_digest(self) -> str:
@@ -581,6 +586,31 @@ class NodeSpec(_StrictFrozenModel):
             if output.artifact_type != expected_type or output.cardinality is not expected:
                 raise ValueError(f"CWL reference output mapping {port_id} has inconsistent contract")
 
+    def _validate_cwl_oci(self) -> None:
+        reference = self.cwl_oci
+        if reference is None:
+            return
+        if self.cwl_invocation is not None or self.cwl_reference is not None:
+            raise ValueError("OCI CWL cannot combine with another CWL contract")
+        if self.execution_factory != "bionodulo.nodes.cwl_oci_runtime:CwlOciNode":
+            raise ValueError("OCI CWL requires its shared reference-engine container factory")
+        if self.execution_kind is not ExecutionKind.CONTAINER or self.value_inputs or self.secrets:
+            raise ValueError("OCI CWL requires container execution without value inputs or secrets")
+        environment = self.environment
+        if not isinstance(environment, ContainerEnvironment):
+            raise ValueError("OCI CWL requires a locked container environment")
+        if environment.image != reference.image_index or environment.platforms != (reference.platform,):
+            raise ValueError("OCI CWL environment differs from source image index or platform")
+        if reference.image_index != reference.image_platform:
+            raise ValueError("OCI app execution of a multiarch index requires retained index-to-platform proof")
+        if len(environment.image_locks) != 1 or environment.image_locks[0].image != reference.image_platform:
+            raise ValueError("OCI CWL environment lacks its exact platform image lock")
+        projection = reference.inspection
+        if (self.artifact_inputs, self.parameters, self.outputs) != (
+            projection.artifact_inputs, projection.parameters, projection.outputs,
+        ):
+            raise ValueError("OCI CWL ports differ from the retained descriptor projection")
+
     def _validate_port_aliases(self) -> None:
         declared: dict[PortAliasScope, set[str]] = {
             PortAliasScope.ARTIFACT_INPUT: {port.port_id for port in self.artifact_inputs},
@@ -646,14 +676,14 @@ class NodeSpec(_StrictFrozenModel):
         if not is_core_python:
             if self.identity.tool_id is None or self.identity.tool_version is None:
                 raise ValueError("only a BioNodulo-owned in-process core Python node may omit its exact tool identity")
-            if self.evidence is None and self.cwl_invocation is None and self.cwl_reference is None:
+            if self.evidence is None and self.cwl_invocation is None and self.cwl_reference is None and self.cwl_oci is None:
                 raise ValueError("only a BioNodulo-owned in-process core Python node may omit tool evidence")
 
         if self.evidence is None:
-            if self.identity.tool_id is not None and self.cwl_invocation is None and self.cwl_reference is None:
+            if self.identity.tool_id is not None and self.cwl_invocation is None and self.cwl_reference is None and self.cwl_oci is None:
                 raise ValueError("declared tool identity requires a matching evidence record")
             if (
-                (self.cwl_invocation is not None or self.cwl_reference is not None)
+                (self.cwl_invocation is not None or self.cwl_reference is not None or self.cwl_oci is not None)
                 and self.maturity is not None
                 and self.maturity.released
             ):
