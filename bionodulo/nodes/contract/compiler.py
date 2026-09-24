@@ -291,7 +291,7 @@ class CatalogCompiler:
                 "authoring_module": authoring_module,
             }
             node_index[stable_id] = entry
-            runtime_nodes[stable_id] = {
+            runtime_entry: dict[str, Any] = {
                 "node_id": stable_id,
                 "machine_id": spec.identity.machine_id,
                 "execution_kind": spec.execution_kind.value,
@@ -303,6 +303,39 @@ class CatalogCompiler:
                 "implementation_status": "implemented",
                 "maturity": None if spec.maturity is None else _json_model(spec.maturity),
             }
+            if spec.cwl_invocation is not None:
+                runtime_entry["runtime_descriptor"] = {
+                    "kind": "cwl_v1_2_command_line_tool",
+                    "invocation": _json_model(spec.cwl_invocation),
+                    "artifact_inputs": [
+                        _json_model(item) for item in sorted(spec.artifact_inputs, key=lambda item: item.port_id)
+                    ],
+                    "parameters": [
+                        _json_model(item) for item in sorted(spec.parameters, key=lambda item: item.parameter_id)
+                    ],
+                    "outputs": [
+                        _json_model(item) for item in sorted(spec.outputs, key=lambda item: item.port_id)
+                    ],
+                    "environment": _json_model(spec.environment),
+                    "runtime_binding": _json_model(spec.runtime_binding),
+                }
+            if spec.cwl_reference is not None:
+                runtime_entry["runtime_descriptor"] = {
+                    "kind": "cwl_reference_command_line_tool",
+                    "reference": _json_model(spec.cwl_reference),
+                    "artifact_inputs": [
+                        _json_model(item) for item in sorted(spec.artifact_inputs, key=lambda item: item.port_id)
+                    ],
+                    "parameters": [
+                        _json_model(item) for item in sorted(spec.parameters, key=lambda item: item.parameter_id)
+                    ],
+                    "outputs": [
+                        _json_model(item) for item in sorted(spec.outputs, key=lambda item: item.port_id)
+                    ],
+                    "environment": _json_model(spec.environment),
+                    "runtime_binding": _json_model(spec.runtime_binding),
+                }
+            runtime_nodes[stable_id] = runtime_entry
             ui_nodes[stable_id] = {
                 "identity": _json_model(spec.identity),
                 "presentation": _json_model(spec.presentation),

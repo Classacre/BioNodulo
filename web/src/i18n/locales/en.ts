@@ -933,6 +933,7 @@ const en = {
     cloudHint: 'Right-click a file to download.',
     cloudEmpty: 'No cloud files yet.',
     cloudListError: 'Could not list cloud files.',
+    listError: 'Could not list workspace files.',
     rootHint: 'Workspace root: {{path}}',
     rootLabel: 'Workspace Root',
     rootPlaceholder: '/path/to/workspace',
@@ -2370,6 +2371,7 @@ const en = {
     canAutoInstall: 'Can be auto-installed',
   },
   resolveReport: {
+    checkFailed: 'Could not check workflow dependencies. Try again before running.',
     bannerTitle: 'Workflow has unresolved dependencies',
     bannerBody: 'Some nodes reference tools or paths that are not available.',
     bannerOpen: 'Open report',

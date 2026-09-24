@@ -37,7 +37,7 @@ const localStorageStub: Storage = {
 describe('Workflow message copy i18n', () => {
   beforeEach(() => {
     storage.clear();
-    apiMocks.apiGet.mockReset();
+    apiMocks.apiGet.mockReset().mockResolvedValue({});
     notificationMocks.toast.error.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
   });

@@ -141,10 +141,14 @@ def maybe_wrap_with_arq(executor: WorkflowExecutor) -> WorkflowExecutor | ArqWor
     if os.environ.get(ARQ_BACKEND_ENV, "local").lower() != "arq":
         return executor
     cache = getattr(executor, "cache", None)
-    return ArqWorkflowExecutor(
+    wrapped = ArqWorkflowExecutor(
         workspace_dir=getattr(executor, "workspace_dir", None),
         cache_dir=getattr(cache, "cache_dir", None),
     )
+    close = getattr(cache, "close", None)
+    if callable(close):
+        close()
+    return wrapped
 
 
 class WorkerSettings:

@@ -6,13 +6,14 @@ import Icon from '../ui/Icon';
 import { authUserAtom, cloudConfigAtom, showAuthDialogAtom } from '../../state/appAtoms';
 import { showInviteDialogAtom } from '../../state/uiAtoms';
 import { getCloudCredits, getCurrentUser, type CloudUser } from '../../api/website';
-import { useClerkAuth } from '../../hooks/cloud/useClerkAuth';
+import type { UseClerkAuthResult } from '../../hooks/cloud/useClerkAuth';
 import { useDesktopAuth } from '../../hooks/cloud/useDesktopAuth';
 import { signOutOAuth } from '../../hooks/cloud/desktopOAuth';
 import { isGuestUser } from '../../collab/authStorage';
 
 interface UserPanelProps {
   onClose: () => void;
+  clerkAuth: UseClerkAuthResult;
 }
 
 /**
@@ -24,12 +25,14 @@ interface UserPanelProps {
  *   - billing + API keys deep-link into the managed cloud dashboard
  * so no bespoke account/session/billing UI is reinvented here.
  */
-export default function UserPanel({ onClose }: UserPanelProps) {
+export default function UserPanel({ onClose, clerkAuth }: UserPanelProps) {
   const { t } = useTranslation();
   const cloudConfig = useAtomValue(cloudConfigAtom);
   const authUser = useAtomValue(authUserAtom);
   const openInvite = useSetAtom(showInviteDialogAtom);
-  const { clerkEnabled, clerkSignedIn, openSignIn, signOut } = useClerkAuth();
+  // App owns the auth lifecycle. Mounting another hook here created a second
+  // Clerk client and closing the panel removed the app's token refresher.
+  const { clerkEnabled, clerkSignedIn, openSignIn, signOut } = clerkAuth;
   const { pending: desktopPending, available: oauthAvailable, signInViaBrowser, cancel: cancelDesktopSignIn } = useDesktopAuth();
 
   const setShowAuthDialog = useSetAtom(showAuthDialogAtom);

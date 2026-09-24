@@ -5,7 +5,7 @@ Implements dossier section 5.3. For each export target (Snakemake, Nextflow,
 CWL, Galaxy) and each bundled template, the harness computes:
 
 * ``s_nodes``   node-count preservation ratio
-* ``s_edges``   edge-count preservation ratio
+* ``s_edges``   exact endpoint/port set Jaccard similarity
 * ``s_params``  Jaccard similarity over canonicalized node params
 * ``s_labels``  fraction of round-tripped nodes whose type matches an
                original node type (tool-label recall, Dijkman-style label
@@ -15,9 +15,9 @@ CWL, Galaxy) and each bundled template, the harness computes:
 
 plus a categorical loss ledger per target (nodes/edges/params lost) and an
 idempotence check (a second export of the round-tripped workflow). The
-annotation-recall component S_ann (semantic contract survival) activates
-once contracts are attached to node metadata; it is reported as 1.0 when no
-annotations exist so the aggregate stays comparable.
+annotation and provenance components are measured when present and null
+otherwise. Unsupported computation counts as failure, never a pruned graph.
+The re-export check records success, not byte equality or engine execution.
 
 Usage:
     python scripts/roundtrip_fidelity.py                     # all templates
@@ -45,6 +45,7 @@ from bionodulo.converter import (
     import_from_nextflow,
     import_from_snakemake,
 )
+from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = REPO_ROOT / "templates"
@@ -104,7 +105,7 @@ def _canonical_params(node: dict[str, Any]) -> dict[str, str]:
     params = node.get("params", {})
     if not isinstance(params, dict):
         return {}
-    return {str(key): json.dumps(value, sort_keys=True) for key, value in params.items()}
+    return {str(key): json.dumps(value, sort_keys=True) for key, value in {**params, **node.get("widgets", {})}.items()}
 
 
 def _ratio(original: int, roundtripped: int) -> float:
@@ -146,7 +147,10 @@ def score_roundtrip(original: dict[str, Any], roundtripped: dict[str, Any]) -> d
     s_params = (value_matches / len(union)) if union else 1.0
 
     s_nodes = _ratio(len(original_nodes), len(roundtripped_nodes))
-    s_edges = _ratio(len(_edges(original)), len(_edges(roundtripped)))
+    def edge_set(graph: dict[str, Any]) -> set[tuple[str, str, str, str]]:
+        return {(edge_source(edge), edge_source_port(edge), edge_target(edge), edge_target_port(edge)) for edge in _edges(graph)}
+    original_edges, restored_edges = edge_set(original), edge_set(roundtripped)
+    s_edges = len(original_edges & restored_edges) / len(original_edges | restored_edges) if original_edges | restored_edges else 1.0
 
     components = {
         "s_nodes": round(s_nodes, 4),
@@ -154,11 +158,19 @@ def score_roundtrip(original: dict[str, Any], roundtripped: dict[str, Any]) -> d
         "s_params": round(s_params, 4),
         "s_labels": round(s_labels, 4),
     }
-    # S_ann: annotation recall is 1.0 while no contract annotations exist;
-    # the component activates once node metadata carries them.
-    components["s_ann"] = 1.0
-    product = math.prod(components.values())
-    components["f_target"] = round(product ** (1 / len(components)), 4)
+    def annotations(graph: dict[str, Any], keys: tuple[str, ...]) -> dict[str, str]:
+        values = {f"workflow.{key}": json.dumps(graph[key], sort_keys=True) for key in keys if key in graph}
+        for node in _nodes(graph):
+            values.update({f"{node['id']}.{key}": json.dumps(node[key], sort_keys=True) for key in keys if key in node})
+        return values
+    for name, keys in (("s_ann", ("semantic_contract", "semantic_state", "semantic_types", "inputs", "outputs")), ("s_provenance", ("provenance", "run_metadata"))):
+        before, after = annotations(original, keys), annotations(roundtripped, keys)
+        components[name] = sum(after.get(key) == value for key, value in before.items()) / len(before) if before else None
+    measured = [value for value in components.values() if value is not None]
+    product = math.prod(measured)
+    components["f_target"] = round(product ** (1 / len(measured)), 4) if original_nodes else None
+    components["unmeasured"] = [name for name, value in components.items() if value is None]
+    components["edge_comparison"] = "Exact endpoint IDs and ports; does not infer graph isomorphism after renaming"
 
     components["ledger"] = {
         "nodes": {
@@ -177,38 +189,13 @@ def score_roundtrip(original: dict[str, Any], roundtripped: dict[str, Any]) -> d
 
 
 def _exportable_subgraph(workflow: dict[str, Any], export: Callable[..., str]) -> tuple[dict[str, Any], list[str]]:
-    """Drop node types the exporter rejects, retrying until it accepts.
-
-    UI scaffolding (notes, etc.) is not exportable by design; the harness
-    excludes it from both sides of the comparison and records the excluded
-    types so the ledger stays honest.
-    """
+    """Exclude decorative notes only; unsupported computation is a failure."""
     current = json.loads(json.dumps(workflow))
-    excluded: list[str] = []
-    for _ in range(60):
-        try:
-            export(current)
-            return current, excluded
-        except ValueError as error:
-            message = str(error)
-            marker = "unsupported node type '"
-            if marker not in message:
-                raise
-            bad_type = message.split(marker, 1)[1].split("'", 1)[0]
-            nodes = _nodes(current)
-            keep = [node for node in nodes if node.get("type") != bad_type]
-            keep_ids = {node["id"] for node in keep}
-            current = {
-                **current,
-                "nodes": keep,
-                "edges": [
-                    edge
-                    for edge in _edges(current)
-                    if _edge_nodes(edge) <= keep_ids
-                ],
-            }
-            excluded.append(bad_type)
-    return current, excluded
+    nodes = _nodes(current)
+    current["nodes"] = [node for node in nodes if node.get("type") != "note"]
+    kept = {node["id"] for node in current["nodes"]}
+    current["edges"] = [edge for edge in _edges(current) if _edge_nodes(edge) <= kept]
+    return current, ["note"] if any(node.get("type") == "note" for node in nodes) else []
 
 
 def _edge_nodes(edge: Any) -> set[str]:
@@ -218,10 +205,7 @@ def _edge_nodes(edge: Any) -> set[str]:
     target = edge.get("to") if isinstance(edge.get("to"), dict) else None
     if source and target:
         return {source.get("node", ""), target.get("node", "")}
-    return {
-        edge.get("from_node") or edge.get("fromNode") or "",
-        edge.get("to_node") or edge.get("toNode") or "",
-    }
+    return {edge_source(edge), edge_target(edge)}
 
 
 def evaluate_template(template_path: Path) -> dict[str, Any]:
@@ -233,6 +217,7 @@ def evaluate_template(template_path: Path) -> dict[str, Any]:
     }
     for target, adapter in TARGETS.items():
         export, import_ = adapter["export"], adapter["import"]
+        workdir = None
         try:
             comparable, excluded = _exportable_subgraph(workflow, export)
             exported = export(comparable)
@@ -250,9 +235,10 @@ def evaluate_template(template_path: Path) -> dict[str, Any]:
             scoring["scaffold"] = len(_nodes(comparable)) < MIN_NODES_FOR_SCORING
             results["targets"][target] = scoring
         except Exception as error:  # noqa: BLE001 - harness reports, never crashes
-            results["targets"][target] = {"error": f"{type(error).__name__}: {error}"}
+            results["targets"][target] = {"error": f"{type(error).__name__}: {error}", "f_target": 0.0, "unsupported_computation_counted_as_failure": True}
         finally:
-            shutil.rmtree(workdir, ignore_errors=True)
+            if workdir is not None:
+                shutil.rmtree(workdir, ignore_errors=True)
     return results
 
 
@@ -262,8 +248,10 @@ def render_markdown(report: dict[str, Any]) -> str:
         "",
         f"Generated: {report['generated_at']}  ",
         f"Templates: {report['template_count']}  ",
-        "Metric: f_target is the geometric mean of node, edge, parameter,",
-        "label, and annotation preservation per target (dossier section 5.3).",
+        "Metric: f_target is the geometric mean of measured node, edge, parameter,",
+        "label, annotation and provenance preservation. Missing annotations are unmeasured.",
+        "Unsupported computational nodes score zero; only decorative notes are excluded.",
+        "This measures serialization, not execution in an external workflow engine.",
         "",
         "| Template | " + " | ".join(TARGETS) + " |",
         "| --- | " + " | ".join("---" for _ in TARGETS) + " |",
@@ -283,12 +271,12 @@ def render_markdown(report: dict[str, Any]) -> str:
         scores = [
             t["targets"][target]["f_target"]
             for t in report["templates"]
-            if "f_target" in t["targets"].get(target, {})
+            if t["targets"].get(target, {}).get("f_target") is not None
         ]
         idempotent = [
             t["targets"][target].get("idempotent", False)
             for t in report["templates"]
-            if "f_target" in t["targets"].get(target, {})
+            if t["targets"].get(target, {}).get("f_target") is not None
         ]
         mean = round(sum(scores) / len(scores), 4) if scores else None
         fraction = f"{sum(idempotent)}/{len(idempotent)}" if idempotent else "-"
@@ -302,7 +290,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 
-    template_paths = sorted(TEMPLATES_DIR.glob("*.json"))
+    template_paths = sorted(path for path in TEMPLATES_DIR.glob("*.json") if path.name != "index.json")
     if args.templates:
         wanted = {name if name.endswith(".json") else f"{name}.json" for name in args.templates}
         template_paths = [path for path in template_paths if path.name in wanted]
@@ -327,9 +315,9 @@ def main() -> int:
         scored = [
             t["targets"][target]
             for t in report["templates"]
-            if "f_target" in t["targets"].get(target, {})
+            if t["targets"].get(target, {}).get("f_target") is not None
         ]
-        meaningful = [entry for entry in scored if not entry.get("scaffold")]
+        meaningful = [entry for entry in scored if "error" not in entry and not entry.get("scaffold")]
         if scored:
             mean = round(sum(e["f_target"] for e in scored) / len(scored), 4)
             meaningful_mean = (

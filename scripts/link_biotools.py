@@ -63,9 +63,11 @@ def _family_of(node_id: str, index: dict[str, str]) -> str | None:
     return tail.split(".", 1)[0] if "." in tail else None
 
 
-def _edam_uris(terms: list | None) -> list[str]:
+def _edam_uris(terms: list | dict | None) -> list[str]:
     if not terms:
         return []
+    if isinstance(terms, dict):
+        terms = [terms]
     uris: set[str] = set()
     for term in terms:
         if isinstance(term, str):
@@ -111,7 +113,7 @@ def summarize(record: dict) -> dict:
             )
         functions.append(
             {
-                "operations": _edam_uris(function.get("function")),
+                "operations": _edam_uris(function.get("operation") or function.get("function")),
                 "inputs": inputs,
                 "outputs": outputs,
             }
@@ -127,8 +129,8 @@ def summarize(record: dict) -> dict:
         "documentation": next(
             (
                 link.get("url")
-                for link in record.get("link", []) or []
-                if link.get("type") == "documentation"
+                for link in record.get("documentation", []) or []
+                if isinstance(link, dict) and link.get("url")
             ),
             None,
         ),

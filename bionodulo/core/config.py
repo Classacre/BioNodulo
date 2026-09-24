@@ -355,8 +355,9 @@ def _parse_env_value(value: str) -> Any:
 class SettingsManager:
     """Per-user JSON settings file manager."""
 
-    def __init__(self, settings_file: Path) -> None:
+    def __init__(self, settings_file: Path, *, persistent: bool = True) -> None:
         self._settings_file = settings_file
+        self._persistent = persistent
         self._defaults: dict[str, Any] = {
             "theme": "dark",
             "locale": "en",
@@ -408,7 +409,10 @@ class SettingsManager:
             },
         }
         self._settings: dict[str, Any] = {}
-        self._load()
+        if persistent:
+            self._load()
+        else:
+            self._settings = dict(self._defaults)
 
     def _load(self) -> None:
         if self._settings_file.exists():
@@ -416,13 +420,39 @@ class SettingsManager:
                 content = self._settings_file.read_text(encoding="utf-8")
                 loaded = json.loads(content)
                 if isinstance(loaded, dict):
-                    self._settings = loaded
+                    self._settings = self._flatten_app_settings(loaded)
             except (json.JSONDecodeError, OSError):
                 self._settings = dict(self._defaults)
         else:
             self._settings = dict(self._defaults)
 
+    @staticmethod
+    def _flatten_app_settings(settings: dict[str, Any]) -> dict[str, Any]:
+        """Keep application setting IDs literal, including legacy nested values.
+
+        The frontend and bulk API use dotted IDs such as ``bionodulo.theme``.
+        Older single-setting writes stored those IDs as nested dictionaries,
+        which left bulk reads and runtime consumers looking at stale values.
+        """
+        result = dict(settings)
+        nested = result.get("bionodulo")
+        if isinstance(nested, dict):
+            result.pop("bionodulo")
+
+            def visit(prefix: str, values: dict[str, Any]) -> None:
+                for key, value in values.items():
+                    setting_id = f"{prefix}.{key}"
+                    if isinstance(value, dict):
+                        visit(setting_id, value)
+                    else:
+                        result[setting_id] = value
+
+            visit("bionodulo", nested)
+        return result
+
     def _save(self) -> None:
+        if not self._persistent:
+            return
         self._settings_file.parent.mkdir(parents=True, exist_ok=True)
         self._settings_file.write_text(
             json.dumps(self._settings, indent=2, sort_keys=True, ensure_ascii=False),
@@ -430,6 +460,9 @@ class SettingsManager:
         )
 
     def get(self, key: str, default: Any = None) -> Any:
+        if key in self._settings:
+            return self._settings[key]
+        default = self._defaults.get(key, default)
         if "." in key:
             parts = key.split(".")
             target = self._settings
@@ -447,7 +480,9 @@ class SettingsManager:
         return merged
 
     def set(self, key: str, value: Any) -> None:
-        if "." in key:
+        if key.startswith("bionodulo."):
+            self._settings[key] = value
+        elif "." in key:
             parts = key.split(".")
             target = self._settings
             for part in parts[:-1]:
@@ -460,7 +495,7 @@ class SettingsManager:
         self._save()
 
     def set_many(self, settings: dict[str, Any]) -> None:
-        self._settings.update(settings)
+        self._settings.update(self._flatten_app_settings(settings))
         self._save()
 
     def reset(self, key: str) -> None:

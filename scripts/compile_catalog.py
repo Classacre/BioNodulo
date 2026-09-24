@@ -98,6 +98,14 @@ POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
         "paired_stats",
         "openvaccine_prepare",
         "training_leakage_check",
+        # Proposal implementation: explicit quantifier import and measured
+        # artifact validation. Registration is not a released evidence claim.
+        "tximport_salmon",
+        "tximport_stringtie",
+        "validate_semantic_artifact",
+        # Standards-level bridge for explicit CWL File metadata. The ordinary
+        # Input File node remains path-only.
+        "cwl_file_input",
     }
 )
 EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)

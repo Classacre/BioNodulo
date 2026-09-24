@@ -12,7 +12,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_target, node_outputs
+from bionodulo.converter.edge_utils import edge_source, edge_target, executable_nodes, node_outputs
 
 
 def export_to_nextflow(
@@ -28,9 +28,7 @@ def export_to_nextflow(
     Returns:
         The NextFlow script content as a string.
     """
-    nodes: dict[str, dict[str, Any]] = {
-        n["id"]: n for n in workflow.get("nodes", [])
-    }
+    nodes = executable_nodes(workflow)
     edges: list[dict[str, Any]] = workflow.get("edges", [])
 
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
@@ -89,7 +87,7 @@ def export_to_nextflow(
 
         command = _build_nextflow_script(node_type, widgets, incoming[node_id])
         lines.append("    script:")
-        lines.append("        """)
+        lines.append('        """')
         lines.append(command)
         lines.append('        """')
         lines.append("}")

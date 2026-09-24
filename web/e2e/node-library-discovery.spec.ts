@@ -17875,16 +17875,7 @@ test.beforeEach(async ({ context, page }) => {
   });
 });
 
-test('node library exposes advanced gap-analysis node families from object_info', async ({ page }) => {
-  test.setTimeout(180_000);
-
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-
-  await page.getByRole('button', { name: /^Nodes/ }).click();
-  await expect(page.getByText('600 nodes available')).toBeVisible();
-
-  const search = page.getByRole('combobox', { name: 'Search nodes' });
-  const expectedNodes = [
+const expectedNodes = [
     { query: 'flow control', name: 'If Condition', category: 'flow_control' },
     { query: 'data transform', name: 'Filter Rows', category: 'data_transform' },
     { query: 'dataset collection labels', name: 'Add input name as column', category: 'data_transform' },
@@ -18486,7 +18477,19 @@ test('node library exposes advanced gap-analysis node families from object_info'
     { query: 'mummerplot dotplot', name: 'MUMmer4 Mummerplot', category: 'genomics' },
   ];
 
-  for (const node of expectedNodes) {
+// Each query crosses the UI's debounce and rendering boundary. Keep bounded
+// batches so all 600 searches run without exhausting one test's global timeout.
+const DISCOVERY_BATCH_SIZE = 100;
+for (let start = 0; start < expectedNodes.length; start += DISCOVERY_BATCH_SIZE) {
+  const nodes = expectedNodes.slice(start, start + DISCOVERY_BATCH_SIZE);
+  test(`node library discovers catalog entries ${start + 1}-${start + nodes.length}`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: /^Nodes/ }).click();
+    await expect(page.getByText('600 nodes available')).toBeVisible();
+    const search = page.getByRole('combobox', { name: 'Search nodes' });
+
+  for (const node of nodes) {
     await search.fill(node.query);
     await expect(page.getByText(/\d+ match(?:es)?/)).toBeVisible();
     await expect(page.locator(`[title="Add ${node.name}"]`)).toBeVisible();
@@ -18501,6 +18504,7 @@ test('node library exposes advanced gap-analysis node families from object_info'
   await expect(page.locator('.island-full')).toContainText('1');
   await expect(page.locator('.workflow-stats-cat', { hasText: 'ai' })).toBeVisible();
 });
+}
 
 test('BioNodulo built-in nodes render citation metadata in node info', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });

@@ -139,6 +139,37 @@ describe('MissingDependenciesBanner i18n', () => {
     expect(screen.getByRole('heading', { name: 'Errores' })).toBeInTheDocument();
   });
 
+  it('does not offer the legacy installer for an unrepairable declarative runtime', async () => {
+    const { default: MissingDependenciesBanner } = await import('../components/layout/MissingDependenciesBanner');
+    const declarativeError =
+      "declarative CWL runtime for 'upstream_cat' is not ready: locked CWL environment is not realized; configure BIONODULO_CWL_ENVIRONMENTS";
+    const runtimeReport: ResolveReport = {
+      ...report(),
+      missing_nodes: [],
+      missing_executables: [],
+      missing_packages: [],
+      missing_r_packages: [],
+      required_packages: [],
+      installable: false,
+      errors: [declarativeError],
+      summary: declarativeError,
+    };
+
+    render(
+      <MissingDependenciesBanner
+        report={runtimeReport}
+        workflow={workflow()}
+        onDismiss={() => undefined}
+        onOpenConsole={() => undefined}
+        onResolve={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(declarativeError);
+    expect(screen.queryByRole('button', { name: /Install Env/ })).not.toBeInTheDocument();
+    expect(apiMocks.apiPost).not.toHaveBeenCalled();
+  });
+
   it('logs swallowed install and status-poll failures with stable scopes', async () => {
     vi.useFakeTimers();
     const { default: MissingDependenciesBanner } = await import('../components/layout/MissingDependenciesBanner');

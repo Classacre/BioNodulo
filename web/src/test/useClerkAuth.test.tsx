@@ -3,7 +3,7 @@ import { Provider, createStore } from 'jotai';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useClerkAuth } from '../hooks/cloud/useClerkAuth';
-import { cloudConfigAtom } from '../state/appAtoms';
+import { authUserAtom, cloudConfigAtom } from '../state/appAtoms';
 
 const clerkMocks = vi.hoisted(() => {
   const getToken = vi.fn();
@@ -51,7 +51,7 @@ vi.mock('../state/logging', () => ({ logError: vi.fn() }));
 describe('useClerkAuth token refresh', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     clerkMocks.clerk.load.mockResolvedValue(undefined);
     clerkMocks.clerk.addListener.mockReturnValue(clerkMocks.unsubscribe);
   });
@@ -89,6 +89,8 @@ describe('useClerkAuth token refresh', () => {
       template: 'bionodulo',
     });
     expect(authMocks.setToken).toHaveBeenLastCalledWith('initial-token');
+    expect(authMocks.setAuthUser).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'account' }));
+    expect(store.get(authUserAtom)?.kind).toBe('account');
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(45_000);

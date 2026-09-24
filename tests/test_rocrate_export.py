@@ -11,9 +11,7 @@ from __future__ import annotations
 import json
 
 from bionodulo.provenance.rocrate_export import (
-    BIONODULO_PROFILE,
-    PROVENANCE_RUN_CRATE_PROFILE,
-    WORKFLOW_RUN_CRATE_PROFILE,
+    BIONODULO_TERMS_NAMESPACE,
     build_run_crate,
     write_run_crate,
 )
@@ -52,21 +50,15 @@ def test_crate_core_structure() -> None:
     root = entities["./"]
     assert root["@type"] == "Dataset"
     conforms = [ref["@id"] for ref in root["conformsTo"]]
-    assert conforms == [
-        WORKFLOW_RUN_CRATE_PROFILE,
-        PROVENANCE_RUN_CRATE_PROFILE,
-        BIONODULO_PROFILE,
-    ]
-    # Profile references must resolve to entities in the graph [P2].
-    for profile_id in conforms:
-        assert profile_id in entities
+    assert conforms == ["https://w3id.org/ro/crate/1.1"]
+    assert "not been validated" in root["bionodulo:conformanceStatus"]
 
     workflow_entity = entities[root["mainEntity"]["@id"]]
     assert "ComputationalWorkflow" in workflow_entity["@type"]
 
     # Multi-context arrays are the sanctioned extension pattern [P4][P12].
     assert crate["@context"][0].startswith("https://w3id.org/ro/crate/1.1")
-    assert crate["@context"][2] == {"bionodulo": "https://w3id.org/ro/terms/bionodulo#"}
+    assert crate["@context"][2] == {"bionodulo": BIONODULO_TERMS_NAMESPACE}
 
 
 def test_create_actions_have_resolvable_instruments() -> None:
@@ -118,7 +110,7 @@ def test_semantic_states_and_contract_checks_are_recorded() -> None:
     state = entities[sort_state_id]
     assert state["@type"] == "bionodulo:SemanticState"
     values = {
-        prop["name"]: prop["value"]
+        entities[prop["@id"]]["name"]: entities[prop["@id"]]["value"]
         for prop in state["bionodulo:stateProperty"]
     }
     assert values["sort_order"] == "coordinate"
@@ -150,10 +142,9 @@ def test_failed_contract_check_attaches_to_consuming_action() -> None:
     # detection suggestion exists; the crate records only real violations.
     assert result.ok
     crate = build_run_crate(workflow, semantic_result=result)
-    assert not any(
-        entity.get("@type") == "bionodulo:ContractCheck"
-        for entity in crate["@graph"]
-    )
+    checks = [entity for entity in crate["@graph"] if entity.get("@type") == "bionodulo:ContractCheck"]
+    assert len(checks) == 1
+    assert checks[0]["bionodulo:status"] == "unverified"
 
 
 def test_write_run_crate_produces_valid_files(tmp_path) -> None:

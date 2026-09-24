@@ -26,12 +26,20 @@ interface WorkspacePanelProps {
   onImportWorkflow?: (wf: any) => void;
 }
 
+// The workspace API returns paths relative to its configured root, using the
+// host's separators. An empty path requests that root; '/' is an absolute path.
+function workspaceRelativePath(path: string): string {
+  const normalized = path.replace(/\\/g, '/');
+  return normalized === '.' ? '' : normalized;
+}
+
 export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkflow }: WorkspacePanelProps) {
   const { t, i18n } = useTranslation();
   const { getBool } = useSettings();
   const showHidden = getBool('bionodulo.showHiddenFiles', false);
-  const [path, setPath] = useState('/');
+  const [path, setPath] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([]);
+  const [filesError, setFilesError] = useState('');
   // Hide dotfiles unless the user opts in (bionodulo.showHiddenFiles).
   const visibleFiles = showHidden ? files : files.filter(f => !f.name.startsWith('.'));
   const [loading, setLoading] = useState(false);
@@ -114,23 +122,29 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
   }, []);
 
   const loadFiles = useCallback(async (p: string) => {
+    const relativePath = workspaceRelativePath(p);
     setLoading(true);
+    setFilesError('');
+    setPath(relativePath);
     setSelected(new Set());
     lastSelectedRef.current = null;
     try {
-      const data = await apiGet<{ entries?: FileEntry[]; path?: string }>(`/workspace/files?path=${encodeURIComponent(p)}`);
-      setFiles(data.entries || []);
-      setPath(data.path || p);
+      const data = await apiGet<{ entries?: FileEntry[]; path?: string }>(`/workspace/files?path=${encodeURIComponent(relativePath)}`);
+      setFiles((data.entries || []).map(file => ({ ...file, path: workspaceRelativePath(file.path) })));
+      setPath(workspaceRelativePath(data.path ?? relativePath));
     } catch (err) {
       logError('workspace.files.load', err);
       setFiles([]);
+      const message = t('workspace.listError', { defaultValue: 'Could not list workspace files.' });
+      const detail = err instanceof ApiError ? (err.body as { detail?: unknown } | null)?.detail : undefined;
+      setFilesError(typeof detail === 'string' && detail.trim() ? `${message} ${detail.trim()}` : message);
     }
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadRoot();
-    loadFiles('/');
+    loadFiles('');
   }, [loadRoot, loadFiles]);
 
   const handleSetRoot = async () => {
@@ -142,7 +156,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
       if (data.root) {
         setRootPath(data.root);
         setRootInput(data.root);
-        loadFiles('/');
+        loadFiles('');
       }
     } catch (err) {
       logError('workspace.root.change', err);
@@ -163,7 +177,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
     // we compute the project default client-side or rely on the user
     // to know their path. Simpler: reload current root from API.
     await loadRoot();
-    loadFiles('/');
+    loadFiles('');
   };
 
   const handleSelect = (e: React.MouseEvent, file: FileEntry) => {
@@ -236,10 +250,10 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
   const isWorkflowFile = (name: string) => name.endsWith('.json');
 
   const parentPath = (p: string) => {
-    if (p === '/' || p === '.' || p === '') return null;
-    const parts = p.split('/').filter(Boolean);
+    if (p === '') return null;
+    const parts = workspaceRelativePath(p).split('/').filter(Boolean);
     parts.pop();
-    return parts.length === 0 ? '/' : '/' + parts.join('/');
+    return parts.join('/');
   };
 
   const fileTitle = (file: FileEntry) => {
@@ -332,15 +346,17 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
         {/* Breadcrumb */}
         <div className="workspace-breadcrumb">
           {parentPath(path) !== null && (
-            <span
-              className="workspace-breadcrumb-parent"
+            <button
+              type="button"
+              className="btn btn-sm workspace-breadcrumb-parent"
               onClick={() => { const pp = parentPath(path); if (pp !== null) loadFiles(pp); }}
               title={t('workspace.goUp')}
+              aria-label={t('workspace.goUp')}
             >
-              <Icon name="arrow-up" size={12} /> ..
-            </span>
+              <Icon name="chevronUp" size={12} /> ..
+            </button>
           )}
-          <span className="workspace-breadcrumb-path">{path === '.' ? '/' : path}</span>
+          <span className="workspace-breadcrumb-path">{path || '/'}</span>
           {selected.size > 0 && (
             <span className="workspace-selection-count">{t('workspace.selectedCount', { count: selected.size })}</span>
           )}
@@ -349,6 +365,13 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
         {/* File list */}
         {loading ? (
           <div className="workspace-loading">{t('common.loading')}</div>
+        ) : filesError ? (
+          <div className="workspace-root-error" role="alert">
+            {filesError}
+            <button className="btn btn-sm" onClick={() => loadFiles(path)}>
+              {t('common.retry', { defaultValue: 'Retry' })}
+            </button>
+          </div>
         ) : (
           <div className="workspace-file-list" ref={fileListRef}>
             {visibleFiles.length === 0 && (

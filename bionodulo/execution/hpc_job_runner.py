@@ -32,7 +32,10 @@ async def _execute(args: argparse.Namespace) -> dict[str, Any]:
         cache_dir=workspace / "cache",
         registry=registry,
     )
-    return await executor.execute(run_id=str(args.run_id), workflow=workflow)
+    try:
+        return await executor.execute(run_id=str(args.run_id), workflow=workflow)
+    finally:
+        executor.cache.close()
 
 
 def main(argv: list[str] | None = None) -> int:

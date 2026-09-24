@@ -25,11 +25,15 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = REPO_ROOT / ".mypy-baseline"
-MYPY_ARGS = ["-m", "mypy", "bionodulo", "--ignore-missing-imports"]
+# CI runs Python 3.11; pin the analyzed language level so local 3.12 scans
+# cannot lower a baseline that the 3.11 gate would then fail.
+MYPY_ARGS = ["-m", "mypy", "bionodulo", "--ignore-missing-imports", "--python-version", "3.11"]
 
-# "Found 530 errors in 182 files (checked 1555 source files)"
-_FOUND = re.compile(r"^Found (\d+) errors? in \d+ files?", re.MULTILINE)
-_SUCCESS = re.compile(r"^Success: no issues found", re.MULTILINE)
+# A fatal import or parser error may still print ``Found 1 error in 1 file``.
+# Only summaries with a completed source-file count can move the baseline.
+_FOUND = re.compile(r"^Found (\d+) errors? in \d+ files? \(checked \d+ source files?\)$", re.MULTILINE)
+_SUCCESS = re.compile(r"^Success: no issues found in \d+ source files?$", re.MULTILINE)
+_INCOMPLETE = re.compile(r"errors? prevented further checking", re.IGNORECASE)
 
 
 def run_mypy() -> tuple[int, str]:
@@ -41,16 +45,14 @@ def run_mypy() -> tuple[int, str]:
         text=True,
     )
     output = result.stdout + result.stderr
-    if _SUCCESS.search(output):
+    if result.returncode == 0 and _SUCCESS.search(output) and not _INCOMPLETE.search(output):
         return 0, output
     match = _FOUND.search(output)
-    if match is None:
-        # No count and no success line means mypy itself failed -- a crash, a
-        # bad flag, a missing dependency. Reporting that as "0 errors" would
-        # silently disable the gate, which is the failure mode this whole
-        # script exists to prevent.
+    if result.returncode != 1 or match is None or _INCOMPLETE.search(output):
+        # Reject crashes, bad flags, missing dependencies, and scans aborted
+        # before the package was checked, even if mypy printed an error count.
         raise SystemExit(
-            "mypy produced no parseable summary; treating as failure.\n"
+            "mypy did not complete a full scan; treating as failure.\n"
             f"--- mypy output ---\n{output.strip()[-2000:]}"
         )
     return int(match.group(1)), output

@@ -14,11 +14,11 @@ Three layers of checking:
    idealized one). Whatever it reports is surfaced verbatim in
    ``contract_violations_detected``; often it reports nothing, which is itself
    the measurement: the failure was silent to the deployed checker.
-3. Verdict: FlowBench SUF semantics. For planted tasks (T1-T4),
-   ``silent_error`` is true when the submission still carries the planted
-   failure -- the workflow would run to a clean exit while the data remains
-   invalid. Control task T5 reports false-positive changes; ambiguous task T6
-   reports whether the ambiguity was examined or silently defaulted.
+3. Static hazard assessment only. This script does not execute workflows,
+   inspect scientific outputs, observe participants, or adjudicate human
+   outcomes. ``silent_error`` remains null until a separate observed-trial
+   pipeline supplies that evidence. A graph hazard cannot establish a clean
+   exit, wrong result, or lack of participant detection.
 
 Usage:
     python adjudicate.py --task tasks/T1.json --submission submissions/T1-planted.json
@@ -39,8 +39,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from bionodulo.nodes.semantic_contracts import SemanticContractLibrary
-from bionodulo.workflow.semantic_checks import (
+from bionodulo.nodes.semantic_contracts import SemanticContractLibrary  # noqa: E402
+from bionodulo.workflow.semantic_checks import (  # noqa: E402
     SemanticCheckResult,
     check_workflow_semantics,
 )
@@ -216,14 +216,19 @@ def check_edge_states(
                     _state_lookup(sem_result, edge["source"], edge["source_output"], dimension),
                 )
             )
-        if any(value == expected for _, value in observed_values):
+        fed_targets = {edge["target"] for edge in feeding}
+        missing_targets = sorted(target_ids - fed_targets)
+        if not missing_targets and all(value == expected for _, value in observed_values):
             ok, detail = True, "ok"
         else:
             described = ", ".join(
                 f"{edge_id}={value if value is not None else 'unknown/no-contract'}"
                 for edge_id, value in observed_values
             )
-            ok, detail = False, f"{dimension} on {to_type}.{to_input} is {described}, expected {expected}"
+            ok, detail = False, (
+                f"{dimension} on {to_type}.{to_input} is {described}, expected {expected}; "
+                f"targets without an input edge: {missing_targets}"
+            )
         results.append(
             {
                 "check": "edge_state",
@@ -367,7 +372,7 @@ def check_ambiguous_task(
     task: dict[str, Any],
     nodes: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    """T6: was the ambiguity examined (detection node / deliberate choice) or defaulted."""
+    """T6: report graph hints; intent and actual examination are unobserved."""
     ground = task["ground_truth"]
     detection_types = set(ground.get("detection_node_types", []))
     detection_present = any(
@@ -381,9 +386,9 @@ def check_ambiguous_task(
     }
     deliberate = bool(strand_choices & deliberate_values)
     if detection_present or deliberate:
-        handling = "examined"
+        handling = "graph_hint_present_unverified"
     else:
-        handling = "defaulted_silently"
+        handling = "no_graph_hint"
     return {
         "ambiguity_handling": handling,
         "detection_node_present": detection_present,
@@ -464,7 +469,6 @@ def adjudicate(
         else:
             raise ValueError(f"unknown planted-failure signature kind: {kind}")
         failure_present = bool(signature_checks) and not all(c["ok"] for c in signature_checks)
-        silent_error = failure_present
         failure_class = planted["class"] if failure_present else "none"
         if failure_present:
             detection_types = set(task.get("detection_node_types", []))
@@ -472,14 +476,13 @@ def adjudicate(
                 node.get("type") in detection_types for node in nodes.values()
             ):
                 notes.append(
-                    "a detection node is present but the failure persists "
-                    "(tool available, result unexamined)"
+                    "a detection node is present but the static hazard persists; "
+                    "execution and participant interpretation were not observed"
                 )
         else:
             notes.append("planted failure not present in submission (fixed or avoided)")
     else:
         failure_present = False
-        silent_error = False
         failure_class = "none"
 
     ambiguity: dict[str, Any] | None = None
@@ -490,11 +493,10 @@ def adjudicate(
             failure_class = "false_positive_change"
     elif task_class == "ambiguous":
         ambiguity = check_ambiguous_task(task, nodes)
-        if ambiguity["ambiguity_handling"] == "defaulted_silently":
+        if ambiguity["ambiguity_handling"] == "no_graph_hint":
             failure_class = "ambiguity_unresolved"
             notes.append(
-                "unstated strandedness defaulted to -s 0 without any detection step "
-                "(under-flagging)"
+                "no graph evidence of a strandedness check; participant examination is unknown"
             )
 
     if sem_result.violations:
@@ -509,7 +511,11 @@ def adjudicate(
         "task_class": task_class,
         "planted_failure_expected": planted is not None,
         "failure_present": failure_present,
-        "silent_error": silent_error,
+        "static_hazard_present": failure_present,
+        "silent_error": None,
+        "evidence_level": "static_workflow_only",
+        "endpoint_status": "unobserved",
+        "endpoint_eligible": task.get("endpoint_eligible", True),
         "failure_class": failure_class,
         "contract_violations_detected": contract_violations,
         "checker_warnings": sem_result.warnings,

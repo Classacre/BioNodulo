@@ -10,6 +10,7 @@ import importlib.util
 import inspect
 import json
 import logging
+import os
 import pkgutil
 import re
 import sys
@@ -82,8 +83,15 @@ class NodeRegistry:
 
     def __new__(cls) -> NodeRegistry:
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._initialise_instance(cls._instance)
+            instance = super().__new__(cls)
+            cls._initialise_instance(instance)
+            catalog_path = os.environ.get("BIONODULO_DECLARATIVE_CATALOG")
+            if catalog_path:
+                instance.load_declarative_catalog(
+                    catalog_path,
+                    allow_unverified=os.environ.get("BIONODULO_ALLOW_UNVERIFIED_CWL") == "1",
+                )
+            cls._instance = instance
         return cls._instance
 
     @classmethod
@@ -110,6 +118,66 @@ class NodeRegistry:
         registry._index_exhausted = False
 
     # ── Registration ─────────────────────────────────────────────────
+
+    def register_cwl_spec(self, spec: Any, *, allow_unverified: bool = False) -> None:
+        """Bind descriptor data to the one shared adapter, without tool modules.
+
+        Imported candidates require an explicit local experimental opt-in.
+        Registration does not create verification evidence or release maturity.
+        """
+        from bionodulo.nodes.contract.model import NodeSpec
+        parsed = NodeSpec.model_validate(spec)
+        if parsed.cwl_invocation is not None:
+            from bionodulo.nodes.declarative_cwl import bind_cwl_node as bind_node
+            factory = "bionodulo.nodes.declarative_cwl:DeclarativeCwlNode"
+        elif parsed.cwl_reference is not None:
+            from bionodulo.nodes.cwl_reference_runtime import bind_cwl_reference_node as bind_node
+            factory = "bionodulo.nodes.cwl_reference_runtime:CwlReferenceNode"
+        else:
+            raise ValueError("declarative catalog requires a CWL invocation")
+        if parsed.execution_factory != factory:
+            raise ValueError("declarative catalog requires the shared CWL adapter")
+        if not allow_unverified and not (parsed.maturity and parsed.maturity.released):
+            raise ValueError(
+                f"{parsed.identity.machine_id}: unverified CWL candidate; "
+                "explicit experimental execution opt-in required"
+            )
+        node_id = parsed.identity.machine_id
+        if node_id in self._nodes or node_id in self._node_index or node_id in _load_builtin_metadata():
+            raise ValueError(f"declarative node ID collides with an existing node: {node_id}")
+        self.register(bind_node(parsed))
+
+    def load_declarative_catalog(self, path: str | Path, *, allow_unverified: bool = False) -> int:
+        """Atomically load a data-only generated catalog at application startup.
+
+        The same file can be configured for the desktop and queue workers with
+        BIONODULO_DECLARATIVE_CATALOG. No Python is imported from the bundle.
+        """
+        from bionodulo.nodes.contract.model import NodeSpec
+
+        source = Path(path)
+        if source.stat().st_size > 32 * 1024 * 1024:
+            raise ValueError("declarative catalog exceeds the 32 MiB limit")
+        document = json.loads(source.read_text(encoding="utf-8"))
+        if not isinstance(document, dict) or set(document) != {"schema_version", "specs"}:
+            raise ValueError("declarative catalog requires schema_version and specs only")
+        if type(document["schema_version"]) is not int or document["schema_version"] != 1:
+            raise ValueError("unsupported declarative catalog schema_version")
+        specs = document["specs"]
+        if not isinstance(specs, list) or not specs or len(specs) > 10000:
+            raise ValueError("declarative catalog requires between 1 and 10000 specs")
+        # Validate every entry against a temporary registry before mutating the
+        # live registry, so one invalid/colliding candidate cannot partly load.
+        staging = self.create_isolated()
+        staging._nodes = dict(self._nodes)
+        for spec in specs:
+            parsed = NodeSpec.model_validate_json(json.dumps(spec))
+            staging.register_cwl_spec(parsed, allow_unverified=allow_unverified)
+        added = {key: value for key, value in staging._nodes.items() if key not in self._nodes}
+        self._nodes.update(added)
+        self._object_info_cache = None
+        logger.info("Loaded %d declarative CWL nodes from %s", len(added), source)
+        return len(added)
 
     def register(
         self,
@@ -655,6 +723,27 @@ def _to_node_info(
     }
     if custom_node_package is not None:
         info["custom_node_package"] = dict(custom_node_package)
+    contract = getattr(node_class, "CONTRACT_SPEC", None)
+    if contract is not None and getattr(contract, "cwl_invocation", None) is not None:
+        invocation = contract.cwl_invocation
+        info["declarative_runtime"] = {
+            "kind": "cwl_v1_2_command_line_tool",
+            "contract_digest": contract.contract_digest(),
+            "source_uri": invocation.source_uri,
+            "verification": "released" if contract.maturity and contract.maturity.released else "unverified",
+        }
+    elif contract is not None and getattr(contract, "cwl_reference", None) is not None:
+        reference = contract.cwl_reference
+        info["declarative_runtime"] = {
+            "kind": "cwl_reference_command_line_tool",
+            "contract_digest": contract.contract_digest(),
+            "source_uri": reference.source_uri,
+            "biotools_accession": reference.biotools_accession,
+            "biotools_uri": reference.biotools_uri,
+            "engine_version": reference.engine_version,
+            "unfulfilled_hints": list(reference.unfulfilled_hints),
+            "verification": "released" if contract.maturity and contract.maturity.released else "unverified",
+        }
     return info
 
 

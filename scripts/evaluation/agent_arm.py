@@ -1,42 +1,12 @@
-"""Agent-arm benchmark for the BioNodulo silent-error evaluation study.
+"""Deterministic offline workflow-assembly baseline; not an LLM agent study.
 
-Runs two deterministic, offline baseline "agents" over the planted-error task
-set and adjudicates their workflows (FlowBench-style SUF scoring: an unsafe
-fix is SILENT when the agent's workflow would exit clean while the data
-remains invalid, i.e. the failure is present and nothing the agent ran
-flagged it).
+NaiveAssembler selects by name similarity and wires compatible-looking ports.
+ContractAwareAssembler additionally checks the bundled semantic contracts and
+applies suggested repairs. Results are STATIC HAZARDS only: no workflow is
+executed, no output is assessed, and no participant detection is observed.
+Consequently silent_error is null, never an observed endpoint.
 
-Agents:
-
-(a) NaiveAssembler -- a weak planner. Picks tools by token similarity between
-    the task brief and tool names/aliases, knows common tool companions
-    (aligners need indexers, DESeq2 needs a sample sheet) but nothing about
-    data-state contracts, and wires ports greedily (latest compatible output
-    into each required input). It also copies the task's suggested snippet
-    parameters verbatim, which is how the planted failures enter its output.
-
-(b) ContractAwareAssembler -- the same greedy wiring, but it runs
-    ``check_workflow_semantics`` over the result and repairs violations via
-    ``apply_suggestions`` (auto-inserting the cheapest legal converter). It
-    uses the bundled seed contract library EXTENDED with the typed-graph-arm
-    contracts from the thesis dossier (featureCounts requires
-    coordinate-sorted input; DESeq2 requires raw counts; normalize_data
-    declares its normalization_state via its method parameter), because the
-    seed library alone has no consumer clause that any planted failure can
-    trip -- which is itself a finding this benchmark reports.
-
-TODO(real LLM agent): replace/supplement the naive assembler with an LLM
-  planner when API access exists. Integration points are isolated in
-  ``BaseAssembler.select_tools`` and ``BaseAssembler.wire``: an LLM agent
-  returns the same ({node_type, params}) selection and (from, to) wiring, then
-  flows through the identical adjudication path (``run_task``). Keep the
-  harness keyless and deterministic: replay recorded LLM transcripts from
-  ``--replay-dir`` instead of calling the API live, so the agent arm stays
-  reproducible and CI-runnable.
-
-Usage:
-    python agent_arm.py                       # all tasks, both agents
-    python agent_arm.py --tasks-dir DIR --out DIR
+Usage: python agent_arm.py --tasks-dir DIR --out DIR
 """
 
 from __future__ import annotations
@@ -52,14 +22,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from bionodulo.nodes.semantic_contracts import SemanticContractLibrary
-from bionodulo.workflow.semantic_checks import (
+from bionodulo.nodes.semantic_contracts import SemanticContractLibrary  # noqa: E402
+from bionodulo.workflow.semantic_checks import (  # noqa: E402
     apply_suggestions,
     check_workflow_semantics,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from adjudicate import adjudicate, load_json
+from adjudicate import adjudicate, load_json  # noqa: E402
 
 EVALUATION_STUDY_DIR = _REPO_ROOT.parent / "Possible PhD" / "evaluation-study"
 DEFAULT_TASKS_DIR = EVALUATION_STUDY_DIR / "tasks"
@@ -140,26 +110,12 @@ def tokenize(text: str) -> list[str]:
 
 
 def extended_library() -> SemanticContractLibrary:
-    """Bundled seed contracts plus the one typed-graph-arm consumer clause
-    the seed set still lacks.
+    """Compatibility name for the real bundled library, without fabricated clauses.
 
-    The bundled library already carries the consumer clauses for
-    samtools_index (sort_order=coordinate) and deseq2
-    (normalization_state=raw_counts), plus normalize_data's
-    normalization_state declaration. The remaining gap relevant to the
-    planted-failure set is featureCounts: it tolerates unsorted input for
-    plain counting, so the seed library has no clause on its alignment port.
-    The thesis typed-graph arm adds that clause (featureCounts assumes
-    coordinate order), which is what lets the contract-aware agent catch and
-    auto-repair the T3 unsorted-into-coordinate-consumer failure.
+    featureCounts accepts unsorted input. Coordinate sorting is required by
+    samtools_index, which is a runtime-failure control, not a silent endpoint.
     """
-    payload = json.loads(SemanticContractLibrary.bundled().model_dump_json())
-    for contract in payload["contracts"]:
-        if contract["node_type"] == "featurecounts":
-            contract["inputs"]["alignment"].append(
-                {"dimension": "sort_order", "op": "eq", "value": "coordinate"}
-            )
-    return SemanticContractLibrary.model_validate(payload)
+    return SemanticContractLibrary.bundled()
 
 
 class BaseAssembler:
@@ -330,7 +286,7 @@ def run_task(task: dict[str, Any], library: SemanticContractLibrary, out_dir: Pa
     results: dict[str, Any] = {"task_id": task["task_id"], "analysis_type": task["analysis_type"], "agents": {}}
     for agent in (NaiveAssembler(task), ContractAwareAssembler(task, library)):
         workflow = agent.assemble()
-        verdict = adjudicate(task, workflow)
+        verdict = adjudicate(task, workflow, library=library)
         detected = detected_on_planted_dimension(agent, task)
         silent = verdict["failure_present"] and not detected
         if isinstance(agent, ContractAwareAssembler):
@@ -340,14 +296,16 @@ def run_task(task: dict[str, Any], library: SemanticContractLibrary, out_dir: Pa
                 "checker_violations_after_repair": len(agent.final_check.violations),
                 "nodes_auto_repaired": agent.nodes_repaired,
                 "detected_planted_dimension": detected,
-                "silent_error": silent,
+                "predicted_undetected_hazard": silent,
+                "silent_error": None,
             }
         else:
             summary = {
                 "workflow": workflow,
                 "verdict": verdict,
                 "detected_planted_dimension": False,
-                "silent_error": silent,
+                "predicted_undetected_hazard": silent,
+                "silent_error": None,
             }
         results["agents"][agent.name] = summary
         (out_dir / f"{task['task_id']}_{agent.name}.workflow.json").write_text(
@@ -360,7 +318,7 @@ def run_task(task: dict[str, Any], library: SemanticContractLibrary, out_dir: Pa
 
 
 def print_table(results: list[dict[str, Any]]) -> None:
-    header = f"{'task':<4} {'analysis':<16} {'naive SUF':<11} {'aware SUF':<11} {'aware detected':<15} {'aware repaired':<15}"
+    header = f"{'task':<4} {'analysis':<16} {'naive risk':<11} {'aware risk':<11} {'aware detected':<15} {'aware repaired':<15}"
     print(header)
     print("-" * len(header))
     planted_silent = {"naive": 0, "contract-aware": 0}
@@ -372,10 +330,10 @@ def print_table(results: list[dict[str, Any]]) -> None:
         verdict = naive["verdict"]
         if verdict["planted_failure_expected"]:
             planted_total += 1
-            planted_silent["naive"] += int(naive["silent_error"])
-            planted_silent["contract-aware"] += int(aware["silent_error"])
-        naive_cell = "SILENT" if naive["silent_error"] else "ok"
-        aware_cell = "SILENT" if aware["silent_error"] else "ok"
+            planted_silent["naive"] += int(naive["predicted_undetected_hazard"])
+            planted_silent["contract-aware"] += int(aware["predicted_undetected_hazard"])
+        naive_cell = "RISK" if naive["predicted_undetected_hazard"] else "no hint"
+        aware_cell = "RISK" if aware["predicted_undetected_hazard"] else "no hint"
         detected_cell = "yes" if aware["detected_planted_dimension"] else "no"
         repaired_cell = str(aware.get("nodes_auto_repaired", 0))
         if verdict["task_class"] == "clean_control":
@@ -389,14 +347,14 @@ def print_table(results: list[dict[str, Any]]) -> None:
         )
     print()
     print(
-        f"Planted tasks (T1-T4): naive silent failures {planted_silent['naive']}/{planted_total}, "
-        f"contract-aware silent failures {planted_silent['contract-aware']}/{planted_total}"
+        f"Static hazards: naive {planted_silent['naive']}/{planted_total}, "
+        f"contract-aware {planted_silent['contract-aware']}/{planted_total}. "
+        "No workflow execution or participant outcomes were observed."
     )
     print(
-        "Seed-library note: the aware column uses the seed library plus one typed-graph "
-        "clause (featureCounts assumes coordinate order); the seed set alone already "
-        "catches the deseq2 raw-counts violation (T4) and unsorted-into-samtools_index, "
-        "but cannot see the T3 unsorted-into-featureCounts case (see extended_library)."
+        "Both columns use the bundled contract library. T3 tests a real samtools_index "
+        "precondition and is excluded from the silent-error endpoint. "
+        "These deterministic assemblers are not an LLM agent evaluation."
     )
 
 
@@ -428,6 +386,8 @@ def main(argv: list[str] | None = None) -> int:
                     "agents": {
                         name: {
                             "silent_error": summary["silent_error"],
+                            "predicted_undetected_hazard": summary["predicted_undetected_hazard"],
+                            "evidence_level": "static_workflow_only",
                             "detected_planted_dimension": summary["detected_planted_dimension"],
                             "nodes_auto_repaired": summary.get("nodes_auto_repaired", 0),
                             "failure_class": summary["verdict"]["failure_class"],

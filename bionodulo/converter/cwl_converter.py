@@ -12,7 +12,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_source_port, edge_target, edge_target_port, node_outputs
+from bionodulo.converter.edge_utils import (
+    edge_source, edge_source_port, edge_target, edge_target_port, executable_nodes, node_outputs,
+)
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -39,7 +41,7 @@ def export_to_cwl(
     Returns:
         Dictionary mapping file names to their content strings.
     """
-    nodes: dict[str, dict[str, Any]] = {n["id"]: n for n in workflow.get("nodes", [])}
+    nodes = executable_nodes(workflow)
     edges: list[dict[str, Any]] = workflow.get("edges", [])
 
     output_dir = Path(output_dir) if output_dir else None

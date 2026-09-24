@@ -95,8 +95,6 @@ _WINDOWS_SKIP_TESTS = {
         "start_new_session is POSIX-only",
     "tests/catalog/test_environment_compiler.py::test_capture_timeout_kills_and_reaps_child":
         "start_new_session is POSIX-only",
-    "tests/catalog/test_environment_compiler.py::test_decoder_accepts_repository_lock_emitted_by_pinned_pixi_0681":
-        "pixi.lock fixture has CRLF line endings on Windows git checkouts",
     "tests/catalog/test_environment_compiler.py::test_private_compiler_rejects_stage_mutation_after_capture_error":
         "O_NOFOLLOW/dir_fd is POSIX-only",
     "tests/catalog/test_environment_compiler.py::test_private_compiler_rejects_forged_direct_conda_explicitness":

@@ -1,28 +1,358 @@
 {
-  "found": 11,
-  "linked_node_types": 12,
+  "found": 20,
+  "linked_node_types": 20,
   "links": {
-    "deseq2": {
-      "biotoolsCURIE": "biotools:deseq2",
-      "biotoolsID": "deseq2",
-      "biotools_id": "deseq2",
-      "description": "Estimate variance-mean dependence in count data from high-throughput sequencing assays and test for differential expression based on a model using the negative binomial distribution.",
-      "documentation": null,
+    "bam_to_sam": {
+      "biotoolsCURIE": "biotools:samtools",
+      "biotoolsID": "samtools",
+      "biotools_id": "samtools",
+      "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
+      "documentation": "http://www.htslib.org/doc/#howtos",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573",
+                "http://edamontology.org/format_3462"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573",
+                "http://edamontology.org/format_3462"
+              ]
+            }
+          ]
+        }
+      ],
+      "homepage": "http://www.htslib.org/",
+      "license": "MIT",
+      "name": "SAMtools",
+      "queried": true,
+      "toolType": [
+        "Command-line tool",
+        "Suite"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_0080",
+        "http://edamontology.org/topic_0102",
+        "http://edamontology.org/topic_3168",
+        "http://edamontology.org/topic_3325"
+      ],
+      "version": [
+        "1.22",
+        "1.22.1",
+        "1.22.2",
+        "1.23",
+        "1.23.1",
+        "1.24"
+      ]
+    },
+    "bwa_mem": {
+      "biotoolsCURIE": "biotools:bwa",
+      "biotoolsID": "bwa",
+      "biotools_id": "bwa",
+      "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+      "documentation": "http://bio-bwa.sourceforge.net/bwa.shtml",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1929"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_3211"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_3210"
+              ],
+              "formats": []
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_3210"
+              ],
+              "formats": []
+            },
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1930"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0292"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_1916"
+              ],
+              "formats": []
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1332"
+              ]
+            },
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1930"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0292",
+            "http://edamontology.org/operation_3198"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_2012"
+              ],
+              "formats": []
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1929"
+              ]
+            },
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1930"
+              ]
+            },
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": []
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0292",
+            "http://edamontology.org/operation_3429"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0863"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2573"
+              ]
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1929"
+              ]
+            },
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": []
+            },
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1930"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0292",
+            "http://edamontology.org/operation_3429"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0863"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2573"
+              ]
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1929"
+              ]
+            },
+            {
+              "data": [
+                "http://edamontology.org/data_2044"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1930"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0292"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0863"
+              ],
+              "formats": []
+            }
+          ]
+        }
+      ],
+      "homepage": "http://bio-bwa.sourceforge.net",
+      "license": "MIT",
+      "name": "BWA",
+      "queried": true,
+      "toolType": [
+        "Command-line tool",
+        "Workbench"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_0102"
+      ],
+      "version": []
+    },
+    "bwa_mem2": {
+      "biotoolsCURIE": "biotools:bwa-mem2",
+      "biotoolsID": "bwa-mem2",
+      "biotools_id": "bwa-mem2",
+      "description": "Bwa-mem2 is the next version of the bwa-mem algorithm in bwa. It produces alignment identical to bwa and is ~1.3-3.1x faster depending on the use-case,  dataset and the running machine.",
+      "documentation": "https://github.com/bwa-mem2/bwa-mem2",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_1383"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1929"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0292"
+          ],
+          "outputs": []
+        }
+      ],
+      "homepage": "https://github.com/bwa-mem2/bwa-mem2",
+      "license": "MIT",
+      "name": "Bwa-mem2",
+      "queried": true,
+      "toolType": [
+        "Command-line tool"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_0102"
+      ],
+      "version": [
+        "2.2.1"
+      ]
+    },
+    "deseq2": {
+      "biotoolsCURIE": "biotools:deseq2",
+      "biotoolsID": "deseq2",
+      "biotools_id": "deseq2",
+      "description": "Estimate variance-mean dependence in count data from high-throughput sequencing assays and test for differential expression based on a model using the negative binomial distribution.",
+      "documentation": "https://bioconductor.org/packages/DESeq2",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_3917"
+              ],
               "formats": [
                 "http://edamontology.org/format_3751"
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_3223",
+            "http://edamontology.org/operation_3680"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_2299"
+              ],
               "formats": [
                 "http://edamontology.org/format_3751"
               ]
@@ -44,45 +374,112 @@
         "1.52.0"
       ]
     },
-    "featurecounts": {
-      "biotoolsCURIE": "biotools:featurecounts",
-      "biotoolsID": "featurecounts",
-      "biotools_id": "featurecounts",
-      "description": "featureCounts is a very efficient read quantifier. It can be used to summarize RNA-seq reads and gDNA-seq reads to a variety of genomic features such as genes, exons, promoters, gene bodies and genomic bins. It is included in the Bioconductor Rsubread package and also in the SourceForge Subread pack",
-      "documentation": null,
+    "fastqc": {
+      "biotoolsCURIE": "biotools:fastqc",
+      "biotoolsID": "fastqc",
+      "biotools_id": "fastqc",
+      "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ file",
+      "documentation": "https://github.com/csf-ngs/fastqc/tree/master/Help",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0848"
+              ],
+              "formats": [
+                "http://edamontology.org/format_1930",
+                "http://edamontology.org/format_2182",
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0236",
+            "http://edamontology.org/operation_2238",
+            "http://edamontology.org/operation_3218"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_2955"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2331"
+              ]
+            }
+          ]
+        }
+      ],
+      "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/",
+      "license": "GPL-3.0",
+      "name": "FastQC",
+      "queried": true,
+      "toolType": [
+        "Command-line tool",
+        "Desktop application"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_0080",
+        "http://edamontology.org/topic_3168",
+        "http://edamontology.org/topic_3572"
+      ],
+      "version": []
+    },
+    "featurecounts": {
+      "biotoolsCURIE": "biotools:featurecounts",
+      "biotoolsID": "featurecounts",
+      "biotools_id": "featurecounts",
+      "description": "featureCounts is a very efficient read quantifier. It can be used to summarize RNA-seq reads and gDNA-seq reads to a variety of genomic features such as genes, exons, promoters, gene bodies and genomic bins. It is included in the Bioconductor Rsubread package and also in the SourceForge Subread pack",
+      "documentation": "http://bioconductor.org/packages/release/bioc/manuals/Rsubread/man/Rsubread.pdf",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_3002"
+              ],
               "formats": [
                 "http://edamontology.org/format_2305"
               ]
             },
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_3002"
+              ],
               "formats": [
                 "http://edamontology.org/format_2306"
               ]
             },
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_1383"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572"
               ]
             },
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_1383"
+              ],
               "formats": [
                 "http://edamontology.org/format_2573"
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_3793",
+            "http://edamontology.org/operation_3800"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_3917"
+              ],
               "formats": [
                 "http://edamontology.org/format_3751"
               ]
@@ -107,12 +504,14 @@
       "biotoolsID": "hisat2",
       "biotools_id": "hisat2",
       "description": "Alignment program for mapping next-generation sequencing reads (both DNA and RNA) to a population of human genomes (as well as to a single reference genome).",
-      "documentation": null,
+      "documentation": "https://ccb.jhu.edu/software/hisat2/manual.shtml",
       "found": true,
       "functions": [
         {
           "inputs": [],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_0292"
+          ],
           "outputs": []
         }
       ],
@@ -128,22 +527,101 @@
       ],
       "version": []
     },
-    "normalize_data": {
-      "biotools_id": "normalize",
-      "found": false,
-      "queried": true
+    "hisat2_build": {
+      "biotoolsCURIE": "biotools:hisat2",
+      "biotoolsID": "hisat2",
+      "biotools_id": "hisat2",
+      "description": "Alignment program for mapping next-generation sequencing reads (both DNA and RNA) to a population of human genomes (as well as to a single reference genome).",
+      "documentation": "https://ccb.jhu.edu/software/hisat2/manual.shtml",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [],
+          "operations": [
+            "http://edamontology.org/operation_0292"
+          ],
+          "outputs": []
+        }
+      ],
+      "homepage": "https://ccb.jhu.edu/software/hisat2/index.shtml",
+      "license": "GPL-3.0",
+      "name": "HISAT2",
+      "queried": true,
+      "toolType": [
+        "Command-line tool"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_3170"
+      ],
+      "version": []
+    },
+    "multiqc": {
+      "biotoolsCURIE": "biotools:multiqc",
+      "biotoolsID": "multiqc",
+      "biotools_id": "multiqc",
+      "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+      "documentation": "http://multiqc.info/docs/",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [],
+          "operations": [
+            "http://edamontology.org/operation_2428",
+            "http://edamontology.org/operation_3218"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_3914"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2331",
+                "http://edamontology.org/format_3464",
+                "http://edamontology.org/format_3475",
+                "http://edamontology.org/format_3750",
+                "http://edamontology.org/format_3752"
+              ]
+            },
+            {
+              "data": [
+                "http://edamontology.org/data_0867"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2331"
+              ]
+            }
+          ]
+        }
+      ],
+      "homepage": "http://multiqc.info/",
+      "license": "GPL-3.0",
+      "name": "MultiQC",
+      "queried": true,
+      "toolType": [
+        "Command-line tool",
+        "Library"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_0080",
+        "http://edamontology.org/topic_0091",
+        "http://edamontology.org/topic_0622",
+        "http://edamontology.org/topic_3168"
+      ],
+      "version": []
     },
     "rseqc_infer_experiment": {
       "biotoolsCURIE": "biotools:rseqc",
       "biotoolsID": "rseqc",
       "biotools_id": "rseqc",
       "description": "Provides a number of useful modules that can comprehensively evaluate high throughput sequence data especially RNA-seq data. Some basic modules quickly inspect sequence quality, nucleotide composition bias, PCR bias and GC bias, while RNA-seq specific modules evaluate sequencing saturation, mapped r",
-      "documentation": null,
+      "documentation": "http://rseqc.sourceforge.net/",
       "found": true,
       "functions": [
         {
           "inputs": [],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_2409"
+          ],
           "outputs": []
         }
       ],
@@ -164,13 +642,15 @@
       "biotoolsID": "samtools",
       "biotools_id": "samtools",
       "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
-      "documentation": null,
+      "documentation": "http://www.htslib.org/doc/#howtos",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -178,10 +658,20 @@
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -219,13 +709,15 @@
       "biotoolsID": "samtools",
       "biotools_id": "samtools",
       "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
-      "documentation": null,
+      "documentation": "http://www.htslib.org/doc/#howtos",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -233,10 +725,87 @@
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573",
+                "http://edamontology.org/format_3462"
+              ]
+            }
+          ]
+        }
+      ],
+      "homepage": "http://www.htslib.org/",
+      "license": "MIT",
+      "name": "SAMtools",
+      "queried": true,
+      "toolType": [
+        "Command-line tool",
+        "Suite"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_0080",
+        "http://edamontology.org/topic_0102",
+        "http://edamontology.org/topic_3168",
+        "http://edamontology.org/topic_3325"
+      ],
+      "version": [
+        "1.22",
+        "1.22.1",
+        "1.22.2",
+        "1.23",
+        "1.23.1",
+        "1.24"
+      ]
+    },
+    "samtools_collate": {
+      "biotoolsCURIE": "biotools:samtools",
+      "biotoolsID": "samtools",
+      "biotools_id": "samtools",
+      "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
+      "documentation": "http://www.htslib.org/doc/#howtos",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573",
+                "http://edamontology.org/format_3462"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -274,13 +843,15 @@
       "biotoolsID": "samtools",
       "biotools_id": "samtools",
       "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
-      "documentation": null,
+      "documentation": "http://www.htslib.org/doc/#howtos",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -288,10 +859,87 @@
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573",
+                "http://edamontology.org/format_3462"
+              ]
+            }
+          ]
+        }
+      ],
+      "homepage": "http://www.htslib.org/",
+      "license": "MIT",
+      "name": "SAMtools",
+      "queried": true,
+      "toolType": [
+        "Command-line tool",
+        "Suite"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_0080",
+        "http://edamontology.org/topic_0102",
+        "http://edamontology.org/topic_3168",
+        "http://edamontology.org/topic_3325"
+      ],
+      "version": [
+        "1.22",
+        "1.22.1",
+        "1.22.2",
+        "1.23",
+        "1.23.1",
+        "1.24"
+      ]
+    },
+    "samtools_fixmate": {
+      "biotoolsCURIE": "biotools:samtools",
+      "biotoolsID": "samtools",
+      "biotools_id": "samtools",
+      "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
+      "documentation": "http://www.htslib.org/doc/#howtos",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573",
+                "http://edamontology.org/format_3462"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -329,13 +977,15 @@
       "biotoolsID": "samtools",
       "biotools_id": "samtools",
       "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
-      "documentation": null,
+      "documentation": "http://www.htslib.org/doc/#howtos",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -343,10 +993,20 @@
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -384,13 +1044,15 @@
       "biotoolsID": "samtools",
       "biotools_id": "samtools",
       "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
-      "documentation": null,
+      "documentation": "http://www.htslib.org/doc/#howtos",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -398,10 +1060,87 @@
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573",
+                "http://edamontology.org/format_3462"
+              ]
+            }
+          ]
+        }
+      ],
+      "homepage": "http://www.htslib.org/",
+      "license": "MIT",
+      "name": "SAMtools",
+      "queried": true,
+      "toolType": [
+        "Command-line tool",
+        "Suite"
+      ],
+      "topic": [
+        "http://edamontology.org/topic_0080",
+        "http://edamontology.org/topic_0102",
+        "http://edamontology.org/topic_3168",
+        "http://edamontology.org/topic_3325"
+      ],
+      "version": [
+        "1.22",
+        "1.22.1",
+        "1.22.2",
+        "1.23",
+        "1.23.1",
+        "1.24"
+      ]
+    },
+    "samtools_markdup": {
+      "biotoolsCURIE": "biotools:samtools",
+      "biotoolsID": "samtools",
+      "biotools_id": "samtools",
+      "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
+      "documentation": "http://www.htslib.org/doc/#howtos",
+      "found": true,
+      "functions": [
+        {
+          "inputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
+              "formats": [
+                "http://edamontology.org/format_2572",
+                "http://edamontology.org/format_2573",
+                "http://edamontology.org/format_3462"
+              ]
+            }
+          ],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
+          "outputs": [
+            {
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -439,13 +1178,15 @@
       "biotoolsID": "samtools",
       "biotools_id": "samtools",
       "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
-      "documentation": null,
+      "documentation": "http://www.htslib.org/doc/#howtos",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -453,10 +1194,20 @@
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -494,13 +1245,15 @@
       "biotoolsID": "samtools",
       "biotools_id": "samtools",
       "description": "SAMtools and BCFtools are widely used programs for processing and analysing high-throughput sequencing data. They include tools for file format conversion and manipulation, sorting, querying, statistics, variant calling, and effect analysis amongst other methods.",
-      "documentation": null,
+      "documentation": "http://www.htslib.org/doc/#howtos",
       "found": true,
       "functions": [
         {
           "inputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -508,10 +1261,20 @@
               ]
             }
           ],
-          "operations": [],
+          "operations": [
+            "http://edamontology.org/operation_0227",
+            "http://edamontology.org/operation_0335",
+            "http://edamontology.org/operation_0337",
+            "http://edamontology.org/operation_1812",
+            "http://edamontology.org/operation_3096",
+            "http://edamontology.org/operation_3695",
+            "http://edamontology.org/operation_3802"
+          ],
           "outputs": [
             {
-              "data": [],
+              "data": [
+                "http://edamontology.org/data_0924"
+              ],
               "formats": [
                 "http://edamontology.org/format_2572",
                 "http://edamontology.org/format_2573",
@@ -545,6 +1308,8 @@
       ]
     }
   },
+  "mapping_evidence": "Explicit node-ID mapping, prior declared links, and typed tool identities; matching registry accession verified in complete snapshot. Not execution validation.",
   "schema_version": "0.1",
-  "source": "https://bio.tools/api"
+  "snapshot_sha256": "6ad93aea0a0e2ae0fcc89bb41f89bbb03e22971cf56f87ecd32af0417dce625e",
+  "source": "https://bio.tools/api/tool/"
 }

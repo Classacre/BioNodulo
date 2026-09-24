@@ -35,17 +35,27 @@ function runTime(run: RunRecord): number {
 }
 
 /**
- * The preview to show for each node: the one from the LATEST run (by end/start
- * time) that has a preview for that node id. Runs still executing carry no
- * previews, so they never displace a completed run's entry.
+ * The preview to show for each node comes only from that node's latest run (by
+ * end/start time). A newer running or failed attempt suppresses an older
+ * preview: showing prior output as though the current attempt produced it is
+ * misleading, especially for validation/evidence nodes.
  */
 export function deriveLatestPreviews(runs: RunRecord[]): Record<string, NodePreviewRef> {
   const sorted = [...runs].sort((a, b) => runTime(b) - runTime(a));
   const out: Record<string, NodePreviewRef> = {};
+  const seen = new Set<string>();
   for (const run of sorted) {
     const previews = run.previews || {};
-    for (const [nodeId, path] of Object.entries(previews)) {
-      if (!out[nodeId]) out[nodeId] = { runId: run.run_id, nodeId, path };
+    const participatingNodes = new Set([
+      ...(run.execution_plan || []),
+      ...(run.node_statuses || []).map(status => status.node_id),
+      ...Object.keys(previews),
+    ]);
+    for (const nodeId of participatingNodes) {
+      if (seen.has(nodeId)) continue;
+      seen.add(nodeId);
+      const path = previews[nodeId];
+      if (path) out[nodeId] = { runId: run.run_id, nodeId, path };
     }
   }
   return out;

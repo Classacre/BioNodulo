@@ -45,6 +45,48 @@ def test_normalize_data_is_registered_for_frontend_discovery() -> None:
     assert info["normalize_data"]["category"] == "data_transform"
     assert info["normalize_data"]["output_name"] == ["normalized_table"]
     assert info["normalize_data"]["output"] == ["CSV"]
+    assert info["normalize_data"]["version"] == "1.0.1"
+    assert info["normalize_data"]["versioning"]["current"] == "1.0.1"
+
+
+@pytest.mark.asyncio
+async def test_corrected_normalization_bypasses_old_version_cache(tmp_path: Path, monkeypatch) -> None:
+    """Seed a legacy-version cache record with bad output, then run current code."""
+    from bionodulo.execution.executor import WorkflowExecutor
+
+    table = tmp_path / "counts.tsv"
+    table.write_text("gene\ts1\ts2\nA\t3\t1\nB\t1\t3\n", encoding="utf-8")
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes()
+    node_class = registry.get("normalize_data")
+    assert node_class is not None and node_class.VERSION == "1.0.1"
+    engine = WorkflowExecutor(
+        workspace_dir=tmp_path / "engine", registry=registry,
+        settings=SimpleNamespace(execution=SimpleNamespace(max_workers=1, env_isolation="off", content_hashing="strong"), api_secrets={}),
+    )
+    workflow = {"nodes": [{"id": "norm", "type": "normalize_data", "params": {
+        "table": str(table), "method": "cpm", "id_columns": "gene",
+    }}], "edges": []}
+    # Use the actual cache-writing path under the old version identity. This
+    # simulates an existing legacy record, not the old scientific algorithm.
+    with monkeypatch.context() as old_version:
+        old_version.setattr(node_class, "VERSION", "1.0.0")
+        legacy = await engine.execute("legacy", workflow)
+    legacy_path = Path(legacy["outputs"]["norm"]["normalized_table"])
+    legacy_path.write_text("gene\ts1\ts2\nA\t-99\t-99\n", encoding="utf-8")
+
+    corrected = await engine.execute("corrected", workflow)
+    assert corrected["status"] == "completed"
+    assert corrected["node_results"]["norm"]["status"] == "completed"
+    assert corrected["node_results"]["norm"]["cache_key"] != legacy["node_results"]["norm"]["cache_key"]
+    assert _read_table(corrected["outputs"]["norm"]["normalized_table"]) == [
+        {"gene": "A", "s1": "750000", "s2": "250000"},
+        {"gene": "B", "s1": "250000", "s2": "750000"},
+    ]
+    # A version bump cannot repair files left behind by a historical run.
+    assert "-99" in legacy_path.read_text(encoding="utf-8")
+    repeated = await engine.execute("corrected-cached", workflow)
+    assert repeated["node_results"]["norm"]["status"] == "cached"
 
 
 @pytest.mark.asyncio

@@ -108,6 +108,7 @@ export function useClerkAuth(): UseClerkAuthResult {
           id,
           name,
           color: getUserColor(id),
+          kind: 'account' as const,
         };
         setToken(token);
         setAuthUser(user);

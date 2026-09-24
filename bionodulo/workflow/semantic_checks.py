@@ -14,7 +14,7 @@ the flat ``from_node``/``to_node`` API form) and of nodes without contracts
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from bionodulo.nodes.semantic_contracts import (
@@ -24,6 +24,7 @@ from bionodulo.nodes.semantic_contracts import (
     NodeSemanticContract,
     SemanticContractLibrary,
 )
+from bionodulo.workflow.graph import edge_source, edge_source_port, edge_target, edge_target_port
 
 
 # --------------------------------------------------------------------------
@@ -48,6 +49,9 @@ def _edge_endpoints(edge: dict[str, Any]) -> tuple[str, str, str, str] | None:
             edge.get("to_node") or edge.get("toNode") or "",
             edge.get("to_input") or edge.get("toInput") or "",
         )
+    source_node, target_node = edge_source(edge), edge_target(edge)
+    if source_node and target_node:
+        return source_node, edge_source_port(edge, ""), target_node, edge_target_port(edge, "")
     return None
 
 
@@ -153,6 +157,27 @@ class SemanticCheckResult:
     suggestions: list[SuggestedFix] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     node_states: dict[str, dict[str, dict[str, str]]] = field(default_factory=dict)
+    checks: list[dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        for suggestion in payload["suggestions"]:
+            suggestion["rule"] = suggestion["rule"].model_dump()
+        payload["verification"] = (
+            "violated" if not self.ok else
+            "unverified" if self.warnings or not self.checks or any(c["status"] == "unverified" for c in self.checks)
+            else "satisfied"
+        )
+        payload["scope"] = (
+            "static declared contracts only; file contents and binary identity are not "
+            "inspected here. Successful artifact-validation nodes emit separate runtime evidence"
+        )
+        payload["evidence_basis"] = {
+            "edge_states": "declared_postconditions",
+            "artifact_contents": "not_inspected",
+            "binary_identity": "not_inspected",
+        }
+        return payload
 
     def summary(self) -> str:
         if self.ok and not self.warnings:
@@ -200,11 +225,14 @@ def _apply_guarantees(
     merged_input_state: dict[str, str],
     node_params: dict[str, Any],
     guarantee_key: str,
+    input_states: dict[str, dict[str, str]] | None = None,
 ) -> dict[str, str]:
     state = dict(merged_input_state)
     for guarantee in contract.outputs.get(guarantee_key, []):
         state[guarantee.dimension] = _resolve_guarantee(
-            guarantee, merged_input_state, node_params
+            guarantee,
+            (input_states or {}).get(guarantee.from_port, {}) if guarantee.from_port else merged_input_state,
+            node_params,
         )
     return state
 
@@ -223,6 +251,15 @@ def _resolve_guarantee(
         if raw is None:
             return UNKNOWN
         return guarantee.param_map.get(str(raw), UNKNOWN)
+    if guarantee.op == "param_tuple_map":
+        if not guarantee.params:
+            return UNKNOWN
+        raw_values: list[str] = []
+        for name in guarantee.params:
+            if name not in (node_params or {}):
+                return UNKNOWN
+            raw_values.append(str(node_params[name]))
+        return guarantee.param_map.get("|".join(raw_values), UNKNOWN)
     # propagate
     return input_state.get(guarantee.dimension, UNKNOWN)
 
@@ -233,7 +270,7 @@ def _find_coercion(
     observed: str | None,
     required: str,
 ) -> CoercionRule | None:
-    for rule in library.coercions_for(dimension):
+    for rule in sorted(library.coercions_for(dimension), key=lambda rule: rule.cost):
         if rule.detection:
             continue
         if rule.from_value == observed and rule.to_value == required:
@@ -253,6 +290,8 @@ def _find_detection(
 def check_workflow_semantics(
     workflow: dict[str, Any],
     library: SemanticContractLibrary | None = None,
+    *,
+    registry: Any | None = None,
 ) -> SemanticCheckResult:
     """Propagate semantic state through the graph and check every edge."""
     if library is None:
@@ -303,12 +342,28 @@ def check_workflow_semantics(
             )
 
     contracted_nodes: set[str] = set()
+    contract_review: dict[str, str] = {}
 
     for node_id in order:
         node = nodes.get(node_id, {})
         node_type = node.get("type", "")
-        params = node.get("params", {}) if isinstance(node.get("params"), dict) else {}
+        params = dict(node.get("params", {})) if isinstance(node.get("params"), dict) else {}
+        if isinstance(node.get("widgets"), dict):
+            params.update(node["widgets"])
         contract = library.contract_for(node_type)
+        if node_type == "note":
+            states[node_id] = {}
+            continue
+        metadata = node.get("meta") or {}
+        if node.get("muted") or node.get("bypassed") or metadata.get("muted") or metadata.get("bypassed"):
+            contract = None
+        if contract is not None and registry is not None:
+            node_class = registry.get_node(node_type) if hasattr(registry, "get_node") else registry.get(node_type)
+            if node_class is not None and hasattr(node_class, "INPUT_TYPES"):
+                for section in node_class.INPUT_TYPES().values():
+                    for name, spec in section.items():
+                        if isinstance(spec, (tuple, list)) and len(spec) > 1 and isinstance(spec[1], dict) and "default" in spec[1]:
+                            params.setdefault(name, spec[1]["default"])
 
         # Resolve inbound states from predecessors that have been processed.
         # An edge whose source is not yet processed (cycle), whose output port
@@ -351,6 +406,7 @@ def check_workflow_semantics(
                 )
             continue
         contracted_nodes.add(node_id)
+        contract_review[node_id] = contract.review_status
 
         # An assumption nobody feeds is unchecked; say so.
         supplied_ports: set[str] = set()
@@ -378,10 +434,26 @@ def check_workflow_semantics(
             for template_clause in clauses:
                 clause = template_clause.resolve_required(params)
                 if clause.operator == "any":
-                    continue
-                if clause.accepts(output_state.get(clause.dimension)):
+                    if template_clause.operator == "param_map":
+                        result.warnings.append(
+                            f"node '{node_id}' has an unresolved {template_clause.dimension} assumption parameter '{template_clause.param}'; the assumption is unverified"
+                        )
                     continue
                 observed = output_state.get(clause.dimension)
+                accepted = clause.accepts(observed)
+                result.checks.append({
+                    "edge_id": edge.get("id", f"{source}->{node_id}"),
+                    "producer_node": source, "consumer_node": node_id,
+                    "input_port": target_input, "dimension": clause.dimension,
+                    "expected": clause.value if clause.operator == "eq" else list(clause.values),
+                    "observed": observed or UNKNOWN,
+                    "status": "satisfied" if accepted else "unverified" if observed in (None, UNKNOWN) else "violated",
+                    "evidence_level": "declared",
+                    "producer_contract_review": contract_review.get(source, "unknown"),
+                    "consumer_contract_review": contract.review_status,
+                })
+                if accepted:
+                    continue
                 if observed in (None, UNKNOWN):
                     detection = _find_detection(library, clause.dimension, observed)
                     if detection is not None:
@@ -406,19 +478,26 @@ def check_workflow_semantics(
                             f" {clause.dimension} is unknown and cannot be checked"
                         )
                     continue
+                required_description = clause.value or "|".join(clause.values)
                 violation = Violation(
                     edge_id=edge.get("id", f"{source}->{node_id}"),
                     dimension=clause.dimension,
                     producer_node=source,
                     producer_guarantee=observed or "unknown",
                     consumer_node=node_id,
-                    consumer_assumption=clause.value or "",
+                    consumer_assumption=required_description,
                     observed_value=observed,
-                    required_value=clause.value,
+                    required_value=required_description,
                 )
                 result.violations.append(violation)
                 result.ok = False
-                coercion = _find_coercion(library, clause.dimension, observed, clause.value or "")
+                coercion = (
+                    _find_coercion(
+                        library, clause.dimension, observed, clause.value or ""
+                    )
+                    if clause.operator == "eq"
+                    else None
+                )
                 if coercion is not None:
                     result.suggestions.append(
                         SuggestedFix(
@@ -437,12 +516,17 @@ def check_workflow_semantics(
 
         # Produce output states.
         node_states: dict[str, dict[str, str]] = {}
+        port_states: dict[str, dict[str, str]] = {}
+        for edge, state in incoming:
+            endpoints = _edge_endpoints(edge)
+            if endpoints is not None:
+                port_states[endpoints[3]] = state
         for output_port, guarantees in contract.outputs.items():
             if not guarantees:
                 node_states[output_port] = dict(merged)
                 continue
             node_states[output_port] = _apply_guarantees(
-                contract, merged, params, output_port
+                contract, merged, params, output_port, port_states
             )
         states[node_id] = node_states
 

@@ -59,6 +59,28 @@ def test_cloud_relay_accepts_production_r2_without_widening_ssrf_allowlist() -> 
         _validate_s3_url(f"https://{_R2_HOST}.example.com/uploads/example")
 
 
+def test_editor_download_never_reads_private_or_shadowed_workspace_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    from server import create_app
+
+    _editor_env(monkeypatch, tmp_path)
+    (tmp_path / "private.txt").write_text("private tenant content", encoding="utf-8")
+    path = "templates/data/smoke/paired_R1.fastq"
+    shadow = tmp_path / path
+    shadow.parent.mkdir(parents=True)
+    shadow.write_text("private shadow content", encoding="utf-8")
+
+    with TestClient(create_app(), headers=_HEADERS) as client:
+        for method in ("GET", "HEAD"):
+            assert client.request(method, "/api/workspace/download", params={"path": "private.txt"}).status_code == 403
+        response = client.get("/api/workspace/download", params={"path": path})
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"@")
+    assert b"private shadow" not in response.content
+
+
 def test_cloud_upload_blocked_in_editor_mode_and_relays_in_full_mode(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -50,7 +50,7 @@ import {
   NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor,
   type GraphNode, type WorkflowCanvasRef,
 } from './canvasModel';
-import { NODE_HEADER_H, isInteractiveWidgetSpec, getPromotableParamKeys } from '../../utils/nodeLayout';
+import { NODE_HEADER_H, isInteractiveWidgetSpec, isInlineFileValueSpec, getPromotableParamKeys } from '../../utils/nodeLayout';
 import { dagreLayout } from '../../utils/dagreLayout';
 import { useSettings } from '../../hooks/settings';
 import { promptDialog } from '../ui';
@@ -274,7 +274,9 @@ function toGraphNode(
     })) : (meta && !visualOnly) ? [
       ...Object.entries(visibleInputs.required),
       ...Object.entries(visibleInputs.optional),
-    ].filter(([, spec]) => !isInteractiveWidgetSpec(spec)).map(([name, spec]) => ({
+    ].filter(([name, spec]) =>
+      !isInteractiveWidgetSpec(spec) || isInlineFileValueSpec(meta, name, spec)
+    ).map(([name, spec]) => ({
       name, type: spec.type || 'STRING', connected: connectedIn.has(`${wn.id}:${name}`),
     })) : [],
     outputs: subgraphOutputs ? subgraphOutputs.map(p => ({

@@ -28,6 +28,11 @@ def _library() -> SemanticContractLibrary:
     return SemanticContractLibrary.bundled()
 
 
+def test_flagstat_does_not_claim_to_detect_sort_order() -> None:
+    rules = SemanticContractLibrary.bundled().coercions_for("sort_order")
+    assert not any(rule.converter_node_type == "samtools_flagstat" for rule in rules)
+
+
 # --------------------------------------------------------------------------
 # Schema
 

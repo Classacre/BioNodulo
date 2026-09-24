@@ -115,11 +115,14 @@ class FeatureCountsNode(CommandNode):
 
     @classmethod
     def _alignment(cls, inputs: dict[str, Any]) -> str:
-        return str(inputs.get("alignment", inputs.get("bam", "")))
+        return str(inputs.get("alignment") or inputs.get("bam") or "")
 
     @classmethod
     def _annotation_file(cls, inputs: dict[str, Any]) -> str:
-        return str(inputs.get("reference_gene_sets", inputs.get("gtf", inputs.get("annotation", ""))))
+        # Executor/widget defaults include an empty canonical field even for
+        # older graphs carrying gtf/annotation. Do not let that empty default
+        # hide the actual annotation supplied by the workflow.
+        return str(inputs.get("reference_gene_sets") or inputs.get("gtf") or inputs.get("annotation") or "")
 
     @classmethod
     def _cached_annotation_file(cls, inputs: dict[str, Any]) -> str:

@@ -8,7 +8,7 @@ the signed-in editor already sends.
 
 from __future__ import annotations
 
-import subprocess
+import re
 from pathlib import Path
 
 import pytest
@@ -81,24 +81,29 @@ def test_no_shipped_python_names_the_vendor() -> None:
     grep is the only check that actually holds: a hardcoded fallback would
     otherwise ship silently in the desktop bundle."""
     root = Path(hosted.__file__).resolve().parents[1]
-    hits = subprocess.run(
-        ["grep", "-rIl", "freemodel", str(root)],
-        capture_output=True,
-        text=True,
-    ).stdout.split()
+    hits = _shipped_text_matches(root, r"freemodel")
 
     assert hits == [], f"vendor domain referenced in shipped code: {hits}"
 
 
 def test_no_shipped_python_embeds_an_upstream_key() -> None:
     root = Path(hosted.__file__).resolve().parents[1]
-    hits = subprocess.run(
-        ["grep", "-rIlE", r"sk-or-[a-zA-Z0-9-]{32}", str(root)],
-        capture_output=True,
-        text=True,
-    ).stdout.split()
+    hits = _shipped_text_matches(root, r"sk-or-[a-zA-Z0-9-]{32}")
 
     assert hits == [], f"upstream API key referenced in shipped code: {hits}"
+
+
+def _shipped_text_matches(root: Path, pattern: str) -> list[str]:
+    """Scan the shipped tree on every platform, excluding binary files like grep -I."""
+    matches = []
+    expression = re.compile(pattern.encode("ascii"))
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        if b"\x00" not in data and expression.search(data):
+            matches.append(str(path.relative_to(root)))
+    return matches
 
 
 def test_quota_errors_become_an_actionable_message_with_the_reset_time() -> None:

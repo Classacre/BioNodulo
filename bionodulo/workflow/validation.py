@@ -50,6 +50,7 @@ class ValidationResult:
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     sorted_node_order: list[str] = field(default_factory=list)
+    semantics: dict[str, Any] = field(default_factory=dict)
 
 
 def validate_workflow(
@@ -292,12 +293,18 @@ def validate_workflow(
         nodes, parameter_names, errors, implicit_parameters=_implicit_parameters
     )
 
+    from bionodulo.workflow.semantic_checks import check_workflow_semantics
+
+    semantics = check_workflow_semantics(workflow, registry=registry)
+    errors.extend(violation.explanation() for violation in semantics.violations)
+    warnings.extend(semantics.warnings)
     valid = len(errors) == 0
     return ValidationResult(
         valid=valid,
         errors=errors,
         warnings=warnings,
         sorted_node_order=sorted_order if valid else [],
+        semantics=semantics.to_dict(),
     )
 
 

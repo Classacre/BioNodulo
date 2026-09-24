@@ -1791,7 +1791,7 @@ export default function App() {
             id: `${meta.id}_${Date.now()}_${i}`,
             type: meta.id,
             position: [baseX, baseY],
-            params: { ...defaultsFor(meta), path: data.path },
+            params: { ...defaultsFor(meta), file: data.path },
             node_info: meta,
             ui: { title: data.original_name || meta.display_name },
           };
@@ -2037,7 +2037,12 @@ export default function App() {
       // fail fast rather than silently installing in the background.
       if (!editorMode) {
         const report = await resolve(activeWorkflow);
-        if (report && !report.env_ready) {
+        if (!report || !(report.execution_ready ?? report.env_ready)) {
+          toast.error(t('resolveReport.bannerTitle'), {
+            message: report
+              ? report.summary || t('resolveReport.bannerBody')
+              : t('resolveReport.checkFailed'),
+          });
           setConsoleVisible(true);
           setRailTab('console');
           setIsRunning(false);
@@ -3529,7 +3534,7 @@ export default function App() {
       ));
     }
     if (tab === 'user') {
-      return wrap('user', <UserPanel onClose={() => closePanel(tab)} />);
+      return wrap('user', <UserPanel onClose={() => closePanel(tab)} clerkAuth={clerk} />);
     }
     if (tab === 'compute') {
       return wrap('compute', (
@@ -3745,7 +3750,7 @@ export default function App() {
               id: `input_file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
               type: 'input_file',
               position: [Math.round(world.x), Math.round(world.y)],
-              params: { ...defaultsFor(inputMeta), path: filePath },
+              params: { ...defaultsFor(inputMeta), file: filePath },
               node_info: inputMeta,
               ui: { title: fileName },
             };

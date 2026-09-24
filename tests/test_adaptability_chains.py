@@ -1,8 +1,8 @@
-"""Aim B adaptability: one typed graph, interchangeable tool chains.
+"""Aim B structural contract checks for two RNA-seq counting chains.
 
 The dossier strand is "reconfigure an analysis for a different tool chain
-without new code". Two structurally different RNA-seq counting chains run
-over the SAME contract dimensions (sort_order, strandedness,
+without new code". Two structurally different RNA-seq counting chains are
+checked over the SAME contract dimensions (sort_order, strandedness,
 normalization_state), with every edge wired to the real registered port
 names of the node classes:
 
@@ -11,10 +11,13 @@ names of the node classes:
     unstranded_library_reads -> hisat2_align -> samtools_view
         -> samtools_sort -> featurecounts
 
-* chain B (STAR head, Galaxy SAM-to-BAM converter)::
+* chain B (STAR produces coordinate-sorted BAM)::
 
-    unstranded_library_reads -> star_align -> sam_to_bam
-        -> samtools_sort -> featurecounts
+    unstranded_library_reads -> star_align -> featurecounts
+
+These are structural semantic checks, not tool execution: no FASTQ is
+aligned or counted. They do not validate the proposal's three chains,
+which also require tximport and Salmon execution and ground-truth outputs.
 
 The bundled contract library annotates chain A's nodes but not STAR, and
 its HISAT2 contract conservatively reports strandedness=unknown (an
@@ -28,8 +31,7 @@ alignment out).
 The planted error is the documented silent-halving failure mode [E8][E11]:
 featureCounts ``-s 2`` (reverse) counting an unstranded library. The claim
 under test is that the contract system catches the SAME planted error in
-BOTH chains - identical enforcement regardless of tool chain is the
-adaptability claim.
+BOTH chains - one limited check of the proposed adaptability property.
 """
 
 from __future__ import annotations
@@ -82,11 +84,11 @@ def _library() -> SemanticContractLibrary:
     )
     star_align = NodeSemanticContract(
         node_type="star_align",
-        notes="STAR emits unsorted SAM; library strandedness passes through.",
+        notes="STAR adapter emits coordinate-sorted BAM; strandedness passes through.",
         inputs={"reads": [], "index": []},
         outputs={
             "alignment": [
-                Guarantee(dimension="sort_order", op="set", value="unsorted"),
+                Guarantee(dimension="sort_order", op="set", value="coordinate"),
                 Guarantee(dimension="strandedness", op="propagate"),
             ]
         },
@@ -167,6 +169,14 @@ def test_alternative_chain_contracts_use_real_registered_ports() -> None:
                 " registered output port"
             )
 
+    # Keep the test-only STAR contract tied to the real adapter's output.
+    # This inspects the command; it does not execute STAR.
+    star_cls = _node_class("star_align")
+    assert star_cls.RETURN_TYPES == ("BAM",)
+    command = star_cls.render_command({"reads": ["reads.fastq"], "index": "index"})
+    output_type = command.index("--outSAMtype")
+    assert command[output_type + 1 : output_type + 3] == ["BAM", "SortedByCoordinate"]
+
 
 # --------------------------------------------------------------------------
 # The two chains
@@ -215,15 +225,11 @@ def _star_chain(strand_specificity: int) -> dict:
         [
             _node("lib", "unstranded_library_reads"),
             _node("align", "star_align"),
-            _node("convert", "sam_to_bam"),
-            _node("sort", "samtools_sort"),
             _node("counts", "featurecounts", {"strand_specificity": strand_specificity}),
         ],
         [
             _edge("e1", "lib", "reads", "align", "reads"),
-            _edge("e2", "align", "alignment", "convert", "input"),
-            _edge("e3", "convert", "output1", "sort", "alignment"),
-            _edge("e4", "sort", "sorted_bam", "counts", "alignment"),
+            _edge("e2", "align", "alignment", "counts", "alignment"),
         ],
     )
 
@@ -243,8 +249,9 @@ def test_alternative_chains_pass_when_configured_correctly(chain: str) -> None:
     result = check_workflow_semantics(_CHAINS[chain](0), _library())
     assert result.ok
     assert result.violations == []
-    assert result.node_states["sort"]["sorted_bam"]["sort_order"] == "coordinate"
-    assert result.node_states["sort"]["sorted_bam"]["strandedness"] == "unstranded"
+    node_id, port = ("sort", "sorted_bam") if chain == "hisat2" else ("align", "alignment")
+    assert result.node_states[node_id][port]["sort_order"] == "coordinate"
+    assert result.node_states[node_id][port]["strandedness"] == "unstranded"
     assert result.node_states["counts"]["counts"]["normalization_state"] == "raw_counts"
 
 
@@ -256,7 +263,7 @@ def test_alternative_chains_pass_when_configured_correctly(chain: str) -> None:
 def test_planted_strandedness_error_is_caught_in_both_chains(chain: str) -> None:
     """featureCounts -s 2 (reverse) fed by a producer guaranteeing unstranded
     data violates the strandedness contract in BOTH tool chains, with the
-    same blame, observed, and required values - the adaptability claim."""
+    same observed and required values at each chain's actual producer."""
     result = check_workflow_semantics(_CHAINS[chain](2), _library())
     assert not result.ok
     assert len(result.violations) == 1
@@ -264,7 +271,7 @@ def test_planted_strandedness_error_is_caught_in_both_chains(chain: str) -> None
     assert violation.dimension == "strandedness"
     assert violation.observed_value == "unstranded"
     assert violation.required_value == "reverse"
-    assert violation.producer_node == "sort"
+    assert violation.producer_node == ("sort" if chain == "hisat2" else "align")
     assert violation.consumer_node == "counts"
     assert "guarantees strandedness=unstranded" in violation.explanation()
     # A known-wrong strandedness is never auto-repaired [E57].

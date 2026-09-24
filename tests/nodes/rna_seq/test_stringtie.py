@@ -82,6 +82,55 @@ def test_stringtie_renders_cram_reference_without_invented_thread_cap(tmp_path: 
     ]
 
 
+def test_stringtie_reference_abundance_is_explicit_and_preserves_first_outputs(tmp_path: Path) -> None:
+    bam = tmp_path / "aligned.bam"
+    gtf = tmp_path / "genes.gtf"
+    bam.write_bytes(b"BAM")
+    gtf.write_text(
+        'chr1\tfixture\texon\t1\t200\t.\t+\t.\tgene_id "g1"; transcript_id "t1";\n',
+        encoding="utf-8",
+    )
+    inputs = {
+        "bam": bam,
+        "gtf": gtf,
+        "threads": 1,
+        "reference_abundance": True,
+        "output": str(tmp_path / "out"),
+    }
+    outputs = StringTieNode.PLAN_OUTPUTS(inputs, tmp_path)
+    assert StringTieNode.RETURN_NAMES[:2] == ("transcripts", "gene_abundance")
+    assert outputs == [
+        tmp_path / "stringtie" / "transcripts.gtf",
+        tmp_path / "stringtie" / "gene_abundance.tsv",
+        tmp_path / "stringtie" / "t_data.ctab",
+    ]
+    assert StringTieNode.render_command(inputs) == [
+        "stringtie",
+        str(bam),
+        "-G",
+        str(gtf),
+        "-o",
+        str(tmp_path / "out" / "transcripts.gtf"),
+        "-A",
+        str(tmp_path / "out" / "gene_abundance.tsv"),
+        "-p",
+        "1",
+        "-e",
+        "-B",
+        "-f",
+        "0.01",
+    ]
+
+
+def test_stringtie_reference_abundance_requires_annotation(tmp_path: Path) -> None:
+    bam = tmp_path / "aligned.bam"
+    bam.write_bytes(b"BAM")
+    validation = StringTieNode.VALIDATE_INPUTS(
+        {"bam": bam, "threads": 1, "reference_abundance": True}
+    )
+    assert "requires a materialized gtf" in str(validation)
+
+
 @pytest.mark.parametrize(
     ("inputs", "message"),
     [
@@ -123,3 +172,32 @@ async def test_stringtie_rejects_incomplete_gene_abundance_output(tmp_path: Path
 
     with pytest.raises(RuntimeError, match="unexpected header"):
         await StringTieNode().run(bam=bam, threads=1, context=Context(), output_dir=tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_stringtie_ordinary_run_returns_only_materialized_outputs(tmp_path: Path) -> None:
+    bam = tmp_path / "aligned.bam"
+    bam.write_bytes(b"BAM")
+
+    class Context:
+        node_dir = tmp_path
+
+        async def run_command(self, command: list[str] | str, **kwargs: object) -> dict[str, object]:
+            output = tmp_path / "stringtie"
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "transcripts.gtf").write_text(
+                'chr1\tStringTie\ttranscript\t1\t200\t.\t+\t.\tgene_id "g1"; transcript_id "t1";\n',
+                encoding="utf-8",
+            )
+            (output / "gene_abundance.tsv").write_text(
+                "Gene ID\tGene Name\tReference\tStrand\tStart\tEnd\tCoverage\tFPKM\tTPM\n"
+                "g1\tg1\tchr1\t+\t1\t200\t1\t1\t1\n",
+                encoding="utf-8",
+            )
+            return {"returncode": 0, "stdout": "", "stderr": ""}
+
+    outputs = await StringTieNode().run(
+        bam=bam, threads=1, reference_abundance=False, context=Context(), output_dir=tmp_path
+    )
+    assert len(outputs) == 2
+    assert all(Path(path).is_file() for path in outputs)

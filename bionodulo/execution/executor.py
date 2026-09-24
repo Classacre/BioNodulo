@@ -166,6 +166,8 @@ class ExecutionContext:
         timeout: float | None = None,
         stdout_path: str | Path | None = None,
         stderr_path: str | Path | None = None,
+        stdout_binary: bool = False,
+        stdout_max_bytes: int | None = None,
     ) -> dict[str, Any]:
         """Run a subprocess command within this execution context.
 
@@ -190,6 +192,8 @@ class ExecutionContext:
             node_id=self.node_id,
             timeout=timeout,
             cancel_event=self.cancel_event,
+            **({"stdout_binary": True} if stdout_binary else {}),
+            **({"stdout_max_bytes": stdout_max_bytes} if stdout_max_bytes is not None else {}),
         )
 
 
@@ -386,6 +390,28 @@ class WorkflowExecutor:
     # Public API
     # ------------------------------------------------------------------
 
+    def check_semantics(self, workflow: dict[str, Any], options: dict[str, Any] | None = None) -> Any:
+        """Check the effective parameters and selected graph before any tool executes."""
+        from bionodulo.workflow.semantic_checks import check_workflow_semantics
+
+        options = options or {}
+        parameters = self._resolve_workflow_parameters(workflow.get("parameters", []), options.get("parameters", {}))
+        raw = workflow.get("nodes", [])
+        nodes = ({str(key): {**value, "id": str(key)} for key, value in raw.items() if isinstance(value, dict)}
+                 if isinstance(raw, dict) else {str(node["id"]): node for node in raw if isinstance(node, dict) and "id" in node})
+        targets = self._coerce_node_id_set(options.get("target_nodes"))
+        if targets and targets <= set(nodes):
+            selected = self._upstream_closure(targets, nodes, workflow.get("edges", []))
+            nodes = {key: value for key, value in nodes.items() if key in selected}
+        checked_nodes = [
+            {**node, "widgets": {}, "params": self._with_defaults(node, {}, self._node_class_for(node), parameters)}
+            for node in nodes.values()
+        ]
+        return check_workflow_semantics({
+            **workflow, "nodes": checked_nodes,
+            "edges": [edge for edge in workflow.get("edges", []) if edge_source(edge) in nodes and edge_target(edge) in nodes],
+        })
+
     async def execute(
         self,
         run_id: str,
@@ -429,6 +455,21 @@ class WorkflowExecutor:
         cancel_event = cancel_event or asyncio.Event()
         input_overrides = input_overrides or {}
         run_root = Path(_run_dir) if _run_dir is not None else self.workspace_dir / "runs" / run_id
+
+        try:
+            semantic_result = self.check_semantics(workflow, options)
+        except ValueError as exc:
+            if emit is not None:
+                emit("error", {"run_id": run_id, "message": str(exc)})
+            return {"status": "failed", "run_id": run_id, "error": str(exc)}
+        if not semantic_result.ok:
+            if emit is not None:
+                emit("error", {"run_id": run_id, "message": "; ".join(v.explanation() for v in semantic_result.violations)})
+            return {
+                "status": "failed", "run_id": run_id,
+                "error": "; ".join(violation.explanation() for violation in semantic_result.violations),
+                "semantics": semantic_result.to_dict(), "node_results": {},
+            }
 
         if emit is None:
             def _noop_emit(event: str, data: dict[str, Any]) -> None:
@@ -605,6 +646,7 @@ class WorkflowExecutor:
             "target_nodes": sorted(target_nodes),
             "workflow_parameters": workflow_parameters,
             "nodes": {},
+            "semantics": semantic_result.to_dict(),
             # Flags a nested subgraph execution must inherit (its inner
             # execute() call reads these through ctx.run_metadata).
             "execution_options": {
@@ -880,6 +922,11 @@ class WorkflowExecutor:
                         "cache_key": cache_key,
                         "outputs": cached_outputs,
                     }
+                    run_metadata["nodes"][node_id] = {
+                        "type": node_type,
+                        "status": "cached",
+                        "cache_key": cache_key,
+                    }
                     # Replay pointer: cached nodes materialise no files under
                     # this run, so tree-scanning consumers (campaign results,
                     # audits) see empty iteration dirs for fully-replayed
@@ -1105,6 +1152,16 @@ class WorkflowExecutor:
                     )
                     node_results[node_id] = {"status": "failed", "error": msg, "traceback": tb}
                     node_results[node_id]["attempts"] = attempts
+                    # Both fail-fast and continue-on-fail leave this block
+                    # before the common progress write below. Persist the
+                    # actual failure for run APIs and provenance in either case.
+                    run_metadata["nodes"][node_id] = {
+                        "type": node_type,
+                        "status": "failed",
+                        "cache_key": cache_key,
+                        "error": msg,
+                        "attempts": attempts,
+                    }
                     failed_nodes.add(node_id)
                     if self._continue_on_fail(node):
                         node_results[node_id]["continue_on_fail"] = True
@@ -1217,6 +1274,21 @@ class WorkflowExecutor:
             except Exception:
                 logger.exception("Failed to embed workflow provenance for run %s", run_id)
 
+        # Record the actual execution result, including failed or cached nodes,
+        # after artifact publication. This is an inspectable draft extension;
+        # it does not claim formal Workflow Run profile conformance.
+        try:
+            from bionodulo.provenance.rocrate_export import write_run_crate
+            write_run_crate(
+                run_root / "ro-crate", workflow,
+                run_summary={"status": final_status, "metadata": run_metadata, "node_results": node_results, "artifacts": artifacts},
+                semantic_result=semantic_result,
+            )
+        except Exception as exc:
+            run_metadata["provenance_error"] = str(exc)
+            self._write_metadata(run_id, run_metadata, meta_dir=run_root)
+            logger.exception("Failed to write run crate for %s", run_id)
+
         emit("complete", {"run_id": run_id, "status": final_status})
 
         return {
@@ -1241,6 +1313,12 @@ class WorkflowExecutor:
         """Return a no-execute preview of node commands, outputs, cache, and environments."""
         options = options or {}
         force_nodes = force_nodes or set()
+        try:
+            semantics = self.check_semantics(workflow, options)
+        except ValueError as exc:
+            return {"status": "failed", "run_id": run_id, "error": str(exc)}
+        if not semantics.ok:
+            return {"status": "failed", "run_id": run_id, "error": "; ".join(v.explanation() for v in semantics.violations), "semantics": semantics.to_dict()}
         graph = self._prepare_execution_plan_graph(workflow, options)
         if graph.get("status") == "failed":
             return {"status": "failed", "run_id": run_id, "error": graph["error"]}
@@ -4431,6 +4509,11 @@ class WorkflowExecutor:
         # cwd: that would permit a fresh solve and could select a different
         # lock than the one provisioned for this run.
         env_spec = getattr(node_class, "ENVIRONMENT", {}) if node_class else {}
+        if isinstance(env_spec, dict) and env_spec.get("type") == "declarative_cwl":
+            # This shared runtime resolves an explicitly configured, fingerprinted
+            # native prefix itself. A second ambient Pixi wrapper could change
+            # library resolution and invalidate the executable it just verified.
+            return []
         named_environment = None
         if isinstance(env_spec, dict) and env_spec.get("type") == "pixi":
             named_environment = str(env_spec.get("name", "")).strip() or None

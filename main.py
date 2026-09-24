@@ -36,10 +36,20 @@ def main() -> None:
     parser.add_argument("--frontend-dev", action="store_true", help="Proxy frontend from vite dev server")
     parser.add_argument("--tls-keyfile", type=Path, default=None, help="Path to TLS key file for HTTPS")
     parser.add_argument("--tls-certfile", type=Path, default=None, help="Path to TLS certificate file for HTTPS")
-    parser.add_argument("--cors-origins", type=str, default="*", help="CORS allowed origins (comma-separated, default: *)")
-    parser.add_argument("--multi-user", action="store_true", help="Enable per-user storage isolation")
+    parser.add_argument(
+        "--cors-origins",
+        type=str,
+        default=None,
+        help="CORS allowed origins (comma-separated; defaults to BIONODULO_CORS_ORIGINS or local origins)",
+    )
+    parser.add_argument("--multi-user", action="store_true", help="Unsupported: per-user storage isolation is not implemented")
     parser.add_argument("--dump-config", action="store_true", help="Print resolved settings (secrets redacted) and exit")
     args = parser.parse_args()
+    if args.multi_user:
+        parser.error(
+            "--multi-user is not implemented. Run a separate backend and workspace per user; "
+            "do not expose a shared local backend as isolated user storage."
+        )
 
     project_dir = Path(__file__).resolve().parent
     if args.project_root:
@@ -50,7 +60,8 @@ def main() -> None:
         os.environ["BIONODULO_CONFIG"] = str(args.config.resolve())
     os.environ["BIONODULO_HOST"] = args.host
     os.environ["BIONODULO_PORT"] = str(args.port)
-    os.environ["BIONODULO_CORS_ORIGINS"] = args.cors_origins
+    if args.cors_origins is not None:
+        os.environ["BIONODULO_CORS_ORIGINS"] = args.cors_origins
 
     if args.dump_config:
         dump_effective_config()

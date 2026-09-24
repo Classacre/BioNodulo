@@ -11,6 +11,7 @@ from pydantic import TypeAdapter, ValidationError
 import bionodulo.nodes.contract.outputs as output_contract
 from bionodulo.nodes.contract.artifacts import ArtifactContainer, Cardinality
 from bionodulo.nodes.contract.outputs import (
+    COLLECTED_OUTPUTS_MANIFEST_SCHEMA_VERSION,
     CollectedArtifact,
     CollectedOutputs,
     ConditionalCollector,
@@ -22,6 +23,7 @@ from bionodulo.nodes.contract.outputs import (
     MAX_DIRECTORY_ENTRIES,
     MAX_GLOB_MATCHES,
     MAX_STDOUT_BYTES,
+    ObjectIdentity,
     OutputCollectionError,
     OutputCollector,
     OutputIdentityError,
@@ -1771,6 +1773,74 @@ def test_collected_identity_detects_same_inode_same_size_rewrite(tmp_path: Path)
         artifact.read_bytes_verified(tmp_path)
 
 
+def test_collected_fingerprint_detects_rewrite_with_coarse_file_timestamps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "result.txt"
+    path.write_bytes(b"first")
+    artifact = collect_outputs(
+        (output_spec(ExactCollector(relative_path="result.txt")),),
+        tmp_path,
+        stdout=None,
+    )["output"]
+    assert isinstance(artifact, CollectedArtifact)
+    real_identity_from_stat = output_contract._identity_from_stat
+
+    def coarse_identity(value: os.stat_result) -> ObjectIdentity:
+        identity = real_identity_from_stat(value)
+        if identity.device == artifact.identity.device and identity.inode == artifact.identity.inode:
+            return identity.model_copy(
+                update={
+                    "modified_time_ns": artifact.identity.modified_time_ns,
+                    "changed_time_ns": artifact.identity.changed_time_ns,
+                }
+            )
+        return identity
+
+    monkeypatch.setattr(output_contract, "_identity_from_stat", coarse_identity)
+    path.write_bytes(b"other")
+
+    with pytest.raises(OutputIdentityError, match="changed"):
+        artifact.read_bytes_verified(tmp_path)
+
+
+def test_full_fingerprint_detects_large_rewrite_outside_former_sample_regions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "large.bin"
+    path.write_bytes(b"a" * (2 * 1024 * 1024))
+    artifact = collect_outputs(
+        (output_spec(ExactCollector(relative_path="large.bin")),),
+        tmp_path,
+        stdout=None,
+    )["output"]
+    assert isinstance(artifact, CollectedArtifact)
+    assert artifact.content_fingerprint is not None
+    assert artifact.content_fingerprint.startswith("sha256-full:")
+    real_identity_from_stat = output_contract._identity_from_stat
+
+    def coarse_identity(value: os.stat_result) -> ObjectIdentity:
+        identity = real_identity_from_stat(value)
+        if identity.device == artifact.identity.device and identity.inode == artifact.identity.inode:
+            return identity.model_copy(
+                update={
+                    "modified_time_ns": artifact.identity.modified_time_ns,
+                    "changed_time_ns": artifact.identity.changed_time_ns,
+                }
+            )
+        return identity
+
+    monkeypatch.setattr(output_contract, "_identity_from_stat", coarse_identity)
+    with path.open("r+b") as opened:
+        opened.seek(300_000)
+        opened.write(b"b")
+
+    with pytest.raises(OutputIdentityError, match="changed"):
+        artifact.verify_identity(tmp_path)
+
+
 def test_verified_open_detects_in_context_rewrite_on_exit(tmp_path: Path) -> None:
     path = tmp_path / "result.txt"
     path.write_bytes(b"first")
@@ -1909,6 +1979,43 @@ def test_collected_directory_identity_detects_descendant_replacement(
         artifact.verify_identity(tmp_path)
 
 
+def test_collected_directory_fingerprint_detects_coarse_timestamp_child_rewrite(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    child = tree / "child.txt"
+    child.write_bytes(b"first")
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    artifact = collect_outputs((spec,), tmp_path, stdout=None)["directory"]
+    assert isinstance(artifact, CollectedArtifact)
+    child_entry = artifact.entries[0]
+    assert child_entry.content_fingerprint is not None
+    real_identity_from_stat = output_contract._identity_from_stat
+
+    def coarse_identity(value: os.stat_result) -> ObjectIdentity:
+        identity = real_identity_from_stat(value)
+        if identity.device == child_entry.identity.device and identity.inode == child_entry.identity.inode:
+            return identity.model_copy(
+                update={
+                    "modified_time_ns": child_entry.identity.modified_time_ns,
+                    "changed_time_ns": child_entry.identity.changed_time_ns,
+                }
+            )
+        return identity
+
+    monkeypatch.setattr(output_contract, "_identity_from_stat", coarse_identity)
+    child.write_bytes(b"other")
+
+    with pytest.raises(OutputIdentityError, match="changed"):
+        artifact.verify_identity(tmp_path)
+
+
 def test_directory_tree_is_deterministic_and_bounded(tmp_path: Path) -> None:
     tree = tmp_path / "tree"
     tree.mkdir()
@@ -1984,7 +2091,7 @@ def test_directory_scan_detects_top_level_mutation_after_open_without_descriptor
         *,
         port_id: str,
         relative_path: str,
-    ) -> tuple[int, os.stat_result] | None:
+    ) -> output_contract._OpenedChild | None:
         nonlocal mutated
         opened = real_open_child(
             parent_fd,
@@ -2032,7 +2139,7 @@ def test_directory_scan_detects_nested_mutation_after_open_without_descriptor_le
         *,
         port_id: str,
         relative_path: str,
-    ) -> tuple[int, os.stat_result] | None:
+    ) -> output_contract._OpenedChild | None:
         nonlocal mutated
         opened = real_open_child(
             parent_fd,
@@ -2090,6 +2197,85 @@ def test_directory_scan_detects_top_level_mutation_without_descriptor_leak(
 
     assert mutated
     assert open_descriptor_count() == before
+
+
+def test_directory_name_rescan_detects_stable_addition_without_event_watcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "original.txt").write_text("value", encoding="utf-8")
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    real_directory_names = output_contract._directory_names
+    mutated = False
+
+    def mutate_after_names(directory_fd: int, **kwargs: object) -> tuple[str, ...]:
+        nonlocal mutated
+        names = real_directory_names(directory_fd, **kwargs)
+        if not mutated:
+            mutated = True
+            (tree / "added.txt").write_text("added", encoding="utf-8")
+        return names
+
+    monkeypatch.setattr(output_contract, "_watch_directory_mutations", lambda _fd: None)
+    monkeypatch.setattr(output_contract, "_directory_names", mutate_after_names)
+
+    with pytest.raises(OutputCollectionError, match=r"directory.*tree.*changed"):
+        collect_outputs((spec,), tmp_path, stdout=None)
+
+    assert mutated
+
+
+def test_directory_manifest_records_degraded_monitoring_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "child.txt").write_text("value", encoding="utf-8")
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    monkeypatch.setattr(output_contract, "_watch_directory_mutations", lambda _fd: None)
+
+    collected = collect_outputs((spec,), tmp_path, stdout=None)
+    artifact = collected["directory"]
+
+    assert isinstance(artifact, CollectedArtifact)
+    assert artifact.directory_monitoring_scope == "metadata-and-name-rescan"
+    assert (
+        collected.to_manifest()["outputs"][0]["artifacts"][0]["directory_monitoring_scope"]
+        == "metadata-and-name-rescan"
+    )
+
+
+def test_directory_verification_fails_closed_if_recorded_linux_monitoring_is_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "child.txt").write_text("value", encoding="utf-8")
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    artifact = collect_outputs((spec,), tmp_path, stdout=None)["directory"]
+    assert isinstance(artifact, CollectedArtifact)
+    if artifact.directory_monitoring_scope != "linux-inotify":
+        pytest.skip("requires an initially monitored Linux directory")
+    monkeypatch.setattr(output_contract, "_watch_directory_mutations", lambda _fd: None)
+
+    with pytest.raises(OutputIdentityError, match="changed"):
+        artifact.verify_identity(tmp_path)
 
 
 def test_directory_scan_detects_nested_mutation_without_descriptor_leak(
@@ -2163,14 +2349,77 @@ def test_collected_results_are_immutable_hashable_and_manifest_safe(
     manifest = first.to_manifest()
 
     assert isinstance(first, CollectedOutputs)
+    assert first.manifest_schema_version == COLLECTED_OUTPUTS_MANIFEST_SCHEMA_VERSION
     assert first == second
     assert hash(first) == hash(second)
     assert manifest["outputs"][0]["artifacts"][0]["relative_path"] == "result.txt"
+    assert manifest["manifest_schema_version"] == COLLECTED_OUTPUTS_MANIFEST_SCHEMA_VERSION
     serialized = json.dumps(manifest, sort_keys=True)
     assert str(tmp_path) not in serialized
     assert "fd" not in serialized
+    assert CollectedOutputs.model_validate_json(serialized) == first
     with pytest.raises(ValidationError, match="frozen_instance"):
         first.outputs = ()
+
+
+def test_manifest_schema_version_is_required_and_rejects_unsupported_versions(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "result.txt").write_text("value", encoding="utf-8")
+    collected = collect_outputs(
+        (output_spec(ExactCollector(relative_path="result.txt")),),
+        tmp_path,
+        stdout=None,
+    )
+    missing = collected.to_manifest()
+    del missing["manifest_schema_version"]
+
+    with pytest.raises(ValidationError, match="schema version is missing"):
+        CollectedOutputs.model_validate_json(json.dumps(missing))
+
+    unsupported = collected.to_manifest()
+    unsupported["manifest_schema_version"] = 1
+    with pytest.raises(ValidationError, match="unsupported collected output manifest schema version 1"):
+        CollectedOutputs.model_validate_json(json.dumps(unsupported))
+
+
+def test_legacy_file_manifest_without_fingerprint_fails_explicitly(tmp_path: Path) -> None:
+    (tmp_path / "result.txt").write_text("value", encoding="utf-8")
+    collected = collect_outputs(
+        (output_spec(ExactCollector(relative_path="result.txt")),),
+        tmp_path,
+        stdout=None,
+    )
+    manifest = collected.to_manifest()
+    del manifest["outputs"][0]["artifacts"][0]["content_fingerprint"]
+
+    with pytest.raises(
+        ValidationError,
+        match="legacy manifests without fingerprints cannot be verified",
+    ):
+        CollectedOutputs.model_validate_json(json.dumps(manifest))
+
+
+def test_legacy_directory_manifest_without_child_fingerprint_fails_explicitly(
+    tmp_path: Path,
+) -> None:
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    (tree / "child.txt").write_text("value", encoding="utf-8")
+    spec = OutputSpec(
+        port_id="directory",
+        artifact_type="artifact.directory",
+        collector=DirectoryCollector(relative_path="tree", maximum_entries=5),
+    )
+    collected = collect_outputs((spec,), tmp_path, stdout=None)
+    manifest = collected.to_manifest()
+    del manifest["outputs"][0]["artifacts"][0]["entries"][0]["content_fingerprint"]
+
+    with pytest.raises(
+        ValidationError,
+        match="legacy manifests without fingerprints cannot be verified",
+    ):
+        CollectedOutputs.model_validate_json(json.dumps(manifest))
 
 
 def test_verified_open_context_closes_its_descriptor(tmp_path: Path) -> None:

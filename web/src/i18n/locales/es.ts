@@ -937,6 +937,7 @@ const es = {
     cloudHint: 'Haz clic derecho en un archivo para descargarlo.',
     cloudEmpty: 'Aún no hay archivos en la nube.',
     cloudListError: 'No se pudieron listar los archivos en la nube.',
+    listError: 'No se pudieron listar los archivos del espacio de trabajo.',
     rootHint: 'Workspace root: {{path}}',
     rootLabel: 'Raiz del espacio de trabajo',
     rootPlaceholder: '/ruta/al/espacio',
@@ -2376,6 +2377,7 @@ const es = {
     canAutoInstall: 'Se puede instalar automaticamente',
   },
   resolveReport: {
+    checkFailed: 'No se pudieron comprobar las dependencias del flujo de trabajo. Vuelve a intentarlo antes de ejecutar.',
     bannerTitle: 'Workflow has unresolved dependencies',
     bannerBody: 'Some nodes reference tools or paths that are not available.',
     bannerOpen: 'Open report',

@@ -1,9 +1,9 @@
 // Inline run-output preview rendered at the bottom of a node body. Images
 // render inline (click opens the lightbox), tsv/csv previews render a compact
 // mini-table (fetched once per run/node, cached), everything else shows a chip
-// that opens the existing HTML preview modal. Only the LATEST run with a
-// preview for the node is shown (see deriveLatestPreviews); while a run is
-// executing it carries no previews, so nothing flickers mid-run.
+// that opens the existing HTML preview modal. Only the node's LATEST run may
+// supply a preview (see deriveLatestPreviews), so a running or failed rerun
+// cannot be mistaken for evidence produced by an earlier successful run.
 import { memo, useEffect, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';

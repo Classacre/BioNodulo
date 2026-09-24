@@ -28,7 +28,7 @@ const localStorageStub: Storage = {
   },
 };
 
-describe('WorkspacePanel i18n', () => {
+describe('WorkspacePanel', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
   let originalLocalStorage: Storage;
 
@@ -50,11 +50,11 @@ describe('WorkspacePanel i18n', () => {
       }
       if (url.includes('/api/workspace/files')) {
         return new Response(JSON.stringify({
-          path: '/',
+          path: '.',
           entries: [
-            { name: 'reads', path: '/reads', type: 'directory' },
-            { name: 'workflow.json', path: '/workflow.json', type: 'file', size: 2048 },
-            { name: 'sample.fastq', path: '/sample.fastq', type: 'file', size: 512 },
+            { name: 'reads', path: 'reads', type: 'directory' },
+            { name: 'workflow.json', path: 'workflow.json', type: 'file', size: 2048 },
+            { name: 'sample.fastq', path: 'sample.fastq', type: 'file', size: 512 },
           ],
         }), {
           status: 200,
@@ -137,7 +137,7 @@ describe('WorkspacePanel i18n', () => {
     expect(dialogMocks.alertDialog).not.toHaveBeenCalledWith('JSON de workflow no valido');
   });
 
-  it('logs swallowed workspace load failures with stable scopes', async () => {
+  it('shows workspace listing failures instead of an empty directory and logs their scopes', async () => {
     const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
     const rootError = new TypeError('root unavailable');
     const filesError = new TypeError('files unavailable');
@@ -156,7 +156,8 @@ describe('WorkspacePanel i18n', () => {
 
     await waitFor(() => expect(loggingMock.logError).toHaveBeenCalledWith('workspace.root.load', rootError));
     expect(loggingMock.logError).toHaveBeenCalledWith('workspace.files.load', filesError);
-    expect(screen.getByText('No files in this directory')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not list workspace files.');
+    expect(screen.queryByText('No files in this directory')).not.toBeInTheDocument();
   });
 
   it('logs workspace root change and preview failures with stable scopes', async () => {
@@ -179,8 +180,8 @@ describe('WorkspacePanel i18n', () => {
       }
       if (url.includes('/api/workspace/files')) {
         return new Response(JSON.stringify({
-          path: '/',
-          entries: [{ name: 'sample.fastq', path: '/sample.fastq', type: 'file', size: 512 }],
+          path: '.',
+          entries: [{ name: 'sample.fastq', path: 'sample.fastq', type: 'file', size: 512 }],
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -253,7 +254,7 @@ describe('WorkspacePanel i18n', () => {
         });
       }
       if (url.includes('/api/workspace/files')) {
-        return new Response(JSON.stringify({ path: '/', entries: [] }), {
+        return new Response(JSON.stringify({ path: '.', entries: [] }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });
@@ -275,5 +276,102 @@ describe('WorkspacePanel i18n', () => {
 
     await waitFor(() => expect(screen.getByText('No se pudo cambiar el espacio de trabajo: backend root detail')).toBeInTheDocument());
     expect(screen.queryByText('backend root detail')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { host: 'Windows', separator: '\\', rootPath: '.' },
+    { host: 'POSIX', separator: '/', rootPath: '' },
+  ])('navigates $host relative folders and returns to the workspace root', async ({ separator, rootPath }) => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    const listedPaths: string[] = [];
+    let previewPath: string | null = null;
+    const json = (data: unknown) => new Response(JSON.stringify(data), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), 'http://localhost');
+      if (url.pathname.endsWith('/workspace/root')) return json({ root: 'D:\\workspace' });
+      const requestedPath = url.searchParams.get('path') ?? '';
+      if (url.pathname.endsWith('/workspace/files')) {
+        listedPaths.push(requestedPath);
+        if (requestedPath === '') return json({ path: rootPath, entries: [{ name: 'reads', path: 'reads', type: 'directory' }] });
+        if (requestedPath === 'reads') return json({ path: 'reads', entries: [{ name: 'nested', path: `reads${separator}nested`, type: 'directory' }] });
+        if (requestedPath === 'reads/nested') return json({
+          path: `reads${separator}nested`,
+          entries: [{ name: 'sample.fastq', path: `reads${separator}nested${separator}sample.fastq`, type: 'file' }],
+        });
+        return new Response(JSON.stringify({ detail: 'Unexpected absolute or malformed path' }), { status: 400 });
+      }
+      if (url.pathname.endsWith('/workspace/file')) {
+        previewPath = requestedPath;
+        return new Response('fixture reads');
+      }
+      return json({});
+    });
+
+    render(<WorkspacePanel onClose={() => undefined} />);
+    fireEvent.doubleClick(await screen.findByText('reads'));
+    fireEvent.doubleClick(await screen.findByText('nested'));
+    fireEvent.doubleClick(await screen.findByText('sample.fastq'));
+    const dialog = await screen.findByRole('dialog', { name: 'sample.fastq' });
+    await waitFor(() => expect(previewPath).toBe('reads/nested/sample.fastq'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    const parentButton = screen.getByRole('button', { name: 'Go up' });
+    expect(parentButton.querySelector('svg')).toBeInTheDocument();
+    fireEvent.click(parentButton);
+    await screen.findByText('nested');
+    fireEvent.click(screen.getByRole('button', { name: 'Go up' }));
+    await screen.findByText('reads');
+
+    expect(listedPaths).toEqual(['', 'reads', 'reads/nested', 'reads', '']);
+    expect(screen.queryByTitle('Go up')).not.toBeInTheDocument();
+    expect(document.querySelector('.workspace-breadcrumb-path')).toHaveTextContent('/');
+  });
+
+  it('uses the relative root after setting or reloading the workspace root', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    render(<WorkspacePanel onClose={() => undefined} />);
+    await screen.findByText('sample.fastq');
+    const paths = () => fetchSpy.mock.calls
+      .map(([input]) => new URL(String(input), 'http://localhost'))
+      .filter(url => url.pathname.endsWith('/workspace/files'))
+      .map(url => url.searchParams.get('path'));
+
+    fireEvent.change(screen.getByPlaceholderText('/path/to/workspace'), { target: { value: 'D:\\workspace' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set' }));
+    await waitFor(() => expect(paths()).toEqual(['', '']));
+    fireEvent.click(screen.getByRole('button', { name: 'Default' }));
+    await waitFor(() => expect(paths()).toEqual(['', '', '']));
+  });
+
+  it('shows API listing details and retries the failed relative directory', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    const listedPaths: string[] = [];
+    let fail = true;
+    const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
+      status, headers: { 'Content-Type': 'application/json' },
+    });
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), 'http://localhost');
+      if (url.pathname.endsWith('/workspace/root')) return json({ root: 'D:\\workspace' });
+      if (url.pathname.endsWith('/workspace/files')) {
+        const requestedPath = url.searchParams.get('path') ?? '';
+        listedPaths.push(requestedPath);
+        if (!requestedPath) return json({ path: '.', entries: [{ name: 'locked', path: 'locked', type: 'directory' }] });
+        if (fail) return json({ detail: 'Permission denied: locked' }, 403);
+        return json({ path: 'locked', entries: [{ name: 'recovered.csv', path: 'locked\\recovered.csv', type: 'file' }] });
+      }
+      return json({});
+    });
+
+    render(<WorkspacePanel onClose={() => undefined} />);
+    fireEvent.doubleClick(await screen.findByText('locked'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not list workspace files. Permission denied: locked');
+    expect(screen.queryByText('No files in this directory')).not.toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText('recovered.csv');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(listedPaths).toEqual(['', 'locked', 'locked']);
   });
 });

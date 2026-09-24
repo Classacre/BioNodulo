@@ -13,6 +13,7 @@ from .resource_monitor import ResourceMonitorNode
 from .retry import RetryNode
 from .sub_workflow import SubWorkflowNode
 from .timer import TimerNode
+from .validate_semantic_artifact import ValidateSemanticArtifactNode
 from .workflow_trigger import WorkflowTriggerNode
 
 __all__ = [
@@ -29,5 +30,6 @@ __all__ = [
     "RetryNode",
     "SubWorkflowNode",
     "TimerNode",
+    "ValidateSemanticArtifactNode",
     "WorkflowTriggerNode",
 ]

@@ -23,6 +23,7 @@ SOURCE_COMMITS = {
 }
 VERSIONS = {node_id: "1.0.0" for node_id in SOURCE_COMMITS}
 VERSIONS["input_sample_sheet"] = "2.1.0"
+VERSIONS["normalize_data"] = "1.0.1"
 
 NODE_CLASSES = {
     node.NODE_ID: node

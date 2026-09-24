@@ -30,6 +30,14 @@ STDERR_TAIL_LIMIT = 4096
 # timed-out process group.
 TERMINATE_GRACE_SECONDS = 5.0
 
+
+class CommandOutputLimitError(RuntimeError):
+    """An artifact stream exceeded its declared byte limit."""
+
+    def __init__(self, maximum_bytes: int) -> None:
+        self.maximum_bytes = maximum_bytes
+        super().__init__(f"binary stdout exceeds its {maximum_bytes}-byte output limit")
+
 # H2 (audit): environment variables that must NEVER be exposed to untrusted tool
 # subprocesses. Matching is case-insensitive against the whole name (exact) or as
 # a substring/suffix via the pattern sets below. A workflow node that legitimately
@@ -259,6 +267,8 @@ async def run_subprocess(
     node_id: str | None = None,
     timeout: float | None = None,
     cancel_event: asyncio.Event | None = None,
+    stdout_binary: bool = False,
+    stdout_max_bytes: int | None = None,
 ) -> dict[str, Any]:
     """Run an external command asynchronously with streaming log capture.
 
@@ -275,6 +285,11 @@ async def run_subprocess(
         timeout: Maximum seconds to wait for the process.
         cancel_event: When set mid-flight, the process group is terminated
             (SIGTERM then SIGKILL) and :class:`CommandCancelledError` is raised.
+        stdout_binary: Treat stdout_path as an exact binary artifact. Write
+            chunks without decoding or emitting their contents as log events.
+            The in-memory stdout text is empty in this mode.
+        stdout_max_bytes: Optional positive artifact byte limit; exceeding it
+            terminates the process group without writing excess artifact bytes.
 
     Returns:
         Dictionary with ``returncode``, ``stdout_path``, ``stderr_path`` and a
@@ -291,11 +306,22 @@ async def run_subprocess(
     cwd = Path(cwd) if cwd else None
     stdout_path = Path(stdout_path) if stdout_path else None
     stderr_path = Path(stderr_path) if stderr_path else None
+    if stdout_binary and stdout_path is None:
+        raise ValueError("binary stdout capture requires stdout_path")
+    if stdout_max_bytes is not None and (
+        not stdout_binary or type(stdout_max_bytes) is not int or stdout_max_bytes < 1
+    ):
+        raise ValueError("stdout_max_bytes requires binary capture and a positive integer")
 
     if stdout_path:
         stdout_path.parent.mkdir(parents=True, exist_ok=True)
     if stderr_path:
         stderr_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Artifact mode must never follow a pre-existing symlink or overwrite a
+    # prior artifact. Open before spawning, so failure cannot strand a process
+    # blocked on an undrained stdout pipe.
+    binary_handle = None
 
     # H2 (audit): tool subprocesses run untrusted workflow commands, so they must
     # NOT inherit the platform's sensitive environment (shared LLM keys, AWS
@@ -325,8 +351,36 @@ async def run_subprocess(
         stream: asyncio.StreamReader | None,
         path: Path | None,
         level: str,
+        binary: bool = False,
     ) -> tuple[str, bool]:
         if stream is None:
+            return "", False
+        if binary:
+            # CommandLineTool stdout can be BAM, gzip or another binary file.
+            # A line decoder would corrupt bytes and can overflow StreamReader's
+            # line limit. Artifact bytes must not be broadcast as UI logs.
+            assert binary_handle is not None
+            written = 0
+            termination = None
+            try:
+                while chunk := await stream.read(64 * 1024):
+                    if termination is not None:
+                        # Drain while terminating: awaiting process.wait() with
+                        # a full pipe can otherwise deadlock on noisy children.
+                        continue
+                    if stdout_max_bytes is not None and written + len(chunk) > stdout_max_bytes:
+                        binary_handle.write(chunk[:stdout_max_bytes - written])
+                        termination = asyncio.create_task(_terminate_process(process))
+                        continue
+                    binary_handle.write(chunk)
+                    written += len(chunk)
+            finally:
+                if termination is not None:
+                    await termination
+            binary_handle.flush()
+            if termination is not None:
+                assert stdout_max_bytes is not None
+                raise CommandOutputLimitError(stdout_max_bytes)
             return "", False
 
         captured = bytearray()
@@ -376,6 +430,7 @@ async def run_subprocess(
         # Start each process in its own process group (POSIX) / job-control
         # session so cancellation/timeout can terminate the whole tree of
         # children, not just the immediate shell.
+        binary_handle = stdout_path.open("xb") if stdout_binary and stdout_path else None
         popen_kwargs: dict[str, Any] = {}
         if os.name == "nt":
             popen_kwargs["creationflags"] = getattr(
@@ -408,7 +463,7 @@ async def run_subprocess(
             )
 
         stdout_task = asyncio.create_task(
-            _drain_stream(process.stdout, stdout_path, "stdout")
+            _drain_stream(process.stdout, stdout_path, "stdout", binary=stdout_binary)
         )
         stderr_task = asyncio.create_task(
             _drain_stream(process.stderr, stderr_path, "stderr")
@@ -431,6 +486,9 @@ async def run_subprocess(
         stdout_result, stderr_result = await asyncio.gather(stdout_task, stderr_task)
     except asyncio.TimeoutError:
         raise
+    finally:
+        if binary_handle is not None:
+            binary_handle.close()
 
     _emit("info", f"[subprocess] Finished with exit code {returncode}")
 

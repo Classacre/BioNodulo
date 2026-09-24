@@ -12,42 +12,24 @@ import { expect, test, type Page } from '@playwright/test';
 //
 // It does NOT execute any bioinformatics workflow (no bioconda env required).
 
-const NODE_COUNT_RE = /^\d+$/;
-
 async function nodeCount(page: Page): Promise<number> {
-  // The stats overlay only renders once the workflow has >= 1 node. The first
-  // ".workflow-stats-count" span is the node count.
-  const overlay = page.locator('.workflow-stats-overlay');
-  if ((await overlay.count()) === 0) return 0;
-  const counts = overlay.locator('.workflow-stats-count');
-  if ((await counts.count()) === 0) {
-    // Collapsed pill form: "<n>n - <e>e ...". Parse the leading integer.
-    const pill = page.locator('.workflow-stats-pill');
-    if ((await pill.count()) === 0) return 0;
-    const text = (await pill.first().innerText()).trim();
-    const m = text.match(/^(\d+)/);
-    return m ? Number(m[1]) : 0;
-  }
-  const text = (await counts.first().innerText()).trim();
-  return NODE_COUNT_RE.test(text) ? Number(text) : 0;
+  // React Flow renders nodes as DOM elements, not a raster canvas.
+  return page.locator('.react-flow__node').count();
 }
 
-test('editor loads, opens a template, and shows nodes on the canvas', async ({ page }) => {
+test('editor loads, opens a template, and shows nodes on the canvas', async ({ page }, testInfo) => {
+  // Welcome hydration can finish after the canvas mounts. Dismiss it whenever
+  // it blocks an action instead of racing a one-time isVisible() check.
+  await page.addLocatorHandler(page.getByRole('dialog', { name: 'Getting Started' }), async dialog => {
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
   // 1. App shell + canvas mount. The boot loader is replaced by the real app.
   await expect(page).toHaveTitle(/BioNodulo/i);
   const canvasHost = page.locator('.workflow-canvas-host');
   await expect(canvasHost).toBeVisible({ timeout: 45_000 });
-  await expect(canvasHost.locator('canvas').first()).toBeVisible();
-
-  // Dismiss the "Getting Started" welcome modal if it is shown — it overlays
-  // the left rail and would block clicks.
-  const closeWelcome = page.getByRole('button', { name: /^Close$/ });
-  if (await closeWelcome.isVisible().catch(() => false)) {
-    await closeWelcome.click();
-    await expect(closeWelcome).toBeHidden({ timeout: 10_000 });
-  }
+  await expect(canvasHost.locator('.react-flow__pane')).toBeVisible();
 
   // 2. Run / validate control is present (TopBar primary run button). Its
   //    accessible name is "Run workflow (Ctrl+R)".
@@ -72,9 +54,8 @@ test('editor loads, opens a template, and shows nodes on the canvas', async ({ p
   // closes the panel).
   await firstCard.click();
 
-  // 4. Nodes should now be present on the canvas. The stats overlay appears
-  //    only when node count > 0; wait for it then assert the count.
-  await expect(page.locator('.workflow-stats-overlay')).toBeVisible({ timeout: 30_000 });
+  // 4. Wait for template nodes to be rendered by React Flow.
+  await expect(page.locator('.react-flow__node').first()).toBeVisible({ timeout: 30_000 });
   const after = await nodeCount(page);
   expect(after).toBeGreaterThan(0);
   expect(after).toBeGreaterThan(before);
@@ -82,13 +63,5 @@ test('editor loads, opens a template, and shows nodes on the canvas', async ({ p
   // Run button still present after loading the template.
   await expect(runButton).toBeVisible();
 
-  // Dismiss the welcome modal again if it re-appeared (loading a template can
-  // open a fresh tab) so the screenshot shows the populated canvas cleanly.
-  const closeAgain = page.getByRole('button', { name: /^Close$/ });
-  if (await closeAgain.isVisible().catch(() => false)) {
-    await closeAgain.click();
-    await expect(closeAgain).toBeHidden({ timeout: 10_000 }).catch(() => {});
-  }
-
-  await page.screenshot({ path: '/tmp/app-editor.png', fullPage: false });
+  await page.screenshot({ path: testInfo.outputPath('app-editor.png'), fullPage: false });
 });

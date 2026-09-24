@@ -23,8 +23,10 @@ def embed_workflow_in_outputs(
 
     Supports embedding into:
     - PNG files (via a custom tEXt chunk)
-    - JSON files (via a ``_provenance`` comment field)
-    - Text files (via a trailing comment block)
+    - Other files (via a sibling ``.bionodulo.json`` sidecar)
+
+    Scientific CSV/TSV and JSON artifacts must retain their bytes and schema.
+    Appending HTML comments or wrapping JSON arrays corrupts downstream inputs.
 
     Args:
         workflow: The workflow dict to embed.
@@ -49,11 +51,9 @@ def embed_workflow_in_outputs(
             if ext == ".png":
                 _embed_in_png(path, provenance_payload)
                 embedded.append(str(path))
-            elif ext == ".json":
-                _embed_in_json(path, provenance_payload)
-                embedded.append(str(path))
-            elif ext in (".txt", ".log", ".csv", ".tsv", ".html", ".xml", ".md"):
-                _embed_in_text(path, provenance_payload)
+            else:
+                sidecar = path.with_name(path.name + ".bionodulo.json")
+                sidecar.write_text(json.dumps(provenance_payload, indent=2), encoding="utf-8")
                 embedded.append(str(path))
         except (OSError, ValueError, KeyError):
             continue
@@ -78,6 +78,9 @@ def extract_workflow(
 
     ext = path.suffix.lower()
     try:
+        sidecar = path.with_name(path.name + ".bionodulo.json")
+        if sidecar.is_file():
+            return json.loads(sidecar.read_text(encoding="utf-8"))
         if ext == ".png":
             return _extract_from_png(path)
         elif ext == ".json":
@@ -195,11 +198,14 @@ def _build_provenance_payload(
     custom_metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Build the provenance payload dict."""
+    from bionodulo import __version__
+    from bionodulo.core.credentials import redact_tree
+
     payload = {
-        "workflow": workflow,
+        "workflow": redact_tree(workflow),
         "embedded_at": datetime.now(timezone.utc).isoformat(),
-        "bionodulo_version": "2.0",
+        "bionodulo_version": __version__,
     }
     if custom_metadata:
-        payload["metadata"] = custom_metadata
+        payload["metadata"] = redact_tree(custom_metadata)
     return payload

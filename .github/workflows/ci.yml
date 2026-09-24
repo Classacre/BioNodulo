@@ -231,6 +231,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # Cloud production follows the exact main commit only after all release
+  # checks pass. A prepared website SHA can be supplied as a repository
+  # variable before merging main; the cloud workflow validates its own CI.
+  cloud-sync:
+    needs: [python, python-quality, frontend, e2e, docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    uses: ./.github/workflows/cloud-sync.yml
+    with:
+      website_ref: ${{ vars.CLOUD_SYNC_WEBSITE_REF || '' }}
+    secrets: inherit
+
 
   # --- Desktop release ---------------------------------------------------
   # A version bump must release the desktop app, or it silently drifts behind

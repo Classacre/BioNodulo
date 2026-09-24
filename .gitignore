@@ -60,3 +60,4 @@ nohup.out
 # Isolated implementation worktrees
 .worktrees/
 reports/biotools_registry/registry_snapshot.jsonl
+reports/biotools_registry/current/

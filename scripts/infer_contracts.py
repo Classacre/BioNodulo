@@ -79,7 +79,7 @@ def _format_fragments(record: dict) -> set[str]:
     for function in record.get("functions") or record.get("function") or []:
         for side in ("inputs", "outputs", "input", "output"):
             for item in function.get(side) or []:
-                for term in (item or {}).get("formats") or []:
+                for term in (item or {}).get("formats") or (item or {}).get("format") or []:
                     if isinstance(term, dict):
                         uri = term.get("uri") or term.get("term") or ""
                     else:

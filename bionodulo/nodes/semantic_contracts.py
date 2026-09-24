@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
@@ -142,6 +142,9 @@ class Guarantee(BaseModel):
     * ``param_map``: the output/assumed state is read from a node parameter
       through a mapping (featureCounts ``-s`` 0/1/2 to strandedness values
       [E11]). Unmapped or absent parameters resolve to ``unknown``.
+    * ``param_tuple_map``: the output state is selected from more than one
+      parameter. Keys join values with ``|`` in the declared parameter order;
+      this is used when one CLI flag overrides another.
     * ``unknown``: the node destroys knowledge of this dimension.
     """
 
@@ -150,6 +153,7 @@ class Guarantee(BaseModel):
     value: str | None = None
     from_port: str | None = None
     param: str | None = None
+    params: tuple[str, ...] = ()
     param_map: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -160,6 +164,13 @@ class Guarantee(BaseModel):
         elif self.op == "param_map":
             if self.param is None or not self.param_map:
                 raise ValueError("param_map guarantee requires param and param_map")
+        elif self.op == "param_tuple_map":
+            if not self.params or not self.param_map:
+                raise ValueError(
+                    "param_tuple_map guarantee requires params and param_map"
+                )
+            if any("|" in name for name in self.params):
+                raise ValueError("param_tuple_map parameter names cannot contain '|'")
         elif self.op not in ("propagate", "unknown"):
             raise ValueError(f"unsupported guarantee op: {self.op}")
         return self
@@ -174,7 +185,13 @@ class NodeSemanticContract(BaseModel):
     """
 
     node_type: str
-    source: str = "expert"
+    source: str = "repository_seed"
+    review_status: Literal[
+        "unreviewed",
+        "documentation_backed",
+        "expert_confirmed",
+        "runtime_validated",
+    ] = "unreviewed"
     notes: str = ""
     version: str | None = None
     inputs: dict[str, list[Clause]] = Field(default_factory=dict)
@@ -215,7 +232,7 @@ class CoercionRule(BaseModel):
 class SemanticContractLibrary(BaseModel):
     """The loaded dimension registry, node contracts, and coercion rules."""
 
-    schema_version: str = "0.1"
+    schema_version: Literal["0.1", "0.2"] = "0.1"
     dimensions: tuple[SemanticDimension, ...]
     contracts: tuple[NodeSemanticContract, ...] = ()
     coercions: tuple[CoercionRule, ...] = ()
@@ -296,6 +313,14 @@ class SemanticContractLibrary(BaseModel):
                                 f"guarantee value {guarantee.value!r} is not a member of"
                                 f" dimension {guarantee.dimension}"
                             )
+                    if guarantee.op in ("param_map", "param_tuple_map"):
+                        allowed = self.dimension_values(guarantee.dimension)
+                        for value in guarantee.param_map.values():
+                            if value not in allowed:
+                                raise ValueError(
+                                    f"guarantee param_map value {value!r} is not a member of"
+                                    f" dimension {guarantee.dimension}"
+                                )
         for rule in self.coercions:
             if rule.dimension not in dimension_names:
                 raise ValueError(

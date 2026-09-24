@@ -57,8 +57,10 @@ def test_validation_warns_when_saved_node_version_differs_from_registry() -> Non
     assert result.valid is True
     assert result.errors == []
     assert result.warnings == [
-        "Node 'n1' (versioned_validation) was saved with version 1.0.0 but registry has 1.1.0"
+        "Node 'n1' (versioned_validation) was saved with version 1.0.0 but registry has 1.1.0",
+        "node 'n1' (type versioned_validation) has no semantic contract; its data state is unknown",
     ]
+    assert result.semantics["verification"] == "unverified"
 
 
 def test_validation_warns_when_matching_node_migration_is_available() -> None:
@@ -83,7 +85,9 @@ def test_validation_warns_when_matching_node_migration_is_available() -> None:
     assert result.warnings == [
         "Node 'n1' (migratable_validation) was saved with version 1.0.0 but registry has 2.0.0",
         "Node 'n1' (migratable_validation) has a migration available from 1.x to 2.0.0: Rename old_value to value.",
+        "node 'n1' (type migratable_validation) has no semantic contract; its data state is unknown",
     ]
+    assert result.semantics["verification"] == "unverified"
 
 
 def test_workflow_schema_preserves_parameter_definitions() -> None:

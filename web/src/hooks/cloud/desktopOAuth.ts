@@ -18,9 +18,11 @@ export const OAUTH_SCOPES = 'openid profile email offline_access user:org:read';
 const REFRESH_KEY = 'bionodulo_oauth_refresh';
 const EXP_KEY = 'bionodulo_oauth_exp';       // access-token expiry (ms epoch)
 const REFRESH_SKEW_MS = 60_000;               // refresh a minute before expiry
+const REFRESH_RETRY_MS = 30_000;
 
 const store = getDefaultStore();
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let sessionGeneration = 0;
 
 interface TokenResponse {
   access_token?: string;
@@ -100,6 +102,7 @@ export async function exchangeCode(oauth: OAuthConfig, code: string, verifier: s
 }
 
 async function refreshOnce(oauth: OAuthConfig): Promise<boolean> {
+  const generation = sessionGeneration;
   let refresh: string | null = null;
   try { refresh = localStorage.getItem(REFRESH_KEY); } catch { /* ignore */ }
   if (!refresh) return false;
@@ -110,20 +113,31 @@ async function refreshOnce(oauth: OAuthConfig): Promise<boolean> {
       grant_type: 'refresh_token',
       refresh_token: refresh,
     });
+    // Signing out must win over a response already in flight.
+    if (generation !== sessionGeneration) return false;
     if (tokens.error || !tokens.access_token) { signOutOAuth(); return false; }
     return applyTokens(oauth, tokens);
   } catch {
+    // A temporary outage must not permanently stop session renewal.
+    if (generation === sessionGeneration) queueRefresh(oauth, REFRESH_RETRY_MS);
     return false;
   }
 }
 
+function queueRefresh(oauth: OAuthConfig, delay: number): void {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    void refreshOnce(oauth);
+  }, delay);
+}
+
 /** Schedule a refresh shortly before the access token expires. */
 export function scheduleRefresh(oauth: OAuthConfig): void {
-  if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
   let expMs = 0;
   try { expMs = Number(localStorage.getItem(EXP_KEY) || 0); } catch { /* ignore */ }
   const delay = Math.max(5_000, expMs - Date.now() - REFRESH_SKEW_MS);
-  refreshTimer = setTimeout(() => { void refreshOnce(oauth); }, delay);
+  queueRefresh(oauth, delay);
 }
 
 /** On boot: if we hold a refresh token, restore the session (refresh if stale). */
@@ -144,6 +158,7 @@ export async function initDesktopOAuth(oauth: OAuthConfig): Promise<void> {
 
 /** Clear the OAuth session (bearer + refresh token + timer). */
 export function signOutOAuth(): void {
+  sessionGeneration += 1;
   if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
   try {
     localStorage.removeItem(REFRESH_KEY);
