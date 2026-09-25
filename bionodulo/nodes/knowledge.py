@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+from collections.abc import Set
 from datetime import date
 from typing import Any
 from urllib.parse import urlsplit
@@ -19,7 +20,7 @@ _DNS_HOST = re.compile(r"^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.
 _RELATION_KINDS = frozenset({"alternative_to", "complements", "documented_successor", "superseded_by"})
 
 
-def _object(value: object, label: str, allowed: set[str], required: set[str] = frozenset()) -> dict[str, Any]:
+def _object(value: object, label: str, allowed: set[str], required: Set[str] = frozenset()) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be an object")
     if missing := required - value.keys():
@@ -155,10 +156,10 @@ def validate_knowledge(value: object, *, node_id: str | None = None) -> dict[str
                                {"identifier", "source_url", "checked_at", "note"})
             identifier = _text(citation["identifier"], f"{label}.identifier", maximum=256)
             source_url = _url(citation["source_url"], f"{label}.source_url")
-            key = (identifier.casefold(), source_url)
-            if key in seen_citations:
+            citation_key = (identifier.casefold(), source_url)
+            if citation_key in seen_citations:
                 raise ValueError(f"knowledge.citation_evidence contains duplicate entry {identifier}")
-            seen_citations.add(key)
+            seen_citations.add(citation_key)
             citations.append({"identifier": identifier, "source_url": source_url,
                               "checked_at": _date(citation["checked_at"], f"{label}.checked_at"),
                               "note": _text(citation["note"], f"{label}.note")})
