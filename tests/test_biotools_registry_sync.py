@@ -91,7 +91,7 @@ def test_ledger_covers_every_record_without_promoting_name_candidates(tmp_path, 
                 "source": registry.API, "license": "CC-BY-4.0", "completed_at": "2026-09-19"}
     (snapshot / "manifest.json").write_text(json.dumps(manifest))
     output = tmp_path / "output"
-    summary = coverage.audit(snapshot, output, tmp_path / "public", root=root)
+    summary = coverage.audit(snapshot, output, root=root)
     assert summary["ledger_rows"] == summary["registry_records_compared"] == 3
     assert summary["counts"]["with_declared_node_links"] == 1
     assert summary["counts"]["metadata_only_no_declared_node"] == 2
@@ -99,7 +99,7 @@ def test_ledger_covers_every_record_without_promoting_name_candidates(tmp_path, 
     assert ledger[1]["candidate_node_ids_requires_review"] == ["candidate"]
     assert ledger[1]["catalog_status"] == "metadata_only"
     assert summary["registry_entries_execution_validated_this_catalog_audit"] == 0
-    discovery = json.loads((tmp_path / "public/index.json").read_text())
+    discovery = json.loads((output / "biotools-discovery.json").read_text())
     assert len(discovery["tools"]) == 3
     assert discovery["tools"][1]["nodes"] == []
     repeated = coverage.audit(snapshot, tmp_path / "repeated", root=root)

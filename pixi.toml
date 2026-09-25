@@ -1,6 +1,5 @@
 [workspace]
 name = "bionodulo"
-version = "0.1.0a25"
 description = "Visual bioinformatics pipelines, node by node."
 authors = ["BioNodulo Team <team@bionodulo.org>"]
 channels = ["conda-forge", "bioconda"]
@@ -61,7 +60,6 @@ pycrdt-store = ">=0.1.4"
 sqlalchemy = ">=2.0.0"
 alembic = ">=1.13.0"
 fastapi-users = ">=15.0.0"
-langchain = ">=1.0.0"
 langgraph = ">=1.0.0"
 litellm = ">=1.60.0"
 arq = ">=0.28.0"

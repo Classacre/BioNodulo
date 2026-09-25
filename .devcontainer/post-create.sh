@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 echo "=== BioNodulo devcontainer setup ==="
 
@@ -18,7 +18,7 @@ uv sync --frozen
 
 # Install frontend deps
 echo "Installing frontend dependencies..."
-cd web && npm install
+cd web && npm ci
 
 echo "=== Setup complete ==="
-echo "Run 'uv run python main.py' to start the server."
+echo "From the repository root, run 'make dev' to start the API and frontend."

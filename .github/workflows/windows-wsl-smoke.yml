@@ -17,14 +17,10 @@ on:
     paths:
       - "bionodulo/**"
       - "main.py"
+      - "server.py"
+      - "pyproject.toml"
+      - "web/**"
       - "desktop/**"
-      - "desktop/src-tauri/src/wsl.rs"
-      - "desktop/src-tauri/src/paths.rs"
-      - "desktop/src-tauri/src/provision.rs"
-      - "desktop/src-tauri/src/supervisor.rs"
-      - "desktop/src-tauri/tests/wsl_smoke.rs"
-      - "desktop/src-tauri/tests/venv_recovery.rs"
-      - "desktop/src-tauri/windows/**"
       - ".github/workflows/windows-wsl-smoke.yml"
   schedule:
     # Weekly, to catch runner-image changes rather than only our own.
@@ -34,12 +30,36 @@ permissions:
   contents: read
 
 jobs:
+  frontend:
+    name: Build editor for Windows packaging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke-frontend
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 1
+
   # The native Windows backend, started the way the app starts it. This is the
   # path every Windows user hits before local execution is provisioned (and
   # whenever it fails), so "backend exited before becoming ready" has to be
   # caught here rather than by a user. Needs no WSL, so unlike the smoke job it
   # is reliable and blocking.
   native-backend:
+    needs: frontend
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -52,6 +72,12 @@ jobs:
       - name: Install desktop tooling
         working-directory: desktop
         run: npm install
+
+      - name: Download built editor
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-smoke-frontend
+          path: web/dist
 
       - name: Stage backend, python and uv
         working-directory: desktop
@@ -146,6 +172,7 @@ jobs:
   # `paths::venv_is_usable` against a real uv venv whose base was removed, and
   # requires uv to name the same path.
   venv-recovery:
+    needs: frontend
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -164,6 +191,12 @@ jobs:
       - name: Install desktop tooling
         working-directory: desktop
         run: npm install
+
+      - name: Download built editor
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-smoke-frontend
+          path: web/dist
 
       - name: Stage backend, python and uv
         working-directory: desktop
@@ -192,6 +225,7 @@ jobs:
   # itself, then install with --no-build-isolation. If this passes, an install
   # can complete on a machine where creating a build environment is impossible.
   no-build-isolation:
+    needs: frontend
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -204,6 +238,12 @@ jobs:
       - name: Install desktop tooling
         working-directory: desktop
         run: npm install
+
+      - name: Download built editor
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-smoke-frontend
+          path: web/dist
 
       - name: Stage backend, python and uv
         working-directory: desktop
@@ -242,6 +282,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "the backend does not import after installing" }
 
   provisioning-shape:
+    needs: frontend
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -254,6 +295,12 @@ jobs:
       - name: Install desktop tooling
         working-directory: desktop
         run: npm install
+
+      - name: Download built editor
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-smoke-frontend
+          path: web/dist
 
       - name: Stage backend, python and uv
         working-directory: desktop
@@ -418,6 +465,7 @@ jobs:
           }
 
   smoke:
+    needs: frontend
     runs-on: windows-latest
     # Unsupported platform capability: report, never block.
     continue-on-error: true
@@ -470,6 +518,12 @@ jobs:
       - name: Install desktop tooling
         working-directory: desktop
         run: npm install
+
+      - name: Download built editor
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-smoke-frontend
+          path: web/dist
 
       - name: Stage backend, python and uv
         working-directory: desktop

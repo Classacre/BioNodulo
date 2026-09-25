@@ -15,12 +15,8 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # Never on main: releases run here, and a push landing mid-build cancels the
-  # per-OS jobs. That published 0.1.0-alpha.16 with no Windows installer -- and
-  # because tauri-action creates the tag early, the next run's
-  # check-desktop-release saw the tag, called it released and skipped, so the
-  # gap was permanent. Branches and PRs still cancel, where fast feedback is
-  # worth more than a complete artifact set.
+  # Let main's release jobs finish: cancelling after tag creation can leave
+  # incomplete installer assets that a later run mistakes for a finished release.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -53,17 +49,7 @@ jobs:
         run: python -m compileall bionodulo server.py main.py
 
       - name: Run tests
-        # -q not -v: this suite is 7000+ tests, and printing every name
-        # buries real failures and slows log ingestion. --tb=short still
-        # gives a full traceback for anything that fails.
-        #
-        # -n auto: run across the runner's cores. Measured locally, same
-        # machine, same suite: 5m16s serial vs 3m01s parallel, with all three
-        # runs (one serial, two parallel) reporting exactly 7070 passed and
-        # 5 skipped — so this is a scheduling change, not a coverage change.
-        # If a future test proves order-dependent, prefer fixing its shared
-        # state over dropping back to serial; `--dist loadfile` is the milder
-        # fallback if that is ever not practical.
+        # Run across available cores with compact output and failure tracebacks.
         run: python -m pytest tests/ -q --tb=short -n auto
 
   python-quality:
@@ -83,18 +69,13 @@ jobs:
       - name: Install quality tools
         run: |
           python -m pip install --upgrade pip
-          # PIN these. An unpinned linter turns every upstream release into a
-          # red build with no code change: ruff 0.16.0 enabled new default
-          # rules and failed hundreds of pre-existing lines. Bump
-          # deliberately, with the findings fixed in the same commit.
+          # Upgrade quality tools deliberately, with any new findings fixed.
           python -m pip install 'ruff==0.15.13' 'mypy==2.1.0'
 
       - name: Ruff lint
         run: python -m ruff check bionodulo tests
 
-      # Ratcheted, not advisory. `|| true` meant the count could climb forever
-      # unnoticed, which is how it reached 8535. The gate only asserts that the
-      # number never grows; it drops the baseline automatically when it shrinks.
+      # Fail if the error count grows; lower the baseline when it improves.
       - name: Mypy ratchet
         run: python scripts/mypy_ratchet.py
 
@@ -127,6 +108,9 @@ jobs:
 
       - name: Type-check and build
         run: npm run build
+
+      - name: Check desktop backend packaging
+        run: node --test ../desktop/scripts/backend-files.test.mjs
 
       - name: Upload frontend build artifact
         uses: actions/upload-artifact@v4

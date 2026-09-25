@@ -1,7 +1,4 @@
-"""All REST API endpoints for BioNodulo v2.
-
-References app.state for registry, settings, queue, and event_hub.
-"""
+"""Core REST endpoints for workflows, runs, the queue, and the workspace."""
 
 from __future__ import annotations
 
@@ -28,11 +25,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 
 from bionodulo.api.app_state import app_state, setting_literal
 from bionodulo.api.auth_dependencies import require_auth_payload as _require_auth_payload
-from bionodulo.api.collab_dependencies import (
-    ensure_open_room_access,
-    require_workflow_role,
-)
-from bionodulo.api.collab_runtime_routes import workflow_payload_to_flat_snapshot
+from bionodulo.api.collab_dependencies import require_workflow_role
 from bionodulo.api.system_stats import router as system_stats_router
 from bionodulo.api.previews import router as previews_router
 from bionodulo.api.rate_limits import limiter
@@ -245,16 +238,6 @@ def _setting_bool(request: Request, key: str, default: bool = False) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
-
-
-def _ensure_open_room_access(request: Request, workflow_id: str, user_id: str, role: str = "editor") -> None:
-    """Compatibility wrapper for tests and older route helpers."""
-    ensure_open_room_access(request, workflow_id, user_id, role=role)
-
-
-def _workflow_payload_to_flat_snapshot(workflow_id: str, body: dict[str, Any]) -> dict[str, Any]:
-    """Compatibility wrapper for tests and older route helpers."""
-    return workflow_payload_to_flat_snapshot(workflow_id, body)
 
 
 def _require_execute_permission(request: Request, workflow_id: str | None) -> dict[str, Any] | None:

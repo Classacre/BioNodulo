@@ -508,9 +508,4 @@ async def collab_room_status(
     payload = require_auth_payload(request)
     caller_id = payload["sub"]
     require_workflow_role(request, workflow_id, caller_id, "read")
-    room_status = app_state(request).room_manager.room_status(workflow_id)
-    live_status = app_state(request).presence_manager.room_status(
-        workflow_id,
-        created_at=room_status.get("created_at"),
-    )
-    return live_status if live_status["active"] else room_status
+    return app_state(request).presence_manager.room_status(workflow_id)

@@ -108,14 +108,6 @@ def _get_connection() -> sqlite3.Connection:
     return conn
 
 
-def _close_connection() -> None:
-    """Close the thread-local connection, if any."""
-    conn = getattr(_local, "crdt_connection", None)
-    if conn is not None:
-        conn.close()
-        _local.crdt_connection = None
-
-
 def _init_db() -> None:
     """Ensure the database schema is in place."""
     conn = _get_connection()

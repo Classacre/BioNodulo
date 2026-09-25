@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# BioNodulo v2 — Multi-stage container image
+# BioNodulo application image
 # Stage 1 builds the frontend. Stage 2 installs the Python app into a venv (pip).
 # Stage 3 is the minimal runtime image with non-root user.
 
@@ -10,7 +10,7 @@ FROM node:24-slim AS frontend-builder
 WORKDIR /build
 COPY web/package*.json ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm install
+    npm ci
 COPY web/ ./
 RUN npm run build
 
@@ -53,8 +53,16 @@ WORKDIR /app
 COPY --from=deps /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy application code
-COPY . .
+# Copy runtime inputs explicitly; local runs, credentials and reports must not
+# become image contents merely because they are present in the checkout.
+COPY main.py server.py lambda_handler.py pyproject.toml bionodulo.yaml.example ./
+COPY README.md LICENSE THIRD_PARTY_NOTICES.md ./
+COPY bionodulo/ ./bionodulo/
+COPY templates/ ./templates/
+COPY data/ ./data/
+COPY docs/help/ ./docs/help/
+COPY examples/workflows/ ./examples/workflows/
+COPY custom_nodes/example_node.py.example ./custom_nodes/
 
 # Copy built frontend from stage 1
 COPY --from=frontend-builder /build/dist ./web/dist

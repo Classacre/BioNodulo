@@ -1,9 +1,5 @@
-# Canonical developer + CI-parity commands for BioNodulo.
-# Mirrors .github/workflows/ci.yml so `make test` / `make lint` / `make build`
-# run the same gates locally (and give tooling a single recognised entrypoint).
-#
-# Python side assumes the project venv at .venv (falls back to `python`).
-# Frontend side runs inside web/ via npm, matching the CI `frontend` job.
+# Local checks for a POSIX shell. CI also tests multiple Python versions,
+# container images, browser workflows and desktop packaging.
 
 PY := $(if $(wildcard .venv/bin/python),.venv/bin/python,python)
 WEB := web
@@ -11,7 +7,7 @@ WEB := web
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-backend dev-web test test-py test-web lint lint-py \
-        lint-web build build-web typecheck e2e verify install catalog
+        lint-web build build-web typecheck e2e e2e-ci verify install catalog
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -64,7 +60,7 @@ build-web:
 e2e: ## Run the Playwright end-to-end suite (auto-starts the dev server)
 	cd $(WEB) && npm run test:e2e
 
-e2e-ci: ## Run the E2E suite the way CI does (skips become failures)
+e2e-ci: ## Run browser tests with CI settings
 	CI=true $(MAKE) e2e
 
-verify: lint test build ## Full local gate: lint + tests + build (CI parity)
+verify: lint test build ## Local lint, unit tests and frontend build

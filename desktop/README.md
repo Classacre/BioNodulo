@@ -31,6 +31,7 @@ desktop/
     error.html        Backend-failed screen
   scripts/
     prepare-backend.mjs     Stage BioNodulo source -> assets/bionodulo-backend
+    backend-files.mjs       Runtime file list and local-cache exclusions
     prepare-python.mjs      Fetch python-build-standalone + uv -> assets/
     prepare-cloudflared.mjs Fetch cloudflared (share/collaboration tunnel)
     copy-icons.mjs          Stage app icons
@@ -66,8 +67,11 @@ timeout.
 ## Development
 
 ```bash
-cd desktop
-npm install               # @tauri-apps/cli + cross-env
+cd web
+npm ci
+npm run build
+cd ../desktop
+npm ci                    # @tauri-apps/cli + cross-env
 npm run prepare:assets    # stage backend + python + uv + cloudflared (needs network)
 npm run tauri:dev         # BIONODULO_DEV=1 tauri dev
 ```
@@ -82,6 +86,13 @@ the exact list.
 npm run prepare:assets
 npm run tauri:build
 ```
+
+Backend staging uses an explicit runtime file list in
+`scripts/backend-files.mjs`. It includes the built editor, node catalogs,
+environment locks, templates, their datasets and in-app help. Local workspaces,
+run results, developer reports and nested caches are excluded. Missing runtime
+inputs stop packaging before the previous staging directory is replaced.
+Run `node --test scripts/backend-files.test.mjs` to check the staging rules.
 
 Bundle targets are declared in `tauri.conf.json`: `nsis` (Windows), `app` and
 `dmg` (macOS), `appimage` and `deb` (Linux).

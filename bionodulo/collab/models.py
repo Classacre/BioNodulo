@@ -421,14 +421,6 @@ class CollabStore:
             ).all()
             return [self._row_to_audit(row) for row in rows]
 
-    # ------------------------------------------------------------------
-    # Phase 3 table management
-    # ------------------------------------------------------------------
-
-    def _ensure_phase3_tables(self) -> None:
-        """Compatibility no-op; SQLAlchemy creates all metadata tables."""
-        Base.metadata.create_all(self.engine)
-
     # ---- Versions ----
 
     def add_version(self, version: WorkflowVersion) -> WorkflowVersion:

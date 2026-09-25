@@ -45,7 +45,7 @@ class PresenceManager:
 
     def __init__(self) -> None:
         self._sessions: dict[str, dict[str, LivePresence]] = {}
-        self._created_at: dict[str, float] = {}
+        self._created_at: dict[str, str] = {}
 
     def register(
         self,
@@ -105,13 +105,13 @@ class PresenceManager:
             if session.user_id == user_id and session.socket is not None
         ]
 
-    def room_status(self, workflow_id: str, created_at: Any | None = None) -> dict[str, Any]:
+    def room_status(self, workflow_id: str) -> dict[str, Any]:
         """Return a RoomStatusResponse-compatible live-room summary."""
         users = self.users(workflow_id)
         return {
             "workflow_id": workflow_id,
             "active": bool(users),
             "users": users,
-            "created_at": created_at if created_at is not None else self._created_at.get(workflow_id),
+            "created_at": self._created_at.get(workflow_id),
             "client_count": len(users),
         }
