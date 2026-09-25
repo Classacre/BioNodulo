@@ -14,6 +14,31 @@ describe('useObjectInfo', () => {
     vi.mocked(apiGet).mockReset();
   });
 
+  it.each(['raw', 'normalized'] as const)('preserves validated knowledge from %s object info', async shape => {
+    const knowledge = {
+      schema_version: 1,
+      tool_id: 'https://bio.tools/seqtk',
+      operations: [{ uri: 'http://edamontology.org/operation_2428', label: 'Validation' }],
+      citation_evidence: [{
+        identifier: '10.1234/example', source_url: 'https://doi.org/10.1234/example',
+        checked_at: '2026-09-25', note: 'Publisher page lists this paper.',
+      }],
+    };
+    const raw = {
+      name: 'knowledge_node', display_name: 'Knowledge Node', category: 'tests', builtin: true,
+      input: { required: {} }, output: ['BAM'], output_name: ['bam'], knowledge,
+    };
+    const normalized = {
+      id: 'knowledge_node', display_name: 'Knowledge Node', category: 'tests', builtin: true,
+      input_types: { required: {} }, return_types: ['BAM'], return_names: ['bam'], knowledge,
+    };
+    vi.mocked(apiGet).mockResolvedValueOnce({ knowledge_node: shape === 'raw' ? raw : normalized });
+    const { result } = renderHook(() => useObjectInfo());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.objectInfo.knowledge_node.knowledge).toEqual(knowledge);
+    expect(result.current.objectInfo.knowledge_node.return_types).toEqual(['BAM']);
+  });
+
   it('preserves node lifecycle and versioning metadata from object_info', async () => {
     vi.mocked(apiGet).mockResolvedValueOnce({
       versioned_legacy: {

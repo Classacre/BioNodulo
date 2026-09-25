@@ -50,6 +50,7 @@ class BaseNode(abc.ABC):
     CITATION_DOIS: ClassVar[list[str]] = []
     CITATION_URLS: ClassVar[list[str]] = []
     CITATION_TEXT: ClassVar[str] = ""
+    KNOWLEDGE: ClassVar[dict[str, Any] | None] = None
     VERSION: ClassVar[str] = "1.0.0"
     PREVIOUS_VERSIONS: ClassVar[list[str]] = []
     DEPRECATED: ClassVar[bool] = False
@@ -122,7 +123,7 @@ class BaseNode(abc.ABC):
     @classmethod
     def metadata(cls) -> dict[str, Any]:
         """Return complete metadata dictionary for UI discovery."""
-        return {
+        metadata = {
             "node_id": cls.NODE_ID,
             "display_name": cls.DISPLAY_NAME or cls.NODE_ID,
             "category": cls.CATEGORY,
@@ -153,6 +154,11 @@ class BaseNode(abc.ABC):
             "git_commit": cls.GIT_COMMIT,
             "input_types": cls.INPUT_TYPES(),
         }
+        if cls.KNOWLEDGE is not None:
+            from bionodulo.nodes.knowledge import validate_knowledge
+
+            metadata["knowledge"] = validate_knowledge(cls.KNOWLEDGE, node_id=cls.NODE_ID)
+        return metadata
 
     @classmethod
     def lifecycle_metadata(cls) -> dict[str, Any]:
@@ -177,6 +183,10 @@ class BaseNode(abc.ABC):
     @classmethod
     def validate_metadata_contract(cls) -> None:
         """Validate node-author metadata that downstream tools consume."""
+        if cls.KNOWLEDGE is not None:
+            from bionodulo.nodes.knowledge import validate_knowledge
+
+            validate_knowledge(cls.KNOWLEDGE, node_id=cls.NODE_ID)
         if not isinstance(cls.VERSION, str) or not cls.VERSION:
             raise ValueError(f"{cls.NODE_ID or cls.__name__}.VERSION must be a non-empty string")
         if not isinstance(cls.PREVIOUS_VERSIONS, list) or not all(

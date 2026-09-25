@@ -84,6 +84,7 @@ in the separate `bionodulo-website` repository.
 ## Developer guides
 
 - [Documentation index](docs/README.md)
+- [Tool Atlas](docs/tool-atlas.md) and [builtin expansion handbook](docs/builtin-expansion-playbook.md)
 - [Architecture](docs/architecture.md)
 - [Development and checks](docs/development.md)
 - [Maintenance scripts](scripts/README.md)

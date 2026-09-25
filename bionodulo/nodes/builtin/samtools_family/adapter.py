@@ -24,6 +24,21 @@ SAMTOOLS_CITATION_DOIS = [
 ]
 SAMTOOLS_CITATION_URLS = [f"https://doi.org/{doi}" for doi in SAMTOOLS_CITATION_DOIS]
 SAMTOOLS_CITATION_TEXT = "Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools."
+# This paper is common to the base and Galaxy-derived citation lists. Keep the
+# inherited knowledge evidence to their intersection; subclasses may replace
+# their second citation with a different paper.
+SAMTOOLS_COMMON_CITATION_EVIDENCE = {
+    "identifier": SAMTOOLS_CITATION_DOIS[0],
+    "source_url": "https://github.com/samtools/samtools#citing",
+    "checked_at": "2026-09-25",
+    "note": "The official SAMtools repository asks users to cite this 2021 SAMtools and BCFtools paper; this is a software paper, not a version-specific executable DOI.",
+}
+SAMTOOLS_FORMAT_CITATION_EVIDENCE = {
+    "identifier": SAMTOOLS_CITATION_DOIS[1],
+    "source_url": "https://academic.oup.com/bioinformatics/article/25/16/2078/204688",
+    "checked_at": "2026-09-25",
+    "note": "Publisher record identifies the 2009 Sequence Alignment/Map format and SAMtools paper; it describes the format and original tool, not the pinned runtime release.",
+}
 SAMTOOLS_GALAXY_CITATION_DOIS = [
     "10.1093/gigascience/giab008",
     "10.1093/bioinformatics/btr076",
@@ -202,6 +217,12 @@ class SamtoolsCommandNode(CommandNode):
     ]
     CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
     CITATION_TEXT = "Twelve years of SAMtools and BCFtools; The Sequence Alignment/Map format and SAMtools."
+    KNOWLEDGE = {
+        "schema_version": 1,
+        "tool_id": "https://bio.tools/samtools",
+        "citation_evidence": [SAMTOOLS_COMMON_CITATION_EVIDENCE],
+        "reviewed_at": "2026-09-25",
+    }
     SHELL = False
 
     OUTPUT_FILENAMES: ClassVar[tuple[str, ...]] = ()
