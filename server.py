@@ -573,9 +573,6 @@ def create_app() -> FastAPI:
         frontend_build_complete = index_file.exists() and web_assets.exists()
         if web_assets.exists():
             app.mount("/assets", StaticFiles(directory=web_assets), name="assets")
-        registry_assets = web_dist / "biotools-registry"
-        if registry_assets.is_dir():
-            app.mount("/biotools-registry", StaticFiles(directory=registry_assets), name="biotools-registry")
 
         @app.get("/{path:path}")
         async def serve_spa(request: Request, path: str) -> Response:

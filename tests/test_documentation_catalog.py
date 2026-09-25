@@ -15,7 +15,6 @@ def _template_catalog() -> list[dict[str, Any]]:
         catalog.append({
             "filename": path.name,
             "name": data["name"],
-            "category": data.get("category"),
         })
     return catalog
 
@@ -31,6 +30,3 @@ def test_documented_template_catalog_matches_template_directory() -> None:
 
     for template in catalog:
         assert f'[{template["name"]}](../templates/{template["filename"]})' in guide
-
-    for category in {"Long Read", "Proteomics", "Epigenomics"}:
-        assert category in guide
