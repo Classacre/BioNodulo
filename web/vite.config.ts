@@ -9,10 +9,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 // stay lean.
 const analyze = process.env.BIONODULO_ANALYZE === '1';
 
-// The UI used to hard-code "2.0" in two places -- the boot screen and the top
-// bar -- which kept claiming a version the product has never shipped. Both now
-// read this, sourced from package.json, so the displayed version cannot drift
-// from the released one again.
+// Use the package version in both the boot screen and the running app.
 const appVersion = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf-8'),
 ).version as string;
@@ -27,10 +24,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    // The boot screen is inlined in index.html so it paints before any JS
-    // loads, which means `define` cannot reach it. Substituting the placeholder
-    // here keeps the pre-hydration version honest too -- it previously read a
-    // hard-coded "2.0".
+    // The HTML boot screen loads before JavaScript, outside Vite's `define`.
     {
       name: 'bionodulo-html-version',
       transformIndexHtml(html: string) {
@@ -55,10 +49,7 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        // Pull the big runtime libs out of the main bundle so they cache
-        // across releases. The expected effect is a ~300 kB drop in the
-        // main chunk (react + scheduler + yjs+ystack + fuse + i18next move
-        // to their own files).
+        // Cache large runtime libraries separately from application code.
         manualChunks(id) {
           // Normalise Windows backslashes so the checks work on every OS.
           const p = id.replace(/\\/g, '/');

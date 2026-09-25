@@ -45,7 +45,6 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "alembic>=1.13.0",
     "fastapi-users>=15.0.0",
-    "langchain>=1.0.0",
     "langgraph>=1.0.0",
     "litellm>=1.60.0",
     "arq>=0.28.0",
@@ -57,9 +56,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    # Parallel test execution. The suite is 7000+ tests and CI's slowest leg
-    # spent ~15 min in `pytest` alone. Verified parallel-safe: two `-n auto`
-    # runs and one serial run all report exactly 7070 passed / 5 skipped.
+    # CI runs pytest in parallel; limit workers on memory-constrained hosts.
     "pytest-xdist>=3.5",
     "ruff>=0.2.0",
     "mypy>=1.8.0",
@@ -68,7 +65,6 @@ dev = [
     # tests resolve real IANA zones.
     "tzdata>=2024.1; platform_system == 'Windows'",
 ]
-collab = []
 # Paper -> Markdown conversion for the AI assistant. Optional because the
 # assistant degrades to plain text extraction without it, and markitdown pulls a
 # sizeable dependency tree that a headless worker never needs.
@@ -86,14 +82,8 @@ packages = ["bionodulo"]
 allow-direct-references = true
 
 [dependency-groups]
-dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "ruff>=0.2.0",
-    "mypy>=1.8.0",
-    "pod5>=0.3.44",
-    "tzdata>=2024.1; platform_system == 'Windows'",
-]
+# Keep uv sync and pip install -e '.[dev]' on the same development dependencies.
+dev = ["bionodulo[dev]"]
 
 [tool.ruff]
 line-length = 120

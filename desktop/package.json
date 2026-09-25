@@ -7,6 +7,7 @@
   "license": "GPL-3.0-or-later",
   "scripts": {
     "prepare:backend": "node scripts/prepare-backend.mjs",
+    "test:packaging": "node --test scripts/backend-files.test.mjs",
     "prepare:python": "node scripts/prepare-python.mjs",
     "prepare:assets": "npm run prepare:backend && npm run prepare:python && node scripts/prepare-cloudflared.mjs && node scripts/copy-icons.mjs",
     "tauri": "tauri",

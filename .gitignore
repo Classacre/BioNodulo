@@ -13,14 +13,26 @@
 # Frontend build artifacts (hashed filenames change every build)
 web/node_modules/
 web/dist/
-web/dist/assets/
-website/node_modules/
-website/dist/
 *.tsbuildinfo
+
+# Local configuration and scratch output
+.env
+.env.*
+!.env.example
+.tmp*
+*.tmp
+*.bak
+.coverage
+.coverage.*
+htmlcov/
+
+# Retired static registry export; the editor uses the paginated API
+web/public/biotools-registry/
 
 # Runtime data
 runs/
 cache/
+/best_so_far/
 workspace/*
 !workspace/.gitkeep
 envs/

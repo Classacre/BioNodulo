@@ -3,7 +3,7 @@
   "image": "mcr.microsoft.com/devcontainers/python:3.11",
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "20"
+      "version": "24"
     },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
@@ -18,16 +18,16 @@
         "bradlc.vscode-tailwindcss"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.linting.enabled": true,
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
         "editor.formatOnSave": true,
         "ruff.organizeImports": true
       }
     }
   },
-  "forwardPorts": [8000, 5173],
+  "forwardPorts": [8000, 8765, 5173],
   "portsAttributes": {
     "8000": { "label": "BioNodulo API" },
+    "8765": { "label": "BioNodulo development API" },
     "5173": { "label": "Vite Dev Server" }
   },
   "remoteUser": "vscode"

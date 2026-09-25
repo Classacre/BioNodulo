@@ -1,78 +1,78 @@
-.venv/
-.pixi/
-__pycache__/
-*.py[cod]
+# Local environments, dependencies and caches (including nested tool locks).
+**/.git/
+**/.venv/
+**/venv/
+**/node_modules/
+**/.pixi/
 **/__pycache__/
-**/*.pyc
-**/*.pyo
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-*.log
-.git/
-.gitignore
-web/node_modules/
-web/dist/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/*.py[cod]
+**/*.egg-info/
+**/*.log
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+**/.tmp*
+**/*.tmp
+**/*.bak
+
+# Local workflow state and generated output.
 runs/
 cache/
 workspace/
 envs/
 environments/
-# The generic worker materializes workflow environments from committed locks.
-# Keep root runtime caches excluded while retaining those lock bundles.
-!bionodulo/environments/
-!bionodulo/environments/**
-# ...but NOT the solved environments themselves. `.pixi/` on line 2 only matches
-# at the context root -- Docker does not apply a bare directory pattern
-# recursively -- so the re-include above was dragging every locally-solved
-# bionodulo/environments/locks/*/.pixi/envs tree into the build context and into
-# the image. Measured: that path is 3.7 MB without .pixi and 3.6 GB with it, and
-# it was the single 1.39 GB layer in a 1.63 GB worker image.
-#
-# It also made the image size depend on the machine doing the build: a developer
-# who had solved locks locally shipped a far bigger image than a clean checkout.
-# Later rules win in .dockerignore, so this must stay below the re-includes.
-bionodulo/environments/**/.pixi
-bionodulo/environments/**/.pixi/**
-SPEC.md
-examples/
-*.fq
-*.fastq
-*.fna
-*.fasta
+output/
+artifacts/
+best_so_far/
 r_plot/
 
-# --- worker image slimming: exclude non-engine dirs (worker runs `bionodulo/`) ---
+# Bundle only the public fixture data used by the application. An arbitrary
+# local dataset under data/ must not enter an image through COPY data/.
+data/*
+!data/constructs.tsv
+!data/egfp_u55762.fasta
+!data/glori/
+data/glori/*
+!data/glori/GSM6432590_293T-mRNA-1_35bp_m2.totalm6A.FDR.csv.gz
+!data/glori/GSM6432591_293T-mRNA-2_35bp_m2.totalm6A.FDR.csv.gz
+!data/glori/GSM6432592_293T-UN_expression.csv.gz
+!data/hsapiens_codon_usage.tsv
+!data/il12b_nm002187.fasta
+!data/insulin_nm000207.fasta
+!data/luc_m15077.fasta
+!data/openvaccine/
+data/openvaccine/*
+!data/openvaccine/RYOS1_50C_0000.rdat
+!data/openvaccine/RYOS1_MG50_0000.rdat
+!data/openvaccine/RYOS1_MGPH_0000.rdat
+!data/openvaccine/RYOS_FULL_23Jul2021.json
+!data/rbd_nc045512_22517_23185.fasta
+!data/samples.csv
+!data/wt1_nm000378.fasta
+
+# Non-runtime repository content.
+.github/
+.devcontainer/
 desktop/
-web/
+mcp/
 tests/
-docs/
-templates/
+reports/
+notebooks/
+.worktrees/
 .superpowers/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-*.md
-uv.lock
+docs/*
+!docs/help/
+!docs/help/**
+examples/*
+!examples/workflows/
+!examples/workflows/**
 
-# Re-include the template fixture data (244 KB). templates/ and the sequence
-# file extensions above are excluded, and last match wins, so these negations
-# must stay at the end. The worker needs these paths: a few template inputs are
-# synthetic files with no public upstream (a counts matrix keyed by `gene`, a
-# decoy-tagged protein database, an sgRNA library), and without them the run
-# fails with "Source not found: /tmp/workspace/templates/data/...".
-!templates/data/
-!templates/data/**
-
-# The root Dockerfile needs these, and the broad `web/` and `*.md` exclusions
-# above would starve it: stage 1 copies web/ to build the frontend, and
-# `pip install .` reads README.md + LICENSE for the wheel metadata. Last match
-# wins, so re-exclude the heavy web subdirectories AFTER re-including web/.
-!README.md
-!LICENSE
-!web/
-!web/**
-web/node_modules/
+# Build the editor from source in the frontend stage.
 web/dist/
+web/test-results/
+web/playwright-report/
 web/.next/
+uv.lock

@@ -2,7 +2,7 @@
 
 BioNodulo can now import a supported upstream CWL `CommandLineTool` into the existing typed `NodeSpec`, compile it, expose its ports and controls through `/api/object_info`, and execute it through the ordinary workflow queue. Every imported tool uses `bionodulo.nodes.declarative_cwl`; adding one requires descriptor/catalog data, not a new Python tool class or static-index edit.
 
-This is the first executable foundation for the proposal's generated coverage. It does not implement automatic bio.tools-to-executable generation, a general CWL engine, container probing, or scientific contract verification. The [architecture direction](superpowers/specs/2026-09-23-universal-tool-integration.md) describes the remaining system.
+This native profile supports a bounded subset of CWL. Broader descriptor execution uses the separate [CWL reference-engine profile](generated-biotools.md). See [tool integration](tool-integration.md) for the shared design, current profiles and remaining validation work.
 
 ## Import and run
 

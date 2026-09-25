@@ -46,7 +46,7 @@ def declared_links(root: Path) -> dict[str, str]:
     return declared
 
 
-def audit(snapshot_dir: Path, output_dir: Path, public_dir: Path | None = None, *, root: Path = ROOT, check_imports: bool = False) -> dict:
+def audit(snapshot_dir: Path, output_dir: Path, *, root: Path = ROOT, check_imports: bool = False) -> dict:
     manifest = read_json(snapshot_dir / "manifest.json")
     if not manifest.get("complete"):
         raise ValueError("A complete, verified registry snapshot is required")
@@ -198,9 +198,6 @@ def audit(snapshot_dir: Path, output_dir: Path, public_dir: Path | None = None, 
                             "snapshot_sha256": manifest["sha256"], "found": len(refreshed_links),
                             "linked_node_types": len(refreshed_links), "links": refreshed_links})]:
         (output_dir / filename).write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    if public_dir:
-        public_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(discovery_path, public_dir / "index.json")
     print(json.dumps({"registry_records": len(registry_ids), "indexed_nodes": len(node_index),
                       "declared_linked_nodes": len(linked_nodes), "counts": dict(counters)}, indent=2))
     return summary
@@ -210,10 +207,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--snapshot-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--public-dir", type=Path, help="Optionally publish compact discovery metadata to web/public/biotools-registry")
     parser.add_argument("--check-imports", action="store_true", help="Import every indexed class without executing its tool")
     args = parser.parse_args()
-    audit(args.snapshot_dir, args.output_dir, args.public_dir, check_imports=args.check_imports)
+    audit(args.snapshot_dir, args.output_dir, check_imports=args.check_imports)
 
 
 if __name__ == "__main__":

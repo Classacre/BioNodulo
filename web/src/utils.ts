@@ -1,4 +1,4 @@
-import type { ObjectInfo, NodeMetadata, Workflow, WorkflowNode, WorkflowEdge, WorkflowGroup } from './types';
+import type { ObjectInfo, NodeMetadata } from './types';
 
 export function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
@@ -16,18 +16,6 @@ export function groupNodesByCategory(objectInfo: ObjectInfo | NodeMetadata[]): R
     groups[cat].sort((a, b) => a.display_name.localeCompare(b.display_name));
   }
   return groups;
-}
-
-export function filterNodes(objectInfo: ObjectInfo, query: string): NodeMetadata[] {
-  const q = query.toLowerCase().trim();
-  if (!q) return Object.values(objectInfo);
-  return Object.values(objectInfo).filter(n =>
-    n.display_name.toLowerCase().includes(q) ||
-    n.id.toLowerCase().includes(q) ||
-    (n.search_aliases || []).some(a => a.toLowerCase().includes(q)) ||
-    (n.description || '').toLowerCase().includes(q) ||
-    (n.category || '').toLowerCase().includes(q)
-  );
 }
 
 export function valuesFromUnknownRecord<T>(value: unknown): T[] {
@@ -95,34 +83,6 @@ function hashString(value: string): number {
     hash = ((hash << 5) + hash + value.charCodeAt(i)) | 0;
   }
   return Math.abs(hash);
-}
-
-export function workflowFromCanvas(nodes: unknown[], edges: unknown[], groups: unknown[]): Workflow {
-  return {
-    version: '2.0',
-    app: 'bionodulo',
-    name: 'Untitled Workflow',
-    description: '',
-    nodes: nodes as WorkflowNode[],
-    edges: edges as WorkflowEdge[],
-    groups: groups as WorkflowGroup[],
-    outputs: {},
-  };
-}
-
-export function parseParamValue(val: string, type: string): unknown {
-  if (type === 'INT') return parseInt(val, 10) || 0;
-  if (type === 'FLOAT') return parseFloat(val) || 0;
-  if (type === 'BOOLEAN') return val === 'true' || val === '1';
-  return val;
-}
-
-export function normalizeEnvironment(env?: Record<string, unknown>) {
-  return env || {};
-}
-
-export function workflowDependencies(wf: Workflow): Record<string, string> {
-  return wf.dependencies || {};
 }
 
 export function saveToFile(content: string, filename: string, mime = 'application/octet-stream') {

@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ApiError, apiGet, apiGetBlob, apiGetText, apiPost, clearApiCache } from '../api/client';
+import { ApiError, apiGet, apiGetBlob, apiGetText, apiPost } from '../api/client';
 
 describe('api/client', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    clearApiCache();
     fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString();
       // Drive responses by URL so each case is explicit.

@@ -20,27 +20,17 @@ def _template_catalog() -> list[dict[str, Any]]:
     return catalog
 
 
-def test_readme_template_catalog_matches_template_directory() -> None:
+def test_documented_template_catalog_matches_template_directory() -> None:
     catalog = _template_catalog()
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    guide = (ROOT / "docs" / "templates.md").read_text(encoding="utf-8")
     template_count = len(catalog)
 
-    assert f"**{template_count} Pre-built Templates**" in readme
-    assert f"# {template_count} pre-built workflow templates" in readme
+    assert "docs/templates.md" in readme
+    assert f"{template_count} bundled workflow templates" in guide
 
     for template in catalog:
-        assert template["name"] in readme
+        assert f'[{template["name"]}](../templates/{template["filename"]})' in guide
 
     for category in {"Long Read", "Proteomics", "Epigenomics"}:
-        assert category in readme
-
-
-def test_spec_template_tree_matches_template_directory() -> None:
-    catalog = _template_catalog()
-    spec = (ROOT / "SPEC.md").read_text(encoding="utf-8")
-
-    for template in catalog:
-        assert template["filename"] in spec
-
-    for category in {"Long Read", "Proteomics", "Epigenomics"}:
-        assert category in spec
+        assert category in guide

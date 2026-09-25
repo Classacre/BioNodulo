@@ -143,7 +143,7 @@ _EDITOR_GET_PATHS = frozenset({
     "/api/workspace/download",  # Route enforces packaged fixtures only in editor mode.
 })
 _EDITOR_GET_PREFIXES = (
-    "/assets", "/biotools-registry", "/api/object_info", "/api/workflow_templates", "/api/docs", "/api/examples/workflows",
+    "/assets", "/api/object_info", "/api/workflow_templates", "/api/docs", "/api/examples/workflows",
 )
 _EDITOR_POST_PATHS = frozenset({
     "/api/workflow/validate", "/api/workflow/import", "/api/workflow/export", "/api/workflow/extract",
@@ -447,7 +447,6 @@ def create_app() -> FastAPI:
     app.state.node_registry = registry
     app.state.event_hub = event_hub
     app.state.settings_manager = settings_manager
-    app.state.room_manager = None  # lazily created by collab module
     app.state.rate_limiter = None  # lazily created by collab module
 
     if editor_mode:

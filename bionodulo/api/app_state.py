@@ -13,7 +13,6 @@ from bionodulo.collab.models import CollabStore
 from bionodulo.collab.permissions import PermissionChecker
 from bionodulo.collab.presence import PresenceManager
 from bionodulo.collab.rate_limiter import RateLimiter
-from bionodulo.collab.room_manager import RoomManager
 from bionodulo.collab.templates import TemplateManager
 from bionodulo.core.workspace import resolve_workspace_root
 from bionodulo.manager.installer import DependencyInstaller
@@ -91,14 +90,6 @@ class AppState:
             db_path.parent.mkdir(parents=True, exist_ok=True)
             manager = TemplateManager(str(db_path))
             self.state.template_manager = manager
-        return manager
-
-    @property
-    def room_manager(self) -> RoomManager:
-        manager = getattr(self.state, "room_manager", None)
-        if manager is None:
-            manager = RoomManager()
-            self.state.room_manager = manager
         return manager
 
     @property

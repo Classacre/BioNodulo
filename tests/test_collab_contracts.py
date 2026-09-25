@@ -8,9 +8,9 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from bionodulo.api.collab_dependencies import require_workflow_role
+from bionodulo.api.collab_dependencies import ensure_open_room_access, require_workflow_role
 from bionodulo.api.collab_routes import _diff_snapshots
-from bionodulo.api.routes import _workflow_payload_to_flat_snapshot
+from bionodulo.api.collab_runtime_routes import workflow_payload_to_flat_snapshot
 from bionodulo.collab.doc_store import extract_flat_snapshot
 from bionodulo.collab.models import CollabStore, WorkflowShare, WorkflowTemplate, WorkflowVersion
 from bionodulo.collab.permissions import PermissionChecker
@@ -203,8 +203,6 @@ def test_native_room_presence_roster_uses_socket_metadata() -> None:
 
 
 def test_open_room_api_access_grants_before_permission_checks(tmp_path, monkeypatch) -> None:
-    from bionodulo.api.routes import _ensure_open_room_access
-
     monkeypatch.setenv("BIONODULO_COLLAB_OPEN_ROOMS", "1")
     checker = PermissionChecker(store=CollabStore(tmp_path / "collab.db"))
     checker.ensure_owner("wf-room", "owner")
@@ -212,7 +210,7 @@ def test_open_room_api_access_grants_before_permission_checks(tmp_path, monkeypa
 
     assert not checker.can_read("wf-room", "guest")
 
-    _ensure_open_room_access(request, "wf-room", "guest")
+    ensure_open_room_access(request, "wf-room", "guest")
 
     assert checker.can_write("wf-room", "guest")
 
@@ -262,6 +260,44 @@ def test_temporary_collab_invite_create_and_join_contract() -> None:
     assert created.json()["workflow_id"] == workflow_id
     assert joined.status_code == 200
     assert joined.json()["role"] == "editor"
+
+
+def test_room_status_reports_native_presence_only() -> None:
+    from server import create_app
+
+    workflow_id = f"wf-presence-{uuid.uuid4().hex}"
+    app = create_app()
+    with TestClient(app) as client:
+        token = client.post("/api/auth/token", json={"name": "Owner"}).json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        created = client.post(
+            "/api/collab/rooms",
+            json={"workflow_id": workflow_id, "role": "editor"},
+            headers=headers,
+        )
+        assert created.status_code == 200
+
+        empty = client.get(f"/api/collab/room/{workflow_id}", headers=headers)
+        assert empty.status_code == 200
+        assert empty.json()["active"] is False
+        assert empty.json()["client_count"] == 0
+
+        app.state.presence_manager.register(
+            workflow_id,
+            {
+                "session_id": "session-1",
+                "user_id": created.json()["created_by"],
+                "name": "Owner",
+                "color": "#3b82f6",
+                "role": "owner",
+            },
+        )
+        live = client.get(f"/api/collab/room/{workflow_id}", headers=headers)
+        assert live.status_code == 200
+        assert live.json()["active"] is True
+        assert live.json()["client_count"] == 1
+        assert live.json()["users"][0]["session_id"] == "session-1"
+        assert live.json()["created_at"] is not None
 
 
 def test_collab_tunnel_uses_existing_public_host() -> None:
@@ -325,7 +361,7 @@ def test_invalid_temporary_collab_invite_is_rejected() -> None:
 
 def test_workflow_snapshot_publish_contract_replaces_flat_crdt_maps() -> None:
     doc = pycrdt.Doc()
-    first = _workflow_payload_to_flat_snapshot(
+    first = workflow_payload_to_flat_snapshot(
         "wf-room",
         {
             "workflow": {
@@ -337,7 +373,7 @@ def test_workflow_snapshot_publish_contract_replaces_flat_crdt_maps() -> None:
             }
         },
     )
-    second = _workflow_payload_to_flat_snapshot(
+    second = workflow_payload_to_flat_snapshot(
         "wf-room",
         {
             "workflow": {
