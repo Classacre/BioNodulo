@@ -6,6 +6,7 @@ Start with the [project README](../README.md) for installation and the repositor
 
 - [Getting started](help/getting-started.md)
 - [Workflow templates](templates.md)
+- [Tool Atlas: explore builtins and their connections](tool-atlas.md)
 - [Custom nodes](help/custom-nodes.md)
 - [Windows local execution](desktop/windows-local-execution.md)
 - [AI assistant research tools](assistant-research.md)
@@ -17,6 +18,8 @@ Start with the [project README](../README.md) for installation and the repositor
 - [Development and checks](development.md)
 - [Architecture](architecture.md)
 - [Tool integration design and boundaries](tool-integration.md)
+- [Builtin expansion playbook](builtin-expansion-playbook.md)
+- [Per-tool work and evidence templates](builtin-expansion-task-template.md)
 - [Native CWL profile](universal-cwl.md)
 - [Generated executable bio.tools integrations](generated-biotools.md)
 - [Generated bio.tools reference toolbox](GENERATED_REGISTRY_TOOLBOX.md)

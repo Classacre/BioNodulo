@@ -173,7 +173,9 @@ def main() -> int:
         return 0
 
     INDEX_PATH.write_text(index_payload)
-    METADATA_PATH.write_text(metadata_payload)
+    # This file participates in catalog digests: preserve the same bytes on
+    # Windows and POSIX rather than translating its final newline to CRLF.
+    METADATA_PATH.write_text(metadata_payload, encoding="utf-8", newline="\n")
     print(f"Wrote {INDEX_PATH.name} ({len(index)} nodes) + {METADATA_PATH.name} ({len(metadata_payload) // 1024} KB).")
     return 0
 

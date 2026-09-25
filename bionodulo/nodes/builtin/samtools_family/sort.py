@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .adapter import SamtoolsCommandNode
+from .adapter import SAMTOOLS_FORMAT_CITATION_EVIDENCE, SamtoolsCommandNode
 
 
 _MEMORY_RE = re.compile(r"([0-9]+)([KMG]?)")
@@ -26,6 +26,26 @@ class SamtoolsSortNode(SamtoolsCommandNode):
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-sort.html"
     UPSTREAM_MANPAGE = "doc/samtools-sort.1"
     UPSTREAM_SOURCE = "bam_sort.c"
+    KNOWLEDGE = {
+        **SamtoolsCommandNode.KNOWLEDGE,
+        "citation_evidence": [
+            *SamtoolsCommandNode.KNOWLEDGE["citation_evidence"],
+            SAMTOOLS_FORMAT_CITATION_EVIDENCE,
+        ],
+        "relations": [
+            {
+                "target_node_id": "samtools_index",
+                "kind": "documented_successor",
+                "source_port": "sorted_bam",
+                "target_port": "bam",
+                "evidence": {
+                    "url": "https://www.htslib.org/doc/samtools-sort.html",
+                    "checked_at": "2026-09-25",
+                    "note": "The official manual says output intended for samtools index must use default coordinate sort; name and tag sort modes are incompatible. This node renders default coordinate sort and BAM output. The relation documents a possible next step, not a validated run.",
+                },
+            }
+        ],
+    }
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

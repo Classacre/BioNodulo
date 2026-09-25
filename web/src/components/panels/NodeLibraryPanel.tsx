@@ -18,6 +18,7 @@ import { Spinner } from '../ui';
 import { deleteBlueprint, listBlueprints, subscribeBlueprints, type SubgraphBlueprint } from '../../state/subgraphLibrary';
 
 const BiotoolsRegistryPanel = lazy(() => import('./BiotoolsRegistryPanel'));
+const ToolAtlas = lazy(() => import('../modals/ToolAtlas'));
 
 interface NodeLibraryPanelProps {
   objectInfo: ObjectInfo;
@@ -241,6 +242,7 @@ function NodeLibraryResult({
 export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAddGeneratedNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
+  const [showAtlas, setShowAtlas] = useState(false);
   const [showRegistry, setShowRegistry] = useState(false);
   const [registryTotal, setRegistryTotal] = useState<number | null>(null);
   useEffect(() => {
@@ -389,6 +391,9 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
 
   return (
     <div className="rail-panel node-library-panel">
+      {showAtlas && <Suspense fallback={<Spinner label={t('toolAtlas.loading')} />}>
+        <ToolAtlas objectInfo={objectInfo} onAddNode={chooseNode} onClose={() => setShowAtlas(false)} />
+      </Suspense>}
       <div className="rail-panel-header">
         <span>{t('nodeLibrary.title')}</span>
         <button className="btn btn-icon btn-sm" onClick={onClose} title={t('nodeLibrary.closeTitle')}>
@@ -396,6 +401,9 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
         </button>
       </div>
       <div className="rail-panel-body">
+        <button type="button" className="btn btn-sm" style={{ marginBottom: 8, marginRight: 6 }} onClick={() => setShowAtlas(true)}>
+          {t('toolAtlas.open')}
+        </button>
         <button type="button" className="btn btn-sm" style={{ marginBottom: 8 }} onClick={() => setShowRegistry(true)}>
           {t('registry.browse', 'Browse bio.tools registry')}{registryTotal !== null ? ` · ${registryTotal.toLocaleString()} ${t('registry.referenceDefinitions', 'reference definitions')}` : ''}
         </button>
