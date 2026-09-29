@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "node_id": "seqfu_shred",
+  "node_class": "bionodulo.nodes.builtin.seqfu_family.seqfu_shred.SeqfuShredNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/seqfu:1.28.0--h41da26b_0",
+    "image_digest_expected": "sha256:0c910dd19d749bda7325d9f2738af0aec2a74cd920f345ecf2d244f6534f3e1c",
+    "image_digest_observed_after_run": "quay.io/biocontainers/seqfu@sha256:0c910dd19d749bda7325d9f2738af0aec2a74cd920f345ecf2d244f6534f3e1c",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "seqfu",
+    "shred",
+    "--length",
+    "8",
+    "--step",
+    "4",
+    "--frag-len",
+    "16",
+    "--out-prefix",
+    "/work/out/seqfu_shred/output",
+    "/work/mini.fa"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "seqfu",
+    "shred",
+    "--length",
+    "8",
+    "--step",
+    "4",
+    "--frag-len",
+    "16",
+    "--out-prefix",
+    "\\work\\out\\seqfu_shred\\output",
+    "/work/mini.fa"
+  ],
+  "platform_path_rewrites": [
+    {
+      "rendered_on_host": "\\work\\out\\seqfu_shred\\output",
+      "used_in_container": "/work/out/seqfu_shred/output"
+    }
+  ],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "seqfu",
+  "inputs": {
+    "length": 8,
+    "step": 4,
+    "frag_len": 16,
+    "input": "/work/mini.fa",
+    "output": "/work/out/seqfu_shred"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\release-2026-09-29\\seqfu-shred\\work\\out\\seqfu_shred"
+  ],
+  "tool_version_stdout": "1.28.0",
+  "status": "completed",
+  "exit_code": 0,
+  "missing_planned_outputs": [],
+  "output_verification_error": null,
+  "stdout": "",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_bytes": 0,
+  "stderr": "",
+  "started_at_utc": "2026-09-29T13:40:22.244661+00:00",
+  "completed_at_utc": "2026-09-29T13:40:23.151402+00:00",
+  "fixture": {
+    "name": "mini.fa",
+    "sha256": "1f19eb40cd8686df786938457b3f8abc459a3de7146830931048fd70aab4f745",
+    "bytes": 30,
+    "source": "reports/run-receipts/release-2026-09-29/fixtures/mini.fa"
+  },
+  "additional_staged_assets": [],
+  "artifacts": [
+    {
+      "path": "work/mini.fa",
+      "bytes": 30,
+      "sha256": "1f19eb40cd8686df786938457b3f8abc459a3de7146830931048fd70aab4f745"
+    },
+    {
+      "path": "work/out/seqfu_shred/output_R1.fq",
+      "bytes": 58,
+      "sha256": "d12fb16daabcfb82fe2a50b6560dee1ffcc750bc4bd6404d44da10f037e027d1"
+    },
+    {
+      "path": "work/out/seqfu_shred/output_R2.fq",
+      "bytes": 58,
+      "sha256": "d12fb16daabcfb82fe2a50b6560dee1ffcc750bc4bd6404d44da10f037e027d1"
+    }
+  ],
+  "artifact_count": 3,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

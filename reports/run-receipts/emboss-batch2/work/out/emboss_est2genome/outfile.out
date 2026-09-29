@@ -1,0 +1,15 @@
+Note Best alignment is between forward est and forward genome, and splice sites imply forward gene
+Exon       124 100.0     1   124 dna1             1   124 dna1          
+
+Span       124 100.0     1   124 dna1             1   124 dna1          
+
+Segment    124 100.0     1   124 dna1             1   124 dna1          
+Note Best alignment is between forward est and forward genome, and splice sites imply forward gene
+Exon        34  78.5    19    81 dna1            49   112 dna2          
+
+Span        34  78.5    19    81 dna1            49   112 dna2          
+
+Segment     11  73.9    19    41 dna1            49    71 dna2          
+Segment      8 100.0    42    49 dna1            73    80 dna2          
+Segment      1  54.5    51    61 dna1            81    91 dna2          
+Segment     20 100.0    62    81 dna1            93   112 dna2          

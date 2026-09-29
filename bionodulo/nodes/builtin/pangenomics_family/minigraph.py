@@ -25,6 +25,12 @@ class MinigraphNode(PangenomicsCommandContract):
     REQUIRED_EXECUTABLES = ["minigraph"]
     REQUIRED_CONDA_PACKAGES = ["minigraph"]
     DOCUMENTATION_URL = "https://github.com/lh3/minigraph"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1186/s13059-020-02168-z"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "The design and construction of reference pangenome graphs with minigraph."
+    )
     VERSION = "0.21"
     SHELL = True
     MODE_PRESET_POLICY = (

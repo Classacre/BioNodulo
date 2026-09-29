@@ -1,0 +1,75 @@
+########################################
+# Program: antigenic
+# Rundate: Sat 26 Sep 2026 15:20:13
+# Commandline: antigenic
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_antigenic/outfile.txt
+#    -auto
+# Report_format: motif
+# Report_file: /work/out/emboss_antigenic/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 3
+#=======================================
+
+Max_score_pos at "*"
+
+(1) Score 1.214 length 54 at residues 34->87
+                                                         *
+ Sequence: TAGCTAGCATCGATCGTAGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGG
+           |                                                    |
+          34                                                    87
+ Max_score_pos: 80
+
+(2) Score 1.092 length 23 at residues 6->28
+                          *
+ Sequence: TAGCTAGCTAGGCATCGATCGAT
+           |                     |
+           6                     28
+ Max_score_pos: 21
+
+(3) Score 1.092 length 27 at residues 95->121
+                *
+ Sequence: GCTAGCATCGATCGATCGTAGCTAGCT
+           |                         |
+          95                         121
+ Max_score_pos: 100
+
+
+#---------------------------------------
+#---------------------------------------
+#=======================================
+#
+# Sequence: dna2     from: 1   to: 124
+# HitCount: 3
+#=======================================
+
+Max_score_pos at "*"
+
+(1) Score 1.191 length 8 at residues 4->11
+             *
+ Sequence: AAACCCGG
+           |      |
+           4      11
+ Max_score_pos: 6
+
+(2) Score 1.191 length 9 at residues 16->24
+             *
+ Sequence: AAACCCGGG
+           |       |
+          16       24
+ Max_score_pos: 18
+
+(3) Score 1.092 length 96 at residues 26->121
+             *
+ Sequence: TCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGTAGCTAGCTAGCTAGCTAGCT
+           |                                                                                              |
+          26                                                                                              121
+ Max_score_pos: 28
+
+
+#---------------------------------------
+#---------------------------------------

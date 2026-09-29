@@ -22,6 +22,10 @@ class PangenomeGeneNode(PangenomicsCommandContract):
     REQUIRED_EXECUTABLES = ["panaroo"]
     REQUIRED_CONDA_PACKAGES = ["panaroo"]
     DOCUMENTATION_URL = "https://github.com/gtonkinhill/panaroo"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1186/s13059-020-02090-4"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = "Producing polished prokaryotic pangenomes with the Panaroo pipeline."
     VERSION = "1.5.0"
     SHELL = True
     ADAPTER_OUTPUT_POLICY = (

@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "node_id": "seqfu_list",
+  "node_class": "bionodulo.nodes.builtin.seqfu_family.seqfu_list.SeqfuListNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/seqfu:1.28.0--h41da26b_0",
+    "image_digest_expected": "sha256:0c910dd19d749bda7325d9f2738af0aec2a74cd920f345ecf2d244f6534f3e1c",
+    "image_digest_observed_after_run": "quay.io/biocontainers/seqfu@sha256:0c910dd19d749bda7325d9f2738af0aec2a74cd920f345ecf2d244f6534f3e1c",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "seqfu",
+    "list",
+    "/work/mini.fasta",
+    "/work/mini.fasta"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "seqfu",
+    "list",
+    "/work/mini.fasta",
+    "/work/mini.fasta"
+  ],
+  "platform_path_rewrites": [],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "seqfu",
+  "inputs": {
+    "names": "/work/mini.fasta",
+    "input": "/work/mini.fasta",
+    "output": "/work/out"
+  },
+  "planned_outputs": [
+    "D:\\AI\\BioNodulo\\BioNodulo-knowledge-graph\\reports\\run-receipts\\seqfu-list\\work\\seqfu_list\\selected.fasta"
+  ],
+  "tool_version_stdout": "1.28.0",
+  "status": "completed",
+  "exit_code": 0,
+  "stdout": ">seq1\nACGTACGTAC\n>seq2\nACGTACGTACGTACGTACGT\n>seq3\nACGT\n>seq4\nACGTACGTACGTACGTACGTACGTACGTAC\n",
+  "stderr": "",
+  "started_at_utc": "2026-09-25T07:02:12.768279+00:00",
+  "completed_at_utc": "2026-09-25T07:02:13.485716+00:00",
+  "fixture": {
+    "name": "mini.fasta",
+    "sha256": "36677729fc2e234cba14fc8fc18c42932b1abc405c805998d451660b173ce9cc",
+    "bytes": 92,
+    "source": "D:/AI/BioNodulo/BioNodulo-knowledge-graph/tests/nodes/seqfu_family/fixtures/mini.fasta"
+  },
+  "artifacts": [
+    {
+      "path": "work/mini.fasta",
+      "bytes": 92,
+      "sha256": "36677729fc2e234cba14fc8fc18c42932b1abc405c805998d451660b173ce9cc"
+    }
+  ],
+  "artifact_count": 1,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

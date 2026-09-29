@@ -1,0 +1,394 @@
+{
+  "schema_version": 1,
+  "image": "quay.io/biocontainers/seqfu:1.28.0--h41da26b_0",
+  "image_digest": "sha256:0c910dd19d749bda7325d9f2738af0aec2a74cd920f345ecf2d244f6534f3e1c",
+  "fixture": "mini.fasta",
+  "attempted": 20,
+  "ok": 15,
+  "failed": 5,
+  "results": [
+    {
+      "node_id": "seqfu_lanes",
+      "argv": [
+        "seqfu",
+        "lanes",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Usage: lanes [options] -o <outdir> <input_directory>",
+      "expected_outputs": [
+        "seqfu_lanes.out"
+      ],
+      "produced": [
+        "seqfu_lanes.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_tofasta",
+      "argv": [
+        "seqfu",
+        "tofasta",
+        "--output",
+        "/work/out/seqfu_tofasta",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "ERROR: Cannot open output file: /work/out/seqfu_tofasta",
+      "expected_outputs": [
+        "seqfu_tofasta.out"
+      ],
+      "produced": [
+        "seqfu_tofasta.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqfu_tail",
+      "argv": [
+        "seqfu",
+        "tail",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 96,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_tail.out"
+      ],
+      "produced": [
+        "seqfu_tail.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_derep",
+      "argv": [
+        "seqfu",
+        "derep",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 124,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_derep.out"
+      ],
+      "produced": [
+        "seqfu_derep.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_rotate",
+      "argv": [
+        "seqfu",
+        "rotate",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Usage:\n    fu-rotate [options] -i POS [<fastq-file>...]\n    fu-rotate [options] -m STR [<fastq-file>...]",
+      "expected_outputs": [
+        "seqfu_rotate.out"
+      ],
+      "produced": [
+        "seqfu_rotate.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_subtract",
+      "argv": [
+        "seqfu",
+        "subtract",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Usage: subtract [options] <file1> <file2>",
+      "expected_outputs": [
+        "seqfu_subtract.out"
+      ],
+      "produced": [
+        "seqfu_subtract.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_orf",
+      "argv": [
+        "seqfu",
+        "orf",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_orf.out"
+      ],
+      "produced": [
+        "seqfu_orf.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_trim",
+      "argv": [
+        "seqfu",
+        "trim",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_trim.out"
+      ],
+      "produced": [
+        "seqfu_trim.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_rc",
+      "argv": [
+        "seqfu",
+        "rc",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 92,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_rc.out"
+      ],
+      "produced": [
+        "seqfu_rc.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_sort",
+      "argv": [
+        "seqfu",
+        "sort",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 92,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_sort.out"
+      ],
+      "produced": [
+        "seqfu_sort.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_bases",
+      "argv": [
+        "seqfu",
+        "bases",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 67,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_bases.out"
+      ],
+      "produced": [
+        "seqfu_bases.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_amplicheck",
+      "argv": [
+        "seqfu",
+        "amplicheck",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "ERROR: amplicheck requires at least two FASTQ files.",
+      "expected_outputs": [
+        "seqfu_amplicheck.out"
+      ],
+      "produced": [
+        "seqfu_amplicheck.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqfu_shred",
+      "argv": [
+        "seqfu",
+        "shred",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_shred.out"
+      ],
+      "produced": [
+        "seqfu_shred.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_cat",
+      "argv": [
+        "seqfu",
+        "cat",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 92,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_cat.out"
+      ],
+      "produced": [
+        "seqfu_cat.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_tabcheck",
+      "argv": [
+        "seqfu",
+        "tabcheck",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 79,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_tabcheck.out"
+      ],
+      "produced": [
+        "seqfu_tabcheck.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqfu_tab",
+      "argv": [
+        "seqfu",
+        "tab",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 96,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_tab.out"
+      ],
+      "produced": [
+        "seqfu_tab.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_grep",
+      "argv": [
+        "seqfu",
+        "grep",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 96,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_grep.out"
+      ],
+      "produced": [
+        "seqfu_grep.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_head",
+      "argv": [
+        "seqfu",
+        "head",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 96,
+      "stderr": "WARNING: Printed fewer sequences (4/10) than requested for /work/mini.fasta. Try reducing --skip.",
+      "expected_outputs": [
+        "seqfu_head.out"
+      ],
+      "produced": [
+        "seqfu_head.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqfu_check",
+      "argv": [
+        "seqfu",
+        "check",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 93,
+      "stderr": "",
+      "expected_outputs": [
+        "seqfu_check.out"
+      ],
+      "produced": [
+        "seqfu_check.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqfu_metadata",
+      "argv": [
+        "seqfu",
+        "metadata",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: input item '/work/mini.fasta' is not a directory: specify directory(ies) and not file(s).",
+      "expected_outputs": [
+        "seqfu_metadata.out"
+      ],
+      "produced": [
+        "seqfu_metadata.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    }
+  ],
+  "scope": "Smoke check only: the node's own argv ran in a pinned image and its declared outputs appeared. No scientific correctness was validated."
+}

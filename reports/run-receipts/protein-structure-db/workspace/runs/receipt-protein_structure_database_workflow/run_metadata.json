@@ -1,0 +1,234 @@
+{
+  "run_id": "receipt-protein_structure_database_workflow",
+  "forced": true,
+  "target_nodes": [],
+  "workflow_parameters": {},
+  "nodes": {
+    "pdb_download_001": {
+      "type": "pdb_download",
+      "status": "completed",
+      "cache_key": null
+    },
+    "alphafold_db_001": {
+      "type": "alphafold_db",
+      "status": "completed",
+      "cache_key": null
+    },
+    "render_pdb_meta_0": {
+      "type": "text_preview",
+      "status": "completed",
+      "cache_key": null
+    },
+    "render_alphafold_meta_0": {
+      "type": "text_preview",
+      "status": "completed",
+      "cache_key": null
+    },
+    "uniprot_search_001": {
+      "type": "uniprot_search",
+      "status": "completed",
+      "cache_key": null
+    },
+    "render_uniprot_search_tab_0": {
+      "type": "table_preview",
+      "status": "completed",
+      "cache_key": null
+    },
+    "uniprot_retrieve_001": {
+      "type": "uniprot_retrieve",
+      "status": "completed",
+      "cache_key": null
+    },
+    "render_uniprot_seq_0": {
+      "type": "text_preview",
+      "status": "completed",
+      "cache_key": null
+    }
+  },
+  "semantics": {
+    "ok": true,
+    "violations": [],
+    "suggestions": [],
+    "warnings": [
+      "node 'uniprot_search_001' (type uniprot_search) has no semantic contract; its data state is unknown",
+      "node 'uniprot_retrieve_001' (type uniprot_retrieve) has no semantic contract; its data state is unknown",
+      "node 'alphafold_db_001' (type alphafold_db) has no semantic contract; its data state is unknown",
+      "node 'pdb_download_001' (type pdb_download) has no semantic contract; its data state is unknown",
+      "node 'render_uniprot_search_tab_0' (type table_preview) has no semantic contract; its data state is unknown",
+      "node 'render_uniprot_seq_0' (type text_preview) has no semantic contract; its data state is unknown",
+      "node 'render_alphafold_meta_0' (type text_preview) has no semantic contract; its data state is unknown",
+      "node 'render_pdb_meta_0' (type text_preview) has no semantic contract; its data state is unknown"
+    ],
+    "node_states": {
+      "note_protein_structure_database_workflow": {},
+      "uniprot_search_001": {},
+      "uniprot_retrieve_001": {},
+      "alphafold_db_001": {},
+      "pdb_download_001": {},
+      "render_uniprot_search_tab_0": {},
+      "render_uniprot_seq_0": {},
+      "render_alphafold_meta_0": {},
+      "render_pdb_meta_0": {}
+    },
+    "checks": [],
+    "verification": "unverified",
+    "scope": "static declared contracts only; file contents and binary identity are not inspected here. Successful artifact-validation nodes emit separate runtime evidence",
+    "evidence_basis": {
+      "edge_states": "declared_postconditions",
+      "artifact_contents": "not_inspected",
+      "binary_identity": "not_inspected"
+    }
+  },
+  "execution_options": {
+    "force": true,
+    "stop_on_error": true,
+    "embed_provenance": true
+  },
+  "inline_validations": [
+    {
+      "node_id": "pdb_download_001",
+      "output": "structure_file",
+      "passed": true,
+      "report": "{\"check_count\": 6, \"checks\": {\"detected_format\": \"text\", \"file_exists\": true, \"file_size_bytes\": 772198, \"format_valid\": true, \"line_count\": 11186, \"size_ok\": true}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"auto\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\pdb_download_001\\\\pdb_download\\\\4HHB.cif\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\pdb_download_001\\validation_report.json"
+    },
+    {
+      "node_id": "pdb_download_001",
+      "output": "pdb_metadata",
+      "passed": true,
+      "report": "{\"check_count\": 6, \"checks\": {\"detected_format\": \"json\", \"field_count\": 2, \"file_exists\": true, \"file_size_bytes\": 44473, \"format_valid\": true, \"size_ok\": true}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"json\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\pdb_download_001\\\\pdb_download\\\\pdb_metadata.json\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\pdb_download_001\\validation_report.json"
+    },
+    {
+      "node_id": "pdb_download_001",
+      "output": "download_directory",
+      "passed": true,
+      "report": "{\"check_count\": 6, \"checks\": {\"directory_count\": 0, \"directory_exists\": true, \"file_count\": 2, \"format_valid\": true, \"size_ok\": true, \"total_size_bytes\": 816671}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"directory\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\pdb_download_001\\\\pdb_download\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\pdb_download_001\\validation_report.json"
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "output": "structure_mmcif",
+      "passed": true,
+      "report": "{\"check_count\": 6, \"checks\": {\"detected_format\": \"text\", \"file_exists\": true, \"file_size_bytes\": 363485, \"format_valid\": true, \"line_count\": 4754, \"size_ok\": true}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"auto\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\alphafold_db_001\\\\alphafold_db\\\\P04637.cif\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\validation_report.json"
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "output": "structure_metadata",
+      "passed": true,
+      "report": "{\"check_count\": 6, \"checks\": {\"detected_format\": \"json\", \"field_count\": 3, \"file_exists\": true, \"file_size_bytes\": 24082, \"format_valid\": true, \"size_ok\": true}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"json\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\alphafold_db_001\\\\alphafold_db\\\\structure_metadata.json\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\validation_report.json"
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "output": "pae_json",
+      "passed": true,
+      "report": "{\"check_count\": 6, \"checks\": {\"detected_format\": \"json\", \"file_exists\": true, \"file_size_bytes\": 422267, \"format_valid\": true, \"record_count\": 1, \"size_ok\": true}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"json\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\alphafold_db_001\\\\alphafold_db\\\\P04637_pae.json\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\validation_report.json"
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "output": "artifacts_directory",
+      "passed": true,
+      "report": "{\"check_count\": 6, \"checks\": {\"directory_count\": 0, \"directory_exists\": true, \"file_count\": 3, \"format_valid\": true, \"size_ok\": true, \"total_size_bytes\": 809834}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"directory\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\alphafold_db_001\\\\alphafold_db\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\validation_report.json"
+    },
+    {
+      "node_id": "uniprot_search_001",
+      "output": "results_table",
+      "passed": true,
+      "report": "{\"check_count\": 7, \"checks\": {\"column_count\": 6, \"detected_format\": \"tsv\", \"file_exists\": true, \"file_size_bytes\": 140, \"format_valid\": true, \"row_count\": 1, \"size_ok\": true}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"tsv\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\uniprot_search_001\\\\uniprot_search\\\\tp53_uniprot.tsv\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\uniprot_search_001\\validation_report.json"
+    },
+    {
+      "node_id": "uniprot_retrieve_001",
+      "output": "sequence",
+      "passed": true,
+      "report": "{\"check_count\": 6, \"checks\": {\"detected_format\": \"fasta\", \"file_exists\": true, \"file_size_bytes\": 498, \"format_valid\": true, \"record_count\": 1, \"size_ok\": true}, \"error_count\": 0, \"errors\": [], \"expected_format\": \"fasta\", \"input\": \"reports\\\\run-receipts\\\\protein-structure-db\\\\workspace\\\\runs\\\\receipt-protein_structure_database_workflow\\\\uniprot_retrieve_001\\\\uniprot_retrieve\\\\tp53.fasta\", \"passed\": true, \"warnings\": []}",
+      "report_file": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\uniprot_retrieve_001\\validation_report.json"
+    }
+  ],
+  "status": "completed",
+  "failed_nodes": [],
+  "skipped_nodes": [],
+  "artifacts": [
+    {
+      "node_id": "pdb_download_001",
+      "node_type": "pdb_download",
+      "port": "structure_file",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\pdb_download_001\\pdb_download\\4HHB.cif",
+      "size": 772198
+    },
+    {
+      "node_id": "pdb_download_001",
+      "node_type": "pdb_download",
+      "port": "pdb_metadata",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\pdb_download_001\\pdb_download\\pdb_metadata.json",
+      "size": 44473
+    },
+    {
+      "node_id": "pdb_download_001",
+      "node_type": "pdb_download",
+      "port": "download_directory",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\pdb_download_001\\pdb_download",
+      "size": 0
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "node_type": "alphafold_db",
+      "port": "structure_mmcif",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\alphafold_db\\P04637.cif",
+      "size": 363485
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "node_type": "alphafold_db",
+      "port": "structure_metadata",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\alphafold_db\\structure_metadata.json",
+      "size": 24082
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "node_type": "alphafold_db",
+      "port": "structure_file",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\alphafold_db\\P04637.cif",
+      "size": 363485
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "node_type": "alphafold_db",
+      "port": "pae_json",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\alphafold_db\\P04637_pae.json",
+      "size": 422267
+    },
+    {
+      "node_id": "alphafold_db_001",
+      "node_type": "alphafold_db",
+      "port": "artifacts_directory",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\alphafold_db",
+      "size": 0
+    },
+    {
+      "node_id": "uniprot_search_001",
+      "node_type": "uniprot_search",
+      "port": "results_table",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\uniprot_search_001\\uniprot_search\\tp53_uniprot.tsv",
+      "size": 140
+    },
+    {
+      "node_id": "uniprot_search_001",
+      "node_type": "uniprot_search",
+      "port": "raw_results",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\uniprot_search_001\\uniprot_search\\tp53_uniprot.raw.json",
+      "size": 1570
+    },
+    {
+      "node_id": "uniprot_retrieve_001",
+      "node_type": "uniprot_retrieve",
+      "port": "sequence",
+      "path": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\uniprot_retrieve_001\\uniprot_retrieve\\tp53.fasta",
+      "size": 498
+    }
+  ]
+}

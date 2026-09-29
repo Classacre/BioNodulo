@@ -24,6 +24,15 @@ class EggNOGMapperNode(CommandNode):
     REQUIRED_EXECUTABLES = ["emapper.py"]
     REQUIRED_CONDA_PACKAGES = ["eggnog-mapper"]
     DOCUMENTATION_URL = "https://github.com/eggnogdb/eggnog-mapper"
+    # Crossref-checked 2026-09-28. The v2 paper (10.1093/molbev/msab293) is the more
+    # recent one; the original 2017 paper is cited here because it is the software's
+    # primary reference and matches the mapper version the node drives.
+    CITATION_DOIS = ["10.1093/molbev/msx148"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "Fast genome-wide functional annotation through orthology assignment by "
+        "eggNOG-mapper."
+    )
     COMMAND = [
         "emapper.py",
         "-i",

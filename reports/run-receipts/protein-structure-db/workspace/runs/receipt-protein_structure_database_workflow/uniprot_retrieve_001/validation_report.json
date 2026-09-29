@@ -1,0 +1,17 @@
+{
+  "check_count": 6,
+  "checks": {
+    "detected_format": "fasta",
+    "file_exists": true,
+    "file_size_bytes": 498,
+    "format_valid": true,
+    "record_count": 1,
+    "size_ok": true
+  },
+  "error_count": 0,
+  "errors": [],
+  "expected_format": "fasta",
+  "input": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\uniprot_retrieve_001\\uniprot_retrieve\\tp53.fasta",
+  "passed": true,
+  "warnings": []
+}

@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "image": "quay.io/biocontainers/emboss:6.6.0--h0f19ade_14",
+  "image_digest": "sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+  "fixture": "dna.fasta",
+  "attempted": 8,
+  "ok": 1,
+  "failed": 7,
+  "results": [
+    {
+      "node_id": "emboss_needle",
+      "argv": [
+        "needle",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-datafile",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_needle/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in ajarr.c at line 2432:\nToken missing 1 of 1 expected in line:",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_water",
+      "argv": [
+        "water",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-datafile",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_water/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in ajarr.c at line 2432:\nToken missing 1 of 1 expected in line:",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_matcher",
+      "argv": [
+        "matcher",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-datafile",
+        "/work/out/emboss_matcher/datafile.out",
+        "-outfile",
+        "/work/out/emboss_matcher/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Unable to read matrix '/work/out/emboss_matcher/datafile.out'\nDied: matcher terminated: Bad value for '-datafile' with -auto defined",
+      "expected_outputs": [
+        "datafile.out",
+        "outfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "datafile.out",
+        "outfile.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_stretcher",
+      "argv": [
+        "stretcher",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-datafile",
+        "/work/out/emboss_stretcher/datafile.out",
+        "-outfile",
+        "/work/out/emboss_stretcher/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Unable to read matrix '/work/out/emboss_stretcher/datafile.out'\nDied: stretcher terminated: Bad value for '-datafile' with -auto defined",
+      "expected_outputs": [
+        "datafile.out",
+        "outfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "datafile.out",
+        "outfile.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_needleall",
+      "argv": [
+        "needleall",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-datafile",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_needleall/outfile.out",
+        "-errfile",
+        "/work/out/emboss_needleall/errfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Failed to open filename ''\nError: Unable to read sequence ''\nDied: needleall terminated: Bad value for '-asequence' with -auto defined",
+      "expected_outputs": [
+        "outfile.out",
+        "errfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.out",
+        "errfile.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_tranalign",
+      "argv": [
+        "tranalign",
+        "-asequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_tranalign/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Failed to open filename ''\nError: Unable to read sequence ''\nDied: tranalign terminated: Bad value for '-bsequence' with -auto defined",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outseq.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_dotmatcher",
+      "argv": [
+        "dotmatcher",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-matrixfile",
+        "/work/out/emboss_dotmatcher/matrixfile.out",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_dotmatcher/graph",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Unable to read matrix '/work/out/emboss_dotmatcher/matrixfile.out'\nDied: dotmatcher terminated: Bad value for '-matrixfile' with -auto defined",
+      "expected_outputs": [
+        "matrixfile.out",
+        "graph.1.png"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "matrixfile.out",
+        "graph.1.png"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_est2genome",
+      "argv": [
+        "est2genome",
+        "-estsequence",
+        "/work/dna.fasta",
+        "-genomesequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_est2genome/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    }
+  ],
+  "scope": "Smoke check only: the node's own argv ran in a pinned image and its declared outputs appeared. No scientific correctness was validated."
+}

@@ -46,6 +46,21 @@ BASELINE_NODE_COUNT = 943
 # its execution factory (see _blocked_reason), so `availability` stays a proof.
 # Keep the ledger itself at exactly BASELINE_NODE_COUNT; it is forensic history,
 # not a live inventory.
+def _generated_node_ids() -> set[str]:
+    """Node ids produced by the code generators under ``scripts/``.
+
+    Read from data files rather than literals here so the catalog count follows the
+    generators. A hand-maintained list drifts the moment a generator changes which
+    operations it can express.
+    """
+    directory = Path(__file__).resolve().parent.parent / "bionodulo/nodes/generated"
+    ids: set[str] = set()
+    if directory.is_dir():
+        for path in sorted(directory.glob("*_node_ids.json")):
+            ids |= set(json.loads(path.read_text(encoding="utf-8"))["node_ids"])
+    return ids
+
+
 POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
     {
         "snpeff_build",
@@ -106,8 +121,20 @@ POST_BASELINE_NODE_IDS: frozenset[str] = frozenset(
         # Standards-level bridge for explicit CWL File metadata. The ordinary
         # Input File node remains path-only.
         "cwl_file_input",
+        # Registry-expansion wave: EMBOSS, htslib bgzip/tabix, SeqFu and the
+        # hand-written csvtk nodes. Every one has a real run receipt in
+        # reports/run-receipts/ from a digest-pinned image.
+        "emboss_transeq", "emboss_revseq", "emboss_pepstats",
+        "bgzip_compress", "bgzip_decompress", "tabix_index", "tabix_query",
+        "seqfu_stats", "seqfu_count", "seqfu_list",
+        "csvtk_stats", "csvtk_headers", "csvtk_cut",
+        # One node replacing six format-conversion subcommands, following the
+        # builtin format_converter precedent: conversion is one operation with a
+        # target-format choice, not six operations.
+        "csvtk_convert",
     }
-)
+) | _generated_node_ids()
+
 EXPECTED_NODE_COUNT = BASELINE_NODE_COUNT + len(POST_BASELINE_NODE_IDS)
 SAMTOOLS_MODULES: tuple[str, ...] = (
     "bionodulo.nodes.catalog.tools.samtools.view",

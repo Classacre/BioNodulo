@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-09-25T06:12:41.148143+00:00",
+  "base": {
+    "dir": "reports/biotools_registry/current",
+    "started_at": "2026-09-25T05:38:09.367404+00:00",
+    "completed_at": "2026-09-25T05:43:22.321726+00:00",
+    "reported_count": 34248,
+    "sha256": "4bc2dff4e6f60b6098876977a3ea5228745d6891c316a7fe3fd3d830edadac13",
+    "pages": 343
+  },
+  "target": {
+    "dir": "reports/biotools_registry/resync",
+    "started_at": "2026-09-25T06:06:11.076016+00:00",
+    "completed_at": "2026-09-25T06:11:59.899897+00:00",
+    "reported_count": 34248,
+    "sha256": "4bc2dff4e6f60b6098876977a3ea5228745d6891c316a7fe3fd3d830edadac13",
+    "pages": 343
+  },
+  "counts": {
+    "base_records": 34248,
+    "target_records": 34248,
+    "additions": 0,
+    "removals": 0,
+    "changed": 0,
+    "unchanged": 34248,
+    "net_change": 0
+  },
+  "additions": [],
+  "removals": [],
+  "changed": [],
+  "scope": "Metadata comparison only. A removal here means the accession is absent from the later snapshot, not that the software was retracted. A change means the record JSON differs, not that the tool's behaviour changed."
+}

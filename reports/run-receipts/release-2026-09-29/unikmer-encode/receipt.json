@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "node_id": "unikmer_encode",
+  "node_class": "bionodulo.nodes.builtin.unikmer_family.unikmer_encode.UnikmerEncodeNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/unikmer:0.20.0--h9ee0642_0",
+    "image_digest_expected": "sha256:92654c4223ba021d9d11493de3d1aae84cef2710037a8d052cd33ed4cea29136",
+    "image_digest_observed_after_run": "quay.io/biocontainers/unikmer@sha256:92654c4223ba021d9d11493de3d1aae84cef2710037a8d052cd33ed4cea29136",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "unikmer",
+    "encode",
+    "--out-file",
+    "/work/out/unikmer_encode/unikmer_encode.out",
+    "/work/kmers.txt"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "unikmer",
+    "encode",
+    "--out-file",
+    "\\work\\out\\unikmer_encode\\unikmer_encode.out",
+    "/work/kmers.txt"
+  ],
+  "platform_path_rewrites": [
+    {
+      "rendered_on_host": "\\work\\out\\unikmer_encode\\unikmer_encode.out",
+      "used_in_container": "/work/out/unikmer_encode/unikmer_encode.out"
+    }
+  ],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "unikmer",
+  "inputs": {
+    "input": "/work/kmers.txt",
+    "output": "/work/out/unikmer_encode"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\release-2026-09-29\\unikmer-encode\\work\\out\\unikmer_encode\\unikmer_encode.out"
+  ],
+  "tool_version_stdout": "Error: unknown flag: --version\nUsage:\n  unikmer [command] \n\nAvailable Commands:",
+  "status": "completed",
+  "exit_code": 0,
+  "missing_planned_outputs": [],
+  "output_verification_error": null,
+  "stdout": "",
+  "stderr": "",
+  "started_at_utc": "2026-09-29T13:39:15.597477+00:00",
+  "completed_at_utc": "2026-09-29T13:39:16.405648+00:00",
+  "fixture": {
+    "name": "kmers.txt",
+    "sha256": "6dcdff01a396b49dd3bbd0f8b2eb9f83588bb60ade227807cc5dac8b64fc1551",
+    "bytes": 15,
+    "source": "reports/run-receipts/release-2026-09-29/fixtures/kmers.txt"
+  },
+  "additional_staged_assets": [],
+  "artifacts": [
+    {
+      "path": "work/kmers.txt",
+      "bytes": 15,
+      "sha256": "6dcdff01a396b49dd3bbd0f8b2eb9f83588bb60ade227807cc5dac8b64fc1551"
+    },
+    {
+      "path": "work/out/unikmer_encode/unikmer_encode.out",
+      "bytes": 6,
+      "sha256": "b78a1987bcbdc0903ba6ba29ee3e1f4e7cc1ca868a60889beb141e26e06cb005"
+    }
+  ],
+  "artifact_count": 2,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

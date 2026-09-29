@@ -14,6 +14,19 @@ from bionodulo.nodes.base import BaseNode, path_probe_is_file
 PYTHON_VERSION = "3.12"
 STRATEGIES = ("synonymous_uniform", "synonymous_weighted", "gc_jitter")
 
+# These nodes are BioNodulo's own code: they wrap no third-party tool and therefore
+# have no paper to cite. Following the flow_control and hpc families, the reference for
+# a native node is a permalink to its own source at the pinned baseline commit. Six
+# nodes in this family previously carried no reference of any kind, which is the one
+# case the catalog is supposed to rule out. Nodes that lean on a specific library
+# override DOCUMENTATION_URL with that library's documentation.
+BIO_NODULO_GIT_URL = "https://github.com/Classacre/BioNodulo.git"
+BIO_NODULO_BASELINE_COMMIT = "a32a426c03ce4c925bf7dcdbd2cf08fbdedd55e9"
+ML_DESIGN_DOCUMENTATION_URL = (
+    "https://github.com/Classacre/BioNodulo/tree/"
+    f"{BIO_NODULO_BASELINE_COMMIT}/bionodulo/nodes/builtin/ml_design_family"
+)
+
 CODON_AMINO_ACID: dict[str, str] = {
     "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L",
     "TCT": "S", "TCC": "S", "TCA": "S", "TCG": "S",
@@ -47,6 +60,10 @@ class MLDesignNode(BaseNode):
     REQUIRED_EXECUTABLES: ClassVar[list[str]] = []
     VERSION = "1.0.0"
     ENVIRONMENT = {"python": PYTHON_VERSION}
+    GIT_URL = BIO_NODULO_GIT_URL
+    GIT_COMMIT = BIO_NODULO_BASELINE_COMMIT
+    DOCUMENTATION_URL = ML_DESIGN_DOCUMENTATION_URL
+    SOURCE_URL = ML_DESIGN_DOCUMENTATION_URL
 
 
 def path_value(value: Any) -> str:

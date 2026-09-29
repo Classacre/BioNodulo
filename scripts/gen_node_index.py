@@ -154,6 +154,17 @@ def main() -> int:
     index = build_index()
     index_payload = json.dumps(index, indent=2, sort_keys=True) + "\n"
     metadata = build_metadata()
+    # Registry.object_info() seeds itself from the metadata manifest that is already
+    # on disk and overlays the nodes it loaded, so a node whose module was deleted
+    # survives in the manifest forever. Left alone, that made the manifest unable to
+    # shrink: removing four vcflib modules still produced a 1378-key file for a
+    # 1374-node index, and the catalog build then refused to run. The manifest must
+    # describe exactly the nodes that exist, so drop anything not in the index.
+    stale_keys = sorted(set(metadata) - set(index))
+    if stale_keys:
+        print(f"pruning {len(stale_keys)} removed node(s) from metadata: "
+              f"{stale_keys[:8]}", file=sys.stderr)
+        metadata = {key: value for key, value in metadata.items() if key in index}
     # Compact (no indent) — this file gets large (2MB@1k, 20MB@10k); it's machine-read.
     metadata_payload = json.dumps(metadata, sort_keys=True, separators=(",", ":")) + "\n"
 

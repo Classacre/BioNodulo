@@ -137,6 +137,14 @@ class UCSCGenomeBrowserNode(BaseNode):
     PROVIDER_AUTHORITY_DATE = "2026-07-19"
     PRODUCT_SOURCE_COMMIT = "4382f1f4b19a9202dbd3cca0d25c300b9e1e2af6"
     DOCUMENTATION_URL = "https://genome.ucsc.edu/goldenPath/help/api.html"
+    # This node had no citation of any kind. Crossref-checked 2026-09-28:
+    # 10.1093/nar/gkae974 is "The UCSC Genome Browser database: 2025 update", Nucleic
+    # Acids Research, the most recent update paper Crossref returns. The other UCSC
+    # utility nodes cite 10.1093/bib/bbs038, which is about the associated tools
+    # rather than the browser API this node calls.
+    CITATION_DOIS = ["10.1093/nar/gkae974"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = "The UCSC Genome Browser database: 2025 update."
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

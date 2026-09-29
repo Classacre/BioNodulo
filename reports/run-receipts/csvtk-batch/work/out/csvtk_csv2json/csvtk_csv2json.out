@@ -1,0 +1,32 @@
+[
+  {
+    "sample": "s1",
+    "gene": "alpha",
+    "length": "10",
+    "gc": "40"
+  },
+  {
+    "sample": "s2",
+    "gene": "beta",
+    "length": "20",
+    "gc": "45"
+  },
+  {
+    "sample": "s3",
+    "gene": "gamma",
+    "length": "30",
+    "gc": "50"
+  },
+  {
+    "sample": "s4",
+    "gene": "delta",
+    "length": "40",
+    "gc": "55"
+  },
+  {
+    "sample": "s5",
+    "gene": "epsilon",
+    "length": "50",
+    "gc": "60"
+  }
+]

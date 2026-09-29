@@ -318,6 +318,55 @@ class UniProtSearchNode(BaseNode):
         "HTTP 4xx/5xx and transport failures are fatal after bounded retries; malformed result payloads "
         "produce an empty deterministic summary rather than invented records."
     )
+    CITATION_DOIS = ["10.1093/nar/gkaa1100"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkaa1100"]
+    CITATION_TEXT = "UniProt: the universal protein knowledgebase in 2021."
+    KNOWLEDGE = {
+        "schema_version": 1,
+        "tool_id": "https://bio.tools/uniprot",
+        "topics": [
+            {"uri": "http://edamontology.org/topic_0121", "label": "Proteomics"},
+            {"uri": "http://edamontology.org/topic_0080", "label": "Sequence analysis"},
+        ],
+        "operations": [
+            {"uri": "http://edamontology.org/operation_2421", "label": "Database search"},
+        ],
+        "relations": [
+            {
+                "target_node_id": "uniprot_retrieve",
+                "kind": "documented_successor",
+                "source_port": "results_table",
+                "target_port": "uniprot_ids",
+                "evidence": {
+                    "url": "https://www.uniprot.org/help/api",
+                    "checked_at": "2026-09-25",
+                    "note": (
+                        "UniProt's REST documentation describes searching a dataset and then retrieving "
+                        "entries by accession, and this node emits accessions in its TSV while "
+                        "uniprot_retrieve accepts them. This composition was also executed in BioNodulo on "
+                        "2026-09-25 through the ordinary executor; the retained receipt reports both nodes "
+                        "completed and the retrieved sequence matched the accession the search table "
+                        "independently reported. This documents one observed next step, not a guarantee for "
+                        "every query, dataset, or result size."
+                    ),
+                },
+            }
+        ],
+        "citation_evidence": [
+            {
+                "identifier": "10.1093/nar/gkaa1100",
+                "source_url": "https://api.crossref.org/works/10.1093/nar/gkaa1100",
+                "checked_at": "2026-09-25",
+                "note": (
+                    "Crossref resolves this DOI to 'UniProt: the universal protein knowledgebase in 2021', "
+                    "Nucleic Acids Research, a database-issue article describing the resource this node "
+                    "queries; the bio.tools 'uniprot' record lists the same DOI. This is a resource-level "
+                    "citation and does not identify the pinned REST help snapshot revision."
+                ),
+            }
+        ],
+        "reviewed_at": "2026-09-25",
+    }
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:
@@ -496,6 +545,53 @@ class UniProtRetrieveNode(BaseNode):
         "Each requested accession is fetched independently; any HTTP or transport failure is fatal after "
         "bounded retries, so partial multi-accession outputs are not reported as complete."
     )
+    CITATION_DOIS = ["10.1093/nar/gkaa1100"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkaa1100"]
+    CITATION_TEXT = "UniProt: the universal protein knowledgebase in 2021."
+    KNOWLEDGE = {
+        "schema_version": 1,
+        "tool_id": "https://bio.tools/uniprot",
+        "topics": [
+            {"uri": "http://edamontology.org/topic_0121", "label": "Proteomics"},
+            {"uri": "http://edamontology.org/topic_0080", "label": "Sequence analysis"},
+        ],
+        "operations": [
+            {"uri": "http://edamontology.org/operation_2422", "label": "Data retrieval"},
+        ],
+        "relations": [
+            {
+                "target_node_id": "alphafold_db",
+                "kind": "documented_successor",
+                "source_port": "sequence",
+                "target_port": "uniprot_ids",
+                "evidence": {
+                    "url": "https://alphafold.ebi.ac.uk/api-docs",
+                    "checked_at": "2026-09-25",
+                    "note": (
+                        "The AlphaFold DB API selects predictions by UniProt accession, and this node "
+                        "returns the accessions it retrieved. Executed in BioNodulo on 2026-09-25: the "
+                        "retained receipt reports alphafold_db completed for accession P04637, the same "
+                        "accession the UniProt retrieve node wrote. Documents a usable next step for "
+                        "accessions that have a prediction; it does not imply every UniProt entry is in "
+                        "AlphaFold DB."
+                    ),
+                },
+            }
+        ],
+        "citation_evidence": [
+            {
+                "identifier": "10.1093/nar/gkaa1100",
+                "source_url": "https://api.crossref.org/works/10.1093/nar/gkaa1100",
+                "checked_at": "2026-09-25",
+                "note": (
+                    "Crossref resolves this DOI to 'UniProt: the universal protein knowledgebase in 2021', "
+                    "Nucleic Acids Research; the bio.tools 'uniprot' record lists the same DOI. Resource-level "
+                    "citation only: it does not identify the pinned /help/api_retrieve_entries snapshot."
+                ),
+            }
+        ],
+        "reviewed_at": "2026-09-25",
+    }
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

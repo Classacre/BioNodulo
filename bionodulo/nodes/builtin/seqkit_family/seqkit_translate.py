@@ -8,6 +8,7 @@ from bionodulo.nodes.builtin._annotation_sequence_adapter import _SeqKitTranslat
 
 class SeqKitTranslateNode(_SeqKitTranslateContract):
     NODE_ID = "seqkit_translate"
+    CATEGORY = "seqkit"
     OUTPUT_NAME_BY_BASENAME = {
         "translated.fasta": "translated_fasta",
         "translated.fasta.gz": "translated_fasta",

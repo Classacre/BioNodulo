@@ -27,6 +27,13 @@ class ANNOVARNode(CommandNode):
     REQUIRED_EXECUTABLES = ["table_annovar.pl"]
     REQUIRED_CONDA_PACKAGES: list[str] = []
     DOCUMENTATION_URL = "https://annovar.openbioinformatics.org/"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/nar/gkq603"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "ANNOVAR: functional annotation of genetic variants from high-throughput "
+        "sequencing data."
+    )
     INSTALLATION_REQUIRED = "User-supplied licensed ANNOVAR 2020-06-08 distribution"
     SHELL = False
     EXPERIMENTAL = True

@@ -262,6 +262,15 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "rasusa": "4.1.0",
     "samblaster": "0.1.26",
     "bcftools": "1.24",
+    # Multi-operation suites. Each declares CONDA_PACKAGE_CONSTRAINTS on every
+    # generated node, but a constraint the solver table does not know about has no
+    # effect, so the pin has to appear here too.
+    "csvtk": "==0.31.0",
+    "emboss": "6.6.0",
+    "seqkit": "==2.13.0",
+    "tabix": "==0.2.5",
+    "taxonkit": "==0.20.0",
+    "unikmer": "==0.20.0",
     "gffread": ">=0.12.7",
     "seqtk": "1.4",
     "gatk4": "4.6.2.0",

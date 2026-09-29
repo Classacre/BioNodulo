@@ -1,0 +1,26 @@
+########################################
+# Program: dreg
+# Rundate: Sat 26 Sep 2026 15:17:07
+# Commandline: dreg
+#    -sequence /work/dna.fasta
+#    -pattern /work/dna.fasta
+#    -outfile /work/out/emboss_dreg/outfile.txt
+#    -auto
+# Report_format: seqtable
+# Report_file: /work/out/emboss_dreg/outfile.txt
+########################################
+
+#=======================================
+#
+#
+# Pattern: /work/dna.fasta
+#
+#=======================================
+
+
+#---------------------------------------
+# Total_sequences: 2
+# Total_length: 248
+# Reported_sequences: 0
+# Reported_hitcount: 0
+#---------------------------------------

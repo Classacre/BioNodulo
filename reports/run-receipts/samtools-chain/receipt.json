@@ -1,0 +1,482 @@
+{
+  "schema_version": 1,
+  "kind": "digest_pinned_container_chain",
+  "image": "quay.io/biocontainers/samtools:1.23.1--ha83d96e_0",
+  "image_digest": "sha256:23cda33a3a42125872766df9aaf1d2db67cdb8c85314b793465188435af31ba6",
+  "tool_version": "samtools 1.23.1\nUsing htslib 1.23.1",
+  "network": "none",
+  "fixture": {
+    "name": "mini_unsorted.sam",
+    "sha256": "07f41d144028cabdfdbc0310aa03d47001110830b050a84eb5b988eb8ce72edd"
+  },
+  "generated_at_utc": "2026-09-25T06:37:02.626898+00:00",
+  "steps": [
+    {
+      "node_id": "samtools_sort",
+      "step_label": "01_sort",
+      "inputs": {
+        "alignment": "/work/mini_unsorted.sam",
+        "threads": 1,
+        "memory_per_thread": "32M"
+      },
+      "rendered_command": [
+        "samtools",
+        "sort",
+        "-@",
+        "1",
+        "-m",
+        "32M",
+        "-T",
+        "/work/out/01_sort/tmp",
+        "-o",
+        "/work/out/01_sort/sorted_bam.bam",
+        "/work/mini_unsorted.sam"
+      ],
+      "rendered_command_as_rendered_on_host": [
+        "samtools",
+        "sort",
+        "-@",
+        "1",
+        "-m",
+        "32M",
+        "-T",
+        "\\work\\out\\01_sort\\tmp",
+        "-o",
+        "\\work\\out\\01_sort\\sorted_bam.bam",
+        "/work/mini_unsorted.sam"
+      ],
+      "platform_path_rewrites": [
+        {
+          "rendered_on_host": "\\work\\out\\01_sort\\tmp",
+          "used_in_container": "/work/out/01_sort/tmp"
+        },
+        {
+          "rendered_on_host": "\\work\\out\\01_sort\\sorted_bam.bam",
+          "used_in_container": "/work/out/01_sort/sorted_bam.bam"
+        }
+      ],
+      "planned_output_filenames": [
+        "sorted_bam.bam"
+      ],
+      "stdout_captured_to": null,
+      "created_files_relative": [
+        "out/01_sort/sorted_bam.bam"
+      ],
+      "planned_outputs_missing_after_run": [],
+      "output_honest": true,
+      "status": "completed",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "started_at_utc": "2026-09-25T06:36:54.642201+00:00",
+      "completed_at_utc": "2026-09-25T06:36:55.411929+00:00"
+    },
+    {
+      "node_id": "samtools_index",
+      "step_label": "02_index",
+      "inputs": {
+        "bam": "/work/out/01_sort/sorted_bam.bam",
+        "threads": 1
+      },
+      "rendered_command": [
+        "samtools",
+        "index",
+        "-@",
+        "1",
+        "-b",
+        "-o",
+        "/work/out/02_index/indexed_bam.bam.bai",
+        "/work/out/02_index/indexed_bam.bam"
+      ],
+      "rendered_command_as_rendered_on_host": [
+        "samtools",
+        "index",
+        "-@",
+        "1",
+        "-b",
+        "-o",
+        "\\work\\out\\02_index\\indexed_bam.bam.bai",
+        "/work/out/02_index/indexed_bam.bam"
+      ],
+      "platform_path_rewrites": [
+        {
+          "rendered_on_host": "\\work\\out\\02_index\\indexed_bam.bam.bai",
+          "used_in_container": "/work/out/02_index/indexed_bam.bam.bai"
+        }
+      ],
+      "planned_output_filenames": [
+        "indexed_bam.bam",
+        "indexed_bam.bam.bai"
+      ],
+      "stdout_captured_to": null,
+      "created_files_relative": [
+        "out/02_index/indexed_bam.bam",
+        "out/02_index/indexed_bam.bam.bai"
+      ],
+      "planned_outputs_missing_after_run": [],
+      "output_honest": true,
+      "status": "completed",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "started_at_utc": "2026-09-25T06:36:55.435800+00:00",
+      "completed_at_utc": "2026-09-25T06:36:56.219042+00:00"
+    },
+    {
+      "node_id": "samtools_flagstat",
+      "step_label": "03_flagstat",
+      "inputs": {
+        "bam": "/work/out/01_sort/sorted_bam.bam",
+        "threads": 1
+      },
+      "rendered_command": [
+        "samtools",
+        "flagstat",
+        "-@",
+        "1",
+        "/work/out/01_sort/sorted_bam.bam"
+      ],
+      "rendered_command_as_rendered_on_host": [
+        "samtools",
+        "flagstat",
+        "-@",
+        "1",
+        "/work/out/01_sort/sorted_bam.bam"
+      ],
+      "platform_path_rewrites": [],
+      "planned_output_filenames": [
+        "stats.stats.txt"
+      ],
+      "stdout_captured_to": "out/03_flagstat/stats.stats.txt",
+      "created_files_relative": [
+        "out/03_flagstat/stats.stats.txt"
+      ],
+      "planned_outputs_missing_after_run": [],
+      "output_honest": true,
+      "status": "completed",
+      "exit_code": 0,
+      "stdout": "3 + 0 in total (QC-passed reads + QC-failed reads)\n3 + 0 primary\n0 + 0 secondary\n0 + 0 supplementary\n0 + 0 duplicates\n0 + 0 primary duplicates\n3 + 0 mapped (100.00% : N/A)\n3 + 0 primary mapped (100.00% : N/A)\n0 + 0 paired in sequencing\n0 + 0 read1\n0 + 0 read2\n0 + 0 properly paired (N/A : N/A)\n0 + 0 with itself and mate mapped\n0 + 0 singletons (N/A : N/A)\n0 + 0 with mate mapped to a different chr\n0 + 0 with mate mapped to a different chr (mapQ>=5)\n",
+      "stderr": "",
+      "started_at_utc": "2026-09-25T06:36:56.246052+00:00",
+      "completed_at_utc": "2026-09-25T06:36:56.804480+00:00"
+    },
+    {
+      "node_id": "samtools_view",
+      "step_label": "04_view",
+      "inputs": {
+        "alignment": "/work/out/01_sort/sorted_bam.bam",
+        "threads": 1
+      },
+      "rendered_command": [
+        "samtools",
+        "view",
+        "-b",
+        "-@",
+        "1",
+        "-o",
+        "/work/out/04_view/bam.bam",
+        "/work/out/01_sort/sorted_bam.bam"
+      ],
+      "rendered_command_as_rendered_on_host": [
+        "samtools",
+        "view",
+        "-b",
+        "-@",
+        "1",
+        "-o",
+        "\\work\\out\\04_view\\bam.bam",
+        "/work/out/01_sort/sorted_bam.bam"
+      ],
+      "platform_path_rewrites": [
+        {
+          "rendered_on_host": "\\work\\out\\04_view\\bam.bam",
+          "used_in_container": "/work/out/04_view/bam.bam"
+        }
+      ],
+      "planned_output_filenames": [
+        "bam.bam"
+      ],
+      "stdout_captured_to": null,
+      "created_files_relative": [
+        "out/04_view/bam.bam"
+      ],
+      "planned_outputs_missing_after_run": [],
+      "output_honest": true,
+      "status": "completed",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "started_at_utc": "2026-09-25T06:36:56.958165+00:00",
+      "completed_at_utc": "2026-09-25T06:36:57.757881+00:00"
+    },
+    {
+      "node_id": "samtools_collate",
+      "step_label": "05_collate",
+      "inputs": {
+        "bam": "/work/mini_unsorted.sam",
+        "threads": 1
+      },
+      "rendered_command": [
+        "samtools",
+        "collate",
+        "-@",
+        "1",
+        "-T",
+        "/work/out/05_collate/tmp",
+        "-o",
+        "/work/out/05_collate/name_collated_bam.bam",
+        "/work/mini_unsorted.sam"
+      ],
+      "rendered_command_as_rendered_on_host": [
+        "samtools",
+        "collate",
+        "-@",
+        "1",
+        "-T",
+        "\\work\\out\\05_collate\\tmp",
+        "-o",
+        "\\work\\out\\05_collate\\name_collated_bam.bam",
+        "/work/mini_unsorted.sam"
+      ],
+      "platform_path_rewrites": [
+        {
+          "rendered_on_host": "\\work\\out\\05_collate\\tmp",
+          "used_in_container": "/work/out/05_collate/tmp"
+        },
+        {
+          "rendered_on_host": "\\work\\out\\05_collate\\name_collated_bam.bam",
+          "used_in_container": "/work/out/05_collate/name_collated_bam.bam"
+        }
+      ],
+      "planned_output_filenames": [
+        "name_collated_bam.bam"
+      ],
+      "stdout_captured_to": null,
+      "created_files_relative": [
+        "out/05_collate/name_collated_bam.bam"
+      ],
+      "planned_outputs_missing_after_run": [],
+      "output_honest": true,
+      "status": "completed",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "started_at_utc": "2026-09-25T06:36:57.788242+00:00",
+      "completed_at_utc": "2026-09-25T06:36:59.820921+00:00"
+    },
+    {
+      "node_id": "samtools_fixmate",
+      "step_label": "06_fixmate",
+      "inputs": {
+        "bam": "/work/out/05_collate/name_collated_bam.bam",
+        "threads": 1
+      },
+      "rendered_command": [
+        "samtools",
+        "fixmate",
+        "-@",
+        "1",
+        "/work/out/05_collate/name_collated_bam.bam",
+        "/work/out/06_fixmate/fixmate_bam.bam"
+      ],
+      "rendered_command_as_rendered_on_host": [
+        "samtools",
+        "fixmate",
+        "-@",
+        "1",
+        "/work/out/05_collate/name_collated_bam.bam",
+        "\\work\\out\\06_fixmate\\fixmate_bam.bam"
+      ],
+      "platform_path_rewrites": [
+        {
+          "rendered_on_host": "\\work\\out\\06_fixmate\\fixmate_bam.bam",
+          "used_in_container": "/work/out/06_fixmate/fixmate_bam.bam"
+        }
+      ],
+      "planned_output_filenames": [
+        "fixmate_bam.bam"
+      ],
+      "stdout_captured_to": null,
+      "created_files_relative": [
+        "out/06_fixmate/fixmate_bam.bam"
+      ],
+      "planned_outputs_missing_after_run": [],
+      "output_honest": true,
+      "status": "completed",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "started_at_utc": "2026-09-25T06:36:59.847598+00:00",
+      "completed_at_utc": "2026-09-25T06:37:00.506918+00:00"
+    },
+    {
+      "node_id": "samtools_sort",
+      "step_label": "07_sort_after_fixmate",
+      "inputs": {
+        "alignment": "/work/out/06_fixmate/fixmate_bam.bam",
+        "threads": 1,
+        "memory_per_thread": "32M"
+      },
+      "rendered_command": [
+        "samtools",
+        "sort",
+        "-@",
+        "1",
+        "-m",
+        "32M",
+        "-T",
+        "/work/out/07_sort_after_fixmate/tmp",
+        "-o",
+        "/work/out/07_sort_after_fixmate/sorted_bam.bam",
+        "/work/out/06_fixmate/fixmate_bam.bam"
+      ],
+      "rendered_command_as_rendered_on_host": [
+        "samtools",
+        "sort",
+        "-@",
+        "1",
+        "-m",
+        "32M",
+        "-T",
+        "\\work\\out\\07_sort_after_fixmate\\tmp",
+        "-o",
+        "\\work\\out\\07_sort_after_fixmate\\sorted_bam.bam",
+        "/work/out/06_fixmate/fixmate_bam.bam"
+      ],
+      "platform_path_rewrites": [
+        {
+          "rendered_on_host": "\\work\\out\\07_sort_after_fixmate\\tmp",
+          "used_in_container": "/work/out/07_sort_after_fixmate/tmp"
+        },
+        {
+          "rendered_on_host": "\\work\\out\\07_sort_after_fixmate\\sorted_bam.bam",
+          "used_in_container": "/work/out/07_sort_after_fixmate/sorted_bam.bam"
+        }
+      ],
+      "planned_output_filenames": [
+        "sorted_bam.bam"
+      ],
+      "stdout_captured_to": null,
+      "created_files_relative": [
+        "out/07_sort_after_fixmate/sorted_bam.bam"
+      ],
+      "planned_outputs_missing_after_run": [],
+      "output_honest": true,
+      "status": "completed",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "started_at_utc": "2026-09-25T06:37:00.534819+00:00",
+      "completed_at_utc": "2026-09-25T06:37:01.312262+00:00"
+    },
+    {
+      "node_id": "samtools_markdup",
+      "step_label": "08_markdup",
+      "inputs": {
+        "bam": "/work/out/07_sort_after_fixmate/sorted_bam.bam",
+        "threads": 1
+      },
+      "rendered_command": [
+        "samtools",
+        "markdup",
+        "-@",
+        "1",
+        "-f",
+        "/work/out/08_markdup/duplicate_stats.stats.txt",
+        "/work/out/07_sort_after_fixmate/sorted_bam.bam",
+        "/work/out/08_markdup/marked_bam.bam"
+      ],
+      "rendered_command_as_rendered_on_host": [
+        "samtools",
+        "markdup",
+        "-@",
+        "1",
+        "-f",
+        "\\work\\out\\08_markdup\\duplicate_stats.stats.txt",
+        "/work/out/07_sort_after_fixmate/sorted_bam.bam",
+        "\\work\\out\\08_markdup\\marked_bam.bam"
+      ],
+      "platform_path_rewrites": [
+        {
+          "rendered_on_host": "\\work\\out\\08_markdup\\duplicate_stats.stats.txt",
+          "used_in_container": "/work/out/08_markdup/duplicate_stats.stats.txt"
+        },
+        {
+          "rendered_on_host": "\\work\\out\\08_markdup\\marked_bam.bam",
+          "used_in_container": "/work/out/08_markdup/marked_bam.bam"
+        }
+      ],
+      "planned_output_filenames": [
+        "marked_bam.bam",
+        "duplicate_stats.stats.txt"
+      ],
+      "stdout_captured_to": null,
+      "created_files_relative": [
+        "out/08_markdup/duplicate_stats.stats.txt",
+        "out/08_markdup/marked_bam.bam"
+      ],
+      "planned_outputs_missing_after_run": [],
+      "output_honest": true,
+      "status": "completed",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "samtools markdup: warning, unable to calculate estimated library size. Read pairs 0 should be greater than duplicate pairs 0, which should both be non zero.\n\n",
+      "started_at_utc": "2026-09-25T06:37:01.344219+00:00",
+      "completed_at_utc": "2026-09-25T06:37:02.025281+00:00"
+    }
+  ],
+  "summary": {
+    "steps": 8,
+    "completed": 8,
+    "failed": 0,
+    "output_honest": 8,
+    "output_dishonest": []
+  },
+  "artifacts": [
+    {
+      "path": "mini_unsorted.sam",
+      "sha256": "07f41d144028cabdfdbc0310aa03d47001110830b050a84eb5b988eb8ce72edd"
+    },
+    {
+      "path": "out/01_sort/sorted_bam.bam",
+      "sha256": "2fded4a0c9148d9567a9d889df03c6a682e4717dbaa4cb9e5cda26067871c4a1"
+    },
+    {
+      "path": "out/02_index/indexed_bam.bam",
+      "sha256": "2fded4a0c9148d9567a9d889df03c6a682e4717dbaa4cb9e5cda26067871c4a1"
+    },
+    {
+      "path": "out/02_index/indexed_bam.bam.bai",
+      "sha256": "f0d0311bd531a86212bc9232440f7c8cc1c3bb3910739e70fd95a50282be60c4"
+    },
+    {
+      "path": "out/03_flagstat/stats.stats.txt",
+      "sha256": "1b2a113f024e7d4e3ce95110ac962fdda31aa244cd1ecf244f204e4c4d2de74d"
+    },
+    {
+      "path": "out/04_view/bam.bam",
+      "sha256": "bdca7ed6eac7930951b08679d2b40f7b73f6a491a6c49976296fca459b6f74b8"
+    },
+    {
+      "path": "out/05_collate/name_collated_bam.bam",
+      "sha256": "9e99f2bd5f50f7c2e1a701979b8064daf356acb57a120ac58a347459bed7d34b"
+    },
+    {
+      "path": "out/06_fixmate/fixmate_bam.bam",
+      "sha256": "b154c9a684c498f4713abe60732f258848c1c939b8b685bec037b1028706a2b1"
+    },
+    {
+      "path": "out/07_sort_after_fixmate/sorted_bam.bam",
+      "sha256": "641afd8b7b8690082586f3b7dd898e37dccbb28220372a43cfae1cc0f2932d51"
+    },
+    {
+      "path": "out/08_markdup/duplicate_stats.stats.txt",
+      "sha256": "ebcb3c2ed05e52a724eb974684a57bf6b4eb190b798fa093f69c50de69c1643d"
+    },
+    {
+      "path": "out/08_markdup/marked_bam.bam",
+      "sha256": "e6de861f080ca6202fd8b8576ad8af2233b3741171ed8e7836c11f7511dc589d"
+    }
+  ],
+  "scope": "Each node's own render_command argv executed in one immutable image with a shared workspace. Proves the declared commands run and whether planned outputs materialise. Does not prove scientific correctness of any analysis."
+}

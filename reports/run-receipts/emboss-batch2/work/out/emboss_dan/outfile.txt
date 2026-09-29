@@ -1,0 +1,243 @@
+########################################
+# Program: dan
+# Rundate: Sat 26 Sep 2026 15:00:25
+# Commandline: dan
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_dan/outfile.txt
+#    -graph png
+#    -goutfile /work/out/emboss_dan/graph
+#    -auto
+# Report_format: seqtable
+# Report_file: /work/out/emboss_dan/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 105
+#=======================================
+
+  Start     End  Strand     Tm     GC DeltaG DeltaH DeltaS TmProd Sequence
+      1      20       +   56.9   50.0      .      .      .      . ATGGCTAGCTAGCTAGGCAT
+      2      21       +   57.8   55.0      .      .      .      . TGGCTAGCTAGCTAGGCATC
+      3      22       +   59.1   60.0      .      .      .      . GGCTAGCTAGCTAGGCATCG
+      4      23       +   57.9   55.0      .      .      .      . GCTAGCTAGCTAGGCATCGA
+      5      24       +   55.2   50.0      .      .      .      . CTAGCTAGCTAGGCATCGAT
+      6      25       +   55.2   50.0      .      .      .      . TAGCTAGCTAGGCATCGATC
+      7      26       +   58.3   55.0      .      .      .      . AGCTAGCTAGGCATCGATCG
+      8      27       +   58.3   55.0      .      .      .      . GCTAGCTAGGCATCGATCGA
+      9      28       +   55.6   50.0      .      .      .      . CTAGCTAGGCATCGATCGAT
+     10      29       +   55.6   50.0      .      .      .      . TAGCTAGGCATCGATCGATC
+     11      30       +   58.6   55.0      .      .      .      . AGCTAGGCATCGATCGATCG
+     12      31       +   59.8   60.0      .      .      .      . GCTAGGCATCGATCGATCGG
+     13      32       +   59.2   60.0      .      .      .      . CTAGGCATCGATCGATCGGG
+     14      33       +   61.0   60.0      .      .      .      . TAGGCATCGATCGATCGGGC
+     15      34       +   62.4   60.0      .      .      .      . AGGCATCGATCGATCGGGCT
+     16      35       +   61.0   60.0      .      .      .      . GGCATCGATCGATCGGGCTA
+     17      36       +   59.8   60.0      .      .      .      . GCATCGATCGATCGGGCTAG
+     18      37       +   59.8   60.0      .      .      .      . CATCGATCGATCGGGCTAGC
+     19      38       +   59.5   55.0      .      .      .      . ATCGATCGATCGGGCTAGCT
+     20      39       +   58.9   55.0      .      .      .      . TCGATCGATCGGGCTAGCTA
+     21      40       +   58.9   60.0      .      .      .      . CGATCGATCGGGCTAGCTAG
+     22      41       +   59.2   60.0      .      .      .      . GATCGATCGGGCTAGCTAGC
+     23      42       +   59.5   55.0      .      .      .      . ATCGATCGGGCTAGCTAGCA
+     24      43       +   59.5   55.0      .      .      .      . TCGATCGGGCTAGCTAGCAT
+     25      44       +   59.5   60.0      .      .      .      . CGATCGGGCTAGCTAGCATC
+     26      45       +   59.5   60.0      .      .      .      . GATCGGGCTAGCTAGCATCG
+     27      46       +   59.5   55.0      .      .      .      . ATCGGGCTAGCTAGCATCGA
+     28      47       +   59.5   55.0      .      .      .      . TCGGGCTAGCTAGCATCGAT
+     29      48       +   59.5   60.0      .      .      .      . CGGGCTAGCTAGCATCGATC
+     30      49       +   59.5   60.0      .      .      .      . GGGCTAGCTAGCATCGATCG
+     31      50       +   58.6   55.0      .      .      .      . GGCTAGCTAGCATCGATCGT
+     32      51       +   55.9   50.0      .      .      .      . GCTAGCTAGCATCGATCGTA
+     33      52       +   54.1   50.0      .      .      .      . CTAGCTAGCATCGATCGTAG
+     34      53       +   55.9   50.0      .      .      .      . TAGCTAGCATCGATCGTAGC
+     35      54       +   57.4   50.0      .      .      .      . AGCTAGCATCGATCGTAGCT
+     36      55       +   55.9   50.0      .      .      .      . GCTAGCATCGATCGTAGCTA
+     37      56       +   54.1   50.0      .      .      .      . CTAGCATCGATCGTAGCTAG
+     38      57       +   55.9   50.0      .      .      .      . TAGCATCGATCGTAGCTAGC
+     39      58       +   57.4   50.0      .      .      .      . AGCATCGATCGTAGCTAGCT
+     40      59       +   55.9   50.0      .      .      .      . GCATCGATCGTAGCTAGCTA
+     41      60       +   54.1   50.0      .      .      .      . CATCGATCGTAGCTAGCTAG
+     42      61       +   55.7   50.0      .      .      .      . ATCGATCGTAGCTAGCTAGC
+     43      62       +   56.8   50.0      .      .      .      . TCGATCGTAGCTAGCTAGCA
+     44      63       +   55.9   50.0      .      .      .      . CGATCGTAGCTAGCTAGCAT
+     45      64       +   54.4   50.0      .      .      .      . GATCGTAGCTAGCTAGCATC
+     46      65       +   55.9   50.0      .      .      .      . ATCGTAGCTAGCTAGCATCG
+     47      66       +   56.8   50.0      .      .      .      . TCGTAGCTAGCTAGCATCGA
+     48      67       +   55.9   50.0      .      .      .      . CGTAGCTAGCTAGCATCGAT
+     49      68       +   54.4   50.0      .      .      .      . GTAGCTAGCTAGCATCGATC
+     50      69       +   55.7   50.0      .      .      .      . TAGCTAGCTAGCATCGATCG
+     51      70       +   57.4   50.0      .      .      .      . AGCTAGCTAGCATCGATCGT
+     52      71       +   55.9   50.0      .      .      .      . GCTAGCTAGCATCGATCGTA
+     53      72       +   54.1   50.0      .      .      .      . CTAGCTAGCATCGATCGTAG
+     54      73       +   55.9   50.0      .      .      .      . TAGCTAGCATCGATCGTAGC
+     55      74       +   57.4   50.0      .      .      .      . AGCTAGCATCGATCGTAGCT
+     56      75       +   55.9   50.0      .      .      .      . GCTAGCATCGATCGTAGCTA
+     57      76       +   54.1   50.0      .      .      .      . CTAGCATCGATCGTAGCTAG
+     58      77       +   55.9   50.0      .      .      .      . TAGCATCGATCGTAGCTAGC
+     59      78       +   57.4   50.0      .      .      .      . AGCATCGATCGTAGCTAGCT
+     60      79       +   55.9   50.0      .      .      .      . GCATCGATCGTAGCTAGCTA
+     61      80       +   54.1   50.0      .      .      .      . CATCGATCGTAGCTAGCTAG
+     62      81       +   55.7   50.0      .      .      .      . ATCGATCGTAGCTAGCTAGC
+     63      82       +   57.7   55.0      .      .      .      . TCGATCGTAGCTAGCTAGCC
+     64      83       +   58.8   60.0      .      .      .      . CGATCGTAGCTAGCTAGCCC
+     65      84       +   58.5   60.0      .      .      .      . GATCGTAGCTAGCTAGCCCC
+     66      85       +   60.0   60.0      .      .      .      . ATCGTAGCTAGCTAGCCCCG
+     67      86       +   62.0   65.0      .      .      .      . TCGTAGCTAGCTAGCCCCGG
+     68      87       +   63.2   70.0      .      .      .      . CGTAGCTAGCTAGCCCCGGG
+     69      88       +   61.7   65.0      .      .      .      . GTAGCTAGCTAGCCCCGGGA
+     70      89       +   60.8   60.0      .      .      .      . TAGCTAGCTAGCCCCGGGAA
+     71      90       +   61.6   60.0      .      .      .      . AGCTAGCTAGCCCCGGGAAA
+     72      91       +   60.8   60.0      .      .      .      . GCTAGCTAGCCCCGGGAAAT
+     73      92       +   58.3   55.0      .      .      .      . CTAGCTAGCCCCGGGAAATT
+     74      93       +   57.7   50.0      .      .      .      . TAGCTAGCCCCGGGAAATTT
+     75      94       +   57.7   50.0      .      .      .      . AGCTAGCCCCGGGAAATTTA
+     76      95       +   57.7   55.0      .      .      .      . GCTAGCCCCGGGAAATTTAG
+     77      96       +   57.7   55.0      .      .      .      . CTAGCCCCGGGAAATTTAGC
+     78      97       +   57.7   50.0      .      .      .      . TAGCCCCGGGAAATTTAGCT
+     79      98       +   57.7   50.0      .      .      .      . AGCCCCGGGAAATTTAGCTA
+     80      99       +   57.7   55.0      .      .      .      . GCCCCGGGAAATTTAGCTAG
+     81     100       +   57.7   55.0      .      .      .      . CCCCGGGAAATTTAGCTAGC
+     82     101       +   56.7   50.0      .      .      .      . CCCGGGAAATTTAGCTAGCA
+     83     102       +   54.7   45.0      .      .      .      . CCGGGAAATTTAGCTAGCAT
+     84     103       +   53.5   45.0      .      .      .      . CGGGAAATTTAGCTAGCATC
+     85     104       +   53.5   45.0      .      .      .      . GGGAAATTTAGCTAGCATCG
+     86     105       +   52.4   40.0      .      .      .      . GGAAATTTAGCTAGCATCGA
+     87     106       +   50.4   35.0      .      .      .      . GAAATTTAGCTAGCATCGAT
+     88     107       +   50.4   35.0      .      .      .      . AAATTTAGCTAGCATCGATC
+     89     108       +   52.6   40.0      .      .      .      . AATTTAGCTAGCATCGATCG
+     90     109       +   53.2   40.0      .      .      .      . ATTTAGCTAGCATCGATCGA
+     91     110       +   53.2   40.0      .      .      .      . TTTAGCTAGCATCGATCGAT
+     92     111       +   53.9   45.0      .      .      .      . TTAGCTAGCATCGATCGATC
+     93     112       +   56.0   50.0      .      .      .      . TAGCTAGCATCGATCGATCG
+     94     113       +   57.8   50.0      .      .      .      . AGCTAGCATCGATCGATCGT
+     95     114       +   56.3   50.0      .      .      .      . GCTAGCATCGATCGATCGTA
+     96     115       +   54.5   50.0      .      .      .      . CTAGCATCGATCGATCGTAG
+     97     116       +   56.3   50.0      .      .      .      . TAGCATCGATCGATCGTAGC
+     98     117       +   57.8   50.0      .      .      .      . AGCATCGATCGATCGTAGCT
+     99     118       +   56.3   50.0      .      .      .      . GCATCGATCGATCGTAGCTA
+    100     119       +   54.5   50.0      .      .      .      . CATCGATCGATCGTAGCTAG
+    101     120       +   56.0   50.0      .      .      .      . ATCGATCGATCGTAGCTAGC
+    102     121       +   56.9   50.0      .      .      .      . TCGATCGATCGTAGCTAGCT
+    103     122       +   55.4   50.0      .      .      .      . CGATCGATCGTAGCTAGCTA
+    104     123       +   53.8   50.0      .      .      .      . GATCGATCGTAGCTAGCTAG
+    105     124       +   55.7   50.0      .      .      .      . ATCGATCGTAGCTAGCTAGC
+
+#---------------------------------------
+#---------------------------------------
+#=======================================
+#
+# Sequence: dna2     from: 1   to: 124
+# HitCount: 105
+#=======================================
+
+  Start     End  Strand     Tm     GC DeltaG DeltaH DeltaS TmProd Sequence
+      1      20       +   53.1   40.0      .      .      .      . TTTAAACCCGGGTTTAAACC
+      2      21       +   54.9   45.0      .      .      .      . TTAAACCCGGGTTTAAACCC
+      3      22       +   57.2   50.0      .      .      .      . TAAACCCGGGTTTAAACCCG
+      4      23       +   59.9   55.0      .      .      .      . AAACCCGGGTTTAAACCCGG
+      5      24       +   61.7   60.0      .      .      .      . AACCCGGGTTTAAACCCGGG
+      6      25       +   62.3   60.0      .      .      .      . ACCCGGGTTTAAACCCGGGA
+      7      26       +   61.2   60.0      .      .      .      . CCCGGGTTTAAACCCGGGAT
+      8      27       +   60.0   60.0      .      .      .      . CCGGGTTTAAACCCGGGATC
+      9      28       +   60.4   60.0      .      .      .      . CGGGTTTAAACCCGGGATCG
+     10      29       +   58.8   55.0      .      .      .      . GGGTTTAAACCCGGGATCGA
+     11      30       +   56.8   50.0      .      .      .      . GGTTTAAACCCGGGATCGAT
+     12      31       +   55.6   50.0      .      .      .      . GTTTAAACCCGGGATCGATC
+     13      32       +   56.9   50.0      .      .      .      . TTTAAACCCGGGATCGATCG
+     14      33       +   57.5   50.0      .      .      .      . TTAAACCCGGGATCGATCGA
+     15      34       +   57.3   50.0      .      .      .      . TAAACCCGGGATCGATCGAT
+     16      35       +   58.8   55.0      .      .      .      . AAACCCGGGATCGATCGATC
+     17      36       +   60.9   60.0      .      .      .      . AACCCGGGATCGATCGATCG
+     18      37       +   61.5   60.0      .      .      .      . ACCCGGGATCGATCGATCGA
+     19      38       +   60.4   60.0      .      .      .      . CCCGGGATCGATCGATCGAT
+     20      39       +   59.2   60.0      .      .      .      . CCGGGATCGATCGATCGATC
+     21      40       +   59.6   60.0      .      .      .      . CGGGATCGATCGATCGATCG
+     22      41       +   58.1   55.0      .      .      .      . GGGATCGATCGATCGATCGA
+     23      42       +   56.1   50.0      .      .      .      . GGATCGATCGATCGATCGAT
+     24      43       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     25      44       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     26      45       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     27      46       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     28      47       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     29      48       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     30      49       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     31      50       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     32      51       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     33      52       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     34      53       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     35      54       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     36      55       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     37      56       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     38      57       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     39      58       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     40      59       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     41      60       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     42      61       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     43      62       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     44      63       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     45      64       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     46      65       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     47      66       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     48      67       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     49      68       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     50      69       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     51      70       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     52      71       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     53      72       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     54      73       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     55      74       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     56      75       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     57      76       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     58      77       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     59      78       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     60      79       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     61      80       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     62      81       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     63      82       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     64      83       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     65      84       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     66      85       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     67      86       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     68      87       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     69      88       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     70      89       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     71      90       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     72      91       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     73      92       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     74      93       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     75      94       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     76      95       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     77      96       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     78      97       +   57.3   50.0      .      .      .      . TCGATCGATCGATCGATCGA
+     79      98       +   56.5   50.0      .      .      .      . CGATCGATCGATCGATCGAT
+     80      99       +   55.0   50.0      .      .      .      . GATCGATCGATCGATCGATC
+     81     100       +   56.5   50.0      .      .      .      . ATCGATCGATCGATCGATCG
+     82     101       +   57.6   50.0      .      .      .      . TCGATCGATCGATCGATCGT
+     83     102       +   56.2   50.0      .      .      .      . CGATCGATCGATCGATCGTA
+     84     103       +   54.6   50.0      .      .      .      . GATCGATCGATCGATCGTAG
+     85     104       +   56.4   50.0      .      .      .      . ATCGATCGATCGATCGTAGC
+     86     105       +   57.2   50.0      .      .      .      . TCGATCGATCGATCGTAGCT
+     87     106       +   55.8   50.0      .      .      .      . CGATCGATCGATCGTAGCTA
+     88     107       +   54.2   50.0      .      .      .      . GATCGATCGATCGTAGCTAG
+     89     108       +   56.0   50.0      .      .      .      . ATCGATCGATCGTAGCTAGC
+     90     109       +   56.9   50.0      .      .      .      . TCGATCGATCGTAGCTAGCT
+     91     110       +   55.4   50.0      .      .      .      . CGATCGATCGTAGCTAGCTA
+     92     111       +   53.8   50.0      .      .      .      . GATCGATCGTAGCTAGCTAG
+     93     112       +   55.7   50.0      .      .      .      . ATCGATCGTAGCTAGCTAGC
+     94     113       +   56.5   50.0      .      .      .      . TCGATCGTAGCTAGCTAGCT
+     95     114       +   55.0   50.0      .      .      .      . CGATCGTAGCTAGCTAGCTA
+     96     115       +   53.4   50.0      .      .      .      . GATCGTAGCTAGCTAGCTAG
+     97     116       +   55.3   50.0      .      .      .      . ATCGTAGCTAGCTAGCTAGC
+     98     117       +   56.1   50.0      .      .      .      . TCGTAGCTAGCTAGCTAGCT
+     99     118       +   54.6   50.0      .      .      .      . CGTAGCTAGCTAGCTAGCTA
+    100     119       +   53.0   50.0      .      .      .      . GTAGCTAGCTAGCTAGCTAG
+    101     120       +   54.6   50.0      .      .      .      . TAGCTAGCTAGCTAGCTAGC
+    102     121       +   56.1   50.0      .      .      .      . AGCTAGCTAGCTAGCTAGCT
+    103     122       +   54.6   50.0      .      .      .      . GCTAGCTAGCTAGCTAGCTA
+    104     123       +   52.7   50.0      .      .      .      . CTAGCTAGCTAGCTAGCTAG
+    105     124       +   54.6   50.0      .      .      .      . TAGCTAGCTAGCTAGCTAGC
+
+#---------------------------------------
+#---------------------------------------

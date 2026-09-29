@@ -22,6 +22,13 @@ class VGConstructNode(PangenomicsCommandContract):
     REQUIRED_EXECUTABLES = ["vg"]
     REQUIRED_CONDA_PACKAGES = ["vg"]
     DOCUMENTATION_URL = "https://github.com/vgteam/vg"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1038/nbt.4227"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "Variation graph toolkit improves read mapping by representing genetic "
+        "variation in the reference."
+    )
     VERSION = "1.62.0"
     SHELL = True
     SIDECAR_POLICY = (

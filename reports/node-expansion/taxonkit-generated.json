@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "binary": "taxonkit",
+  "subcommands_seen": 11,
+  "statuses": {
+    "generated": 8,
+    "skipped_already_handwritten": 2,
+    "skipped_non_data_command": 1
+  },
+  "generated_node_ids": [
+    "taxonkit_cami_filter",
+    "taxonkit_create_taxdump",
+    "taxonkit_filter",
+    "taxonkit_lca",
+    "taxonkit_lineage",
+    "taxonkit_list",
+    "taxonkit_reformat",
+    "taxonkit_reformat2"
+  ],
+  "scope": "Contracts generated from the tool's own --help output. No tool was executed and no scientific result was validated.",
+  "records": [
+    {
+      "node_id": "taxonkit_cami_filter",
+      "subcommand": "cami-filter",
+      "description": "Remove taxa of given TaxIds and their descendants in CAMI metagenomic profile",
+      "flags_total": 16,
+      "flags_exposed": [
+        "field-percentage",
+        "field-rank",
+        "field-taxid",
+        "field-taxpath",
+        "field-taxpathsn",
+        "leaf-ranks",
+        "show-rank",
+        "taxid-sep",
+        "taxids",
+        "taxids-file",
+        "data-dir"
+      ],
+      "flags_skipped_global": [
+        "help",
+        "line-buffered",
+        "out-file",
+        "threads",
+        "verbose"
+      ],
+      "output_kind": "file",
+      "output_flag": "--out-file",
+      "source_sha256": "97b2fb07e71d0e817194064a4e7fd58a5d78fea38176b0862ec08502deda656f",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "taxonkit_create_taxdump",
+      "subcommand": "create-taxdump",
+      "description": "Create NCBI-style taxdump files for custom taxonomy, e.g., GTDB and ICTV",
+      "flags_total": 17,
+      "flags_exposed": [
+        "field-accession",
+        "field-accession-as-subspecies",
+        "field-accession-re",
+        "force",
+        "gtdb",
+        "gtdb-re-subs",
+        "line-chunk-size",
+        "null",
+        "old-taxdump-dir",
+        "out-dir",
+        "rank-names",
+        "data-dir"
+      ],
+      "flags_skipped_global": [
+        "help",
+        "line-buffered",
+        "out-file",
+        "threads",
+        "verbose"
+      ],
+      "output_kind": "file",
+      "output_flag": "--out-file",
+      "source_sha256": "2ac733d9b09a8fa068afc6a3790f419cfe3090d79ef6f963bf30b6e7c4cc3ccb",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "taxonkit_filter",
+      "subcommand": "filter",
+      "description": "Filter TaxIds by taxonomic rank range",
+      "flags_total": 18,
+      "flags_exposed": [
+        "black-list",
+        "discard-noranks",
+        "discard-root",
+        "equal-to",
+        "higher-than",
+        "list-order",
+        "list-ranks",
+        "lower-than",
+        "rank-file",
+        "root-taxid",
+        "save-predictable-norank",
+        "taxid-field",
+        "data-dir"
+      ],
+      "flags_skipped_global": [
+        "help",
+        "line-buffered",
+        "out-file",
+        "threads",
+        "verbose"
+      ],
+      "output_kind": "file",
+      "output_flag": "--out-file",
+      "source_sha256": "057d6a19590024e7ab994e5cf0d95aab214efbc2d48b722f3dd04d917e0aa3cd",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "taxonkit_lca",
+      "subcommand": "lca",
+      "description": "Compute lowest common ancestor (LCA) for TaxIds",
+      "flags_total": 13,
+      "flags_exposed": [
+        "buffer-size",
+        "keep-invalid",
+        "separater",
+        "separator",
+        "skip-deleted",
+        "skip-unfound",
+        "taxids-field",
+        "data-dir"
+      ],
+      "flags_skipped_global": [
+        "help",
+        "line-buffered",
+        "out-file",
+        "threads",
+        "verbose"
+      ],
+      "output_kind": "file",
+      "output_flag": "--out-file",
+      "source_sha256": "c46ae66d492a136ddc7a8fa50d18fc2bf8d19525b27ab49ab602481a6bb03bd2",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "taxonkit_lineage",
+      "subcommand": "lineage",
+      "description": "Query taxonomic lineage of given TaxIds",
+      "flags_total": 14,
+      "flags_exposed": [
+        "no-lineage",
+        "show-lineage-ranks",
+        "show-lineage-taxids",
+        "show-name",
+        "show-rank",
+        "show-status-code",
+        "taxid-field",
+        "data-dir"
+      ],
+      "flags_skipped_global": [
+        "delimiter",
+        "help",
+        "line-buffered",
+        "out-file",
+        "threads",
+        "verbose"
+      ],
+      "output_kind": "file",
+      "output_flag": "--out-file",
+      "source_sha256": "f7fce4b810fe994f6845dd06f746f435be22becb43172990e7321231f1971438",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "taxonkit_list",
+      "subcommand": "list",
+      "description": "List taxonomic subtrees of given TaxIds",
+      "flags_total": 11,
+      "flags_exposed": [
+        "ids",
+        "indent",
+        "json",
+        "show-name",
+        "show-rank",
+        "data-dir"
+      ],
+      "flags_skipped_global": [
+        "help",
+        "line-buffered",
+        "out-file",
+        "threads",
+        "verbose"
+      ],
+      "output_kind": "file",
+      "output_flag": "--out-file",
+      "source_sha256": "f9911ed47716cc42fc98fd996e24410df657392a15891e6ae7725ef8886c7e5e",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "subcommand": "name2taxid",
+      "node_id": "taxonkit_name2taxid",
+      "status": "skipped_already_handwritten"
+    },
+    {
+      "subcommand": "profile2cami",
+      "node_id": "taxonkit_profile2cami",
+      "status": "skipped_already_handwritten"
+    },
+    {
+      "node_id": "taxonkit_reformat",
+      "subcommand": "reformat",
+      "description": "Reformat lineage in canonical ranks",
+      "flags_total": 35,
+      "flags_exposed": [
+        "add-prefix",
+        "fill-miss-rank",
+        "format",
+        "lineage-field",
+        "miss-rank-repl",
+        "miss-rank-repl-prefix",
+        "miss-rank-repl-suffix",
+        "miss-taxid-repl",
+        "output-ambiguous-result",
+        "prefix-C",
+        "prefix-K",
+        "prefix-S",
+        "prefix-T",
+        "prefix-a",
+        "prefix-c",
+        "prefix-d",
+        "prefix-f",
+        "prefix-g",
+        "prefix-k",
+        "prefix-o",
+        "prefix-p",
+        "prefix-r",
+        "prefix-s",
+        "prefix-t",
+        "pseudo-strain",
+        "show-lineage-taxids",
+        "taxid-field",
+        "trim",
+        "data-dir"
+      ],
+      "flags_skipped_global": [
+        "delimiter",
+        "help",
+        "line-buffered",
+        "out-file",
+        "threads",
+        "verbose"
+      ],
+      "output_kind": "file",
+      "output_flag": "--out-file",
+      "source_sha256": "bd990d7acb17e43baf2f4cc71a01f112ef0b000802ae37c11559202dfaf0e14e",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "taxonkit_reformat2",
+      "subcommand": "reformat2",
+      "description": "Reformat lineage in chosen ranks, allowing more ranks than 'reformat'",
+      "flags_total": 13,
+      "flags_exposed": [
+        "format",
+        "miss-rank-repl",
+        "miss-taxid-repl",
+        "no-ranks",
+        "show-lineage-taxids",
+        "taxid-field",
+        "trim",
+        "data-dir"
+      ],
+      "flags_skipped_global": [
+        "help",
+        "line-buffered",
+        "out-file",
+        "threads",
+        "verbose"
+      ],
+      "output_kind": "file",
+      "output_flag": "--out-file",
+      "source_sha256": "0c2355f9c7b053f01cd73c443984b05c25ea70d5c0439897bc12ae72f087484e",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "subcommand": "version",
+      "node_id": "taxonkit_version",
+      "status": "skipped_non_data_command"
+    }
+  ]
+}

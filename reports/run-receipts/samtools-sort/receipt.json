@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "node_id": "samtools_sort",
+  "node_class": "bionodulo.nodes.builtin.samtools_family.sort.SamtoolsSortNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/samtools:1.23.1--ha83d96e_0",
+    "image_digest_expected": "sha256:23cda33a3a42125872766df9aaf1d2db67cdb8c85314b793465188435af31ba6",
+    "image_digest_observed_after_run": "quay.io/biocontainers/samtools@sha256:23cda33a3a42125872766df9aaf1d2db67cdb8c85314b793465188435af31ba6",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "samtools",
+    "sort",
+    "-@",
+    "1",
+    "-m",
+    "32M",
+    "-T",
+    "/work/out/tmp",
+    "-o",
+    "/work/out/sorted_bam.bam",
+    "/work/mini_unsorted.sam"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "samtools",
+    "sort",
+    "-@",
+    "1",
+    "-m",
+    "32M",
+    "-T",
+    "\\work\\out\\tmp",
+    "-o",
+    "\\work\\out\\sorted_bam.bam",
+    "/work/mini_unsorted.sam"
+  ],
+  "platform_path_rewrites": [
+    {
+      "rendered_on_host": "\\work\\out\\tmp",
+      "used_in_container": "/work/out/tmp"
+    },
+    {
+      "rendered_on_host": "\\work\\out\\sorted_bam.bam",
+      "used_in_container": "/work/out/sorted_bam.bam"
+    }
+  ],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "samtools",
+  "inputs": {
+    "threads": 1,
+    "memory_per_thread": "32M",
+    "alignment": "/work/mini_unsorted.sam",
+    "output": "/work/out"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\samtools-sort\\work\\samtools_sort\\sorted_bam.bam"
+  ],
+  "tool_version_stdout": "samtools 1.23.1\nUsing htslib 1.23.1\nCopyright (C) 2025 Genome Research Ltd.\n\nSamtools compilation details:",
+  "status": "completed",
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "",
+  "started_at_utc": "2026-09-25T06:25:39.893451+00:00",
+  "completed_at_utc": "2026-09-25T06:25:40.786530+00:00",
+  "fixture": {
+    "name": "mini_unsorted.sam",
+    "sha256": "07f41d144028cabdfdbc0310aa03d47001110830b050a84eb5b988eb8ce72edd",
+    "bytes": 219,
+    "source": "tests/nodes/samtools/fixtures/mini_unsorted.sam"
+  },
+  "artifacts": [
+    {
+      "path": "work/mini_unsorted.sam",
+      "bytes": 219,
+      "sha256": "07f41d144028cabdfdbc0310aa03d47001110830b050a84eb5b988eb8ce72edd"
+    },
+    {
+      "path": "work/out/sorted_bam.bam",
+      "bytes": 302,
+      "sha256": "2990568dfbc7ce4f81726157721857552ddf4ef65c7f61e975911d3fa72fd8ea"
+    }
+  ],
+  "artifact_count": 2,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

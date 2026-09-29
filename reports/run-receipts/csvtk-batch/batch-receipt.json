@@ -1,0 +1,554 @@
+{
+  "schema_version": 1,
+  "image": "quay.io/biocontainers/csvtk:0.31.0--h9ee0642_0",
+  "image_digest": "sha256:e73ae7d1626058e06af6023e70945664ee08f55edf2f41fb9aa151b9a6a3f954",
+  "fixture": "mini_table.tsv",
+  "attempted": 24,
+  "ok": 18,
+  "failed": 6,
+  "results": [
+    {
+      "node_id": "csvtk_fix",
+      "argv": [
+        "csvtk",
+        "fix",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_fix/csvtk_fix.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "[INFO]\u001b[0m the maximum number of columns in all 6 rows: 4",
+      "expected_outputs": [
+        "csvtk_fix.out"
+      ],
+      "produced": [
+        "csvtk_fix.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_freq",
+      "argv": [
+        "csvtk",
+        "freq",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_freq/csvtk_freq.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_freq.out"
+      ],
+      "produced": [
+        "csvtk_freq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_csv2md",
+      "argv": [
+        "csvtk",
+        "csv2md",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_csv2md/csvtk_csv2md.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_csv2md.out"
+      ],
+      "produced": [
+        "csvtk_csv2md.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_uniq",
+      "argv": [
+        "csvtk",
+        "uniq",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_uniq/csvtk_uniq.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_uniq.out"
+      ],
+      "produced": [
+        "csvtk_uniq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_mutate",
+      "argv": [
+        "csvtk",
+        "mutate",
+        "--tabs",
+        "--name",
+        "1",
+        "--out-file",
+        "/work/out/csvtk_mutate/csvtk_mutate.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_mutate.out"
+      ],
+      "produced": [
+        "csvtk_mutate.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_plot",
+      "argv": [
+        "csvtk",
+        "plot",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_plot/csvtk_plot.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 3776,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_plot.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "csvtk_plot.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "csvtk_csv2xlsx",
+      "argv": [
+        "csvtk",
+        "csv2xlsx",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_csv2xlsx/csvtk_csv2xlsx.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m unsupported workbook file format",
+      "expected_outputs": [
+        "csvtk_csv2xlsx.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "csvtk_csv2xlsx.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "csvtk_csv2json",
+      "argv": [
+        "csvtk",
+        "csv2json",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_csv2json/csvtk_csv2json.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_csv2json.out"
+      ],
+      "produced": [
+        "csvtk_csv2json.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_corr",
+      "argv": [
+        "csvtk",
+        "corr",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_corr/csvtk_corr.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "sample\tgene\tNaN\nsample\tlength\tNaN\nsample\tgc\tNaN\ngene\tlength\tNaN\ngene\tgc\tNaN\nlength\tgc\t1.0000",
+      "expected_outputs": [
+        "csvtk_corr.out"
+      ],
+      "produced": [
+        "csvtk_corr.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_cat",
+      "argv": [
+        "csvtk",
+        "cat",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_cat/csvtk_cat.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Streaming file: /work/mini_table.tsv\n98 / 98 [----------------------------------------------------------------------------] 100.00% ? p/s",
+      "expected_outputs": [
+        "csvtk_cat.out"
+      ],
+      "produced": [
+        "csvtk_cat.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_unfold",
+      "argv": [
+        "csvtk",
+        "unfold",
+        "--tabs",
+        "--fields",
+        "1",
+        "--out-file",
+        "/work/out/csvtk_unfold/csvtk_unfold.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_unfold.out"
+      ],
+      "produced": [
+        "csvtk_unfold.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_round",
+      "argv": [
+        "csvtk",
+        "round",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_round/csvtk_round.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_round.out"
+      ],
+      "produced": [
+        "csvtk_round.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_fold",
+      "argv": [
+        "csvtk",
+        "fold",
+        "--tabs",
+        "--vfield",
+        "1",
+        "--out-file",
+        "/work/out/csvtk_fold/csvtk_fold.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m values of -v (--vfield) and -f (--fields) should be different",
+      "expected_outputs": [
+        "csvtk_fold.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "csvtk_fold.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "csvtk_concat",
+      "argv": [
+        "csvtk",
+        "concat",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_concat/csvtk_concat.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_concat.out"
+      ],
+      "produced": [
+        "csvtk_concat.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_filter2",
+      "argv": [
+        "csvtk",
+        "filter2",
+        "--tabs",
+        "--filter",
+        "1",
+        "--out-file",
+        "/work/out/csvtk_filter2/csvtk_filter2.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m invalid filter: 1",
+      "expected_outputs": [
+        "csvtk_filter2.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "csvtk_filter2.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "csvtk_rename2",
+      "argv": [
+        "csvtk",
+        "rename2",
+        "--tabs",
+        "--fields",
+        "1",
+        "--pattern",
+        "1",
+        "--out-file",
+        "/work/out/csvtk_rename2/csvtk_rename2.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_rename2.out"
+      ],
+      "produced": [
+        "csvtk_rename2.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_inter",
+      "argv": [
+        "csvtk",
+        "inter",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_inter/csvtk_inter.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_inter.out"
+      ],
+      "produced": [
+        "csvtk_inter.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_fmtdate",
+      "argv": [
+        "csvtk",
+        "fmtdate",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_fmtdate/csvtk_fmtdate.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_fmtdate.out"
+      ],
+      "produced": [
+        "csvtk_fmtdate.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_del_quotes",
+      "argv": [
+        "csvtk",
+        "del-quotes",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_del_quotes/csvtk_del_quotes.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_del_quotes.out"
+      ],
+      "produced": [
+        "csvtk_del_quotes.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_mutate2",
+      "argv": [
+        "csvtk",
+        "mutate2",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_mutate2/csvtk_mutate2.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m falg -n (--name) needed",
+      "expected_outputs": [
+        "csvtk_mutate2.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "csvtk_mutate2.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "csvtk_sample",
+      "argv": [
+        "csvtk",
+        "sample",
+        "--tabs",
+        "--proportion",
+        "1",
+        "--out-file",
+        "/work/out/csvtk_sample/csvtk_sample.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_sample.out"
+      ],
+      "produced": [
+        "csvtk_sample.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_csv2tab",
+      "argv": [
+        "csvtk",
+        "csv2tab",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_csv2tab/csvtk_csv2tab.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_csv2tab.out"
+      ],
+      "produced": [
+        "csvtk_csv2tab.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "csvtk_version",
+      "argv": [
+        "csvtk",
+        "version",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_version/csvtk_version.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 14,
+      "stderr": "",
+      "expected_outputs": [
+        "csvtk_version.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "csvtk_version.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "csvtk_add_header",
+      "argv": [
+        "csvtk",
+        "add-header",
+        "--tabs",
+        "--out-file",
+        "/work/out/csvtk_add_header/csvtk_add_header.out",
+        "/work/mini_table.tsv"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "\u001b[33m[WARN]\u001b[0m colnames not given, c1, c2, c3... will be used",
+      "expected_outputs": [
+        "csvtk_add_header.out"
+      ],
+      "produced": [
+        "csvtk_add_header.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    }
+  ],
+  "scope": "Smoke check only: the node's own argv ran in a pinned image and its declared outputs appeared. No scientific correctness was validated."
+}

@@ -233,6 +233,16 @@ class STRINGDBNode(BaseNode):
     SOURCE_REVISION = STRING_API_DOCUMENTATION_REVISION
     SOURCE_SHA256 = STRING_API_DOCUMENTATION_SHA256
     DOCUMENTATION_URL = STRING_API_DOCUMENTATION_URL
+    # This node had no citation of any kind. Crossref-checked 2026-09-28:
+    # 10.1093/nar/gkaa1074 is "The STRING database in 2021: customizable protein-protein
+    # networks, and functional characterization of user-uploaded gene/measurement sets",
+    # Nucleic Acids Research. The node queries the version-12 STRING API.
+    CITATION_DOIS = ["10.1093/nar/gkaa1074"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "The STRING database in 2021: customizable protein-protein networks, and "
+        "functional characterization of user-uploaded gene/measurement sets."
+    )
     VERSION_SOURCE_URL = STRING_VERSION_ENDPOINT
     UPSTREAM_SOURCE = (
         "version-specific API help: common conventions plus network, interaction_partners, enrichment, "

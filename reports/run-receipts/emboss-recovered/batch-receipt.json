@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "image": "quay.io/biocontainers/emboss:6.6.0--h0f19ade_14",
+  "image_digest": "sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+  "fixture": "dna.fasta",
+  "attempted": 9,
+  "ok": 5,
+  "failed": 4,
+  "results": [
+    {
+      "node_id": "emboss_needle",
+      "argv": [
+        "needle",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_water",
+      "argv": [
+        "water",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Warning: Sequence 'gde::/work/dna.fasta:#######################################' has zero length, ignored\nWarning: Sequence '=======================================' has bad character(s) '1150'\nWarning: Sequence '=======================================' has bad character(s) '||||||||||||||||||||||||||||||||||||||||||||||||||'\nWarning: Sequence '=======================================' has bad char",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_seqmatchall",
+      "argv": [
+        "seqmatchall",
+        "-outfile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Failed to open filename ''\nError: Unable to read sequence ''\nDied: seqmatchall terminated: Bad value for '-sequence' with -auto defined",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_prophet",
+      "argv": [
+        "prophet",
+        "-sequence",
+        "/work/dna.fasta",
+        "-infile",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 139,
+      "stdout_chars": 0,
+      "stderr": "Warning: Sequence 'gde::/work/dna.fasta:#######################################' has zero length, ignored\nWarning: Sequence '=======================================' has bad character(s) '1150'\nWarning: Sequence '=======================================' has bad character(s) '||||||||||||||||||||||||||||||||||||||||||||||||||'\nWarning: Sequence '=======================================' has bad char",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_rebaseextract",
+      "argv": [
+        "rebaseextract",
+        "-infile",
+        "/work/dna.fasta",
+        "-protofile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in rebaseextract.c at line 179:\nInvalid withrefm file",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_aaindexextract",
+      "argv": [
+        "aaindexextract",
+        "-infile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_printsextract",
+      "argv": [
+        "printsextract",
+        "-infile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_tfextract",
+      "argv": [
+        "tfextract",
+        "-infile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_inforesidue",
+      "argv": [
+        "inforesidue",
+        "-aadata",
+        "/work/dna.fasta",
+        "-mwdata",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    }
+  ],
+  "scope": "Smoke check only: the node's own argv ran in a pinned image and its declared outputs appeared. No scientific correctness was validated."
+}

@@ -1,0 +1,48 @@
+########################################
+# Program: diffseq
+# Rundate: Sat 26 Sep 2026 15:19:57
+# Commandline: diffseq
+#    -asequence /work/dna.fasta
+#    -bsequence /work/dna.fasta
+#    -outfile /work/out/emboss_diffseq/outfile.txt
+#    -aoutfeat /work/out/emboss_diffseq/aoutfeat.out
+#    -boutfeat /work/out/emboss_diffseq/boutfeat.out
+#    -auto
+# Report_format: diffseq
+# Report_file: /work/out/emboss_diffseq/outfile.txt
+# Additional_files: 2
+# 1: /work/out/emboss_diffseq/aoutfeat.out (Feature file for first sequence)
+# 2: /work/out/emboss_diffseq/boutfeat.out (Feature file for second sequence)
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 0
+#
+# Compare: dna1     from: 1   to: 124
+# 
+# dna1 overlap starts at 1
+# dna1 overlap starts at 1
+# 
+#
+#=======================================
+
+
+#---------------------------------------
+#
+# Overlap_end: 124 in dna1
+# Overlap_end: 124 in dna1
+# 
+# SNP_count: 0
+# Transitions: 0
+# Transversions: 0
+#
+#---------------------------------------
+
+#---------------------------------------
+# Total_sequences: 2
+# Total_length: 248
+# Reported_sequences: 1
+# Reported_hitcount: 0
+#---------------------------------------

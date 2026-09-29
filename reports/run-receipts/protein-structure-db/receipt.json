@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "template": "protein_structure_database_workflow.json",
+  "template_sha256": "23f9000f056dc6b8ad11830db3abd85225d47f7c190db44538db6b5d72308821",
+  "executor": "bionodulo.execution.executor.WorkflowExecutor",
+  "started_at_utc": "2026-09-25T05:48:47.732023+00:00",
+  "completed_at_utc": "2026-09-25T05:48:54.528465+00:00",
+  "status": "completed",
+  "error": "",
+  "environment": {
+    "required": false,
+    "packages": [],
+    "status": "not_required"
+  },
+  "node_order": [
+    "uniprot_search_001",
+    "uniprot_retrieve_001",
+    "alphafold_db_001",
+    "pdb_download_001",
+    "render_pdb_meta_0",
+    "render_alphafold_meta_0",
+    "render_uniprot_search_tab_0",
+    "render_uniprot_seq_0"
+  ],
+  "node_status": {
+    "uniprot_search_001": "completed",
+    "uniprot_retrieve_001": "completed",
+    "alphafold_db_001": "completed",
+    "pdb_download_001": "completed",
+    "render_pdb_meta_0": "completed",
+    "render_alphafold_meta_0": "completed",
+    "render_uniprot_search_tab_0": "completed",
+    "render_uniprot_seq_0": "completed"
+  },
+  "node_errors": {},
+  "node_types": {
+    "note_protein_structure_database_workflow": "note",
+    "uniprot_search_001": "uniprot_search",
+    "uniprot_retrieve_001": "uniprot_retrieve",
+    "alphafold_db_001": "alphafold_db",
+    "pdb_download_001": "pdb_download",
+    "render_uniprot_search_tab_0": "table_preview",
+    "render_uniprot_seq_0": "text_preview",
+    "render_alphafold_meta_0": "text_preview",
+    "render_pdb_meta_0": "text_preview"
+  },
+  "artifacts": [
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/_head_preview/head_preview.html",
+      "bytes": 2723,
+      "sha256": "b153d50f2fedce45d6d6e56ba970fd39cd398bf5ec7336678f5f398ebde23733"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637.cif",
+      "bytes": 363485,
+      "sha256": "4332bff49301d04434b6e3b43c439aa5bd8238760e88c7142f7d0c0851a68e5d"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637.cif.bionodulo.json",
+      "bytes": 7588,
+      "sha256": "864d23d632ca84e83f15f998214009b300f2904b2fe1e5b1dade6230312f9704"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637_pae.json",
+      "bytes": 422267,
+      "sha256": "9cfbaa7522ce1aecf0caa3b66bb414815911521b05749493a40a557e58678c5d"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637_pae.json.bionodulo.json",
+      "bytes": 7588,
+      "sha256": "864d23d632ca84e83f15f998214009b300f2904b2fe1e5b1dade6230312f9704"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/structure_metadata.json",
+      "bytes": 24082,
+      "sha256": "29452142f2efb9f661307c42192617e3ba8fe158784dc99c96b42a6f15ce9355"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/structure_metadata.json.bionodulo.json",
+      "bytes": 7588,
+      "sha256": "864d23d632ca84e83f15f998214009b300f2904b2fe1e5b1dade6230312f9704"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/validation_report.json",
+      "bytes": 470,
+      "sha256": "cf72d42fa33efd01ba7e146708c98a6a98c11e76ef80e1cb10e3e1a795911f43"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/4HHB.cif",
+      "bytes": 772198,
+      "sha256": "2d3ca1bf21ddff35af2e2bc5d331720f7bfc46a16c4829ea3ec1b41062d5f5a6"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/4HHB.cif.bionodulo.json",
+      "bytes": 7588,
+      "sha256": "864d23d632ca84e83f15f998214009b300f2904b2fe1e5b1dade6230312f9704"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/_head_preview/head_preview.html",
+      "bytes": 3458,
+      "sha256": "b0c71c5d7c4ef6d57152cab277aff9590009faa79894d941c79561dfcfa9fb6b"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/pdb_metadata.json",
+      "bytes": 44473,
+      "sha256": "070a97c25243b4805efdedcf00d50307ed0c130741a2744a22dc3aa4abbd0589"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/pdb_metadata.json.bionodulo.json",
+      "bytes": 7588,
+      "sha256": "864d23d632ca84e83f15f998214009b300f2904b2fe1e5b1dade6230312f9704"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/validation_report.json",
+      "bytes": 470,
+      "sha256": "ac32d4b2a22b2ebd1d3f8e23968149cacf74915632aba2b034c9aeb6b11d84c5"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/render_alphafold_meta_0/text_preview/text.html",
+      "bytes": 12844,
+      "sha256": "2a624141e92614bc7ca865d7b73083a908a968f7329707f6206744d3222b5750"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/render_pdb_meta_0/text_preview/text.html",
+      "bytes": 10248,
+      "sha256": "a468e44827b18a42d95c606fa78892c962d3f1cbd0179e277274a62a68abaf64"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/render_uniprot_search_tab_0/table_preview/table.html",
+      "bytes": 765,
+      "sha256": "4f09ca2c5703cc1551b214dd37be520c4d6e3bd86af36ee3a127827cd8637a06"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/render_uniprot_seq_0/text_preview/text.html",
+      "bytes": 982,
+      "sha256": "7b7579bc92dc5aca232b280a0a323bc274aea1f84e8ec7821aededb8c8ffc32a"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/ro-crate/ro-crate-metadata.json",
+      "bytes": 16989,
+      "sha256": "1446f5fe5627a7c5b1a925f12dd6f3aa62036e062951a14c70362896200f348c"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/ro-crate/workflow/bionodulo-workflow.json",
+      "bytes": 6933,
+      "sha256": "57ac07942facf906008f3bd1854556be072f8c70e46b1e5d389a310a0be6014b"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/run_metadata.json",
+      "bytes": 13577,
+      "sha256": "2ec758ad04698e91dc7cda3c9488943115e804e590c710a730b0305da484c011"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_retrieve_001/uniprot_retrieve/_head_preview/head_preview.html",
+      "bytes": 1180,
+      "sha256": "b124355d32fac18d56f421513807cd86c2937c631dc0743c0e218d63842a0ff0"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_retrieve_001/uniprot_retrieve/tp53.fasta",
+      "bytes": 498,
+      "sha256": "e021f032248335d1ae2731851741685839a7414ab4086ff422670ae99e4e06df"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_retrieve_001/uniprot_retrieve/tp53.fasta.bionodulo.json",
+      "bytes": 7588,
+      "sha256": "864d23d632ca84e83f15f998214009b300f2904b2fe1e5b1dade6230312f9704"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_retrieve_001/validation_report.json",
+      "bytes": 485,
+      "sha256": "15bd455c697874f9e0e16b9cd08269913a3df8bb4d43b657bc013e0d222ce519"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/_head_preview/head_preview.html",
+      "bytes": 2587,
+      "sha256": "c8934819a0ee829328c3cfb17509c6699c4be4e46c5e16ba592cbbda66446257"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.raw.json",
+      "bytes": 1570,
+      "sha256": "4b87ab5e1d01c290448d7026b64e20e177fa9617d6941bb289c6dcacd5a85d26"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.raw.json.bionodulo.json",
+      "bytes": 7588,
+      "sha256": "864d23d632ca84e83f15f998214009b300f2904b2fe1e5b1dade6230312f9704"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.tsv",
+      "bytes": 140,
+      "sha256": "9bff6f17096a714110b7335329d496fd4556687e4e10b36224a1c73ecd4bcdf2"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.tsv.bionodulo.json",
+      "bytes": 7588,
+      "sha256": "864d23d632ca84e83f15f998214009b300f2904b2fe1e5b1dade6230312f9704"
+    },
+    {
+      "path": "workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/validation_report.json",
+      "bytes": 504,
+      "sha256": "a1ec78e85c49016871965ede1562c3e5399ed1c11073c98fc7bdb751d370f11b"
+    }
+  ],
+  "artifact_count": 31,
+  "scope": "Real queued execution through the ordinary executor on this host. Proves the command ran and the planned outputs exist. Does not prove scientific correctness; that requires an independent oracle recorded separately.",
+  "host_platform": "win32"
+}

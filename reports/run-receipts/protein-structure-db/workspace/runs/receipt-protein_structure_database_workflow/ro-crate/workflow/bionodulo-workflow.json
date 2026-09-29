@@ -1,0 +1,274 @@
+{
+  "app": "bionodulo",
+  "category": "Protein Structure",
+  "description": "Database workflow template that searches UniProt for reviewed human TP53 entries, retrieves the TP53 FASTA sequence, fetches the AlphaFold DB predicted mmCIF structure and PAE metadata, downloads an RCSB PDB mmCIF structure, validates each file output, and previews the tabular and text artifacts.",
+  "edges": [
+    {
+      "from": {
+        "node": "uniprot_search_001",
+        "output": "results_table"
+      },
+      "id": "e1",
+      "to": {
+        "input": "file",
+        "node": "render_uniprot_search_tab_0"
+      }
+    },
+    {
+      "from": {
+        "node": "uniprot_retrieve_001",
+        "output": "sequence"
+      },
+      "id": "e2",
+      "to": {
+        "input": "file",
+        "node": "render_uniprot_seq_0"
+      }
+    },
+    {
+      "from": {
+        "node": "alphafold_db_001",
+        "output": "structure_metadata"
+      },
+      "id": "e3",
+      "to": {
+        "input": "file",
+        "node": "render_alphafold_meta_0"
+      }
+    },
+    {
+      "from": {
+        "node": "pdb_download_001",
+        "output": "pdb_metadata"
+      },
+      "id": "e4",
+      "to": {
+        "input": "file",
+        "node": "render_pdb_meta_0"
+      }
+    }
+  ],
+  "groups": [],
+  "name": "Protein Structure Database Workflow",
+  "nodes": [
+    {
+      "id": "note_protein_structure_database_workflow",
+      "params": {
+        "text": "Protein structure database workflow: search UniProtKB for reviewed human TP53 entries, retrieve the P04637 FASTA sequence, fetch the AlphaFold DB predicted mmCIF model and PAE metadata, download an RCSB PDB mmCIF structure, validate each file artifact, and preview the resulting TSV, FASTA, and JSON text.\n\nThe UniProt summary uses the delimited-table preview. FASTA and JSON artifacts use bounded text previews because they are not tabular inputs."
+      },
+      "position": [
+        -240,
+        80
+      ],
+      "type": "note",
+      "ui": {
+        "color": "#f59e0b",
+        "title": "Notes"
+      }
+    },
+    {
+      "id": "uniprot_search_001",
+      "params": {
+        "fields": "accession,id,gene_names,organism_name,protein_name,length",
+        "max_results": 10,
+        "output_name": "tp53_uniprot",
+        "query": "gene:TP53 AND organism_id:9606",
+        "reviewed_only": true
+      },
+      "position": [
+        80,
+        80
+      ],
+      "type": "uniprot_search",
+      "ui": {
+        "title": "UniProt Search",
+        "validation": {
+          "outputs": {
+            "results_table": {
+              "expected_format": "tsv",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "uniprot_retrieve_001",
+      "params": {
+        "include_fasta": true,
+        "output_name": "tp53",
+        "uniprot_ids": "P04637"
+      },
+      "position": [
+        80,
+        261
+      ],
+      "type": "uniprot_retrieve",
+      "ui": {
+        "title": "UniProt Retrieve",
+        "validation": {
+          "outputs": {
+            "sequence": {
+              "expected_format": "fasta",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "alphafold_db_001",
+      "params": {
+        "download_pae": true,
+        "include_complexes": false,
+        "structure_format": "mmcif",
+        "uniprot_ids": "P04637"
+      },
+      "position": [
+        80,
+        442
+      ],
+      "type": "alphafold_db",
+      "ui": {
+        "title": "AlphaFold DB",
+        "validation": {
+          "outputs": {
+            "artifacts_directory": {
+              "expected_format": "directory",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            },
+            "pae_json": {
+              "expected_format": "json",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            },
+            "structure_metadata": {
+              "expected_format": "json",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            },
+            "structure_mmcif": {
+              "expected_format": "auto",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pdb_download_001",
+      "params": {
+        "download_density": false,
+        "fetch_metadata": true,
+        "format": "cif",
+        "pdb_ids": "4HHB"
+      },
+      "position": [
+        80,
+        623
+      ],
+      "type": "pdb_download",
+      "ui": {
+        "title": "RCSB PDB Download",
+        "validation": {
+          "outputs": {
+            "download_directory": {
+              "expected_format": "directory",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            },
+            "pdb_metadata": {
+              "expected_format": "json",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            },
+            "structure_file": {
+              "expected_format": "auto",
+              "fail_on_error": true,
+              "min_size_bytes": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "render_uniprot_search_tab_0",
+      "params": {},
+      "position": [
+        800,
+        80
+      ],
+      "type": "table_preview",
+      "ui": {
+        "title": "View Table: UniProt hits"
+      }
+    },
+    {
+      "id": "render_uniprot_seq_0",
+      "params": {},
+      "position": [
+        800,
+        261
+      ],
+      "type": "text_preview",
+      "ui": {
+        "title": "View: TP53 FASTA"
+      }
+    },
+    {
+      "id": "render_alphafold_meta_0",
+      "params": {},
+      "position": [
+        800,
+        442
+      ],
+      "type": "text_preview",
+      "ui": {
+        "title": "View: AlphaFold metadata"
+      }
+    },
+    {
+      "id": "render_pdb_meta_0",
+      "params": {},
+      "position": [
+        800,
+        623
+      ],
+      "type": "text_preview",
+      "ui": {
+        "title": "View: PDB metadata"
+      }
+    }
+  ],
+  "outputs": {
+    "alphafold_pae": "alphafold_db_001",
+    "alphafold_structure": "alphafold_db_001",
+    "pdb_downloads": "pdb_download_001",
+    "pdb_structure": "pdb_download_001",
+    "uniprot_search_results": "uniprot_search_001",
+    "uniprot_sequence": "uniprot_retrieve_001"
+  },
+  "tags": [
+    "protein-structure",
+    "uniprot",
+    "alphafold",
+    "rcsb",
+    "pdb",
+    "mmcif",
+    "database",
+    "report"
+  ],
+  "tools": [
+    "uniprot_search",
+    "uniprot_retrieve",
+    "alphafold_db",
+    "pdb_download",
+    "table_preview",
+    "text_preview"
+  ],
+  "version": "2.0"
+}

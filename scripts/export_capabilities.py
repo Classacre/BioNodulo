@@ -15,6 +15,7 @@ Usage:  python scripts/export_capabilities.py
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -40,14 +41,25 @@ def build_capabilities(registry: Any) -> dict[str, dict[str, Any]]:
     return dict(sorted(capabilities.items()))
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="fail without writing if the artifact is stale")
+    args = parser.parse_args(argv)
+
     from bionodulo.nodes.registry import NodeRegistry
 
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes(strict=True)
     capabilities = build_capabilities(registry)
     payload = json.dumps(capabilities, indent=2, sort_keys=True) + "\n"
-    OUTPUT_PATH.write_text(payload, encoding="utf-8")
+    if args.check:
+        current = OUTPUT_PATH.read_text(encoding="utf-8") if OUTPUT_PATH.exists() else ""
+        if current != payload:
+            print("STALE: node_capabilities.json. Run: python scripts/export_capabilities.py", file=sys.stderr)
+            return 1
+        print(f"Node capabilities are up to date ({len(capabilities)} nodes).")
+        return 0
+    OUTPUT_PATH.write_text(payload, encoding="utf-8", newline="\n")
     gpu_nodes = [node_id for node_id, cap in capabilities.items() if cap["requires_gpu"]]
     print(
         f"Wrote {OUTPUT_PATH.name} ({len(capabilities)} nodes, "

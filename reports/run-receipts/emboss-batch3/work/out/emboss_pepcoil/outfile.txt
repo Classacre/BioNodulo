@@ -1,0 +1,39 @@
+########################################
+# Program: pepcoil
+# Rundate: Sat 26 Sep 2026 15:10:54
+# Commandline: pepcoil
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_pepcoil/outfile.txt
+#    -auto
+# Report_format: motif
+# Report_file: /work/out/emboss_pepcoil/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 0
+#
+# Window size: 28 residues
+#
+#=======================================
+
+Max_coil_pos at "*"
+
+
+#---------------------------------------
+#---------------------------------------
+#=======================================
+#
+# Sequence: dna2     from: 1   to: 124
+# HitCount: 0
+#
+# Window size: 28 residues
+#
+#=======================================
+
+Max_coil_pos at "*"
+
+
+#---------------------------------------
+#---------------------------------------

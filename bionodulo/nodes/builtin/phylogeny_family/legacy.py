@@ -281,6 +281,13 @@ class _ClustalOContract(CommandNode):
     REQUIRED_EXECUTABLES = ["clustalo"]
     REQUIRED_CONDA_PACKAGES = ['clustal-omega']
     DOCUMENTATION_URL = "http://www.clustal.org/omega/"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1038/msb.2011.75"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "Fast, scalable generation of high-quality protein multiple sequence "
+        "alignments using Clustal Omega."
+    )
     VERSION = "1.2.4"
 
     @classmethod
@@ -325,6 +332,12 @@ class _MUSCLEContract(CommandNode):
     REQUIRED_EXECUTABLES = ["muscle"]
     REQUIRED_CONDA_PACKAGES = ["muscle"]
     DOCUMENTATION_URL = "https://drive5.com/muscle/"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/nar/gkh340"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "MUSCLE: multiple sequence alignment with high accuracy and high throughput."
+    )
     VERSION = "5.3"
 
     @classmethod
@@ -374,6 +387,13 @@ class _TrimAlContract(CommandNode):
     REQUIRED_EXECUTABLES = ["trimal"]
     REQUIRED_CONDA_PACKAGES = ["trimal"]
     DOCUMENTATION_URL = "http://trimal.cgenomics.org/"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/bioinformatics/btp348"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "trimAl: a tool for automated alignment trimming in large-scale phylogenetic "
+        "analyses."
+    )
     VERSION = "1.4.1"
 
     @classmethod
@@ -433,6 +453,13 @@ class _FastTreeContract(CommandNode):
     REQUIRED_EXECUTABLES = ["FastTree"]
     REQUIRED_CONDA_PACKAGES = ['fasttree']
     DOCUMENTATION_URL = "http://www.microbesonline.org/fasttree/"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/molbev/msp077"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "FastTree: computing large minimum evolution trees with profiles instead of a "
+        "distance matrix."
+    )
     VERSION = "2.1.11"
     COMMAND = [
         "FastTree",
@@ -502,6 +529,13 @@ class _RAxMLContract(CommandNode):
     REQUIRED_EXECUTABLES = ["raxmlHPC"]
     REQUIRED_CONDA_PACKAGES = ['raxml']
     DOCUMENTATION_URL = "https://github.com/stamatak/standard-RAxML"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/bioinformatics/btu033"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "RAxML version 8: a tool for phylogenetic analysis and post-analysis of large "
+        "phylogenies."
+    )
     VERSION = "8.2.12"
     COMMAND = [
         "raxmlHPC",
@@ -559,6 +593,13 @@ class _RAxMLNGContract(CommandNode):
     REQUIRED_EXECUTABLES = ["raxml-ng"]
     REQUIRED_CONDA_PACKAGES = ["raxml-ng"]
     DOCUMENTATION_URL = "https://github.com/amkozlov/raxml-ng"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/bioinformatics/btz305"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "RAxML-NG: a fast, scalable and user-friendly tool for maximum likelihood "
+        "phylogenetic inference."
+    )
     VERSION = "1.2.2"
 
     @classmethod
@@ -629,6 +670,13 @@ class _ModelTestNGContract(CommandNode):
     REQUIRED_EXECUTABLES = ["modeltest-ng"]
     REQUIRED_CONDA_PACKAGES = ["modeltest-ng"]
     DOCUMENTATION_URL = "https://github.com/ddarriba/modeltest"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/molbev/msz189"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "ModelTest-NG: a new and scalable tool for the selection of DNA and protein "
+        "evolutionary models."
+    )
     VERSION = "0.1.7"
     SHELL = True
 

@@ -1,0 +1,72 @@
+{
+  "results": [
+    {
+      "entryType": "UniProtKB reviewed (Swiss-Prot)",
+      "extraAttributes": {
+        "uniParcId": "UPI000002ED67"
+      },
+      "genes": [
+        {
+          "geneName": {
+            "value": "TP53"
+          },
+          "synonyms": [
+            {
+              "value": "P53"
+            }
+          ]
+        }
+      ],
+      "organism": {
+        "commonName": "Human",
+        "lineage": [
+          "Eukaryota",
+          "Metazoa",
+          "Chordata",
+          "Craniata",
+          "Vertebrata",
+          "Euteleostomi",
+          "Mammalia",
+          "Eutheria",
+          "Euarchontoglires",
+          "Primates",
+          "Haplorrhini",
+          "Catarrhini",
+          "Hominidae",
+          "Homo"
+        ],
+        "scientificName": "Homo sapiens",
+        "taxonId": 9606
+      },
+      "primaryAccession": "P04637",
+      "proteinDescription": {
+        "alternativeNames": [
+          {
+            "fullName": {
+              "value": "Antigen NY-CO-13"
+            }
+          },
+          {
+            "fullName": {
+              "value": "Phosphoprotein p53"
+            }
+          },
+          {
+            "fullName": {
+              "value": "Tumor suppressor p53"
+            }
+          }
+        ],
+        "recommendedName": {
+          "fullName": {
+            "value": "Cellular tumor antigen p53"
+          }
+        }
+      },
+      "sequence": {
+        "length": 393
+      },
+      "uniProtkbId": "P53_HUMAN"
+    }
+  ]
+}

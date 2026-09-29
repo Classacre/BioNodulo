@@ -63,6 +63,38 @@ BAD_FLAGS: dict[str, dict[str, str]] = {
 
 Finding = tuple[str, str, str]  # (level, node_id, message)
 
+# Flags that name where output goes. Exact tokens only, so --out-suffix does not
+# count as naming an output.
+OUTPUT_FLAG_TOKENS = frozenset({
+    "-o", "-O", "--out", "--output", "--out-file", "--out-prefix", "--out-dir",
+    "--output-file", "--output-dir", "--output-prefix",
+})
+# The framework base whose PLAN_OUTPUTS is the unhelpful default.
+_FRAMEWORK_BASES = ("CommandNode", "object")
+
+
+def _overrides_plan_outputs(node_cls: Any) -> bool:
+    """True when PLAN_OUTPUTS is overridden below the framework base.
+
+    ``"PLAN_OUTPUTS" in node_cls.__dict__`` only sees the node's own class, so it
+    missed every family whose shared adapter overrides the method once for dozens of
+    nodes (csvtk, seqkit, unikmer, taxonkit). An inherited override is still an
+    override.
+    """
+    for klass in node_cls.__mro__:
+        if klass.__name__ in _FRAMEWORK_BASES:
+            break
+        if "PLAN_OUTPUTS" in klass.__dict__:
+            return True
+    return False
+
+
+def _names_output(cmd: Any) -> bool:
+    """True when the rendered command passes an explicit output path."""
+    tokens = [str(token) for token in cmd] if isinstance(cmd, (list, tuple)) \
+        else str(cmd).split()
+    return any(token in OUTPUT_FLAG_TOKENS for token in tokens)
+
 
 def _representative_inputs(node_cls: Any) -> dict[str, Any]:
     """Build a minimal inputs dict from INPUT_TYPES so render_command can run."""
@@ -178,15 +210,24 @@ def lint_node(node_id: str, node_cls: Any) -> list[Finding]:
                         f"command includes '{flag}' for {t}: {reason}"))
 
     # L2: stdout/hash-named tool without PLAN_OUTPUTS override
-    has_plan = "PLAN_OUTPUTS" in node_cls.__dict__
+    has_plan = _overrides_plan_outputs(node_cls)
     writes_redirect = ">" in cmd_str
     tool_tokens = set(cmd_str.replace("&&", " ").split())
     stdout_tool = bool(tool_tokens & STDOUT_TOOLS)
     hashnamed_tool = bool(tool_tokens & HASHNAMED_TOOLS)
-    if (stdout_tool or writes_redirect) and not has_plan and not writes_redirect:
+    # A tool on the stdout list is only a problem if nothing makes the declared
+    # output real. Three things can: the command names an output path, the executor
+    # captures stdout into the planned file, or the node overrides PLAN_OUTPUTS.
+    # Checking the tool name alone flagged every generated seqkit node, which pass
+    # an explicit -o <path> and are therefore honest.
+    captures_stdout = getattr(node_cls, "STDOUT_OUTPUT_INDEX", None) is not None
+    names_output = _names_output(cmd)
+    if stdout_tool and not has_plan and not writes_redirect and not captures_stdout \
+            and not names_output:
         findings.append(("ERROR", node_id,
-            "uses a stdout-writing tool but has no PLAN_OUTPUTS override and no "
-            "redirect — default PLAN_OUTPUTS will assert files the tool won't create"))
+            "uses a stdout-writing tool but neither names an output path, captures "
+            "stdout via STDOUT_OUTPUT_INDEX, nor overrides PLAN_OUTPUTS — default "
+            "PLAN_OUTPUTS will assert files the tool won't create"))
     if hashnamed_tool and not has_plan:
         findings.append(("WARN", node_id,
             f"uses a hash/timestamp-naming tool ({tool_tokens & HASHNAMED_TOOLS}) "

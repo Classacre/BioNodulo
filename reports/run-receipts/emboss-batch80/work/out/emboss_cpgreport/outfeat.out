@@ -1,0 +1,7 @@
+##gff-version 3
+##sequence-region dna1 1 112
+#!Date 2026-09-26
+#!Type DNA
+#!Source-version EMBOSS 6.6.0.0
+dna1	cpgreport	sequence_feature	9	100	287	+	.	ID=dna1.2
+dna1	cpgreport	sequence_feature	21	112	107	+	.	ID=dna1.1

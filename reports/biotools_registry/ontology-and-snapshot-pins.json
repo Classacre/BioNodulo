@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "retrieved_at_utc": "2026-09-25T06:08:00Z",
+  "purpose": "Records which ontology release the EDAM terms in node KNOWLEDGE were resolved against, and which registry snapshots were compared. Raw ontology files are deliberately not committed; these digests and the release identifier are the pin.",
+  "ontology": {
+    "name": "EDAM",
+    "release": "1.25-20260626T1230Z",
+    "version_iri": "http://edamontology.org/EDAM_1.25-20260626T1230Z",
+    "source": "https://edamontology.org/EDAM.owl",
+    "owl_sha256": "a3ebbd7df78f845854c285389f5e788bb6a4852bb50cc6f7a991843dbc538158",
+    "owl_bytes": 3413870,
+    "label_lookup_source": "https://edamontology.org/EDAM.csv",
+    "csv_sha256": "cac8ca5d4e63f793c17a2e2cb31087ff573bec6fb438966a3f0c54e4bf479923",
+    "csv_bytes": 1977072,
+    "classes_in_release": 3473,
+    "note": "The rolling EDAM.owl reports its own versionInfo, which is the versioned identifier recorded here. Labels used in node KNOWLEDGE were read from this release, not from memory.",
+    "labels_verified": [
+      {"uri": "http://edamontology.org/topic_0121", "label": "Proteomics"},
+      {"uri": "http://edamontology.org/topic_0080", "label": "Sequence analysis"},
+      {"uri": "http://edamontology.org/topic_2814", "label": "Protein structure analysis"},
+      {"uri": "http://edamontology.org/topic_0082", "label": "Structure prediction"},
+      {"uri": "http://edamontology.org/topic_1317", "label": "Structural biology"},
+      {"uri": "http://edamontology.org/operation_2422", "label": "Data retrieval"},
+      {"uri": "http://edamontology.org/operation_2421", "label": "Database search"}
+    ],
+    "not_used_deliberately": [
+      {"uri": "http://edamontology.org/operation_0474", "label": "Protein structure prediction", "reason": "The alphafold_db node retrieves already-predicted models; it does not predict structures. Claiming this operation would overstate the node's function."},
+      {"uri": "http://edamontology.org/operation_3778", "label": "Text annotation", "reason": "Listed by the bio.tools 'uniprot' record for the tool as a whole, but it does not describe what uniprot_search does."}
+    ]
+  },
+  "snapshot_comparison": {
+    "base": {"dir": "reports/biotools_registry/current", "completed_at_utc": "2026-09-25T05:43:22.321726+00:00", "records": 34248, "sha256": "4bc2dff4e6f60b6098876977a3ea5228745d6891c316a7fe3fd3d830edadac13"},
+    "target": {"dir": "reports/biotools_registry/resync", "completed_at_utc": "2026-09-25T06:11:59.899897+00:00", "records": 34248, "sha256": "4bc2dff4e6f60b6098876977a3ea5228745d6891c316a7fe3fd3d830edadac13"},
+    "additions": 0,
+    "removals": 0,
+    "changed": 0,
+    "unchanged": 34248,
+    "result": "Both snapshots are byte-identical. A second independent crawl 28 minutes later reproduced the same SHA-256, so the sync is deterministic and reproducible.",
+    "consequence": "No accession disappeared, so the retired_or_missing_on_resync state remains unexercised. The mechanism is implemented and the comparison runs, but the state has no observed instance. This is a real coverage gap, not a passing result.",
+    "report": "reports/biotools_registry/snapshot-diff.json"
+  }
+}

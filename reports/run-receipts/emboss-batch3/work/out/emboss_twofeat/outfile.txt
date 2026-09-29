@@ -1,0 +1,22 @@
+########################################
+# Program: twofeat
+# Rundate: Sat 26 Sep 2026 15:11:11
+# Commandline: twofeat
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_twofeat/outfile.txt
+#    -auto
+# Report_format: table
+# Report_file: /work/out/emboss_twofeat/outfile.txt
+########################################
+
+#=======================================
+#
+#=======================================
+
+
+#---------------------------------------
+# Total_sequences: 2
+# Total_length: 248
+# Reported_sequences: 0
+# Reported_hitcount: 0
+#---------------------------------------

@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "node_id": "tabix_query",
+  "node_class": "bionodulo.nodes.builtin.htslib_tabix_family.tabix_query.TabixQueryNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/tabix:0.2.5--ha92aebf_2",
+    "image_digest_expected": "sha256:6af2484cb77ae4ee86e51b3e9a0e84f3d0242b11980cbbc7bfd5be250180d9b8",
+    "image_digest_observed_after_run": "quay.io/biocontainers/tabix@sha256:6af2484cb77ae4ee86e51b3e9a0e84f3d0242b11980cbbc7bfd5be250180d9b8",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "tabix",
+    "/work/mini.vcf.gz",
+    "chr1:100-200"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "tabix",
+    "/work/mini.vcf.gz",
+    "chr1:100-200"
+  ],
+  "platform_path_rewrites": [],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "tabix",
+  "inputs": {
+    "region": "chr1:100-200",
+    "bgzf": "/work/mini.vcf.gz",
+    "output": "/work/out/tabix_query"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\release-2026-09-29\\htslib-tabix-query\\work\\out\\tabix_query\\records.tsv"
+  ],
+  "tool_version_stdout": "tabix: invalid option -- '-'\ntabix: invalid option -- 'v'\n\nProgram: tabix (TAB-delimited file InderXer)\nVersion: 0.2.5 (r964)",
+  "status": "completed",
+  "exit_code": 0,
+  "missing_planned_outputs": [],
+  "output_verification_error": null,
+  "stdout": "chr1\t100\t.\tA\tT\t50\tPASS\t.\nchr1\t150\t.\tG\tC\t60\tPASS\t.\n",
+  "stdout_sha256": "e67ff3a753d3dc33985405c126f28db10e4c55c19c6b5c2aee6aad267197e361",
+  "stdout_bytes": 50,
+  "stderr": "",
+  "started_at_utc": "2026-09-29T13:44:15.911680+00:00",
+  "completed_at_utc": "2026-09-29T13:44:18.692191+00:00",
+  "fixture": {
+    "name": "mini.vcf.gz",
+    "sha256": "6e2b4fe2b88c58f8c3e40e9cc54c3e9f48f8341d2f44691e98c15e80b38f79d1",
+    "bytes": 197,
+    "source": "tests/nodes/htslib_tabix_family/fixtures/mini.vcf.gz"
+  },
+  "additional_staged_assets": [
+    {
+      "path": "mini.vcf.gz.tbi",
+      "sha256": "319146b656743eabf65f41e70a997f11ef7cc68784fa568413b4f1be69a8a0c4"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "work/mini.vcf.gz",
+      "bytes": 197,
+      "sha256": "6e2b4fe2b88c58f8c3e40e9cc54c3e9f48f8341d2f44691e98c15e80b38f79d1"
+    },
+    {
+      "path": "work/mini.vcf.gz.tbi",
+      "bytes": 106,
+      "sha256": "319146b656743eabf65f41e70a997f11ef7cc68784fa568413b4f1be69a8a0c4"
+    },
+    {
+      "path": "work/out/tabix_query/records.tsv",
+      "bytes": 50,
+      "sha256": "e67ff3a753d3dc33985405c126f28db10e4c55c19c6b5c2aee6aad267197e361"
+    },
+    {
+      "path": "work/stdout.bin",
+      "bytes": 50,
+      "sha256": "e67ff3a753d3dc33985405c126f28db10e4c55c19c6b5c2aee6aad267197e361"
+    }
+  ],
+  "artifact_count": 4,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

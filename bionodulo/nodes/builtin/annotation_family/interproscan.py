@@ -24,6 +24,10 @@ class InterProScanNode(CommandNode):
     REQUIRED_EXECUTABLES = ["interproscan.sh"]
     REQUIRED_CONDA_PACKAGES = ["interproscan"]
     DOCUMENTATION_URL = "https://www.ebi.ac.uk/interpro/"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/bioinformatics/btu031"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = "InterProScan 5: genome-scale protein function classification."
     SHELL = False
     EXPERIMENTAL = True
 

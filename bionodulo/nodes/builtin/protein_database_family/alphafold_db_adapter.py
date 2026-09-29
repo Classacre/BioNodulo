@@ -192,6 +192,60 @@ class AlphaFoldDBNode(BaseNode):
         "must expose their documented URLs before any download starts. A supplied sequence checksum is verified "
         "against the selected response record because the upstream endpoint currently does not reject mismatches."
     )
+    CITATION_DOIS = ["10.1093/nar/gkad1011"]
+    CITATION_URLS = ["https://doi.org/10.1093/nar/gkad1011"]
+    CITATION_TEXT = (
+        "AlphaFold Protein Structure Database in 2024: providing structure coverage for over 214 million "
+        "protein sequences."
+    )
+    KNOWLEDGE = {
+        "schema_version": 1,
+        "tool_id": "https://bio.tools/alphafold",
+        "topics": [
+            {"uri": "http://edamontology.org/topic_2814", "label": "Protein structure analysis"},
+            {"uri": "http://edamontology.org/topic_0082", "label": "Structure prediction"},
+        ],
+        # This node retrieves already-predicted models from AlphaFold DB. It does
+        # not run the prediction itself, so the accurate operation is data
+        # retrieval, not "Protein structure prediction".
+        "operations": [
+            {"uri": "http://edamontology.org/operation_2422", "label": "Data retrieval"},
+        ],
+        "relations": [
+            {
+                "target_node_id": "pdb_download",
+                "kind": "complements",
+                "evidence": {
+                    "url": "https://alphafold.ebi.ac.uk/api-docs",
+                    "checked_at": "2026-09-25",
+                    "note": (
+                        "Predicted models from AlphaFold DB and experimentally determined structures from "
+                        "RCSB PDB are separate sources that a workflow may want side by side; both nodes ran "
+                        "in the same retained BioNodulo receipt. This records co-use for a stated purpose "
+                        "only. It does not claim the outputs are interchangeable, comparable without further "
+                        "work, or validated against each other."
+                    ),
+                },
+            }
+        ],
+        "citation_evidence": [
+            {
+                "identifier": "10.1093/nar/gkad1011",
+                "source_url": "https://api.crossref.org/works/10.1093/nar/gkad1011",
+                "checked_at": "2026-09-25",
+                "note": (
+                    "Crossref resolves this DOI to 'AlphaFold Protein Structure Database in 2024', Nucleic "
+                    "Acids Research, first author Varadi. This is the database this node queries. Note a "
+                    "recorded discrepancy: the bio.tools 'alphafold' record lists two publications that are "
+                    "NOT this database's paper - 10.3390/molecules29040832 resolves to 'Recent Progress of "
+                    "Protein Tertiary Structure Prediction' (a review) and 10.1101/2024.02.06.579080 to "
+                    "'Direct Coupling Analysis and The Attention Mechanism' (a preprint). Those record DOIs "
+                    "were therefore not used as this node's citation."
+                ),
+            }
+        ],
+        "reviewed_at": "2026-09-25",
+    }
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-09-29T13:19:02.129823+00:00",
+  "image": "quay.io/biocontainers/emboss@sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+  "network": "none",
+  "scope": "Real container execution of generated argv for water and needle using two identical 12-base FASTA sequences; independent assertion of length and identity. This is not app queue or cloud execution, and does not validate other algorithms or input cases.",
+  "fixtures": [
+    {
+      "path": "first.fa",
+      "sha256": "6a6ec158e5fac32ba5d63d5fcf67fe28aa321bdc3707ca982a699c9b22173178"
+    },
+    {
+      "path": "second.fa",
+      "sha256": "b702ce0a610d65c49191724187b250e71259c80180b6a5a811729f28f3a2efaa"
+    }
+  ],
+  "results": [
+    {
+      "node_id": "emboss_water",
+      "exit_code": 0,
+      "rendered_argv": [
+        "water",
+        "-asequence",
+        "/work/first.fa",
+        "-bsequence",
+        "/work/second.fa",
+        "-outfile",
+        "\\work\\emboss_water\\outfile.out",
+        "-auto"
+      ],
+      "container_argv": [
+        "water",
+        "-asequence",
+        "/work/first.fa",
+        "-bsequence",
+        "/work/second.fa",
+        "-outfile",
+        "/work/emboss_water/outfile.out",
+        "-auto"
+      ],
+      "source_sha256": "b3c295a7cb559f9f447de38edb06e8accb3ca17ad4e8cc3ce1123ad9a3122c0e",
+      "stderr": "",
+      "oracle_identical_12_base_alignment": true,
+      "output": {
+        "path": "emboss_water/outfile.out",
+        "sha256": "176816fc1a8fcc88e5cbd8c11321ac976c6ca3e6db5492bbd3f9051d0def4674"
+      }
+    },
+    {
+      "node_id": "emboss_needle",
+      "exit_code": 0,
+      "rendered_argv": [
+        "needle",
+        "-asequence",
+        "/work/first.fa",
+        "-bsequence",
+        "/work/second.fa",
+        "-outfile",
+        "\\work\\emboss_needle\\outfile.out",
+        "-auto"
+      ],
+      "container_argv": [
+        "needle",
+        "-asequence",
+        "/work/first.fa",
+        "-bsequence",
+        "/work/second.fa",
+        "-outfile",
+        "/work/emboss_needle/outfile.out",
+        "-auto"
+      ],
+      "source_sha256": "cb85b841290454d209c378017dd1b7586d7d5d5af6983326641be162eaf92281",
+      "stderr": "",
+      "oracle_identical_12_base_alignment": true,
+      "output": {
+        "path": "emboss_needle/outfile.out",
+        "sha256": "e2e763cd3825d9ba271cc85bf4986ee9fca3a6d91b48c1c662e3aeb2cfedc3dd"
+      }
+    }
+  ]
+}
