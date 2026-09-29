@@ -1,0 +1,1938 @@
+{
+  "schema_version": 1,
+  "image": "quay.io/biocontainers/emboss:6.6.0--h0f19ade_14",
+  "image_digest": "sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+  "fixture": "dna.fasta",
+  "attempted": 80,
+  "ok": 61,
+  "failed": 19,
+  "results": [
+    {
+      "node_id": "emboss_taxgetup",
+      "argv": [
+        "taxgetup",
+        "-taxons",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_taxgetup/outfile.out",
+        "-auto"
+      ],
+      "exit_code": null,
+      "status": "failed",
+      "stderr": "timed out after 40s (network disabled; this program needs remote or installed reference data)",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.out"
+      ]
+    },
+    {
+      "node_id": "emboss_extractseq",
+      "argv": [
+        "extractseq",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_extractseq/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_splitsource",
+      "argv": [
+        "splitsource",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_splitsource/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 139,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_octanol",
+      "argv": [
+        "octanol",
+        "-sequence",
+        "/work/dna.fasta",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_octanol/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 45,
+      "stderr": "",
+      "expected_outputs": [
+        "graph.1.png"
+      ],
+      "produced": [
+        "graph.1.png"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_remap",
+      "argv": [
+        "remap",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_remap/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in remap.c at line 244:\nCannot locate enzyme file. Run REBASEEXTRACT",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_chips",
+      "argv": [
+        "chips",
+        "-seqall",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_chips/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_showfeat",
+      "argv": [
+        "showfeat",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_showfeat/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_fuzzpro",
+      "argv": [
+        "fuzzpro",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_fuzzpro/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Too short (pattern) - minimum length is 1 characters\nDied: fuzzpro terminated: Bad value for '-pattern' with -auto defined",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.txt"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_tranalign",
+      "argv": [
+        "tranalign",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_tranalign/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Error: Guide protein sequence dna1 not found in nucleic sequence dna1\nError: Guide protein sequence dna2 not found in nucleic sequence dna2\nWarning: No sequences written to output file '/work/out/emboss_tranalign/outseq.out'",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_garnier",
+      "argv": [
+        "garnier",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_garnier/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_maskambignuc",
+      "argv": [
+        "maskambignuc",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_maskambignuc/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_seqret",
+      "argv": [
+        "seqret",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_seqret/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_union",
+      "argv": [
+        "union",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_union/outseq.out",
+        "-overlapfile",
+        "/work/out/emboss_union/overlapfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out",
+        "overlapfile.out"
+      ],
+      "produced": [
+        "outseq.out",
+        "overlapfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_needleall",
+      "argv": [
+        "needleall",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_needleall/outfile.out",
+        "-errfile",
+        "/work/out/emboss_needleall/errfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out",
+        "errfile.out"
+      ],
+      "produced": [
+        "errfile.out",
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_profit",
+      "argv": [
+        "profit",
+        "-infile",
+        "/work/dna.fasta",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_profit/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in profit.c at line 111:\nUnrecognised profile/matrix file format",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_cons",
+      "argv": [
+        "cons",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_cons/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_infoseq",
+      "argv": [
+        "infoseq",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_infoseq/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_wordmatch",
+      "argv": [
+        "wordmatch",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_wordmatch/outfile.out",
+        "-logfile",
+        "/work/out/emboss_wordmatch/logfile.out",
+        "-aoutfeat",
+        "/work/out/emboss_wordmatch/aoutfeat.out",
+        "-boutfeat",
+        "/work/out/emboss_wordmatch/boutfeat.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out",
+        "logfile.out",
+        "aoutfeat.out",
+        "boutfeat.out"
+      ],
+      "produced": [
+        "aoutfeat.out",
+        "boutfeat.out",
+        "logfile.out",
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_epestfind",
+      "argv": [
+        "epestfind",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_epestfind/outfile.out",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_epestfind/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 47,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "graph.1.png",
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_cusp",
+      "argv": [
+        "cusp",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_cusp/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_prophecy",
+      "argv": [
+        "prophecy",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_prophecy/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_skipseq",
+      "argv": [
+        "skipseq",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_skipseq/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_palindrome",
+      "argv": [
+        "palindrome",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_palindrome/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: integer value out of range 100 more than (reset to) 62",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_yank",
+      "argv": [
+        "yank",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_yank/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_restover",
+      "argv": [
+        "restover",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_restover/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in restover.c at line 141:\nCannot locate enzyme file. Run REBASEEXTRACT",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_needle",
+      "argv": [
+        "needle",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_needle/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_iep",
+      "argv": [
+        "iep",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_iep/outfile.out",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_iep/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_pepwindowall",
+      "argv": [
+        "pepwindowall",
+        "-sequences",
+        "/work/dna.fasta",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_pepwindowall/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 50,
+      "stderr": "",
+      "expected_outputs": [
+        "graph.1.png"
+      ],
+      "produced": [
+        "graph.1.png"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_prettyplot",
+      "argv": [
+        "prettyplot",
+        "-sequences",
+        "/work/dna.fasta",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_prettyplot/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 48,
+      "stderr": "",
+      "expected_outputs": [
+        "graph.1.png"
+      ],
+      "produced": [
+        "graph.1.png"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_fuzznuc",
+      "argv": [
+        "fuzznuc",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_fuzznuc/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Too short (pattern) - minimum length is 1 characters\nDied: fuzznuc terminated: Bad value for '-pattern' with -auto defined",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.txt"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_coderet",
+      "argv": [
+        "coderet",
+        "-seqall",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_coderet/outfile.out",
+        "-cdsoutseq",
+        "/work/out/emboss_coderet/cdsoutseq.out",
+        "-mrnaoutseq",
+        "/work/out/emboss_coderet/mrnaoutseq.out",
+        "-translationoutseq",
+        "/work/out/emboss_coderet/translationoutseq.out",
+        "-restoutseq",
+        "/work/out/emboss_coderet/restoutseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: No sequences written to output file '/work/out/emboss_coderet/cdsoutseq.out'\nWarning: No sequences written to output file '/work/out/emboss_coderet/mrnaoutseq.out'\nWarning: No sequences written to output file '/work/out/emboss_coderet/restoutseq.out'\nWarning: No sequences written to output file '/work/out/emboss_coderet/translationoutseq.out'",
+      "expected_outputs": [
+        "outfile.out",
+        "cdsoutseq.out",
+        "mrnaoutseq.out",
+        "translationoutseq.out",
+        "restoutseq.out"
+      ],
+      "produced": [
+        "cdsoutseq.out",
+        "mrnaoutseq.out",
+        "outfile.out",
+        "restoutseq.out",
+        "translationoutseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_primersearch",
+      "argv": [
+        "primersearch",
+        "-seqall",
+        "/work/dna.fasta",
+        "-infile",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_primersearch/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_wobble",
+      "argv": [
+        "wobble",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_wobble/outfile.out",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_wobble/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 44,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "graph.1.png",
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_matcher",
+      "argv": [
+        "matcher",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_matcher/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_tmap",
+      "argv": [
+        "tmap",
+        "-sequences",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_tmap/outfile.txt",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_tmap/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 42,
+      "stderr": "Warning: No hits in output report file '/work/out/emboss_tmap/outfile.txt'",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "graph.1.png",
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_descseq",
+      "argv": [
+        "descseq",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_descseq/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_tfscan",
+      "argv": [
+        "tfscan",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_tfscan/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in tfscan.c at line 109:\nEither EMBOSS_DATA undefined or TFEXTRACT needs running",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_lindna",
+      "argv": [
+        "lindna",
+        "-infile",
+        "/work/dna.fasta",
+        "-intersymbol",
+        "/work/out/emboss_lindna/intersymbol.out",
+        "-graphout",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_lindna/graphout",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: '/work/out/emboss_lindna/intersymbol.out' is not a valid selection list option\nAccepted values are: Straight,Up,Down,No\nError: Bad select option '/work/out/emboss_lindna/intersymbol.out'\nDied: lindna terminated: Bad value for '-intersymbol' with -auto defined",
+      "expected_outputs": [
+        "intersymbol.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "intersymbol.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_pepwheel",
+      "argv": [
+        "pepwheel",
+        "-sequence",
+        "/work/dna.fasta",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_pepwheel/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 46,
+      "stderr": "",
+      "expected_outputs": [
+        "graph.1.png"
+      ],
+      "produced": [
+        "graph.1.png"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_pepnet",
+      "argv": [
+        "pepnet",
+        "-sequence",
+        "/work/dna.fasta",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_pepnet/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 44,
+      "stderr": "",
+      "expected_outputs": [
+        "graph.1.png"
+      ],
+      "produced": [
+        "graph.1.png"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_extractfeat",
+      "argv": [
+        "extractfeat",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_extractfeat/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: No sequences written to output file '/work/out/emboss_extractfeat/outseq.out'",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_diffseq",
+      "argv": [
+        "diffseq",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_diffseq/outfile.txt",
+        "-aoutfeat",
+        "/work/out/emboss_diffseq/aoutfeat.out",
+        "-boutfeat",
+        "/work/out/emboss_diffseq/boutfeat.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: No hits in output report file '/work/out/emboss_diffseq/outfile.txt'",
+      "expected_outputs": [
+        "outfile.txt",
+        "aoutfeat.out",
+        "boutfeat.out"
+      ],
+      "produced": [
+        "aoutfeat.out",
+        "boutfeat.out",
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_showseq",
+      "argv": [
+        "showseq",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_showseq/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_chaos",
+      "argv": [
+        "chaos",
+        "-sequence",
+        "/work/dna.fasta",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_chaos/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 43,
+      "stderr": "",
+      "expected_outputs": [
+        "graph.1.png"
+      ],
+      "produced": [
+        "graph.1.png"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_findkm",
+      "argv": [
+        "findkm",
+        "-infile",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_findkm/outfile.out",
+        "-graphlb",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_findkm/graphlb",
+        "-auto"
+      ],
+      "exit_code": 139,
+      "stdout_chars": 0,
+      "stderr": "/usr/local/bin/findkm: line 7:     9 Segmentation fault      (core dumped) _findkm \"$@\"",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "graphlb.1.png",
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_patmatdb",
+      "argv": [
+        "patmatdb",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_patmatdb/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Too short (motif) - minimum length is 2 characters\nDied: patmatdb terminated: Bad value for '-motif' with -auto defined",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.txt"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_newcpgreport",
+      "argv": [
+        "newcpgreport",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_newcpgreport/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: integer value out of range 200 more than (reset to) 124",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_sixpack",
+      "argv": [
+        "sixpack",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_sixpack/outfile.out",
+        "-outseq",
+        "/work/out/emboss_sixpack/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out",
+        "outseq.out"
+      ],
+      "produced": [
+        "outfile.out",
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_aaindexextract",
+      "argv": [
+        "aaindexextract",
+        "-infile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in aaindexextract.c at line 83:\nbad aaindex1 format expected ID at: >dna1",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_printsextract",
+      "argv": [
+        "printsextract",
+        "-infile",
+        "/work/dna.fasta",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "stdout.txt"
+      ],
+      "produced": [
+        "stdout.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_helixturnhelix",
+      "argv": [
+        "helixturnhelix",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_helixturnhelix/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: No hits in output report file '/work/out/emboss_helixturnhelix/outfile.txt'",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_density",
+      "argv": [
+        "density",
+        "-seqall",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_density/outfile.txt",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_density/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 90,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "graph.1.png",
+        "graph.2.png",
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_vectorstrip",
+      "argv": [
+        "vectorstrip",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_vectorstrip/outfile.out",
+        "-outseq",
+        "/work/out/emboss_vectorstrip/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in vectorstrip.c at line 179:\nvectors file not found",
+      "expected_outputs": [
+        "outfile.out",
+        "outseq.out"
+      ],
+      "produced": [
+        "outfile.out",
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_water",
+      "argv": [
+        "water",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_water/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_equicktandem",
+      "argv": [
+        "equicktandem",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_equicktandem/outfile.txt",
+        "-origfile",
+        "/work/out/emboss_equicktandem/origfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.txt",
+        "origfile.out"
+      ],
+      "produced": [
+        "origfile.out",
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_showalign",
+      "argv": [
+        "showalign",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_showalign/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_antigenic",
+      "argv": [
+        "antigenic",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_antigenic/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_extractalign",
+      "argv": [
+        "extractalign",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_extractalign/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_nthseqset",
+      "argv": [
+        "nthseqset",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_nthseqset/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_etandem",
+      "argv": [
+        "etandem",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_etandem/outfile.txt",
+        "-origfile",
+        "/work/out/emboss_etandem/origfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.txt",
+        "origfile.out"
+      ],
+      "produced": [
+        "origfile.out",
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_abiview",
+      "argv": [
+        "abiview",
+        "-infile",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_abiview/outseq.out",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_abiview/graph",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in abiview.c at line 140:\n/work/dna.fasta not an ABI file",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_dotpath",
+      "argv": [
+        "dotpath",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_dotpath/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 45,
+      "stderr": "",
+      "expected_outputs": [
+        "graph.1.png"
+      ],
+      "produced": [
+        "graph.1.png"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_marscan",
+      "argv": [
+        "marscan",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_marscan/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: No hits in output report file '/work/out/emboss_marscan/outfile.txt'",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_consambig",
+      "argv": [
+        "consambig",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outseq",
+        "/work/out/emboss_consambig/outseq.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outseq.out"
+      ],
+      "produced": [
+        "outseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_backtranseq",
+      "argv": [
+        "backtranseq",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_backtranseq/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_fuzztran",
+      "argv": [
+        "fuzztran",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_fuzztran/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Too short (pattern) - minimum length is 1 characters\nDied: fuzztran terminated: Bad value for '-pattern' with -auto defined",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.txt"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_cutgextract",
+      "argv": [
+        "cutgextract",
+        "-directory",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_cutgextract/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Unable to open directories '/work/dna.fasta/' for input\nDied: cutgextract terminated: Bad value for '-directory' with -auto defined",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_dreg",
+      "argv": [
+        "dreg",
+        "-sequence",
+        "/work/dna.fasta",
+        "-pattern",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_dreg/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: No hits in output report file '/work/out/emboss_dreg/outfile.txt'",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_cai",
+      "argv": [
+        "cai",
+        "-seqall",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_cai/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_pepwindow",
+      "argv": [
+        "pepwindow",
+        "-sequence",
+        "/work/dna.fasta",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_pepwindow/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 47,
+      "stderr": "",
+      "expected_outputs": [
+        "graph.1.png"
+      ],
+      "produced": [
+        "graph.1.png"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_restrict",
+      "argv": [
+        "restrict",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_restrict/outfile.txt",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "EMBOSS An error in restrict.c at line 150:\nCannot locate enzyme file. Run REBASEEXTRACT",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_noreturn",
+      "argv": [
+        "noreturn",
+        "-infile",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_noreturn/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_syco",
+      "argv": [
+        "syco",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_syco/outfile.out",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_syco/graph",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Codon file is required\nDied: syco terminated: Bad value for '-cfile' with -auto defined",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outfile.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_polydot",
+      "argv": [
+        "polydot",
+        "-sequences",
+        "/work/dna.fasta",
+        "-outfeat",
+        "/work/out/emboss_polydot/outfeat.out",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_polydot/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 45,
+      "stderr": "Warning: No features written to output file '/work/out/emboss_polydot/outfeat.out'",
+      "expected_outputs": [
+        "outfeat.out"
+      ],
+      "produced": [
+        "graph.1.png",
+        "outfeat.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_stretcher",
+      "argv": [
+        "stretcher",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_stretcher/outfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_wordfinder",
+      "argv": [
+        "wordfinder",
+        "-asequence",
+        "/work/dna.fasta",
+        "-bsequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_wordfinder/outfile.out",
+        "-errfile",
+        "/work/out/emboss_wordfinder/errfile.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out",
+        "errfile.out"
+      ],
+      "produced": [
+        "errfile.out",
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_hmoment",
+      "argv": [
+        "hmoment",
+        "-seqall",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_hmoment/outfile.out",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_hmoment/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out"
+      ],
+      "produced": [
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_cpgreport",
+      "argv": [
+        "cpgreport",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_cpgreport/outfile.out",
+        "-outfeat",
+        "/work/out/emboss_cpgreport/outfeat.out",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "outfile.out",
+        "outfeat.out"
+      ],
+      "produced": [
+        "outfeat.out",
+        "outfile.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "emboss_infoassembly",
+      "argv": [
+        "infoassembly",
+        "-outassembly",
+        "/work/out/emboss_infoassembly/outassembly.out",
+        "-gcbiasmetricsoutfile",
+        "/work/out/emboss_infoassembly/gcbiasmetricsoutfile.out",
+        "-qualvaluesdistoutfile",
+        "/work/out/emboss_infoassembly/qualvaluesdistoutfile.out",
+        "-auto"
+      ],
+      "exit_code": 1,
+      "stdout_chars": 0,
+      "stderr": "Error: Failed to open filename ''\nDied: infoassembly terminated: Bad value for '-assembly' and no more retries",
+      "expected_outputs": [
+        "outassembly.out",
+        "gcbiasmetricsoutfile.out",
+        "qualvaluesdistoutfile.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "outassembly.out",
+        "gcbiasmetricsoutfile.out",
+        "qualvaluesdistoutfile.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "emboss_tcode",
+      "argv": [
+        "tcode",
+        "-sequence",
+        "/work/dna.fasta",
+        "-outfile",
+        "/work/out/emboss_tcode/outfile.txt",
+        "-graph",
+        "png",
+        "-goutfile",
+        "/work/out/emboss_tcode/graph",
+        "-auto"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "Warning: integer value out of range 200 more than (reset to) 124\nWarning: integer value out of range 3 more than (reset to) 0\nWarning: No hits in output report file '/work/out/emboss_tcode/outfile.txt'",
+      "expected_outputs": [
+        "outfile.txt"
+      ],
+      "produced": [
+        "outfile.txt"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    }
+  ],
+  "scope": "Smoke check only: the node's own argv ran in a pinned image and its declared outputs appeared. No scientific correctness was validated."
+}

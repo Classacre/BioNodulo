@@ -5,3 +5,4 @@ from bionodulo.nodes.builtin._annotation_sequence_adapter import _SeqKitStatsCon
 
 class SeqKitStatsNode(_SeqKitStatsContract):
     NODE_ID = "seqkit_stats"
+    CATEGORY = "seqkit"

@@ -3,3 +3,10 @@
 pixi.lock text eol=lf
 # OCI audit receipts hash the generated catalog bytes across hosts.
 reports/oci-reference/*.json text eol=lf
+# The catalog compiler hashes editor metadata bytes across operating systems.
+bionodulo/nodes/node_metadata.json text eol=lf
+# Preserve the capability exporter bytes across platforms.
+bionodulo/nodes/node_capabilities.json text eol=lf
+# Scientific receipt hashes cover exact bytes, including upstream whitespace.
+reports/run-receipts/** -text -whitespace
+tests/nodes/**/fixtures/** -text -whitespace

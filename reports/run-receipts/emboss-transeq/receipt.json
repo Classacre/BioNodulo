@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "node_id": "emboss_transeq",
+  "node_class": "bionodulo.nodes.builtin.emboss_family.transeq.EmbossTranseqNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/emboss:6.6.0--h0f19ade_14",
+    "image_digest_expected": "sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+    "image_digest_observed_after_run": "quay.io/biocontainers/emboss@sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "transeq",
+    "-sequence",
+    "/work/cds_nucleotide.fasta",
+    "-outseq",
+    "/work/out/translated.fasta"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "transeq",
+    "-sequence",
+    "/work/cds_nucleotide.fasta",
+    "-outseq",
+    "\\work\\out\\translated.fasta"
+  ],
+  "platform_path_rewrites": [
+    {
+      "rendered_on_host": "\\work\\out\\translated.fasta",
+      "used_in_container": "/work/out/translated.fasta"
+    }
+  ],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "transeq",
+  "inputs": {
+    "sequence": "/work/cds_nucleotide.fasta",
+    "output": "/work/out"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\emboss-transeq\\work\\emboss_transeq\\translated.fasta"
+  ],
+  "tool_version_stdout": "EMBOSS:6.6.0.0",
+  "status": "completed",
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "Translate nucleic acid sequences\n",
+  "started_at_utc": "2026-09-25T07:05:56.122868+00:00",
+  "completed_at_utc": "2026-09-25T07:05:56.997235+00:00",
+  "fixture": {
+    "name": "cds_nucleotide.fasta",
+    "sha256": "193d8a5f44ec2f90755a0ac3fdf4cf80f890d525c7556f80fec2f55b307bea21",
+    "bytes": 62,
+    "source": "tests/nodes/emboss_family/fixtures/cds_nucleotide.fasta"
+  },
+  "artifacts": [
+    {
+      "path": "work/cds_nucleotide.fasta",
+      "bytes": 62,
+      "sha256": "193d8a5f44ec2f90755a0ac3fdf4cf80f890d525c7556f80fec2f55b307bea21"
+    },
+    {
+      "path": "work/out/translated.fasta",
+      "bytes": 30,
+      "sha256": "c79b1312a972766b4299e0664537dcadf922ce383ca4fe28234dd5f227771295"
+    }
+  ],
+  "artifact_count": 2,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

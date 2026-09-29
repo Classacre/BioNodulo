@@ -1,0 +1,46 @@
+########################################
+# Program: tcode
+# Rundate: Sat 26 Sep 2026 15:20:34
+# Commandline: tcode
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_tcode/outfile.txt
+#    -graph png
+#    -goutfile /work/out/emboss_tcode/graph
+#    -auto
+# Report_format: table
+# Report_file: /work/out/emboss_tcode/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 0
+#
+# Fickett TESTCODE statistic
+#
+#=======================================
+
+  Start     End  Strand   Score Estimation
+
+#---------------------------------------
+#---------------------------------------
+#=======================================
+#
+# Sequence: dna2     from: 1   to: 124
+# HitCount: 0
+#
+# Fickett TESTCODE statistic
+#
+#=======================================
+
+  Start     End  Strand   Score Estimation
+
+#---------------------------------------
+#---------------------------------------
+
+#---------------------------------------
+# Total_sequences: 2
+# Total_length: 248
+# Reported_sequences: 2
+# Reported_hitcount: 0
+#---------------------------------------

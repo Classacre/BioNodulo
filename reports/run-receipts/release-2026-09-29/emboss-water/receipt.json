@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "node_id": "emboss_water",
+  "node_class": "bionodulo.nodes.builtin.emboss_family.emboss_water.EmbossWaterNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/emboss:6.6.0--h0f19ade_14",
+    "image_digest_expected": "sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+    "image_digest_observed_after_run": "quay.io/biocontainers/emboss@sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "water",
+    "-asequence",
+    "/work/first.fa",
+    "-bsequence",
+    "/work/second.fa",
+    "-outfile",
+    "/work/out/emboss_water/outfile.out",
+    "-auto"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "water",
+    "-asequence",
+    "/work/first.fa",
+    "-bsequence",
+    "/work/second.fa",
+    "-outfile",
+    "\\work\\out\\emboss_water\\outfile.out",
+    "-auto"
+  ],
+  "platform_path_rewrites": [
+    {
+      "rendered_on_host": "\\work\\out\\emboss_water\\outfile.out",
+      "used_in_container": "/work/out/emboss_water/outfile.out"
+    }
+  ],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "water",
+  "inputs": {
+    "bsequence": "/work/second.fa",
+    "asequence": "/work/first.fa",
+    "output": "/work/out/emboss_water"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\release-2026-09-29\\emboss-water\\work\\out\\emboss_water\\outfile.out"
+  ],
+  "tool_version_stdout": "EMBOSS:6.6.0.0",
+  "status": "completed",
+  "exit_code": 0,
+  "missing_planned_outputs": [],
+  "output_verification_error": null,
+  "stdout": "",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_bytes": 0,
+  "stderr": "",
+  "started_at_utc": "2026-09-29T13:54:20.746377+00:00",
+  "completed_at_utc": "2026-09-29T13:54:23.105974+00:00",
+  "fixture": {
+    "name": "first.fa",
+    "sha256": "6a6ec158e5fac32ba5d63d5fcf67fe28aa321bdc3707ca982a699c9b22173178",
+    "bytes": 20,
+    "source": "reports/run-receipts/handoff-2026-09-29-emboss-multi-input/first.fa"
+  },
+  "additional_staged_assets": [
+    {
+      "path": "second.fa",
+      "sha256": "b702ce0a610d65c49191724187b250e71259c80180b6a5a811729f28f3a2efaa"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "work/first.fa",
+      "bytes": 20,
+      "sha256": "6a6ec158e5fac32ba5d63d5fcf67fe28aa321bdc3707ca982a699c9b22173178"
+    },
+    {
+      "path": "work/out/emboss_water/outfile.out",
+      "bytes": 875,
+      "sha256": "8cf4db1e59c1dd977abf6f1393f07b4b6d2ef5027aac4e533ff334810a03f4c2"
+    },
+    {
+      "path": "work/second.fa",
+      "bytes": 21,
+      "sha256": "b702ce0a610d65c49191724187b250e71259c80180b6a5a811729f28f3a2efaa"
+    }
+  ],
+  "artifact_count": 3,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from .adapter import SamtoolsCommandNode
+from .adapter import SAMTOOLS_FORMAT_CITATION_EVIDENCE, SamtoolsCommandNode
 
 
 _LINK_FALLBACK_ERRNOS = {errno.EXDEV, errno.EPERM, errno.ENOSYS}
@@ -31,6 +31,13 @@ class SamtoolsIndexNode(SamtoolsCommandNode):
     DOCUMENTATION_URL = "https://www.htslib.org/doc/samtools-index.html"
     UPSTREAM_MANPAGE = "doc/samtools-index.1"
     UPSTREAM_SOURCE = "bam_index.c"
+    KNOWLEDGE = {
+        **SamtoolsCommandNode.KNOWLEDGE,
+        "citation_evidence": [
+            *SamtoolsCommandNode.KNOWLEDGE["citation_evidence"],
+            SAMTOOLS_FORMAT_CITATION_EVIDENCE,
+        ],
+    }
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

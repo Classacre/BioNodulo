@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "node_id": "seqkit_mutate",
+  "node_class": "bionodulo.nodes.builtin.seqkit_family.seqkit_mutate.SeqkitMutateNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/seqkit:2.13.0--he881be0_0",
+    "image_digest_expected": "sha256:0e14f53b486c6b6e199e525f3f1e7494b59b580f835f7835e497b46f99267b6a",
+    "image_digest_observed_after_run": "quay.io/biocontainers/seqkit@sha256:0e14f53b486c6b6e199e525f3f1e7494b59b580f835f7835e497b46f99267b6a",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "seqkit",
+    "mutate",
+    "--point",
+    "2:T",
+    "-o",
+    "/work/out/seqkit_mutate/seqkit_mutate.out",
+    "/work/mini.fa"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "seqkit",
+    "mutate",
+    "--point",
+    "2:T",
+    "-o",
+    "\\work\\out\\seqkit_mutate\\seqkit_mutate.out",
+    "/work/mini.fa"
+  ],
+  "platform_path_rewrites": [
+    {
+      "rendered_on_host": "\\work\\out\\seqkit_mutate\\seqkit_mutate.out",
+      "used_in_container": "/work/out/seqkit_mutate/seqkit_mutate.out"
+    }
+  ],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "seqkit",
+  "inputs": {
+    "point": "2:T",
+    "sequence": "/work/mini.fa",
+    "output": "/work/out/seqkit_mutate"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\release-2026-09-29\\seqkit-mutate\\work\\out\\seqkit_mutate\\seqkit_mutate.out"
+  ],
+  "tool_version_stdout": "Error: unknown flag: --version\nUsage:\n  seqkit [command] \n\nCommands for Basic Operation:",
+  "status": "completed",
+  "exit_code": 0,
+  "missing_planned_outputs": [],
+  "output_verification_error": null,
+  "stdout": "",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_bytes": 0,
+  "stderr": "[INFO]\u001b[0m edit seq: read1\n",
+  "started_at_utc": "2026-09-29T13:44:16.128821+00:00",
+  "completed_at_utc": "2026-09-29T13:44:19.249729+00:00",
+  "fixture": {
+    "name": "mini.fa",
+    "sha256": "1f19eb40cd8686df786938457b3f8abc459a3de7146830931048fd70aab4f745",
+    "bytes": 30,
+    "source": "reports/run-receipts/release-2026-09-29/fixtures/mini.fa"
+  },
+  "additional_staged_assets": [],
+  "artifacts": [
+    {
+      "path": "work/mini.fa",
+      "bytes": 30,
+      "sha256": "1f19eb40cd8686df786938457b3f8abc459a3de7146830931048fd70aab4f745"
+    },
+    {
+      "path": "work/out/seqkit_mutate/seqkit_mutate.out",
+      "bytes": 28,
+      "sha256": "e9178cb58b28d24514c8c1d91d7f5a82ba904112fd10cb7a01f9d1f8e41361e2"
+    }
+  ],
+  "artifact_count": 2,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

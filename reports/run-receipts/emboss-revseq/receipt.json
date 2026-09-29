@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "node_id": "emboss_revseq",
+  "node_class": "bionodulo.nodes.builtin.emboss_family.revseq.EmbossRevseqNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/emboss:6.6.0--h0f19ade_14",
+    "image_digest_expected": "sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+    "image_digest_observed_after_run": "quay.io/biocontainers/emboss@sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "revseq",
+    "-sequence",
+    "/work/nucleotide.fasta",
+    "-outseq",
+    "/work/out/reverse_complement.fasta"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "revseq",
+    "-sequence",
+    "/work/nucleotide.fasta",
+    "-outseq",
+    "\\work\\out\\reverse_complement.fasta"
+  ],
+  "platform_path_rewrites": [
+    {
+      "rendered_on_host": "\\work\\out\\reverse_complement.fasta",
+      "used_in_container": "/work/out/reverse_complement.fasta"
+    }
+  ],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "revseq",
+  "inputs": {
+    "sequence": "/work/nucleotide.fasta",
+    "output": "/work/out"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\emboss-revseq\\work\\emboss_revseq\\reverse_complement.fasta"
+  ],
+  "tool_version_stdout": "EMBOSS:6.6.0.0",
+  "status": "completed",
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "Reverse and complement a nucleotide sequence\n",
+  "started_at_utc": "2026-09-25T07:06:08.627545+00:00",
+  "completed_at_utc": "2026-09-25T07:06:09.374724+00:00",
+  "fixture": {
+    "name": "nucleotide.fasta",
+    "sha256": "26319f94e7a3ed4f31ae5204e8aed74254ca94ba248a65e4cd08dcede121f198",
+    "bytes": 34,
+    "source": "tests/nodes/emboss_family/fixtures/nucleotide.fasta"
+  },
+  "artifacts": [
+    {
+      "path": "work/nucleotide.fasta",
+      "bytes": 34,
+      "sha256": "26319f94e7a3ed4f31ae5204e8aed74254ca94ba248a65e4cd08dcede121f198"
+    },
+    {
+      "path": "work/out/reverse_complement.fasta",
+      "bytes": 44,
+      "sha256": "20ed748476607819ce1c8d3ea654e3dcc4fdba03db81d57c8b6c4ede045b9313"
+    }
+  ],
+  "artifact_count": 2,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

@@ -1,0 +1,12 @@
+##gff-version 3
+##sequence-region dna1 1 124
+#!Date 2026-09-26
+#!Type Protein
+#!Source-version EMBOSS 6.6.0.0
+dna1	checktrans	polypeptide_region	1	124	.	.	.	ID=dna1.1
+##gff-version 3
+##sequence-region dna2 1 124
+#!Date 2026-09-26
+#!Type Protein
+#!Source-version EMBOSS 6.6.0.0
+dna2	checktrans	polypeptide_region	1	124	.	.	.	ID=dna2.1

@@ -1,0 +1,27 @@
+Small sequence/file for constructing target patterns: /work/dna.fasta
+Large sequence/file to be scanned for patterns: /work/dna.fasta
+Number of sequences in the patterns file: 2
+Pattern/word length: 4
+Number of patterns/words found: 45
+Number of sequences in the file scanned for patterns: 2
+Number of all matches: 177 (wordmatch finds exact matches only)
+Sum of match lengths: 1778
+Average match length: 10.05
+
+Distribution of the matches among pattern sequences:
+----------------------------------------------------
+dna1                                      :       77
+dna2                                      :      100
+
+Pattern statistics:
+-------------------
+Pattern   #pat-sequences  #all-matches  avg-match-length
+ATCG   :            2            76             10.05
+ATGG   :            1             1            124.00
+CCCG   :            2             4              6.50
+CGAT   :            2            54              7.85
+CGGG   :            2             2              4.00
+GATC   :            2             6              6.33
+GCTA   :            2            22              9.00
+TAGC   :            2             6              7.33
+TTTA   :            2             6             25.33

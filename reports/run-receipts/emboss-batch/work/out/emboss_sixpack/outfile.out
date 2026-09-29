@@ -1,0 +1,71 @@
+=======================================
+
+
+
+          X  M  A  S  *  L  G  I  D  R  S  G  *  L  A  S  I  V  X  W     F1
+           X  W  L  A  S  *  A  S  I  D  R  A  S  *  H  R  S  X  N  G    F2
+            N  G  *  L  A  R  H  R  S  I  G  L  A  S  I  D  R  X  M  A   F3
+        1 dnaatggctagctagctaggcatcgatcgatcgggctagctagcatcgatcgtdnaatgg 60
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+        1 hnttaccgatcgatcgatccgtagctagctagcccgatcgatcgtagctagcahnttacc 60
+           X  I  A  L  *  S  P  M  S  R  D  P  *  S  A  D  I  T  X  H    F6
+          X  X  P  *  S  A  L  C  R  D  I  P  S  A  L  M  S  R  X  I     F5
+            X  H  S  A  L  *  A  D  I  S  R  A  L  *  C  R  D  X  X  P   F4
+
+
+          L  A  S  *  A  S  I  D  R  A  S  *  H  R  S  X  K  L  A  S     F1
+           *  L  A  R  H  R  S  I  G  L  A  S  I  D  R  X  S  *  L  A    F2
+            S  *  L  G  I  D  R  S  G  *  L  A  S  I  V  X  A  S  *  H   F3
+       61 ctagctagctaggcatcgatcgatcgggctagctagcatcgatcgtdnaagctagctagc 120
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+       61 gatcgatcgatccgtagctagctagcccgatcgatcgtagctagcahnttcgatcgatcg 120
+           S  A  L  *  A  D  I  S  R  A  L  *  C  R  D  X  X  S  A  L    F6
+          A  L  *  S  P  M  S  R  D  P  *  S  A  D  I  T  X  A  L  *     F5
+            *  S  A  L  C  R  D  I  P  S  A  L  M  S  R  X  L  *  S  A   F4
+
+
+          I  D  R  S  *  L  A  P  G  N  L  A  S  X  S  *  L  A  S  I     F1
+           S  I  V  A  S  *  P  R  E  I  *  L  A  X  A  S  *  H  R  S    F2
+            R  S  *  L  A  S  P  G  K  F  S  *  X  K  L  A  S  I  D  R   F3
+      121 atcgatcgtagctagctagccccgggaaatttagctagcdnaagctagctagcatcgatc 180
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+      121 tagctagcatcgatcgatcggggccctttaaatcgatcghnttcgatcgatcgtagctag 180
+           M  S  R  L  *  S  A  G  P  F  K  A  L  X  L  *  S  A  D  I    F6
+          C  R  D  Y  S  A  L  G  P  F  N  L  *  X  X  S  A  L  M  S     F5
+            D  I  T  A  L  *  G  R  S  I  *  S  A  X  A  L  *  C  R  D   F4
+
+
+          V  A  S  *  P  R  E  I  *  L  A  X  S  I  D  R  S  *  L  A     F1
+           *  L  A  S  P  G  K  F  S  *  X  N  R  S  I  V  A  S  *  X    F2
+            S  *  L  A  P  G  N  L  A  S  X  I  D  R  S  *  L  A  S  X   F3
+      181 gtagctagctagccccgggaaatttagctagcdnaatcgatcgatcgtagctagctagcd 240
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+      181 catcgatcgatcggggccctttaaatcgatcghnttagctagctagcatcgatcgatcgh 240
+           T  A  L  *  G  R  S  I  *  S  A  X  D  I  S  R  L  *  S  A    F6
+          R  L  *  S  A  G  P  F  K  A  L  X  I  S  R  D  Y  S  A  L     F5
+            Y  S  A  L  G  P  F  N  L  *  X  X  R  D  I  T  A  L  *  X   F4
+
+
+          X  S  I  D  R  S  *  L  A                                      F1
+           N  R  S  I  V  A  S  *  X                                     F2
+            I  D  R  S  *  L  A  S                                       F3
+      241 naatcgatcgatcgtagctagctagc 266
+          ----:----|----:----|----:-
+      241 nttagctagctagcatcgatcgatcg 266
+           X  D  I  S  R  L  *  S  A                                     F6
+          X  I  S  R  D  Y  S  A  L                                      F5
+            X  R  D  I  T  A  L  *                                       F4
+
+##############################
+Minimum size of ORFs : 1
+
+Total ORFs in frame 1 :    11
+Total ORFs in frame 2 :    12
+Total ORFs in frame 3 :    10
+Total ORFs in frame 4 :    10
+Total ORFs in frame 5 :     7
+Total ORFs in frame 6 :    11
+
+Total ORFs :    61
+##############################
+

@@ -1,0 +1,94 @@
+########################################
+# Program: garnier
+# Rundate: Sat 26 Sep 2026 14:04:58
+# Commandline: garnier
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_garnier/outfile.txt
+#    -auto
+# Report_format: tagseq
+# Report_file: /work/out/emboss_garnier/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 10
+#
+# DCH = 0, DCS = 0
+# 
+#  Please cite:
+#  Garnier, Osguthorpe and Robson (1978) J. Mol. Biol. 120:97-120
+# 
+#
+#=======================================
+
+          .   10    .   20    .   30    .   40    .   50
+      ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGT
+helix                                                   
+sheet          E                        E               
+turns TTTTTTTTT TTTTTTTTTTTTTTTTTTTTTTTT TTTTTTTTTTTTTTT
+ coil                                                   
+          .   60    .   70    .   80    .   90    .  100
+      AGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGC
+helix                                                   
+sheet                                E      EEEE        
+turns TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT TTTT      TTTTTTTT
+ coil                                     CC            
+          .  110    .  120
+      ATCGATCGATCGTAGCTAGCTAGC
+helix                         
+sheet                         
+turns TTTTTTTTTTTTTTTTTTTTTTTT
+ coil                         
+
+#---------------------------------------
+#
+#  Residue totals: H:  0   E:  7   T:115   C:  2
+#         percent: H:  0.0 E:  6.5 T: 106.5 C:  1.9
+#
+#---------------------------------------
+#=======================================
+#
+# Sequence: dna2     from: 1   to: 124
+# HitCount: 6
+#
+# DCH = 0, DCS = 0
+# 
+#  Please cite:
+#  Garnier, Osguthorpe and Robson (1978) J. Mol. Biol. 120:97-120
+# 
+#
+#=======================================
+
+          .   10    .   20    .   30    .   40    .   50
+      TTTAAACCCGGGTTTAAACCCGGGATCGATCGATCGATCGATCGATCGAT
+helix    H                                              
+sheet     EEE       EEEEE                               
+turns TTT    TTTTTTT     TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+ coil                                                   
+          .   60    .   70    .   80    .   90    .  100
+      CGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG
+helix                                                   
+sheet                                                   
+turns TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+ coil                                                   
+          .  110    .  120
+      TAGCTAGCTAGCTAGCTAGCTAGC
+helix                         
+sheet                         
+turns TTTTTTTTTTTTTTTTTTTTTTTT
+ coil                         
+
+#---------------------------------------
+#
+#  Residue totals: H:  1   E:  8   T:115   C:  0
+#         percent: H:  0.9 E:  7.4 T: 106.5 C:  0.0
+#
+#---------------------------------------
+
+#---------------------------------------
+# Total_sequences: 2
+# Total_length: 248
+# Reported_sequences: 2
+# Reported_hitcount: 16
+#---------------------------------------

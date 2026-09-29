@@ -1,0 +1,68 @@
+>dna1_1_ORF1  Translation of dna1 in frame 1, ORF 1, threshold 1, 3aa
+MAS
+>dna1_1_ORF2  Translation of dna1 in frame 1, ORF 2, threshold 1, 7aa
+LGIDRSG
+>dna1_1_ORF3  Translation of dna1 in frame 1, ORF 3, threshold 1, 7aa
+LASIVAS
+>dna1_1_ORF4  Translation of dna1 in frame 1, ORF 4, threshold 1, 3aa
+HRS
+>dna1_1_ORF5  Translation of dna1 in frame 1, ORF 5, threshold 1, 8aa
+LASPGKFS
+>dna1_1_ORF6  Translation of dna1 in frame 1, ORF 6, threshold 1, 7aa
+HRSIVAS
+>dna1_1_ORF7  Translation of dna1 in frame 1, ORF 7, threshold 1, 1aa
+X
+>dna1_2_ORF1  Translation of dna1 in frame 2, ORF 1, threshold 1, 4aa
+WLAS
+>dna1_2_ORF2  Translation of dna1 in frame 2, ORF 2, threshold 1, 7aa
+ASIDRAS
+>dna1_2_ORF3  Translation of dna1 in frame 2, ORF 3, threshold 1, 3aa
+HRS
+>dna1_2_ORF4  Translation of dna1 in frame 2, ORF 4, threshold 1, 7aa
+LASIDRS
+>dna1_2_ORF5  Translation of dna1 in frame 2, ORF 5, threshold 1, 12aa
+LAPGNLASIDRS
+>dna1_2_ORF6  Translation of dna1 in frame 2, ORF 6, threshold 1, 3aa
+LAS
+>dna1_3_ORF1  Translation of dna1 in frame 3, ORF 1, threshold 1, 1aa
+G
+>dna1_3_ORF2  Translation of dna1 in frame 3, ORF 2, threshold 1, 15aa
+LARHRSIGLASIDRS
+>dna1_3_ORF3  Translation of dna1 in frame 3, ORF 3, threshold 1, 7aa
+LASIVAS
+>dna1_3_ORF4  Translation of dna1 in frame 3, ORF 4, threshold 1, 4aa
+PREI
+>dna1_3_ORF5  Translation of dna1 in frame 3, ORF 5, threshold 1, 7aa
+LASIDRS
+>dna1_3_ORF6  Translation of dna1 in frame 3, ORF 6, threshold 1, 2aa
+LA
+>dna1_4_ORF1  Translation of dna1 in frame 4, ORF 1, threshold 1, 16aa
+LASYDRSMLAKFPGAS
+>dna1_4_ORF2  Translation of dna1 in frame 4, ORF 2, threshold 1, 11aa
+LRSMLASYDRC
+>dna1_4_ORF3  Translation of dna1 in frame 4, ORF 3, threshold 1, 7aa
+LARSIDA
+>dna1_4_ORF4  Translation of dna1 in frame 4, ORF 4, threshold 1, 4aa
+LASH
+>dna1_5_ORF1  Translation of dna1 in frame 5, ORF 1, threshold 1, 2aa
+AS
+>dna1_5_ORF2  Translation of dna1 in frame 5, ORF 2, threshold 1, 7aa
+LRSIDAS
+>dna1_5_ORF3  Translation of dna1 in frame 5, ORF 3, threshold 1, 4aa
+ISRG
+>dna1_5_ORF4  Translation of dna1 in frame 5, ORF 4, threshold 1, 7aa
+LATIDAS
+>dna1_5_ORF5  Translation of dna1 in frame 5, ORF 5, threshold 1, 15aa
+LRSMLASPIDRCLAS
+>dna1_5_ORF6  Translation of dna1 in frame 5, ORF 6, threshold 1, 2aa
+PX
+>dna1_6_ORF1  Translation of dna1 in frame 6, ORF 1, threshold 1, 7aa
+LATIDRC
+>dna1_6_ORF2  Translation of dna1 in frame 6, ORF 2, threshold 1, 12aa
+LNFPGLASYDRC
+>dna1_6_ORF3  Translation of dna1 in frame 6, ORF 3, threshold 1, 7aa
+LATIDAS
+>dna1_6_ORF4  Translation of dna1 in frame 6, ORF 4, threshold 1, 7aa
+PDRSMPS
+>dna1_6_ORF5  Translation of dna1 in frame 6, ORF 5, threshold 1, 3aa
+LAX

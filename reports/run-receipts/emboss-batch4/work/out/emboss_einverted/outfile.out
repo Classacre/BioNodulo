@@ -1,0 +1,10 @@
+
+dna1: Score 53: 22/26 ( 84%) matches, 0 gaps
+      30 gggctagctagcatcgatcgtagcta 55      
+         ||||||||||||  ||||||  ||||
+      83 cccgatcgatcgatgctagctacgat 58      
+
+dna2: Score 114: 37/37 (100%) matches, 0 gaps
+      24 gatcgatcgatcgatcgatcgatcgatcgatcgatcg 60      
+         |||||||||||||||||||||||||||||||||||||
+      99 ctagctagctagctagctagctagctagctagctagc 63      

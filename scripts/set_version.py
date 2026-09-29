@@ -67,32 +67,32 @@ def read_versions() -> dict[str, str]:
     """Every declared version, normalised to the npm spelling."""
     found: dict[str, str] = {}
     for rel in JSON_TARGETS:
-        found[str(rel)] = json.loads((REPO / rel).read_text())["version"]
+        found[str(rel)] = json.loads((REPO / rel).read_text(encoding="utf-8"))["version"]
 
     for rel in NPM_LOCKS:
-        lock = json.loads((REPO / rel).read_text())
+        lock = json.loads((REPO / rel).read_text(encoding="utf-8"))
         top = lock["version"]
         root = lock["packages"][""]["version"]
         if top != root:
             raise ValueError(f"{rel} root versions disagree: {top!r} != {root!r}")
         found[str(rel)] = top
 
-    cargo = re.search(r'^version = "([^"]+)"', (REPO / CARGO).read_text(), re.M)
+    cargo = re.search(r'^version = "([^"]+)"', (REPO / CARGO).read_text(encoding="utf-8"), re.M)
     if cargo:
         found[str(CARGO)] = cargo.group(1)
 
     cargo_lock = re.search(
         r'(?ms)^\[\[package\]\]\nname = "bionodulo-desktop"\nversion = "([^"]+)"',
-        (REPO / "desktop/src-tauri/Cargo.lock").read_text(),
+        (REPO / "desktop/src-tauri/Cargo.lock").read_text(encoding="utf-8"),
     )
     if cargo_lock:
         found["desktop/src-tauri/Cargo.lock"] = cargo_lock.group(1)
 
-    pyproject = re.search(r'^version = "([^"]+)"', (REPO / PYPROJECT).read_text(), re.M)
+    pyproject = re.search(r'^version = "([^"]+)"', (REPO / PYPROJECT).read_text(encoding="utf-8"), re.M)
     if pyproject:
         found[str(PYPROJECT)] = to_npm(pyproject.group(1))
 
-    init = re.search(r'^__version__ = "([^"]+)"', (REPO / INIT).read_text(), re.M)
+    init = re.search(r'^__version__ = "([^"]+)"', (REPO / INIT).read_text(encoding="utf-8"), re.M)
     if init:
         found[str(INIT)] = to_npm(init.group(1))
     return found
@@ -104,7 +104,7 @@ def write_version(npm_version: str) -> list[str]:
 
     for rel in JSON_TARGETS:
         path = REPO / rel
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         # Rewritten textually rather than via json.dump, so key order,
         # indentation and trailing newline survive untouched.
         updated, count = re.subn(
@@ -116,7 +116,7 @@ def write_version(npm_version: str) -> list[str]:
 
     for rel in NPM_LOCKS:
         path = REPO / rel
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         # package-lock v3 repeats the project version at the document root and
         # in packages[""]. Limit replacement to those first two occurrences.
         updated, count = re.subn(
@@ -132,7 +132,7 @@ def write_version(npm_version: str) -> list[str]:
             changed.append(str(rel))
 
     path = REPO / CARGO
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     updated, count = re.subn(
         r'^version = "[^"]+"', f'version = "{npm_version}"', text, count=1, flags=re.M
     )
@@ -141,7 +141,7 @@ def write_version(npm_version: str) -> list[str]:
         changed.append(str(CARGO))
 
     path = REPO / "desktop/src-tauri/Cargo.lock"
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     updated, count = re.subn(
         r'(?ms)(^\[\[package\]\]\nname = "bionodulo-desktop"\nversion = )"[^"]+"',
         rf'\1"{npm_version}"',
@@ -155,7 +155,7 @@ def write_version(npm_version: str) -> list[str]:
         changed.append(str(path.relative_to(REPO)))
 
     path = REPO / PYPROJECT
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     updated, count = re.subn(
         r'^version = "[^"]+"', f'version = "{to_pep440(npm_version)}"', text, count=1, flags=re.M
     )
@@ -164,7 +164,7 @@ def write_version(npm_version: str) -> list[str]:
         changed.append(str(PYPROJECT))
 
     path = REPO / INIT
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     updated, count = re.subn(
         r'^__version__ = "[^"]+"',
         f'__version__ = "{to_pep440(npm_version)}"',

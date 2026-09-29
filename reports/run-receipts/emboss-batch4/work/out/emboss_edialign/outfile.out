@@ -1,0 +1,63 @@
+ 
+                           DIALIGN 2.2.1 
+                           *************
+ 
+          Program code written by Burkhard Morgenstern and Said Abdeddaim 
+             e-mail contact: dialign (at) gobics (dot) de 
+ 
+          Published research assisted by DIALIGN 2 should cite:  
+ 
+             Burkhard Morgenstern (1999).
+             DIALIGN 2: improvement of the segment-to-segment
+             approach to multiple sequence alignment.
+             Bioinformatics 15, 211 - 218. 
+
+          For more information, please visit the DIALIGN home page at 
+
+             http://bibiserv.techfak.uni-bielefeld.de/dialign/ 
+ 
+         ************************************************************
+ 
+
+
+   program call:  _edialign -sequences /work/dna.fasta -outfile /work/out/emboss_edialign/outfile.out -outseq /work/out/emboss_edialign/outseq.out -auto  
+
+ 
+   Aligned sequences:          length:
+   ==================          =======
+ 
+   1) dna1                       124
+   2) dna2                       124
+
+   Average seq. length:          124.0 
+
+
+   Please note that only upper-case letters are considered to be aligned. 
+
+
+   Alignment (DIALIGN format):
+   ===========================
+ 
+dna1               1   atggctagct agcta----- -GGCATCGAT CGATCGggct agctagc--- 
+dna2               1   tttaaacccg ggtttaaacc cGGGATCGAT CGATCGatcg atcgatcgat 
+                                                                 
+                       0000000000 0000000000 0222222222 2222220000 0000000000 
+ 
+dna1              42   ---------- ---------- --ATCGATCG tagctagcta gcATCGATCG 
+dna2              51   cgatcgatcg atcgatcgat cgATCGATCG ---------- --ATCGATCG 
+                                                                 
+                       0000000000 0000000000 0000000000 0000000000 0000000000 
+ 
+dna1              70   tagctagcta gccccgggaa atttagctag cATCGATCGA TCGTAGCTAG 
+dna2              89   ---------- ---------- ---------- -ATCGATCGA TCGTAGCTAG 
+                                                                 
+                       0000000000 0000000000 0000000000 0888888888 8888888888 
+ 
+dna1             120   CTAGC----- ------- 
+dna2             108   CTAGCtagct agctagc 
+                             
+                       8888800000 0000000 
+ 
+
+ 
+ 

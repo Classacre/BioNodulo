@@ -1,0 +1,17 @@
+{
+  "check_count": 6,
+  "checks": {
+    "directory_count": 0,
+    "directory_exists": true,
+    "file_count": 3,
+    "format_valid": true,
+    "size_ok": true,
+    "total_size_bytes": 809834
+  },
+  "error_count": 0,
+  "errors": [],
+  "expected_format": "directory",
+  "input": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\alphafold_db_001\\alphafold_db",
+  "passed": true,
+  "warnings": []
+}

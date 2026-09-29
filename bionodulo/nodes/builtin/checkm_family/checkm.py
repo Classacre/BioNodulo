@@ -33,6 +33,17 @@ class CheckMNode(MetagenomicsCommandNode):
     GIT_COMMIT = "acb42ba20b29661054933d0df44a78fd28fd0bcc"
     UPSTREAM_TAG = "v1.2.5"
     DOCUMENTATION_URL = "https://github.com/Ecogenomics/CheckM/tree/v1.2.5"
+    # This hand-written node subclasses MetagenomicsCommandNode, not the CheckM
+    # contract in checkm_family/adapter.py, so it did not inherit the family's
+    # citation and shipped with no paper at all. Crossref-checked 2026-09-28:
+    # 10.1101/gr.186072.114 is "CheckM: assessing the quality of microbial genomes
+    # recovered from isolates, single cells, and metagenomes", Genome Research 2015.
+    CITATION_DOIS = ["10.1101/gr.186072.114"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "CheckM: assessing the quality of microbial genomes recovered from isolates, "
+        "single cells, and metagenomes."
+    )
     UPSTREAM_SOURCE = "bin/checkm lineage_wf parser; checkm/main.py; checkm/checkmData.py"
     REFERENCE_DATA_SEMANTICS = (
         "checkm_data must contain a valid CheckM manifest and is supplied through CHECKM_DATA_PATH."

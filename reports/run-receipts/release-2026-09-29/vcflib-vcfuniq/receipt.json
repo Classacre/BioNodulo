@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "node_id": "vcflib_vcfuniq",
+  "node_class": "bionodulo.nodes.builtin.vcflib_family.vcflib_vcfuniq.VcflibVcfuniqNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/vcflib:1.0.15--h3fa9d83_1",
+    "image_digest_expected": "sha256:838ddab39b0af484f51c1b08f032f47e4ca9e402a8d36d1d4c6f7c46e031d034",
+    "image_digest_observed_after_run": "quay.io/biocontainers/vcflib@sha256:838ddab39b0af484f51c1b08f032f47e4ca9e402a8d36d1d4c6f7c46e031d034",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "vcfuniq",
+    "/work/mini.vcf"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "vcfuniq",
+    "/work/mini.vcf"
+  ],
+  "platform_path_rewrites": [],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "vcfuniq",
+  "inputs": {
+    "input": "/work/mini.vcf",
+    "output": "/work/out/vcflib_vcfuniq"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\release-2026-09-29\\vcflib-vcfuniq\\work\\out\\vcflib_vcfuniq\\vcflib_vcfuniq.out"
+  ],
+  "tool_version_stdout": "",
+  "status": "completed",
+  "exit_code": 0,
+  "missing_planned_outputs": [],
+  "output_verification_error": null,
+  "stdout": "##fileformat=VCFv4.2\n##contig=<ID=chr1,length=1000>\n##contig=<ID=chr2,length=1000>\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\nchr1\t100\t.\tA\tT\t50\tPASS\t.\nchr1\t150\t.\tG\tC\t60\tPASS\t.\nchr1\t300\t.\tT\tA\t40\tPASS\t.\nchr2\t120\t.\tC\tG\t70\tPASS\t.\n",
+  "stdout_sha256": "3ee2010a159918dc2f430fa34deadd6ed4766ef050af5aaaa17bc1b7d207b31d",
+  "stdout_bytes": 222,
+  "stderr": "",
+  "started_at_utc": "2026-09-29T13:44:15.005018+00:00",
+  "completed_at_utc": "2026-09-29T13:44:18.389406+00:00",
+  "fixture": {
+    "name": "mini.vcf",
+    "sha256": "3ee2010a159918dc2f430fa34deadd6ed4766ef050af5aaaa17bc1b7d207b31d",
+    "bytes": 222,
+    "source": "tests/nodes/htslib_tabix_family/fixtures/mini.vcf"
+  },
+  "additional_staged_assets": [],
+  "artifacts": [
+    {
+      "path": "work/mini.vcf",
+      "bytes": 222,
+      "sha256": "3ee2010a159918dc2f430fa34deadd6ed4766ef050af5aaaa17bc1b7d207b31d"
+    },
+    {
+      "path": "work/out/vcflib_vcfuniq/vcflib_vcfuniq.out",
+      "bytes": 222,
+      "sha256": "3ee2010a159918dc2f430fa34deadd6ed4766ef050af5aaaa17bc1b7d207b31d"
+    },
+    {
+      "path": "work/stdout.bin",
+      "bytes": 222,
+      "sha256": "3ee2010a159918dc2f430fa34deadd6ed4766ef050af5aaaa17bc1b7d207b31d"
+    }
+  ],
+  "artifact_count": 3,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

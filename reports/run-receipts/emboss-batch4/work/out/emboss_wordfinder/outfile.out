@@ -1,0 +1,139 @@
+########################################
+# Program: wordfinder
+# Rundate: Sat 26 Sep 2026 15:17:08
+# Commandline: wordfinder
+#    -asequence /work/dna.fasta
+#    -bsequence /work/dna.fasta
+#    -outfile /work/out/emboss_wordfinder/outfile.out
+#    -errfile /work/out/emboss_wordfinder/errfile.out
+#    -auto
+# Align_format: simple
+# Report_file: /work/out/emboss_wordfinder/outfile.out
+########################################
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: dna1
+# 2: dna1
+# Matrix: EDNAFULL
+# Gap_penalty: 30.0
+# Extend_penalty: 1.5
+#
+# Length: 124
+# Identity:     124/124 (100.0%)
+# Similarity:   124/124 (100.0%)
+# Gaps:           0/124 ( 0.0%)
+# Score: 620.0
+# 
+# Wordscore:124
+# Alignlength:124
+#
+#=======================================
+
+dna1               1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGT     50
+                     ||||||||||||||||||||||||||||||||||||||||||||||||||
+dna1               1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGT     50
+
+dna1              51 AGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGC    100
+                     ||||||||||||||||||||||||||||||||||||||||||||||||||
+dna1              51 AGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGC    100
+
+dna1             101 ATCGATCGATCGTAGCTAGCTAGC    124
+                     ||||||||||||||||||||||||
+dna1             101 ATCGATCGATCGTAGCTAGCTAGC    124
+
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: dna2
+# 2: dna1
+# Matrix: EDNAFULL
+# Gap_penalty: 30.0
+# Extend_penalty: 1.5
+#
+# Length: 64
+# Identity:      45/64 (70.3%)
+# Similarity:    45/64 (70.3%)
+# Gaps:           1/64 ( 1.6%)
+# Score: 123.0
+# 
+# Wordscore:28
+# Alignlength:64
+#
+#=======================================
+
+dna2              49 ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGAT     98
+                     ||||||||||||..|.|.|.|.| ||||||||............||||||
+dna1              19 ATCGATCGATCGGGCTAGCTAGC-ATCGATCGTAGCTAGCTAGCATCGAT     67
+
+dna2              99 CGTAGCTAGCTAGC    112
+                     ||||||||||||||
+dna1              68 CGTAGCTAGCTAGC     81
+
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: dna1
+# 2: dna2
+# Matrix: EDNAFULL
+# Gap_penalty: 30.0
+# Extend_penalty: 1.5
+#
+# Length: 64
+# Identity:      45/64 (70.3%)
+# Similarity:    45/64 (70.3%)
+# Gaps:           1/64 ( 1.6%)
+# Score: 123.0
+# 
+# Wordscore:28
+# Alignlength:64
+#
+#=======================================
+
+dna1              19 ATCGATCGATCGGGCTAGCTAGC-ATCGATCGTAGCTAGCTAGCATCGAT     67
+                     ||||||||||||..|.|.|.|.| ||||||||............||||||
+dna2              49 ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGAT     98
+
+dna1              68 CGTAGCTAGCTAGC     81
+                     ||||||||||||||
+dna2              99 CGTAGCTAGCTAGC    112
+
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: dna2
+# 2: dna2
+# Matrix: EDNAFULL
+# Gap_penalty: 30.0
+# Extend_penalty: 1.5
+#
+# Length: 124
+# Identity:     124/124 (100.0%)
+# Similarity:   124/124 (100.0%)
+# Gaps:           0/124 ( 0.0%)
+# Score: 620.0
+# 
+# Wordscore:124
+# Alignlength:124
+#
+#=======================================
+
+dna2               1 TTTAAACCCGGGTTTAAACCCGGGATCGATCGATCGATCGATCGATCGAT     50
+                     ||||||||||||||||||||||||||||||||||||||||||||||||||
+dna2               1 TTTAAACCCGGGTTTAAACCCGGGATCGATCGATCGATCGATCGATCGAT     50
+
+dna2              51 CGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG    100
+                     ||||||||||||||||||||||||||||||||||||||||||||||||||
+dna2              51 CGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG    100
+
+dna2             101 TAGCTAGCTAGCTAGCTAGCTAGC    124
+                     ||||||||||||||||||||||||
+dna2             101 TAGCTAGCTAGCTAGCTAGCTAGC    124
+
+
+#---------------------------------------
+#---------------------------------------

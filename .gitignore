@@ -55,6 +55,11 @@ r_plot/
 .pixi/
 server.pid
 
+# Tiny deterministic fixtures consumed by the new EMBOSS and SeqFu oracle tests.
+!tests/nodes/emboss_family/fixtures/*.fasta
+!tests/nodes/seqfu_family/fixtures/mini.fasta
+!tests/nodes/seqfu_family/fixtures/mini.fastq
+
 # Example template data (large files; user downloads via Getting Started)
 examples/data/
 
@@ -76,3 +81,12 @@ nohup.out
 .worktrees/
 reports/biotools_registry/registry_snapshot.jsonl
 reports/biotools_registry/current/
+# Dated resync snapshots: raw registry downloads stay out of history. The
+# comparison result (snapshot-diff.json) is retained and committed instead.
+reports/biotools_registry/resync/
+
+# Reproducible bulk discovery reports; retain scripts, findings and source pins.
+reports/node-expansion/gap-candidates.json
+reports/node-expansion/generator-inputs/
+reports/galaxy-ingestion/conversion.json
+reports/galaxy-ingestion/wrapper-analysis.json

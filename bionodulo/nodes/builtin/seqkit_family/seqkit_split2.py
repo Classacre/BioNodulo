@@ -8,6 +8,7 @@ from bionodulo.nodes.builtin._annotation_sequence_adapter import _SeqKitSplit2Co
 
 class SeqKitSplit2Node(_SeqKitSplit2Contract):
     NODE_ID = "seqkit_split2"
+    CATEGORY = "seqkit"
     OUTPUT_NAME_BY_BASENAME = {
         "split_files": "split_files",
         "paired_split_files": "paired_split_files",

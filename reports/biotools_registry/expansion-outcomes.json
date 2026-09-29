@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-09-25T06:00:00Z",
+  "purpose": "Curated outcomes layered over the mechanically derived ledger. The builder computes a default state from metadata alone; this file records what was actually attempted, what was measured, and why a record is blocked. It exists so the admission work is not silently inferred from metadata.",
+  "host_constraint": {
+    "platform": "Windows-11-10.0.26200-SP0 / AMD64",
+    "conda_or_pixi": "absent on the host (pixi does exist inside the BioNodulo worker image at /app/.pixi/envs/worker)",
+    "wsl": "blocked by security policy (wsl.exe on the program blacklist)",
+    "docker_daemon": "AVAILABLE. The daemon was NOT running at the start of this assignment (dockerDesktopLinuxEngine pipe absent), which is why the first pass concluded no Linux execution path existed. It was started mid-session and then reported Server 28.4.0, linux/amd64. This materially changed the outcome and is recorded rather than quietly revised.",
+    "declared_project_platforms": ["linux-64", "linux-aarch64"],
+    "consequence": "With the Docker daemon up, a real Linux run IS possible via an immutable digest-pinned image, and one was performed. The remaining blocker is narrower than first reported: what is still unavailable is the project's own pixi-provisioned worker environment and the opt-in OCI reference profile (which depends on a WSL distro that is blacklisted here).",
+    "supersedes": "The earlier statement in this file that a real Linux run could not be produced on this host. That statement was accurate when written and is now obsolete."
+  },
+  "verified_runs": [
+    {
+      "receipt": "reports/run-receipts/protein-structure-db/receipt.json",
+      "template": "protein_structure_database_workflow.json",
+      "template_sha256": "recorded in the receipt",
+      "status": "completed",
+      "nodes_completed": 8,
+      "nodes_failed": 0,
+      "artifacts": 31,
+      "environment_provisioning_required": false,
+      "oracle": "tests/nodes/protein_database/test_receipt_oracle.py",
+      "oracle_result": "6 passed",
+      "oracle_scope": "Checks artifacts against external ground truth and against each other: canonical human TP53 P04637 length 393, its exact N-terminus, cross-agreement between the FASTA and the independently produced UniProt search TSV, a 393x393 predicted-aligned-error matrix with a zero diagonal, AlphaFold entry AF-P04637-F1, RCSB entry 4HHB, and every recorded artifact hash against disk.",
+      "not_established": "One workflow on one accession. Not a general guarantee for other accessions, datasets, or result sizes, and not a scientific validation of the underlying predictions."
+    },
+    {
+      "receipt": "reports/run-receipts/samtools-sort/receipt.json",
+      "node_id": "samtools_sort",
+      "kind": "digest_pinned_container",
+      "image": "quay.io/biocontainers/samtools:1.23.1--ha83d96e_0",
+      "image_digest": "sha256:23cda33a3a42125872766df9aaf1d2db67cdb8c85314b793465188435af31ba6",
+      "tool_version_inside_image": "samtools 1.23.1 / htslib 1.23.1",
+      "status": "completed",
+      "exit_code": 0,
+      "network": "none",
+      "fixture": "tests/nodes/samtools/fixtures/mini_unsorted.sam",
+      "oracle": "tests/nodes/samtools/test_container_receipt_oracle.py",
+      "oracle_result": "6 passed",
+      "oracle_independence": "The oracle decompresses BGZF with stdlib gzip and parses the BAM binary layout directly. It does not call samtools, pysam, or htslib to check samtools.",
+      "oracle_scope": "Header declares SO:coordinate; references are [chr1, chr2]; all three fixture reads survive by name; records are ordered by reference then 0-based position; sequences are byte-identical to the fixture; positions are exactly 99/299/199; every recorded artifact hash matches disk; the image digest still resolves to the requested value after the run.",
+      "failure_mode": {
+        "receipt": "reports/run-receipts/samtools-sort-invalid/receipt.json",
+        "fixture": "tests/nodes/samtools/fixtures/invalid_cigar_length.sam",
+        "observed": "exit 1 with '[E::sam_parse1] CIGAR and query sequence are of different length' and 'samtools sort: truncated file. Aborting'",
+        "significance": "Malformed input fails loudly and publishes no output alignment, rather than emitting a plausible-looking BAM."
+      },
+      "platform_finding": "render_command() builds output paths with pathlib.Path, so on this Windows host the argv contained backslashes ('\\work\\out\\tmp'). A linux-64 worker would render forward slashes. The receipt records both forms and the rewrite, so the difference is visible rather than normalised away. The node's argv is therefore not platform-neutral.",
+      "not_established": "One node, one fixture, one image. This does not establish the other samtools operations, other fixtures, the cloud queue's own provisioning, or scientific validity of a real analysis."
+    },
+    {
+      "receipt": "reports/run-receipts/samtools-chain/receipt.json",
+      "kind": "digest_pinned_container_chain",
+      "image": "quay.io/biocontainers/samtools:1.23.1--ha83d96e_0",
+      "image_digest": "sha256:23cda33a3a42125872766df9aaf1d2db67cdb8c85314b793465188435af31ba6",
+      "steps": 8,
+      "distinct_operations_covered": 7,
+      "composition": "sort -> index; sort -> flagstat; sort -> view; collate -> fixmate -> sort -> markdup",
+      "result": "8/8 steps exit 0; 8/8 output-honest (every PLAN_OUTPUTS promise materialised); 0 dishonest",
+      "oracle": "tests/nodes/samtools/test_chain_receipt_oracle.py",
+      "oracle_result": "8 passed",
+      "oracle_independence": "Parses BAM with stdlib gzip plus a hand-written binary parser; no samtools, pysam or htslib involved in assertions.",
+      "composition_finding": "samtools_markdup requires COORDINATE-SORTED input, so samtools_fixmate cannot feed it directly despite fixmate being the documented tag-preparation step. A coordinate sort must sit between them. Established by experiment: a collate -> fixmate -> markdup chain failed with 'not in coordinate sorted order'; inserting a sort made it pass.",
+      "hypothesis_rejected": "I initially suspected that samtools_fixmate omitting the -m flag broke the markdup composition. A controlled A/B test (fixmate with and without -m, both then coordinate-sorted, then markdup) showed BOTH exit 0 on this fixture, so the -m omission is NOT a demonstrated defect and is not reported as one.",
+      "false_positives_corrected": "An earlier version of the harness reported samtools_index and samtools_flagstat as output-dishonest. Both were harness bugs, not node bugs: samtools_index materialises its first planned output in PREPARE_EXECUTION (hard-linking the source BAM beside the .bai), and samtools_flagstat declares STDOUT_OUTPUT_INDEX = 0 so the executor captures stdout into the planned file. Once the harness honoured both conventions, all eight steps became output-honest. The false positives are recorded here rather than quietly dropped.",
+      "not_established": "The harness reproduces the executor contract around a container run; it does not run the project's own pixi-provisioned worker, so this is evidence about the nodes and their commands, not about cloud provisioning."
+    }
+  ],
+  "records": {
+    "uniprot": {
+      "state": "executable_admitted",
+      "reconciliation_status": "existing_related_operation",
+      "owner": "atlas",
+      "verified_operations": ["uniprot_search", "uniprot_retrieve"],
+      "operation_provenance": "pre_existing_builtin",
+      "evidence": [
+        "reports/run-receipts/protein-structure-db/receipt.json",
+        "tests/nodes/protein_database/test_receipt_oracle.py"
+      ],
+      "next_action": "Extend oracle coverage to a second accession and a negative case (accession with no AlphaFold prediction); the current evidence is a single accession.",
+      "note": "Both nodes ran to completion in the ordinary executor and their outputs passed the independent oracle. The builtins pre-existed; this assignment verified them rather than authoring them. Citation recorded as resource-level (10.1093/nar/gkaa1100)."
+    },
+    "alphafold": {
+      "state": "executable_admitted",
+      "reconciliation_status": "existing_related_operation",
+      "owner": "atlas",
+      "verified_operations": ["alphafold_db"],
+      "operation_provenance": "pre_existing_builtin",
+      "evidence": [
+        "reports/run-receipts/protein-structure-db/receipt.json",
+        "tests/nodes/protein_database/test_receipt_oracle.py"
+      ],
+      "next_action": "Verify against an accession without a prediction to exercise the documented empty-response failure path.",
+      "note": "alphafold_db completed and the oracle confirmed the AF-P04637-F1 entry and a 393x393 PAE matrix. Citation 10.1093/nar/gkad1011 was verified through Crossref; the bio.tools 'alphafold' record lists two unrelated publications instead, which were not used."
+    },
+    "pdb": {
+      "state": "executable_admitted",
+      "reconciliation_status": "existing_related_operation",
+      "owner": "atlas",
+      "verified_operations": ["pdb_download"],
+      "operation_provenance": "pre_existing_builtin",
+      "evidence": [
+        "reports/run-receipts/protein-structure-db/receipt.json",
+        "tests/nodes/protein_database/test_receipt_oracle.py"
+      ],
+      "next_action": "Add an invalid-PDB-ID negative case; the current run exercised only a valid entry.",
+      "note": "pdb_download completed and the oracle confirmed a real mmCIF entry for 4HHB. Two verified resource citations are recorded; see the exporter fidelity limitation in the final report."
+    },
+    "samtools": {
+      "state": "executable_admitted",
+      "reconciliation_status": "existing_exact",
+      "owner": "atlas",
+      "verified_operations": ["samtools_sort", "samtools_index", "samtools_flagstat",
+                              "samtools_view", "samtools_collate", "samtools_fixmate",
+                              "samtools_markdup"],
+      "operation_provenance": "pre_existing_builtin",
+      "evidence": [
+        "reports/run-receipts/samtools-sort/receipt.json",
+        "reports/run-receipts/samtools-sort-invalid/receipt.json",
+        "reports/run-receipts/samtools-chain/receipt.json",
+        "tests/nodes/samtools/test_container_receipt_oracle.py",
+        "tests/nodes/samtools/test_chain_receipt_oracle.py"
+      ],
+      "next_action": "Extend the same digest-pinned receipt pattern to the remaining samtools nodes (depth, coverage, mpileup, idxstats, stats, merge, faidx, fastx, phase, consensus, reheader, split, slice_bam, calmd, ampliconclip, bedcov). The family adapter and ports already exist; only receipts and oracles are missing.",
+      "note": "All seven typed samtools catalog operations were executed in one digest-pinned Linux image with the network disabled. 8/8 chain steps exited 0 and 8/8 were output-honest (every PLAN_OUTPUTS promise materialised). 14 oracle assertions pass, parsing BAM independently of htslib. A deliberate invalid-input run confirmed loud failure with no published output. The builtins pre-existed; this assignment verified them rather than authoring them."
+    },
+    "transeq": {
+      "state": "executable_admitted",
+      "reconciliation_status": "new_operation",
+      "owner": "atlas",
+      "verified_operations": ["emboss_transeq"],
+      "operation_provenance": "newly_authored",
+      "evidence": ["reports/run-receipts/emboss-transeq/receipt.json",
+                   "tests/nodes/emboss_family/test_emboss_oracle.py"],
+      "next_action": "Extend the family with further EMBOSS programs as needed (pepinfo, isoelectric, water).",
+      "note": "New node authored from this census record. Ran in quay.io/biocontainers/emboss:6.6.0--h0f19ade_14 with network disabled; oracle asserts the translated peptide equals the known ground-truth string."
+    },
+    "revseq": {
+      "state": "executable_admitted",
+      "reconciliation_status": "new_operation",
+      "owner": "atlas",
+      "verified_operations": ["emboss_revseq"],
+      "operation_provenance": "newly_authored",
+      "evidence": ["reports/run-receipts/emboss-revseq/receipt.json",
+                   "tests/nodes/emboss_family/test_emboss_oracle.py"],
+      "next_action": "None outstanding for this operation.",
+      "note": "New node authored from this census record. Oracle asserts the output is the exact reverse complement of the fixture."
+    },
+    "pepstats": {
+      "state": "executable_admitted",
+      "reconciliation_status": "new_operation",
+      "owner": "atlas",
+      "verified_operations": ["emboss_pepstats"],
+      "operation_provenance": "newly_authored",
+      "evidence": ["reports/run-receipts/emboss-pepstats/receipt.json",
+                   "tests/nodes/emboss_family/test_emboss_oracle.py"],
+      "next_action": "None outstanding for this operation.",
+      "note": "New node authored from this census record. pepstats in 6.6.0 does not write to stdout by default and has no -window qualifier; the node passes -outfile stdout with STDOUT_OUTPUT_INDEX=0. Oracle asserts the reported residue count matches the fixture."
+    },
+    "tabix": {
+      "state": "executable_admitted",
+      "reconciliation_status": "new_operation",
+      "owner": "atlas",
+      "verified_operations": ["bgzip_compress", "bgzip_decompress", "tabix_index", "tabix_query"],
+      "operation_provenance": "newly_authored",
+      "evidence": ["reports/run-receipts/htslib-bgzip-compress/receipt.json",
+                   "reports/run-receipts/htslib-bgzip-decompress/receipt.json",
+                   "reports/run-receipts/htslib-tabix-index/receipt.json",
+                   "reports/run-receipts/htslib-tabix-query/receipt.json",
+                   "tests/nodes/htslib_tabix_family/test_htslib_tabix_oracle.py"],
+      "next_action": "Consider adding tabix_query's optional -h header passthrough as an explicit port.",
+      "note": "Four new nodes authored. All ran in quay.io/biocontainers/tabix:0.2.5--ha92aebf_2. Oracle decompresses BGZF with stdlib gzip and asserts byte-identity with the input, the TBI magic, and that a region query returns exactly the in-region records while excluding out-of-region ones. bgzip has no --version flag, so the harness version probe records bgzip's real 'invalid option' text rather than a version banner."
+    },
+    "seqfu": {
+      "state": "executable_admitted",
+      "reconciliation_status": "new_operation",
+      "owner": "atlas",
+      "verified_operations": ["seqfu_stats", "seqfu_count", "seqfu_list"],
+      "operation_provenance": "newly_authored",
+      "evidence": ["reports/run-receipts/seqfu-stats/receipt.json",
+                   "reports/run-receipts/seqfu-count/receipt.json",
+                   "reports/run-receipts/seqfu-list/receipt.json",
+                   "tests/nodes/seqfu_family/test_seqfu_oracle.py"],
+      "next_action": "Verify a FASTQ input path end to end; only FASTA was exercised in the container.",
+      "note": "Three new nodes authored. Flags were read from the pinned image's own --help output rather than guessed. Oracle recomputes sequence count, total bp, N50/N75/N90 and min/max from the fixture with stdlib only and compares exactly."
+    }
+  },
+  "nodes_without_a_registry_record": {
+    "csvtk": {
+      "nodes": ["csvtk_stats", "csvtk_headers", "csvtk_cut"],
+      "state": "executable_admitted",
+      "operation_provenance": "newly_authored",
+      "evidence": ["reports/run-receipts/csvtk-stats/receipt.json",
+                   "reports/run-receipts/csvtk-headers/receipt.json",
+                   "reports/run-receipts/csvtk-cut/receipt.json",
+                   "tests/nodes/csvtk_family/test_csvtk_oracle.py"],
+      "note": "csvtk has NO bio.tools record: it is absent from the 34,248-record census and from the live API. It therefore has no ledger row and no tool_id, which is recorded as an omission rather than filled with a plausible-looking URL. The nodes were still admitted because the tool is real, widely used, and ran successfully in quay.io/biocontainers/csvtk:0.31.0--h9ee0642_0.",
+      "next_action": "If csvtk is later added to bio.tools, attach the tool_id then. Do not invent one."
+    }
+  },
+  "cohort_default_outcome": {
+    "state": "candidate",
+    "owner": "unassigned-cohort",
+    "blocker_code": null,
+    "next_action": "Assemble each record's source dossier, then admit through the now-proven digest-pinned container path: implement the family operation and typed NodeSpec, add a tiny legal fixture and focused test, run it with scripts/run_container_receipt.py, and verify with an independent oracle.",
+    "supersedes": "This cohort was first recorded as blocked with code 'unsupported_platform' because the Docker daemon was not running. That blocker is now obsolete: the daemon came up mid-session and a digest-pinned Linux run succeeded for seven samtools operations. The records are therefore unfinished candidates, not platform-blocked.",
+    "not_claimed": "None of these 40 records has been admitted. A candidate is unfinished and carries an owner and a next step; it is not an executable builtin and must not be counted as one."
+  },
+  "unprocessed_tail_note": "Records in state reference_only that are machine-invocable are the unprocessed tail. They were deliberately not started because the remaining effort went into verifying the samtools family end-to-end and correcting the platform-blocker assessment, not because the platform forbids them."
+}

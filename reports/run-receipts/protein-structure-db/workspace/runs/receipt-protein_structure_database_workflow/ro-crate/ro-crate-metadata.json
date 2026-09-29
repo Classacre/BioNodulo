@@ -1,0 +1,414 @@
+{
+  "@context": [
+    "https://w3id.org/ro/crate/1.1/context",
+    "https://w3id.org/ro/terms/workflow-run/context",
+    {
+      "bionodulo": "https://github.com/Classacre/BioNodulo/terms/experimental#"
+    }
+  ],
+  "@graph": [
+    {
+      "@id": "ro-crate-metadata.json",
+      "@type": "CreativeWork",
+      "about": {
+        "@id": "./"
+      },
+      "conformsTo": {
+        "@id": "https://w3id.org/ro/crate/1.1"
+      }
+    },
+    {
+      "@id": "./",
+      "@type": "Dataset",
+      "bionodulo:conformanceStatus": "Experimental extension; Workflow Run and Provenance Run profiles have not been validated",
+      "bionodulo:semanticVerification": "unverified",
+      "conformsTo": [
+        {
+          "@id": "https://w3id.org/ro/crate/1.1"
+        }
+      ],
+      "dateModified": "2026-09-25T05:48:54.458797+00:00",
+      "datePublished": "2026-09-25T05:48:54.458797+00:00",
+      "description": "BioNodulo workflow run with semantic contract records.",
+      "hasPart": [
+        {
+          "@id": "workflow/bionodulo-workflow.json"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.tsv"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.raw.json"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_retrieve_001/uniprot_retrieve/tp53.fasta"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637.cif"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/structure_metadata.json"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637_pae.json"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/4HHB.cif"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/pdb_metadata.json"
+        }
+      ],
+      "license": "Reuse terms are unspecified; consult the data custodian.",
+      "mainEntity": {
+        "@id": "workflow/bionodulo-workflow.json"
+      },
+      "mentions": [
+        {
+          "@id": "#run-uniprot_search_001"
+        },
+        {
+          "@id": "#run-uniprot_retrieve_001"
+        },
+        {
+          "@id": "#run-alphafold_db_001"
+        },
+        {
+          "@id": "#run-pdb_download_001"
+        },
+        {
+          "@id": "#run-render_uniprot_search_tab_0"
+        },
+        {
+          "@id": "#run-render_uniprot_seq_0"
+        },
+        {
+          "@id": "#run-render_alphafold_meta_0"
+        },
+        {
+          "@id": "#run-render_pdb_meta_0"
+        },
+        {
+          "@id": "#workflow-run"
+        }
+      ],
+      "name": "Protein Structure Database Workflow (BioNodulo run crate)"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/workflow/0.5",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "Workflow Run Crate 0.5"
+    },
+    {
+      "@id": "https://w3id.org/ro/wfrun/provenance/0.5",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "Provenance Run Crate 0.5"
+    },
+    {
+      "@id": "https://w3id.org/ro/terms/bionodulo/profile/0.1",
+      "@type": [
+        "CreativeWork",
+        "Profile"
+      ],
+      "name": "BioNodulo Semantic Run Crate profile 0.1"
+    },
+    {
+      "@id": "workflow/bionodulo-workflow.json",
+      "@type": [
+        "File",
+        "SoftwareSourceCode",
+        "ComputationalWorkflow"
+      ],
+      "encodingFormat": "application/json",
+      "name": "Protein Structure Database Workflow",
+      "programmingLanguage": {
+        "@id": "#bionodulo-language"
+      }
+    },
+    {
+      "@id": "#bionodulo-language",
+      "@type": "ComputerLanguage",
+      "name": "BioNodulo workflow JSON"
+    },
+    {
+      "@id": "#engine",
+      "@type": "SoftwareApplication",
+      "name": "BioNodulo"
+    },
+    {
+      "@id": "#tool-uniprot_search",
+      "@type": "SoftwareApplication",
+      "name": "uniprot_search",
+      "softwareVersion": "unknown"
+    },
+    {
+      "@id": "#run-uniprot_search_001",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "bionodulo:executionStatus": "completed",
+      "instrument": {
+        "@id": "#tool-uniprot_search"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      },
+      "result": [
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.tsv"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.raw.json"
+        }
+      ]
+    },
+    {
+      "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.tsv",
+      "@type": "File",
+      "bionodulo:sha256": "9bff6f17096a714110b7335329d496fd4556687e4e10b36224a1c73ecd4bcdf2",
+      "contentSize": 140,
+      "encodingFormat": "text/tab-separated-values",
+      "name": "tp53_uniprot.tsv"
+    },
+    {
+      "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.raw.json",
+      "@type": "File",
+      "bionodulo:sha256": "4b87ab5e1d01c290448d7026b64e20e177fa9617d6941bb289c6dcacd5a85d26",
+      "contentSize": 1570,
+      "encodingFormat": "application/json",
+      "name": "tp53_uniprot.raw.json"
+    },
+    {
+      "@id": "#tool-uniprot_retrieve",
+      "@type": "SoftwareApplication",
+      "name": "uniprot_retrieve",
+      "softwareVersion": "unknown"
+    },
+    {
+      "@id": "#run-uniprot_retrieve_001",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "bionodulo:executionStatus": "completed",
+      "instrument": {
+        "@id": "#tool-uniprot_retrieve"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      },
+      "result": [
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_retrieve_001/uniprot_retrieve/tp53.fasta"
+        }
+      ]
+    },
+    {
+      "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_retrieve_001/uniprot_retrieve/tp53.fasta",
+      "@type": "File",
+      "bionodulo:sha256": "e021f032248335d1ae2731851741685839a7414ab4086ff422670ae99e4e06df",
+      "contentSize": 498,
+      "encodingFormat": "application/octet-stream",
+      "name": "tp53.fasta"
+    },
+    {
+      "@id": "#tool-alphafold_db",
+      "@type": "SoftwareApplication",
+      "name": "alphafold_db",
+      "softwareVersion": "unknown"
+    },
+    {
+      "@id": "#run-alphafold_db_001",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "bionodulo:executionStatus": "completed",
+      "instrument": {
+        "@id": "#tool-alphafold_db"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      },
+      "result": [
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637.cif"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/structure_metadata.json"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637.cif"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637_pae.json"
+        }
+      ]
+    },
+    {
+      "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637.cif",
+      "@type": "File",
+      "bionodulo:sha256": "4332bff49301d04434b6e3b43c439aa5bd8238760e88c7142f7d0c0851a68e5d",
+      "contentSize": 363485,
+      "encodingFormat": "application/octet-stream",
+      "name": "P04637.cif"
+    },
+    {
+      "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/structure_metadata.json",
+      "@type": "File",
+      "bionodulo:sha256": "29452142f2efb9f661307c42192617e3ba8fe158784dc99c96b42a6f15ce9355",
+      "contentSize": 24082,
+      "encodingFormat": "application/json",
+      "name": "structure_metadata.json"
+    },
+    {
+      "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637_pae.json",
+      "@type": "File",
+      "bionodulo:sha256": "9cfbaa7522ce1aecf0caa3b66bb414815911521b05749493a40a557e58678c5d",
+      "contentSize": 422267,
+      "encodingFormat": "application/json",
+      "name": "P04637_pae.json"
+    },
+    {
+      "@id": "#tool-pdb_download",
+      "@type": "SoftwareApplication",
+      "name": "pdb_download",
+      "softwareVersion": "unknown"
+    },
+    {
+      "@id": "#run-pdb_download_001",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "bionodulo:executionStatus": "completed",
+      "instrument": {
+        "@id": "#tool-pdb_download"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      },
+      "result": [
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/4HHB.cif"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/pdb_metadata.json"
+        }
+      ]
+    },
+    {
+      "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/4HHB.cif",
+      "@type": "File",
+      "bionodulo:sha256": "2d3ca1bf21ddff35af2e2bc5d331720f7bfc46a16c4829ea3ec1b41062d5f5a6",
+      "contentSize": 772198,
+      "encodingFormat": "application/octet-stream",
+      "name": "4HHB.cif"
+    },
+    {
+      "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/pdb_metadata.json",
+      "@type": "File",
+      "bionodulo:sha256": "070a97c25243b4805efdedcf00d50307ed0c130741a2744a22dc3aa4abbd0589",
+      "contentSize": 44473,
+      "encodingFormat": "application/json",
+      "name": "pdb_metadata.json"
+    },
+    {
+      "@id": "#tool-table_preview",
+      "@type": "SoftwareApplication",
+      "name": "table_preview",
+      "softwareVersion": "unknown"
+    },
+    {
+      "@id": "#run-render_uniprot_search_tab_0",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "bionodulo:executionStatus": "completed",
+      "instrument": {
+        "@id": "#tool-table_preview"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      }
+    },
+    {
+      "@id": "#tool-text_preview",
+      "@type": "SoftwareApplication",
+      "name": "text_preview",
+      "softwareVersion": "unknown"
+    },
+    {
+      "@id": "#run-render_uniprot_seq_0",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "bionodulo:executionStatus": "completed",
+      "instrument": {
+        "@id": "#tool-text_preview"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      }
+    },
+    {
+      "@id": "#run-render_alphafold_meta_0",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "bionodulo:executionStatus": "completed",
+      "instrument": {
+        "@id": "#tool-text_preview"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      }
+    },
+    {
+      "@id": "#run-render_pdb_meta_0",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "bionodulo:executionStatus": "completed",
+      "instrument": {
+        "@id": "#tool-text_preview"
+      },
+      "object": {
+        "@id": "workflow/bionodulo-workflow.json"
+      }
+    },
+    {
+      "@id": "#workflow-run",
+      "@type": "CreateAction",
+      "actionStatus": "CompletedActionStatus",
+      "agent": {
+        "@id": "#engine"
+      },
+      "instrument": {
+        "@id": "workflow/bionodulo-workflow.json"
+      },
+      "name": "Protein Structure Database Workflow",
+      "result": [
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.tsv"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_search_001/uniprot_search/tp53_uniprot.raw.json"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/uniprot_retrieve_001/uniprot_retrieve/tp53.fasta"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637.cif"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/structure_metadata.json"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/alphafold_db_001/alphafold_db/P04637_pae.json"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/4HHB.cif"
+        },
+        {
+          "@id": "file:///D:/AI/BioNodulo/BioNodulo-knowledge-graph/reports/run-receipts/protein-structure-db/workspace/runs/receipt-protein_structure_database_workflow/pdb_download_001/pdb_download/pdb_metadata.json"
+        }
+      ]
+    }
+  ]
+}

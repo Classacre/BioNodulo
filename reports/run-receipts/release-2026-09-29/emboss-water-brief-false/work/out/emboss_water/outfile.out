@@ -1,0 +1,41 @@
+########################################
+# Program: water
+# Rundate: Tue 29 Sep 2026 13:54:34
+# Commandline: water
+#    -asequence /work/first.fa
+#    -bsequence /work/second.fa
+#    -outfile /work/out/emboss_water/outfile.out
+#    -brief N
+#    -auto
+# Align_format: srspair
+# Report_file: /work/out/emboss_water/outfile.out
+########################################
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: first
+# 2: second
+# Matrix: EDNAFULL
+# Gap_penalty: 10.0
+# Extend_penalty: 0.5
+#
+# Length: 12
+# Identity:      12/12 (100.0%)
+# Similarity:    12/12 (100.0%)
+# Gaps:           0/12 ( 0.0%)
+# Score: 60.0
+# Longest_Identity = 100.00%
+# Longest_Similarity = 100.00%
+# Shortest_Identity = 100.00%
+# Shortest_Similarity = 100.00%
+#
+#=======================================
+
+first              1 ACGTACGTACGT     12
+                     ||||||||||||
+second             1 ACGTACGTACGT     12
+
+
+#---------------------------------------
+#---------------------------------------

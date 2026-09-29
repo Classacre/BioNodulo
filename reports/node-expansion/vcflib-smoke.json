@@ -1,0 +1,373 @@
+{
+  "schema_version": 1,
+  "image": "quay.io/biocontainers/vcflib@sha256:838ddab39b0af484f51c1b08f032f47e4ca9e402a8d36d1d4c6f7c46e031d034",
+  "fixture": "3-record VCF on chr1 plus a 1000 bp reference FASTA",
+  "scope": "Smoke test only. Exit 0 with plausible output shows the tool runs in the pinned image; it is not evidence that the output is scientifically correct.",
+  "tools_run": 27,
+  "tools_exited_zero": 26,
+  "failures": [
+    {
+      "tool": "vcfinfosummarize",
+      "exit_code": 139,
+      "known_defect": "segfaults (exit 139) on every valid invocation in the pinned 1.0.15 image, with -f/-i and with -a/-m; `vcfinfosummarize --help` exits 0, so the crash is in the tool rather than in the node's command"
+    }
+  ],
+  "results": [
+    {
+      "tool": "vcf2tsv",
+      "argv": [
+        "vcf2tsv",
+        "-g",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 6,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\t30\ts1\t15\t0/1",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfcheck",
+      "argv": [
+        "vcfcheck",
+        "-f",
+        "ref.fa",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 1,
+      "first_line": "index file ref.fa.fai not found, generating...",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcffilter",
+      "argv": [
+        "vcffilter",
+        "-f",
+        "DP > 20",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcffilter QUAL",
+      "argv": [
+        "vcffilter",
+        "-f",
+        "QUAL > 55",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 2,
+      "first_line": "chr1\t200\trs2\tC\tT\t60\tPASS\tDP=40\tGT:DP\t0/0:20\t0/1:20",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfcat",
+      "argv": [
+        "vcfcat",
+        "t.vcf",
+        "u.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 6,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfstats",
+      "argv": [
+        "vcfstats",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 19,
+      "first_line": "total variant sites:\t3",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfnumalt",
+      "argv": [
+        "vcfnumalt",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30;NUMALT=1\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcffixup",
+      "argv": [
+        "vcffixup",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30;AC=3;AF=0.75;AN=4;NS=2\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcflength",
+      "argv": [
+        "vcflength",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30;length=0;length.alt=1;length.ref=1\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfcountalleles",
+      "argv": [
+        "vcfcountalleles",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 1,
+      "first_line": "6",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfhetcount",
+      "argv": [
+        "vcfhetcount",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 2,
+      "first_line": "s1\ts2",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfallelicprimitives",
+      "argv": [
+        "vcfallelicprimitives",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfbreakmulti",
+      "argv": [
+        "vcfbreakmulti",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfkeepsamples",
+      "argv": [
+        "vcfkeepsamples",
+        "t.vcf",
+        "s1"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfremovesamples",
+      "argv": [
+        "vcfremovesamples",
+        "t.vcf",
+        "s2"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfecho",
+      "argv": [
+        "vcfecho",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfsort",
+      "argv": [
+        "vcfsort",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfstreamsort",
+      "argv": [
+        "vcfstreamsort",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfuniq",
+      "argv": [
+        "vcfuniq",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfinfosummarize",
+      "argv": [
+        "vcfinfosummarize",
+        "-f",
+        "DP",
+        "-i",
+        "SUMM",
+        "t.vcf"
+      ],
+      "exit_code": 139,
+      "output_lines": 0,
+      "first_line": "",
+      "ran": false,
+      "known_defect": "segfaults (exit 139) on every valid invocation in the pinned 1.0.15 image, with -f/-i and with -a/-m; `vcfinfosummarize --help` exits 0, so the crash is in the tool rather than in the node's command"
+    },
+    {
+      "tool": "vcfgenosamplenames",
+      "argv": [
+        "vcfgenosamplenames",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP:SN\t0/1:15:s1\t1/1:15:s2",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfnumalt",
+      "argv": [
+        "vcfnumalt",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30;NUMALT=1\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "abba-baba",
+      "argv": [
+        "abba-baba",
+        "--tree",
+        "0,1,2,3",
+        "--file",
+        "q.vcf",
+        "--type",
+        "PL"
+      ],
+      "exit_code": 0,
+      "output_lines": 6,
+      "first_line": "0",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "genotypeSummary",
+      "argv": [
+        "genotypeSummary",
+        "--target",
+        "0,1,2,3",
+        "--file",
+        "q.vcf",
+        "--type",
+        "PL",
+        "--snp"
+      ],
+      "exit_code": 0,
+      "output_lines": 8,
+      "first_line": "a\t0\t1\t1\t1",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "pFst",
+      "argv": [
+        "pFst",
+        "--target",
+        "0,1",
+        "--background",
+        "2,3",
+        "--file",
+        "q.vcf",
+        "--type",
+        "PL"
+      ],
+      "exit_code": 0,
+      "output_lines": 9,
+      "first_line": "chr1\t100\t0.419944",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcffilter probed",
+      "argv": [
+        "vcffilter",
+        "--info-filter",
+        "DP > 20",
+        "--filter-sites",
+        "t.vcf"
+      ],
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    },
+    {
+      "tool": "vcfdistance (stdin)",
+      "argv": null,
+      "exit_code": 0,
+      "output_lines": 3,
+      "first_line": "chr1\t100\trs1\tA\tG\t50\tPASS\tDP=30;BasesToClosestVariant=100\tGT:DP\t0/1:15\t1/1:15",
+      "ran": true,
+      "known_defect": null
+    }
+  ]
+}

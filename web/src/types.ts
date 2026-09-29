@@ -1,4 +1,5 @@
 import type { Comment } from './collab/types';
+import type { NodeKnowledge } from './utils/nodeKnowledge';
 
 export interface DynamicOutputSpec {
   prefix?: string;
@@ -40,6 +41,7 @@ export interface CustomNodePackageProvenance {
 }
 
 export interface NodeMetadata {
+  knowledge?: NodeKnowledge;
   id: string;
   display_name: string;
   category: string;

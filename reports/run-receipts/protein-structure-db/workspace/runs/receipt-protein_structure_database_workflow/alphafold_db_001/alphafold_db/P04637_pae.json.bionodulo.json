@@ -1,0 +1,278 @@
+{
+  "workflow": {
+    "version": "2.0",
+    "app": "bionodulo",
+    "name": "Protein Structure Database Workflow",
+    "description": "Database workflow template that searches UniProt for reviewed human TP53 entries, retrieves the TP53 FASTA sequence, fetches the AlphaFold DB predicted mmCIF structure and PAE metadata, downloads an RCSB PDB mmCIF structure, validates each file output, and previews the tabular and text artifacts.",
+    "category": "Protein Structure",
+    "tags": [
+      "protein-structure",
+      "uniprot",
+      "alphafold",
+      "rcsb",
+      "pdb",
+      "mmcif",
+      "database",
+      "report"
+    ],
+    "tools": [
+      "uniprot_search",
+      "uniprot_retrieve",
+      "alphafold_db",
+      "pdb_download",
+      "table_preview",
+      "text_preview"
+    ],
+    "nodes": [
+      {
+        "id": "note_protein_structure_database_workflow",
+        "type": "note",
+        "position": [
+          -240,
+          80
+        ],
+        "params": {
+          "text": "Protein structure database workflow: search UniProtKB for reviewed human TP53 entries, retrieve the P04637 FASTA sequence, fetch the AlphaFold DB predicted mmCIF model and PAE metadata, download an RCSB PDB mmCIF structure, validate each file artifact, and preview the resulting TSV, FASTA, and JSON text.\n\nThe UniProt summary uses the delimited-table preview. FASTA and JSON artifacts use bounded text previews because they are not tabular inputs."
+        },
+        "ui": {
+          "title": "Notes",
+          "color": "#f59e0b"
+        }
+      },
+      {
+        "id": "uniprot_search_001",
+        "type": "uniprot_search",
+        "position": [
+          80,
+          80
+        ],
+        "params": {
+          "query": "gene:TP53 AND organism_id:9606",
+          "max_results": 10,
+          "reviewed_only": true,
+          "fields": "accession,id,gene_names,organism_name,protein_name,length",
+          "output_name": "tp53_uniprot"
+        },
+        "ui": {
+          "title": "UniProt Search",
+          "validation": {
+            "outputs": {
+              "results_table": {
+                "expected_format": "tsv",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "uniprot_retrieve_001",
+        "type": "uniprot_retrieve",
+        "position": [
+          80,
+          261
+        ],
+        "params": {
+          "uniprot_ids": "P04637",
+          "include_fasta": true,
+          "output_name": "tp53"
+        },
+        "ui": {
+          "title": "UniProt Retrieve",
+          "validation": {
+            "outputs": {
+              "sequence": {
+                "expected_format": "fasta",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "alphafold_db_001",
+        "type": "alphafold_db",
+        "position": [
+          80,
+          442
+        ],
+        "params": {
+          "uniprot_ids": "P04637",
+          "structure_format": "mmcif",
+          "include_complexes": false,
+          "download_pae": true
+        },
+        "ui": {
+          "title": "AlphaFold DB",
+          "validation": {
+            "outputs": {
+              "structure_mmcif": {
+                "expected_format": "auto",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              },
+              "structure_metadata": {
+                "expected_format": "json",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              },
+              "pae_json": {
+                "expected_format": "json",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              },
+              "artifacts_directory": {
+                "expected_format": "directory",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "pdb_download_001",
+        "type": "pdb_download",
+        "position": [
+          80,
+          623
+        ],
+        "params": {
+          "pdb_ids": "4HHB",
+          "format": "cif",
+          "fetch_metadata": true,
+          "download_density": false
+        },
+        "ui": {
+          "title": "RCSB PDB Download",
+          "validation": {
+            "outputs": {
+              "structure_file": {
+                "expected_format": "auto",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              },
+              "pdb_metadata": {
+                "expected_format": "json",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              },
+              "download_directory": {
+                "expected_format": "directory",
+                "min_size_bytes": 1,
+                "fail_on_error": true
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "render_uniprot_search_tab_0",
+        "type": "table_preview",
+        "position": [
+          800,
+          80
+        ],
+        "params": {},
+        "ui": {
+          "title": "View Table: UniProt hits"
+        }
+      },
+      {
+        "id": "render_uniprot_seq_0",
+        "type": "text_preview",
+        "position": [
+          800,
+          261
+        ],
+        "params": {},
+        "ui": {
+          "title": "View: TP53 FASTA"
+        }
+      },
+      {
+        "id": "render_alphafold_meta_0",
+        "type": "text_preview",
+        "position": [
+          800,
+          442
+        ],
+        "params": {},
+        "ui": {
+          "title": "View: AlphaFold metadata"
+        }
+      },
+      {
+        "id": "render_pdb_meta_0",
+        "type": "text_preview",
+        "position": [
+          800,
+          623
+        ],
+        "params": {},
+        "ui": {
+          "title": "View: PDB metadata"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "uniprot_search_001",
+          "output": "results_table"
+        },
+        "to": {
+          "node": "render_uniprot_search_tab_0",
+          "input": "file"
+        },
+        "id": "e1"
+      },
+      {
+        "from": {
+          "node": "uniprot_retrieve_001",
+          "output": "sequence"
+        },
+        "to": {
+          "node": "render_uniprot_seq_0",
+          "input": "file"
+        },
+        "id": "e2"
+      },
+      {
+        "from": {
+          "node": "alphafold_db_001",
+          "output": "structure_metadata"
+        },
+        "to": {
+          "node": "render_alphafold_meta_0",
+          "input": "file"
+        },
+        "id": "e3"
+      },
+      {
+        "from": {
+          "node": "pdb_download_001",
+          "output": "pdb_metadata"
+        },
+        "to": {
+          "node": "render_pdb_meta_0",
+          "input": "file"
+        },
+        "id": "e4"
+      }
+    ],
+    "groups": [],
+    "outputs": {
+      "uniprot_search_results": "uniprot_search_001",
+      "uniprot_sequence": "uniprot_retrieve_001",
+      "alphafold_structure": "alphafold_db_001",
+      "alphafold_pae": "alphafold_db_001",
+      "pdb_structure": "pdb_download_001",
+      "pdb_downloads": "pdb_download_001"
+    }
+  },
+  "embedded_at": "2026-09-25T05:48:54.246607+00:00",
+  "bionodulo_version": "0.1.1a1"
+}

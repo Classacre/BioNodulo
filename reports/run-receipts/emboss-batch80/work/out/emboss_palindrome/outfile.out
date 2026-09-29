@@ -1,0 +1,214 @@
+Palindromes of:  dna1 
+Sequence length is: 124 
+Start at position: 1
+End at position: 124
+Minimum length of Palindromes is: 10 
+Maximum length of Palindromes is: 62 
+Maximum gap between elements is: 100 
+Number of mismatches allowed in Palindrome: 0
+
+
+
+Palindromes:
+3        ggctagctagcta       15
+         |||||||||||||
+82       ccgatcgatcgat       70
+
+4        gctagctagcta       15
+         ||||||||||||
+124      cgatcgatcgat      113
+
+4        gctagctagcta       15
+         ||||||||||||
+61       cgatcgatcgat       50
+
+4        gctagctagc       13
+         ||||||||||
+41       cgatcgatcg       32
+
+19       atcgatcgat       28
+         ||||||||||
+110      tagctagcta      101
+
+21       cgatcgatcg       30
+         ||||||||||
+112      gctagctagc      103
+
+30       gggctagctagc       41
+         ||||||||||||
+83       cccgatcgatcg       72
+
+32       gctagctagc       41
+         ||||||||||
+124      cgatcgatcg      115
+
+32       gctagctagc       41
+         ||||||||||
+61       cgatcgatcg       52
+
+50       tagctagcta       59
+         ||||||||||
+122      atcgatcgat      113
+
+50       tagctagcta       59
+         ||||||||||
+79       atcgatcgat       70
+
+52       gctagctagc       61
+         ||||||||||
+124      cgatcgatcg      115
+
+52       gctagctagc       61
+         ||||||||||
+81       cgatcgatcg       72
+
+70       tagctagcta       79
+         ||||||||||
+122      atcgatcgat      113
+
+72       gctagctagc       81
+         ||||||||||
+124      cgatcgatcg      115
+
+
+
+
+Palindromes of:  dna2 
+Sequence length is: 124 
+Start at position: 1
+End at position: 124
+Minimum length of Palindromes is: 10 
+Maximum length of Palindromes is: 62 
+Maximum gap between elements is: 100 
+Number of mismatches allowed in Palindrome: 0
+
+
+
+Palindromes:
+24       gatcgatcgatcgatcgatcgatcgatcgatcgatcga       61
+         ||||||||||||||||||||||||||||||||||||||
+99       ctagctagctagctagctagctagctagctagctagct       62
+
+24       gatcgatcgatcgatcgatcgatcgatcgatcgatc       59
+         ||||||||||||||||||||||||||||||||||||
+95       ctagctagctagctagctagctagctagctagctag       60
+
+24       gatcgatcgatcgatcgatcgatcgatcgatcga       57
+         ||||||||||||||||||||||||||||||||||
+91       ctagctagctagctagctagctagctagctagct       58
+
+24       gatcgatcgatcgatcgatcgatcgatcgatc       55
+         ||||||||||||||||||||||||||||||||
+87       ctagctagctagctagctagctagctagctag       56
+
+24       gatcgatcgatcgatcgatcgatcgatcga       53
+         ||||||||||||||||||||||||||||||
+83       ctagctagctagctagctagctagctagct       54
+
+24       gatcgatcgatcgatcgatcgatcgatc       51
+         ||||||||||||||||||||||||||||
+79       ctagctagctagctagctagctagctag       52
+
+24       gatcgatcgatcgatcgatcgatcga       49
+         ||||||||||||||||||||||||||
+75       ctagctagctagctagctagctagct       50
+
+24       gatcgatcgatcgatcgatcgatc       47
+         ||||||||||||||||||||||||
+71       ctagctagctagctagctagctag       48
+
+24       gatcgatcgatcgatcgatcga       45
+         ||||||||||||||||||||||
+67       ctagctagctagctagctagct       46
+
+24       gatcgatcgatcgatcgatc       43
+         ||||||||||||||||||||
+63       ctagctagctagctagctag       44
+
+24       gatcgatcgatcgatcga       41
+         ||||||||||||||||||
+59       ctagctagctagctagct       42
+
+24       gatcgatcgatcgatc       39
+         ||||||||||||||||
+55       ctagctagctagctag       40
+
+24       gatcgatcgatcga       37
+         ||||||||||||||
+51       ctagctagctagct       38
+
+24       gatcgatcgatc       35
+         ||||||||||||
+47       ctagctagctag       36
+
+24       gatcgatcga       33
+         ||||||||||
+43       ctagctagct       34
+
+27       cgatcgatcgatcgatcgatcgatcgatcgatcgatc       63
+         |||||||||||||||||||||||||||||||||||||
+100      gctagctagctagctagctagctagctagctagctag       64
+
+31       cgatcgatcgatcgatcgatcgatcgatcgatcga       65
+         |||||||||||||||||||||||||||||||||||
+100      gctagctagctagctagctagctagctagctagct       66
+
+35       cgatcgatcgatcgatcgatcgatcgatcgatc       67
+         |||||||||||||||||||||||||||||||||
+100      gctagctagctagctagctagctagctagctag       68
+
+39       cgatcgatcgatcgatcgatcgatcgatcga       69
+         |||||||||||||||||||||||||||||||
+100      gctagctagctagctagctagctagctagct       70
+
+43       cgatcgatcgatcgatcgatcgatcgatc       71
+         |||||||||||||||||||||||||||||
+100      gctagctagctagctagctagctagctag       72
+
+47       cgatcgatcgatcgatcgatcgatcga       73
+         |||||||||||||||||||||||||||
+100      gctagctagctagctagctagctagct       74
+
+51       cgatcgatcgatcgatcgatcgatc       75
+         |||||||||||||||||||||||||
+100      gctagctagctagctagctagctag       76
+
+55       cgatcgatcgatcgatcgatcga       77
+         |||||||||||||||||||||||
+100      gctagctagctagctagctagct       78
+
+59       cgatcgatcgatcgatcgatc       79
+         |||||||||||||||||||||
+100      gctagctagctagctagctag       80
+
+63       cgatcgatcgatcgatcga       81
+         |||||||||||||||||||
+100      gctagctagctagctagct       82
+
+67       cgatcgatcgatcgatc       83
+         |||||||||||||||||
+100      gctagctagctagctag       84
+
+71       cgatcgatcgatcga       85
+         |||||||||||||||
+100      gctagctagctagct       86
+
+75       cgatcgatcgatc       87
+         |||||||||||||
+100      gctagctagctag       88
+
+79       cgatcgatcga       89
+         |||||||||||
+100      gctagctagct       90
+
+101      tagctagctag      111
+         |||||||||||
+122      atcgatcgatc      112
+
+103      gctagctagct      113
+         |||||||||||
+124      cgatcgatcga      114
+
+
+
+

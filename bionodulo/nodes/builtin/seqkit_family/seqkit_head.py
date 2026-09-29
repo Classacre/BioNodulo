@@ -8,6 +8,7 @@ from bionodulo.nodes.builtin._annotation_sequence_adapter import _SeqKitHeadCont
 
 class SeqKitHeadNode(_SeqKitHeadContract):
     NODE_ID = "seqkit_head"
+    CATEGORY = "seqkit"
 
     @classmethod
     def PLAN_OUTPUTS(cls, inputs: dict[str, Any], output_dir: str | Path) -> list[Path]:

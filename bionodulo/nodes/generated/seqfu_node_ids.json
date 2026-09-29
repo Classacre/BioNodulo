@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "source": "seqfu --help from quay.io/biocontainers/seqfu:1.28.0--h41da26b_0",
+  "note": "Node ids generated from seqfu help output.",
+  "count": 20,
+  "node_ids": [
+    "seqfu_amplicheck",
+    "seqfu_bases",
+    "seqfu_cat",
+    "seqfu_check",
+    "seqfu_derep",
+    "seqfu_grep",
+    "seqfu_head",
+    "seqfu_lanes",
+    "seqfu_metadata",
+    "seqfu_orf",
+    "seqfu_rc",
+    "seqfu_rotate",
+    "seqfu_shred",
+    "seqfu_sort",
+    "seqfu_subtract",
+    "seqfu_tab",
+    "seqfu_tabcheck",
+    "seqfu_tail",
+    "seqfu_tofasta",
+    "seqfu_trim"
+  ]
+}

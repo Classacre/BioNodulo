@@ -1,0 +1,20 @@
+PEST-find: Finds PEST motifs as potential proteolytic cleavage sites.
+
+    No PEST motif was identified in dna1 from 1 to 124.
+
+
+       ---------+---------+---------+---------+---------+---------+
+
+     1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGTAGCTAGCTAG 60
+                                                                   
+
+    61 CATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGCATCGATCGATCGTAGCTAGC 120
+                                                                   
+
+   121 TAGC 124
+           
+
+       Symbols   PEST motifs
+       +++++++   potential
+       OOOOOOO   poor     
+

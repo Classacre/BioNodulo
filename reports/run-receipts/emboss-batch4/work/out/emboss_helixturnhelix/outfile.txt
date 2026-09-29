@@ -1,0 +1,46 @@
+########################################
+# Program: helixturnhelix
+# Rundate: Sat 26 Sep 2026 15:17:07
+# Commandline: helixturnhelix
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_helixturnhelix/outfile.txt
+#    -auto
+# Report_format: motif
+# Report_file: /work/out/emboss_helixturnhelix/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 0
+#
+# Hits above +2.50 SD (972.73)
+#
+#=======================================
+
+Maximum_score_at at "*"
+
+
+#---------------------------------------
+#---------------------------------------
+#=======================================
+#
+# Sequence: dna2     from: 1   to: 124
+# HitCount: 0
+#
+# Hits above +2.50 SD (972.73)
+#
+#=======================================
+
+Maximum_score_at at "*"
+
+
+#---------------------------------------
+#---------------------------------------
+
+#---------------------------------------
+# Total_sequences: 2
+# Total_length: 248
+# Reported_sequences: 2
+# Reported_hitcount: 0
+#---------------------------------------

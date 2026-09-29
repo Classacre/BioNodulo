@@ -1,0 +1,51 @@
+########################################
+# Program: merger
+# Rundate: Sat 26 Sep 2026 14:05:11
+# Commandline: merger
+#    -asequence /work/dna.fasta
+#    -bsequence /work/dna.fasta
+#    -outfile /work/dna.fasta
+#    -outseq /work/out/emboss_merger/outseq.out
+#    -auto
+# Align_format: simple
+# Report_file: /work/dna.fasta
+########################################
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: dna1
+# 2: dna1
+# Matrix: EDNAFULL
+# Gap_penalty: 50.0
+# Extend_penalty: 5.0
+#
+# Length: 124
+# Identity:     124/124 (100.0%)
+# Similarity:   124/124 (100.0%)
+# Gaps:           0/124 ( 0.0%)
+# Score: 620.0
+# 
+#
+#=======================================
+
+dna1               1 atggctagctagctaggcatcgatcgatcgggctagctagcatcgatcgt     50
+                     ||||||||||||||||||||||||||||||||||||||||||||||||||
+dna1               1 atggctagctagctaggcatcgatcgatcgggctagctagcatcgatcgt     50
+
+dna1              51 agctagctagcatcgatcgtagctagctagccccgggaaatttagctagc    100
+                     ||||||||||||||||||||||||||||||||||||||||||||||||||
+dna1              51 agctagctagcatcgatcgtagctagctagccccgggaaatttagctagc    100
+
+dna1             101 atcgatcgatcgtagctagctagc    124
+                     ||||||||||||||||||||||||
+dna1             101 atcgatcgatcgtagctagctagc    124
+
+
+#---------------------------------------
+#
+# Conflicts:            dna1            dna1
+#              position base   position base Using
+# 
+#
+#---------------------------------------

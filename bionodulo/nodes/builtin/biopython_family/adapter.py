@@ -58,6 +58,15 @@ class BiopythonNode(BaseNode):
     SOURCE_PATHS: tuple[str, ...] = ()
     SOURCE_FILE_SHA256 = BIOPYTHON_SOURCE_FILE_SHA256
     DOCUMENTATION_URL = "https://biopython.org/docs/1.87/api/"
+    # The family carried no citation at all. Crossref-checked 2026-09-28:
+    # 10.1093/bioinformatics/btp163 is "Biopython: freely available Python tools for
+    # computational molecular biology and bioinformatics", Bioinformatics 2009.
+    CITATION_DOIS = ["10.1093/bioinformatics/btp163"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "Biopython: freely available Python tools for computational molecular biology "
+        "and bioinformatics."
+    )
     AUDIT_STATUS = "contract-checked-with-synthetic-biopython-1.87-fixtures"
     EXIT_SEMANTICS = (
         "Input validation and Biopython parsing or transformation errors fail the node; "

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -161,3 +162,39 @@ def test_build_capabilities_maps_registry_classes() -> None:
         "cpu_tool": {"requires_gpu": False, "required_executables": ["bcftools", "samtools"]},
         "gpu_tool": {"requires_gpu": True, "required_executables": ["esmfold"]},
     }
+
+
+def test_committed_capabilities_match_live_builtin_requirements() -> None:
+    """Additions, removals and changed runtime requirements must reach preflight."""
+    registry = NodeRegistry.create_isolated()
+    registry.load_builtin_nodes(strict=True)
+    committed = json.loads(export_capabilities.OUTPUT_PATH.read_text(encoding="utf-8"))
+    assert committed == export_capabilities.build_capabilities(registry), (
+        "node_capabilities.json is stale — run `python scripts/export_capabilities.py`"
+    )
+
+
+@pytest.mark.parametrize("existing", [None, "{}\n"])
+def test_capability_check_rejects_missing_or_stale_without_writing(tmp_path, monkeypatch, existing) -> None:
+    path = tmp_path / "node_capabilities.json"
+    if existing is not None:
+        path.write_text(existing, encoding="utf-8")
+    monkeypatch.setattr(export_capabilities, "OUTPUT_PATH", path)
+    monkeypatch.setattr(NodeRegistry, "load_builtin_nodes", lambda self, **kwargs: None)
+    monkeypatch.setattr(export_capabilities, "build_capabilities", lambda registry: {"cpu_tool": {}})
+    assert export_capabilities.main(["--check"]) == 1
+    assert (path.read_text(encoding="utf-8") if path.exists() else None) == existing
+
+
+def test_capability_export_then_check(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "node_capabilities.json"
+    monkeypatch.setattr(export_capabilities, "OUTPUT_PATH", path)
+    monkeypatch.setattr(NodeRegistry, "load_builtin_nodes", lambda self, **kwargs: None)
+    monkeypatch.setattr(export_capabilities, "build_capabilities", lambda registry: {
+        "cpu_tool": {"requires_gpu": False, "required_executables": ["samtools"]}
+    })
+    assert export_capabilities.main([]) == 0
+    before = path.read_bytes()
+    assert b"\r\n" not in before
+    assert export_capabilities.main(["--check"]) == 0
+    assert path.read_bytes() == before

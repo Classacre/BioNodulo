@@ -1,0 +1,29 @@
+########################################
+# Program: etandem
+# Rundate: Sat 26 Sep 2026 15:20:16
+# Commandline: etandem
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_etandem/outfile.txt
+#    -origfile /work/out/emboss_etandem/origfile.out
+#    -auto
+# Report_format: table
+# Report_file: /work/out/emboss_etandem/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 0
+#
+# Threshold: 20
+# Minrepeat: 10
+# Maxrepeat: 10
+# Mismatch: No
+# Uniform: No
+#
+#=======================================
+
+  Start     End  Strand   Score   Size  Count Identity Consensus
+
+#---------------------------------------
+#---------------------------------------

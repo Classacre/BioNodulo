@@ -1,0 +1,18 @@
+{
+  "check_count": 7,
+  "checks": {
+    "column_count": 6,
+    "detected_format": "tsv",
+    "file_exists": true,
+    "file_size_bytes": 140,
+    "format_valid": true,
+    "row_count": 1,
+    "size_ok": true
+  },
+  "error_count": 0,
+  "errors": [],
+  "expected_format": "tsv",
+  "input": "reports\\run-receipts\\protein-structure-db\\workspace\\runs\\receipt-protein_structure_database_workflow\\uniprot_search_001\\uniprot_search\\tp53_uniprot.tsv",
+  "passed": true,
+  "warnings": []
+}

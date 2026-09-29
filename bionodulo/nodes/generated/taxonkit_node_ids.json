@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "source": "taxonkit --help from quay.io/biocontainers/taxonkit:0.20.0--h9ee0642_1",
+  "source_digest": "sha256:c27f1ecebde5e98ba09693dd3046814464a9d3ad2c944fba5a0be560ee643c7d",
+  "digest_provenance": "Local pull digest from `docker inspect` on 2026-09-28. It matches the quay registry manifest digest recorded earlier, so the two agree.",
+  "note": "Node ids generated from taxonkit cobra help tables. --data-dir (the NCBI taxonomy dump) is promoted from the inherited global flags because every operation needs it.",
+  "count": 8,
+  "node_ids": [
+    "taxonkit_cami_filter",
+    "taxonkit_create_taxdump",
+    "taxonkit_filter",
+    "taxonkit_lca",
+    "taxonkit_lineage",
+    "taxonkit_list",
+    "taxonkit_reformat",
+    "taxonkit_reformat2"
+  ]
+}

@@ -1,0 +1,27 @@
+########################################
+# Program: equicktandem
+# Rundate: Sat 26 Sep 2026 15:00:31
+# Commandline: equicktandem
+#    -sequence /work/dna.fasta
+#    -outfile /work/out/emboss_equicktandem/outfile.txt
+#    -origfile /work/out/emboss_equicktandem/origfile.out
+#    -auto
+# Report_format: table
+# Report_file: /work/out/emboss_equicktandem/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 1
+#
+# Threshold: 20
+# Maxrepeat: 600
+#
+#=======================================
+
+  Start     End  Strand   Score   Size  Count
+      4      81       +      24      4     19
+
+#---------------------------------------
+#---------------------------------------

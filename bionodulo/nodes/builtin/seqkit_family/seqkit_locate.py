@@ -5,6 +5,7 @@ from bionodulo.nodes.builtin._annotation_sequence_adapter import _SeqKitLocateCo
 
 class SeqKitLocateNode(_SeqKitLocateContract):
     NODE_ID = "seqkit_locate"
+    CATEGORY = "seqkit"
     OUTPUT_NAME_BY_BASENAME = {
         "locate.tsv": "tabular",
         "locate.bed": "bed",

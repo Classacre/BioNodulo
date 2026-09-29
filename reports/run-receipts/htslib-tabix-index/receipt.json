@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "node_id": "tabix_index",
+  "node_class": "bionodulo.nodes.builtin.htslib_tabix_family.tabix_index.TabixIndexNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/tabix:0.2.5--ha92aebf_2",
+    "image_digest_expected": "sha256:6af2484cb77ae4ee86e51b3e9a0e84f3d0242b11980cbbc7bfd5be250180d9b8",
+    "image_digest_observed_after_run": "quay.io/biocontainers/tabix@sha256:6af2484cb77ae4ee86e51b3e9a0e84f3d0242b11980cbbc7bfd5be250180d9b8",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "tabix",
+    "-p",
+    "vcf",
+    "-f",
+    "/work/mini.vcf.gz"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "tabix",
+    "-p",
+    "vcf",
+    "-f",
+    "/work/mini.vcf.gz"
+  ],
+  "platform_path_rewrites": [],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "tabix",
+  "inputs": {
+    "preset": "vcf",
+    "bgzf": "/work/mini.vcf.gz",
+    "output": "/work/out"
+  },
+  "planned_outputs": [
+    "D:\\AI\\BioNodulo\\BioNodulo-knowledge-graph\\reports\\run-receipts\\htslib-tabix-index\\work\\tabix_index\\indexed.vcf.gz",
+    "D:\\AI\\BioNodulo\\BioNodulo-knowledge-graph\\reports\\run-receipts\\htslib-tabix-index\\work\\tabix_index\\indexed.vcf.gz.tbi"
+  ],
+  "tool_version_stdout": "tabix: invalid option -- '-'\ntabix: invalid option -- 'v'\n\nProgram: tabix (TAB-delimited file InderXer)\nVersion: 0.2.5 (r964)",
+  "status": "completed",
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "",
+  "started_at_utc": "2026-09-25T07:11:26.732775+00:00",
+  "completed_at_utc": "2026-09-25T07:11:27.181973+00:00",
+  "fixture": {
+    "name": "mini.vcf.gz",
+    "sha256": "6e2b4fe2b88c58f8c3e40e9cc54c3e9f48f8341d2f44691e98c15e80b38f79d1",
+    "bytes": 197,
+    "source": "D:/AI/BioNodulo/BioNodulo-knowledge-graph/tests/nodes/htslib_tabix_family/fixtures/mini.vcf.gz"
+  },
+  "artifacts": [
+    {
+      "path": "work/mini.vcf.gz",
+      "bytes": 197,
+      "sha256": "6e2b4fe2b88c58f8c3e40e9cc54c3e9f48f8341d2f44691e98c15e80b38f79d1"
+    },
+    {
+      "path": "work/mini.vcf.gz.tbi",
+      "bytes": 106,
+      "sha256": "319146b656743eabf65f41e70a997f11ef7cc68784fa568413b4f1be69a8a0c4"
+    }
+  ],
+  "artifact_count": 2,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

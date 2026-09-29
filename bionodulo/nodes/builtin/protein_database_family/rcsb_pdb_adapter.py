@@ -201,6 +201,46 @@ class PDBDownloadNode(BaseNode):
         "Structure and requested metadata downloads fail the node on HTTP or transport errors after bounded "
         "retries; optional density-map absence is recorded as an empty density path."
     )
+    CITATION_DOIS = ["10.1093/nar/28.1.235", "10.1038/nsb1203-980"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = "The Protein Data Bank; Announcing the worldwide Protein Data Bank."
+    KNOWLEDGE = {
+        "schema_version": 1,
+        "tool_id": "https://bio.tools/pdb",
+        "topics": [
+            {"uri": "http://edamontology.org/topic_1317", "label": "Structural biology"},
+            {"uri": "http://edamontology.org/topic_2814", "label": "Protein structure analysis"},
+        ],
+        # This node downloads structure and density files from RCSB. It does not
+        # analyse them, so the accurate operation is data retrieval.
+        "operations": [
+            {"uri": "http://edamontology.org/operation_2422", "label": "Data retrieval"},
+        ],
+        "citation_evidence": [
+            {
+                "identifier": "10.1093/nar/28.1.235",
+                "source_url": "https://api.crossref.org/works/10.1093/nar/28.1.235",
+                "checked_at": "2026-09-25",
+                "note": (
+                    "Crossref resolves this DOI to 'The Protein Data Bank', Nucleic Acids Research 2000. "
+                    "The bio.tools 'pdb' record lists the same DOI. Archive-level citation for the resource "
+                    "this node downloads from."
+                ),
+            },
+            {
+                "identifier": "10.1038/nsb1203-980",
+                "source_url": "https://api.crossref.org/works/10.1038/nsb1203-980",
+                "checked_at": "2026-09-25",
+                "note": (
+                    "Crossref resolves this DOI to 'Announcing the worldwide Protein Data Bank', Nature "
+                    "Structural & Molecular Biology 2003; the bio.tools 'pdb' record lists it as well. It "
+                    "documents the wwPDB organisation, not the RCSB file-download endpoint revision this "
+                    "node pins, so it is recorded as a secondary resource citation."
+                ),
+            },
+        ],
+        "reviewed_at": "2026-09-25",
+    }
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict[str, Any]]:

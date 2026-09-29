@@ -5,3 +5,4 @@ from bionodulo.nodes.builtin._annotation_sequence_adapter import _SeqKitFx2tabCo
 
 class SeqKitFx2tabNode(_SeqKitFx2tabContract):
     NODE_ID = "seqkit_fx2tab"
+    CATEGORY = "seqkit"

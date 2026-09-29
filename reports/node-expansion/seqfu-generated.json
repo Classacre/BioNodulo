@@ -1,0 +1,654 @@
+{
+  "schema_version": 1,
+  "binary": "seqfu",
+  "subcommands_seen": 28,
+  "statuses": {
+    "generated": 20,
+    "skipped_non_data_command": 5,
+    "skipped_already_handwritten": 3
+  },
+  "generated_node_ids": [
+    "seqfu_amplicheck",
+    "seqfu_bases",
+    "seqfu_cat",
+    "seqfu_check",
+    "seqfu_derep",
+    "seqfu_grep",
+    "seqfu_head",
+    "seqfu_lanes",
+    "seqfu_metadata",
+    "seqfu_orf",
+    "seqfu_rc",
+    "seqfu_rotate",
+    "seqfu_shred",
+    "seqfu_sort",
+    "seqfu_subtract",
+    "seqfu_tab",
+    "seqfu_tabcheck",
+    "seqfu_tail",
+    "seqfu_tofasta",
+    "seqfu_trim"
+  ],
+  "scope": "Contracts generated from the tool's own --help output. No tool was executed and no scientific result was validated.",
+  "records": [
+    {
+      "node_id": "seqfu_amplicheck",
+      "subcommand": "amplicheck",
+      "description": "Inspect paired-end amplicon FASTQ files and write QC recommendations",
+      "flags_total": 22,
+      "flags_exposed": [
+        "fwd-tag",
+        "rev-tag",
+        "max-reads",
+        "subsample",
+        "only",
+        "skip",
+        "skip-primers",
+        "skip-overlap",
+        "sweep",
+        "truncLen-grid",
+        "maxEE-grid",
+        "amplicon",
+        "json",
+        "no-json",
+        "text",
+        "plot",
+        "threads",
+        "min-overlap",
+        "min-id"
+      ],
+      "flags_skipped_global": [
+        "outdir",
+        "verbose",
+        "help"
+      ],
+      "output_kind": "dir",
+      "output_flag": "--outdir",
+      "source_sha256": "9a81f0a5c0a964211ea882631f4c00e220a736e2a40a67000472c32533dd3b15",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_bases",
+      "subcommand": "bases",
+      "description": "Print the DNA bases, and %GC content, in the input files",
+      "flags_total": 10,
+      "flags_exposed": [
+        "raw-counts",
+        "thousands",
+        "abspath",
+        "basename",
+        "nice",
+        "digits",
+        "header",
+        "debug"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "71142cbacb01899876b2cdd029f4ec568b7c1ddf64a6ea77d2588c70838df85f",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_cat",
+      "subcommand": "cat",
+      "description": "Concatenate multiple FASTA or FASTQ files.",
+      "flags_total": 40,
+      "flags_exposed": [
+        "skip",
+        "skip-first",
+        "jump-to",
+        "print-last",
+        "prefix",
+        "strip-name",
+        "append",
+        "sep",
+        "basename",
+        "split",
+        "part",
+        "basename-sep",
+        "zero-pad",
+        "strip-comments",
+        "comment-sep",
+        "add-len",
+        "add-initial-len",
+        "add-gc",
+        "add-initial-gc",
+        "add-name",
+        "add-ee",
+        "add-initial-ee",
+        "max-ns",
+        "min-len",
+        "max-len",
+        "max-ee",
+        "trim-front",
+        "trim-tail",
+        "truncate",
+        "max-bp",
+        "fasta",
+        "fastq",
+        "report",
+        "list",
+        "long",
+        "anvio",
+        "fastq-qual",
+        "debug"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "847121e121d3a7783fb6f28d775c773aeb9d109bfdc3ae1df803905eaccc40ca",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_check",
+      "subcommand": "check",
+      "description": "seqfu check [options] --dir <FQDIR>",
+      "flags_total": 8,
+      "flags_exposed": [
+        "deep",
+        "no-paired",
+        "safe-exit",
+        "thousands",
+        "debug"
+      ],
+      "flags_skipped_global": [
+        "quiet",
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "d8d55c079f1c3c24e4f1b71dfbbefcb27100e1837fc69ea83414a9d214855bcb",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "subcommand": "count",
+      "node_id": "seqfu_count",
+      "status": "skipped_already_handwritten"
+    },
+    {
+      "subcommand": "deinterleave",
+      "node_id": "seqfu_deinterleave",
+      "status": "skipped_non_data_command"
+    },
+    {
+      "node_id": "seqfu_derep",
+      "subcommand": "derep",
+      "description": "Dereplicate identical sequences and report cluster sizes",
+      "flags_total": 14,
+      "flags_exposed": [
+        "keep-name",
+        "ignore-size",
+        "min-size",
+        "prefix",
+        "md5",
+        "json",
+        "separator",
+        "line-width",
+        "min-length",
+        "max-length",
+        "size-as-comment",
+        "add-len"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "1d88f12d93ad918f5de97e2bd3746220cce0d2d4b21842af86f33341e1b17baf",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_grep",
+      "subcommand": "grep",
+      "description": "Print sequences selected if they match patterns or contain oligonucleotides",
+      "flags_total": 13,
+      "flags_exposed": [
+        "name",
+        "regex",
+        "comment",
+        "full",
+        "word",
+        "ignore-case",
+        "oligo",
+        "append-pos",
+        "max-mismatches",
+        "min-matches",
+        "invert-match"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "261b1185a5c6a234f7977a3e5428d56892f4086a915c89aa5edf4ae2a4e2ef16",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_head",
+      "subcommand": "head",
+      "description": "Select a number of sequences from the beginning of a file, optionally",
+      "flags_total": 14,
+      "flags_exposed": [
+        "num",
+        "skip",
+        "prefix",
+        "strip-comments",
+        "basename",
+        "print-last",
+        "fatal",
+        "fasta",
+        "fastq",
+        "sep",
+        "fastq-qual"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "quiet",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "773cd0a9fa0b1e919393122cdbbf90a9ec1ce8f0f2b776ae0a3848c9e987ac0e",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "subcommand": "interleave",
+      "node_id": "seqfu_interleave",
+      "status": "skipped_non_data_command"
+    },
+    {
+      "node_id": "seqfu_lanes",
+      "subcommand": "lanes",
+      "description": "Merge Illumina FASTQ lane files into uncompressed output files",
+      "flags_total": 6,
+      "flags_exposed": [
+        "extension",
+        "file-separator",
+        "comment-separator"
+      ],
+      "flags_skipped_global": [
+        "outdir",
+        "verbose",
+        "help"
+      ],
+      "output_kind": "dir",
+      "output_flag": "--outdir",
+      "source_sha256": "186bddf26a1b163fbd67a51fbd2d6cf8f9951e8c8b204a071eb2d8cda91c6db4",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "subcommand": "less",
+      "node_id": "seqfu_less",
+      "status": "skipped_non_data_command"
+    },
+    {
+      "subcommand": "list",
+      "node_id": "seqfu_list",
+      "status": "skipped_already_handwritten"
+    },
+    {
+      "node_id": "seqfu_metadata",
+      "subcommand": "metadata",
+      "description": "Prepare mapping files from a directory containing FASTQ files",
+      "flags_total": 21,
+      "flags_exposed": [
+        "for-tag",
+        "rev-tag",
+        "split",
+        "format",
+        "add-path",
+        "counts",
+        "threads",
+        "pe",
+        "ont",
+        "abs",
+        "basename",
+        "force-tsv",
+        "force-csv",
+        "rand-meta",
+        "project",
+        "meta-split",
+        "meta-part",
+        "meta-default",
+        "debug"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "1d33f3f7cb3bd8d24677ffb39340a7848b4f04612b89eba72b13c39b5c2e1093",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "subcommand": "msa",
+      "node_id": "seqfu_msa",
+      "status": "skipped_non_data_command"
+    },
+    {
+      "node_id": "seqfu_orf",
+      "subcommand": "orf",
+      "description": "orf - extract ORF from nucleotide sequences",
+      "flags_total": 17,
+      "flags_exposed": [
+        "R1",
+        "R2",
+        "min-size",
+        "prefix",
+        "scan-reverse",
+        "code",
+        "min-read-len",
+        "translate",
+        "join",
+        "min-overlap",
+        "max-overlap",
+        "min-identity",
+        "codes",
+        "pool-size",
+        "debug"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "ec4ddfed10efd698e6f87c782cc2582fed4b574f9b787c300a8ed7acfb47a1f0",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_rc",
+      "subcommand": "rc",
+      "description": "Print the reverse complementary of sequences in files or sequences",
+      "flags_total": 5,
+      "flags_exposed": [
+        "seq-name",
+        "only-rev",
+        "strip-comments"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "32b59df8cc6d46ac66c0c6e6167e23e5d9640e95cb6161e3690d2c3e8cf9eaa1",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_rotate",
+      "subcommand": "rotate",
+      "description": "fu-rotate [options] -i POS [<fastq-file>...]",
+      "flags_total": 6,
+      "flags_exposed": [
+        "start-pos",
+        "motif",
+        "skip-unmached",
+        "revcomp"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "c745603ca3f1ad56fb3db7d2e859c8488be1e415df4b61c574800b09c5f22e2f",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_shred",
+      "subcommand": "shred",
+      "description": "Systematically produce a \"shotgun\" of input sequences. Can read from standard input.",
+      "flags_total": 11,
+      "flags_exposed": [
+        "length",
+        "step",
+        "quality",
+        "add-rc",
+        "basename",
+        "split-basename",
+        "prefix-separator",
+        "frag-len"
+      ],
+      "flags_skipped_global": [
+        "out-prefix",
+        "verbose",
+        "help"
+      ],
+      "output_kind": "dir",
+      "output_flag": "--out-prefix",
+      "source_sha256": "9a77eeae7bada0b3ea7a93858a18ea7921379558e78cabed0a129581776d83c1",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_sort",
+      "subcommand": "sort",
+      "description": "Sort sequences by size printing only unique sequences",
+      "flags_total": 5,
+      "flags_exposed": [
+        "prefix",
+        "strip-comments",
+        "asc"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "ba6ea2ca7309d6f9c783c5d7a460b92b26399570a963473b8750cd1a636e8fc0",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "subcommand": "stats",
+      "node_id": "seqfu_stats",
+      "status": "skipped_already_handwritten"
+    },
+    {
+      "node_id": "seqfu_subtract",
+      "subcommand": "subtract",
+      "description": "Print sequences from <file1> that are not present in <file2>.",
+      "flags_total": 6,
+      "flags_exposed": [
+        "by-seq",
+        "relaxed",
+        "strip-comment",
+        "strip-pair"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "52c22c5980c9d4dc313f748cbafcbfc03f7fc14053cc39f2e62cd0ed04308a67",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_tab",
+      "subcommand": "tab",
+      "description": "Convert FASTQ to TSV and viceversa. Single end is a 4 columns table (name, comment, seq, qual),",
+      "flags_total": 6,
+      "flags_exposed": [
+        "interleaved",
+        "detabulate",
+        "comment-sep",
+        "field-sep"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "dc3a496ac6eab72ebb00dfd8dba904b97c4ac5cef4f68f1d407a9fbf582907a9",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_tabcheck",
+      "subcommand": "tabcheck",
+      "description": "Inspect TSV and CSV files for valid columns",
+      "flags_total": 5,
+      "flags_exposed": [
+        "separator",
+        "comment",
+        "inspect",
+        "header"
+      ],
+      "flags_skipped_global": [
+        "verbose"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "2fd4b2b03bad672f42f9cf594bad5ba59e9889d77b3f70b7e833ba7e0d84ba67",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_tail",
+      "subcommand": "tail",
+      "description": "Print the last sequences from FASTA/FASTQ files. The entire file must",
+      "flags_total": 11,
+      "flags_exposed": [
+        "num",
+        "skip",
+        "prefix",
+        "strip-comments",
+        "basename",
+        "fasta",
+        "fastq",
+        "sep",
+        "fastq-qual"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "0ffe598d2f2362c2070e88fc0006cc9d7cfdd36fb8b9f83bcf1444426ad9bec2",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_tofasta",
+      "subcommand": "tofasta",
+      "description": "Convert various sequence formats to FASTA format.",
+      "flags_total": 6,
+      "flags_exposed": [
+        "replace-iupac",
+        "to-lowercase",
+        "to-uppercase"
+      ],
+      "flags_skipped_global": [
+        "output",
+        "verbose",
+        "help"
+      ],
+      "output_kind": "file",
+      "output_flag": "--output",
+      "source_sha256": "a4dd6a8a8684f6fb42eeb989c55ef2753b7b51b7d1ff559ac4a4b7b3fe03dadd",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "node_id": "seqfu_trim",
+      "subcommand": "trim",
+      "description": "Trim and quality-filter FASTQ reads",
+      "flags_total": 33,
+      "flags_exposed": [
+        "r1",
+        "r2",
+        "for-tag",
+        "rev-tag",
+        "r1-suffix",
+        "r2-suffix",
+        "compress",
+        "trim-front",
+        "trim-tail",
+        "cut-front",
+        "cut-front-window",
+        "cut-front-qual",
+        "cut-tail",
+        "cut-tail-window",
+        "cut-tail-qual",
+        "cut-right",
+        "cut-right-window",
+        "cut-right-qual",
+        "disable-quality",
+        "qualified-qual",
+        "unqualified-percent",
+        "avg-qual",
+        "n-base-limit",
+        "min-length",
+        "max-length",
+        "complexity",
+        "threads",
+        "batch-size",
+        "offset",
+        "preset",
+        "stats-json"
+      ],
+      "flags_skipped_global": [
+        "verbose",
+        "help"
+      ],
+      "output_kind": "none",
+      "output_flag": "",
+      "source_sha256": "907e6fdb49000b2da943d1386a87bcdce102866c89e484ccf0ba78cc18a54f97",
+      "flags_renamed": {},
+      "status": "generated",
+      "required_flags": []
+    },
+    {
+      "subcommand": "view",
+      "node_id": "seqfu_view",
+      "status": "skipped_non_data_command"
+    }
+  ]
+}

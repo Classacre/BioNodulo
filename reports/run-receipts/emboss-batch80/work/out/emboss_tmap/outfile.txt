@@ -1,0 +1,50 @@
+########################################
+# Program: tmap
+# Rundate: Sat 26 Sep 2026 15:19:50
+# Commandline: tmap
+#    -sequences /work/dna.fasta
+#    -outfile /work/out/emboss_tmap/outfile.txt
+#    -graph png
+#    -goutfile /work/out/emboss_tmap/graph
+#    -auto
+# Report_format: seqtable
+# Report_file: /work/out/emboss_tmap/outfile.txt
+########################################
+
+#=======================================
+#
+# Sequence: Consensus     from: 1   to: 124
+# HitCount: 0
+#=======================================
+
+  Start     End TransMem Sequence
+
+#---------------------------------------
+#---------------------------------------
+#=======================================
+#
+# Sequence: dna1     from: 1   to: 124
+# HitCount: 0
+#=======================================
+
+  Start     End TransMem Sequence
+
+#---------------------------------------
+#---------------------------------------
+#=======================================
+#
+# Sequence: dna2     from: 1   to: 124
+# HitCount: 0
+#=======================================
+
+  Start     End TransMem Sequence
+
+#---------------------------------------
+#---------------------------------------
+
+#---------------------------------------
+# Total_sequences: 2
+# Total_length: 248
+# Reported_sequences: 3
+# Reported_hitcount: 0
+#---------------------------------------

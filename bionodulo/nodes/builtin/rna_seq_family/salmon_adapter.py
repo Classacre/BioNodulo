@@ -155,6 +155,14 @@ class _SalmonCommandNode(CommandNode):
     UPSTREAM_INDEX_SOURCE = "crates/salmon-index/src/lib.rs"
     UPSTREAM_QUANT_OUTPUT_SOURCE = "crates/salmon-quant/src/output.rs"
     DOCUMENTATION_URL = "https://github.com/COMBINE-lab/salmon/tree/v2.3.4/website/src/content/docs"
+    # Salmon also shipped with no DOI. Crossref-checked 2026-09-28: 10.1038/nmeth.4197
+    # is "Salmon provides fast and bias-aware quantification of transcript expression",
+    # Nature Methods 2017.
+    CITATION_DOIS = ["10.1038/nmeth.4197"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "Salmon provides fast and bias-aware quantification of transcript expression."
+    )
     SOURCE_AUTHORITIES = {
         "cli_contract": f"{GIT_URL}/blob/{GIT_COMMIT}/{UPSTREAM_CLI_SOURCE}",
         "index_contract": f"{GIT_URL}/blob/{GIT_COMMIT}/{UPSTREAM_INDEX_SOURCE}",

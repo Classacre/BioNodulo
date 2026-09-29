@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "node_id": "emboss_pepstats",
+  "node_class": "bionodulo.nodes.builtin.emboss_family.pepstats.EmbossPepstatsNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/emboss:6.6.0--h0f19ade_14",
+    "image_digest_expected": "sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+    "image_digest_observed_after_run": "quay.io/biocontainers/emboss@sha256:a9bf499a690de7950a3f553793ea45daa947c63946a43edaefdbcfb0e9960a97",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "pepstats",
+    "-sequence",
+    "/work/protein.fasta",
+    "-outfile",
+    "stdout"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "pepstats",
+    "-sequence",
+    "/work/protein.fasta",
+    "-outfile",
+    "stdout"
+  ],
+  "platform_path_rewrites": [],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "pepstats",
+  "inputs": {
+    "sequence": "/work/protein.fasta",
+    "output": "/work/out"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\emboss-pepstats\\work\\emboss_pepstats\\pepstats_report.stats.txt"
+  ],
+  "tool_version_stdout": "EMBOSS:6.6.0.0",
+  "status": "completed",
+  "exit_code": 0,
+  "stdout": "PEPSTATS of protein_test from 1 to 17\n\nMolecular weight = 1865.13   \t\tResidues = 17    \nAverage Residue Weight  = 109.714 \tCharge   = 0.0   \nIsoelectric Point = 6.0397\nA280 Molar Extinction Coefficients  = 0 (reduced)   0 (cystine bridges)\nA280 Extinction Coefficients 1mg/ml = 0.000 (reduced)   0.000 (cystine bridges)\nImprobability of expression in inclusion bodies = 0.737\n\nResidue\t\tNumber\t\tMole%\t\tDayhoffStat\nA = Ala\t\t2\t\t11.765 \t\t1.368  \t\nB = Asx\t\t0\t\t0.000  \t\t0.000  \t\nC = Cys\t\t0\t\t0.000  \t\t0.000  \t\nD = Asp\t\t1\t\t5.882  \t\t1.070  \t\nE = Glu\t\t2\t\t11.765 \t\t1.961  \t\nF = Phe\t\t1\t\t5.882  \t\t1.634  \t\nG = Gly\t\t2\t\t11.765 \t\t1.401  \t\nH = His\t\t0\t\t0.000  \t\t0.000  \t\nI = Ile\t\t1\t\t5.882  \t\t1.307  \t\nJ = ---\t\t0\t\t0.000  \t\t0.000  \t\nK = Lys\t\t2\t\t11.765 \t\t1.783  \t\nL = Leu\t\t1\t\t5.882  \t\t0.795  \t\nM = Met\t\t1\t\t5.882  \t\t3.460  \t\nN = Asn\t\t1\t\t5.882  \t\t1.368  \t\nO = ---\t\t0\t\t0.000  \t\t0.000  \t\nP = Pro\t\t0\t\t0.000  \t\t0.000  \t\nQ = Gln\t\t0\t\t0.000  \t\t0.000  \t\nR = Arg\t\t1\t\t5.882  \t\t1.200  \t\nS = Ser\t\t1\t\t5.882  \t\t0.840  \t\nT = Thr\t\t0\t\t0.000  \t\t0.000  \t\nU = ---\t\t0\t\t0.000  \t\t0.000  \t\nV = Val\t\t1\t\t5.882  \t\t0.891  \t\nW = Trp\t\t0\t\t0.000  \t\t0.000  \t\nX = Xaa\t\t0\t\t0.000  \t\t0.000  \t\nY = Tyr\t\t0\t\t0.000  \t\t0.000  \t\nZ = Glx\t\t0\t\t0.000  \t\t0.000  \t\n\nProperty\tResidues\t\tNumber\t\tMole%\nTiny\t\t(A+C+G+S+T)\t\t5\t\t29.412\nSmall\t\t(A+B+C+D+G+N+P+S+T+V)\t8\t\t47.059\nAliphatic\t(A+I+L+V)\t\t5\t\t29.412\nAromatic\t(F+H+W+Y)\t\t1\t\t 5.882\nNon-polar\t(A+C+F+G+I+L+M+P+V+W+Y)\t9\t\t52.941\nPolar\t\t(D+E+H+K+N+Q+R+S+T+Z)\t8\t\t47.059\nCharged\t\t(B+D+E+H+K+R+Z)\t\t6\t\t35.294\nBasic\t\t(H+K+R)\t\t\t3\t\t17.647\nAcidic\t\t(B+D+E+Z)\t\t3\t\t17.647\n\n",
+  "stderr": "Calculate statistics of protein properties\n",
+  "started_at_utc": "2026-09-25T07:06:12.451118+00:00",
+  "completed_at_utc": "2026-09-25T07:06:13.174730+00:00",
+  "fixture": {
+    "name": "protein.fasta",
+    "sha256": "b0439453de01b0c1b6e47de5b611ab4ad95c22262516f09b3ee055a6d914001c",
+    "bytes": 32,
+    "source": "tests/nodes/emboss_family/fixtures/protein.fasta"
+  },
+  "artifacts": [
+    {
+      "path": "work/protein.fasta",
+      "bytes": 32,
+      "sha256": "b0439453de01b0c1b6e47de5b611ab4ad95c22262516f09b3ee055a6d914001c"
+    }
+  ],
+  "artifact_count": 1,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

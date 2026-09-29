@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "node_id": "taxonkit_list",
+  "node_class": "bionodulo.nodes.builtin.taxonkit_family.taxonkit_list.TaxonkitListNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/taxonkit:0.20.0--h9ee0642_1",
+    "image_digest_expected": "sha256:c27f1ecebde5e98ba09693dd3046814464a9d3ad2c944fba5a0be560ee643c7d",
+    "image_digest_observed_after_run": "quay.io/biocontainers/taxonkit@sha256:c27f1ecebde5e98ba09693dd3046814464a9d3ad2c944fba5a0be560ee643c7d",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "taxonkit",
+    "list",
+    "--show-name",
+    "--show-rank",
+    "--data-dir",
+    "/work/taxdump",
+    "--out-file",
+    "/work/out/taxonkit_list/taxonkit_list.out",
+    "/work/taxids.txt"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "taxonkit",
+    "list",
+    "--show-name",
+    "--show-rank",
+    "--data-dir",
+    "/work/taxdump",
+    "--out-file",
+    "\\work\\out\\taxonkit_list\\taxonkit_list.out",
+    "/work/taxids.txt"
+  ],
+  "platform_path_rewrites": [
+    {
+      "rendered_on_host": "\\work\\out\\taxonkit_list\\taxonkit_list.out",
+      "used_in_container": "/work/out/taxonkit_list/taxonkit_list.out"
+    }
+  ],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "taxonkit",
+  "inputs": {
+    "data_dir": "/work/taxdump",
+    "show_name": true,
+    "show_rank": true,
+    "input": "/work/taxids.txt",
+    "output": "/work/out/taxonkit_list"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\release-2026-09-29\\taxonkit-list\\work\\out\\taxonkit_list\\taxonkit_list.out"
+  ],
+  "tool_version_stdout": "taxonkit v0.20.0",
+  "status": "completed",
+  "exit_code": 0,
+  "missing_planned_outputs": [],
+  "output_verification_error": null,
+  "stdout": "",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout_bytes": 0,
+  "stderr": "13:40:20.117 \u001b[33m[WARN]\u001b[0m delnodes file not found: /work/taxdump/delnodes.dmp, deleted taxids will not be checked\n13:40:20.117 \u001b[33m[WARN]\u001b[0m merged file not found: /work/taxdump/merged.dmp, merged taxids will not be checked\n",
+  "started_at_utc": "2026-09-29T13:40:22.275701+00:00",
+  "completed_at_utc": "2026-09-29T13:40:23.185601+00:00",
+  "fixture": {
+    "name": "taxids.txt",
+    "sha256": "df4e26a04a444901b95afef44e4a96cfae34690fff2ad2c66389c70079cdff2b",
+    "bytes": 3,
+    "source": "reports/run-receipts/release-2026-09-29/fixtures/taxids.txt"
+  },
+  "additional_staged_assets": [
+    {
+      "path": "taxdump/names.dmp",
+      "sha256": "6e9d4f18a54f00dd30de48a9fb33c49d0fec83090034bd66313e9f09e48f2f44"
+    },
+    {
+      "path": "taxdump/nodes.dmp",
+      "sha256": "8f46d39a85bcca7c4626911ba7ac98c69a7dfbf1dbca6b279314a02dd993c8b9"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "work/out/taxonkit_list/taxonkit_list.out",
+      "bytes": 60,
+      "sha256": "7b5e6d8ad7a5d9438e67284c4c143e46285585f1c39e4515d2d805d18c8a0dd5"
+    },
+    {
+      "path": "work/taxdump/names.dmp",
+      "bytes": 117,
+      "sha256": "6e9d4f18a54f00dd30de48a9fb33c49d0fec83090034bd66313e9f09e48f2f44"
+    },
+    {
+      "path": "work/taxdump/nodes.dmp",
+      "bytes": 178,
+      "sha256": "8f46d39a85bcca7c4626911ba7ac98c69a7dfbf1dbca6b279314a02dd993c8b9"
+    },
+    {
+      "path": "work/taxids.txt",
+      "bytes": 3,
+      "sha256": "df4e26a04a444901b95afef44e4a96cfae34690fff2ad2c66389c70079cdff2b"
+    }
+  ],
+  "artifact_count": 4,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

@@ -5,6 +5,7 @@ from bionodulo.nodes.builtin._annotation_sequence_adapter import _SeqKitGrepCont
 
 class SeqKitGrepNode(_SeqKitGrepContract):
     NODE_ID = "seqkit_grep"
+    CATEGORY = "seqkit"
     OUTPUT_NAME_BY_BASENAME = {
         "grep.fasta": "fasta_output",
         "grep.fasta.gz": "fasta_output",

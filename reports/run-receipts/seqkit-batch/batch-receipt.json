@@ -1,0 +1,532 @@
+{
+  "schema_version": 1,
+  "image": "quay.io/biocontainers/seqkit:2.13.0--he881be0_0",
+  "image_digest": "sha256:0e14f53b486c6b6e199e525f3f1e7494b59b580f835f7835e497b46f99267b6a",
+  "fixture": "mini.fasta",
+  "attempted": 24,
+  "ok": 11,
+  "failed": 13,
+  "results": [
+    {
+      "node_id": "seqkit_head_genome",
+      "argv": [
+        "seqkit",
+        "head-genome",
+        "-o",
+        "/work/out/seqkit_head_genome/seqkit_head_genome.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m no description: seq1",
+      "expected_outputs": [
+        "seqkit_head_genome.out"
+      ],
+      "produced": [
+        "seqkit_head_genome.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_convert",
+      "argv": [
+        "seqkit",
+        "convert",
+        "-o",
+        "/work/out/seqkit_convert/seqkit_convert.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m this command only works for FASTQ format",
+      "expected_outputs": [
+        "seqkit_convert.out"
+      ],
+      "produced": [
+        "seqkit_convert.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_mutate",
+      "argv": [
+        "seqkit",
+        "mutate",
+        "-o",
+        "/work/out/seqkit_mutate/seqkit_mutate.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "[INFO]\u001b[0m edit seq: seq1\n[INFO]\u001b[0m edit seq: seq2\n[INFO]\u001b[0m edit seq: seq3\n[INFO]\u001b[0m edit seq: seq4",
+      "expected_outputs": [
+        "seqkit_mutate.out"
+      ],
+      "produced": [
+        "seqkit_mutate.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_sample2",
+      "argv": [
+        "seqkit",
+        "sample2",
+        "--number",
+        "1",
+        "-o",
+        "/work/out/seqkit_sample2/seqkit_sample2.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "[INFO]\u001b[0m loading all sequences into memory...\n[INFO]\u001b[0m 1 sequences outputted",
+      "expected_outputs": [
+        "seqkit_sample2.out"
+      ],
+      "produced": [
+        "seqkit_sample2.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_bam",
+      "argv": [
+        "seqkit",
+        "bam",
+        "-o",
+        "/work/out/seqkit_bam/seqkit_bam.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m gzip: invalid header",
+      "expected_outputs": [
+        "seqkit_bam.out"
+      ],
+      "produced": [
+        "seqkit_bam.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_common",
+      "argv": [
+        "seqkit",
+        "common",
+        "-o",
+        "/work/out/seqkit_common/seqkit_common.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m at least 2 files needed",
+      "expected_outputs": [
+        "seqkit_common.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "seqkit_common.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_restart",
+      "argv": [
+        "seqkit",
+        "restart",
+        "--new-start",
+        "1",
+        "-o",
+        "/work/out/seqkit_restart/seqkit_restart.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqkit_restart.out"
+      ],
+      "produced": [
+        "seqkit_restart.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_concat",
+      "argv": [
+        "seqkit",
+        "concat",
+        "-o",
+        "/work/out/seqkit_concat/seqkit_concat.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m at least 2 files needed",
+      "expected_outputs": [
+        "seqkit_concat.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "seqkit_concat.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_merge_slides",
+      "argv": [
+        "seqkit",
+        "merge-slides",
+        "-o",
+        "/work/out/seqkit_merge_slides/seqkit_merge_slides.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[33m[WARN]\u001b[0m you may set -l/--min-overlap as $sliding_step_size - 1\n[INFO]\u001b[0m   1 input file(s) given\n\u001b[31m[ERRO]\u001b[0m no reference and location found in the input  line",
+      "expected_outputs": [
+        "seqkit_merge_slides.out"
+      ],
+      "produced": [
+        "seqkit_merge_slides.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_rmdup",
+      "argv": [
+        "seqkit",
+        "rmdup",
+        "-o",
+        "/work/out/seqkit_rmdup/seqkit_rmdup.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "[INFO]\u001b[0m 0 duplicated records removed",
+      "expected_outputs": [
+        "seqkit_rmdup.out"
+      ],
+      "produced": [
+        "seqkit_rmdup.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_split",
+      "argv": [
+        "seqkit",
+        "split",
+        "-o",
+        "/work/out/seqkit_split/seqkit_split.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m one of flags should be given: -s/-p/-i/-r. type \"seqkit split -h\" for help",
+      "expected_outputs": [
+        "seqkit_split.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "seqkit_split.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_replace",
+      "argv": [
+        "seqkit",
+        "replace",
+        "--pattern",
+        "1",
+        "-o",
+        "/work/out/seqkit_replace/seqkit_replace.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqkit_replace.out"
+      ],
+      "produced": [
+        "seqkit_replace.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_fa2fq",
+      "argv": [
+        "seqkit",
+        "fa2fq",
+        "--fasta-file",
+        "1",
+        "-o",
+        "/work/out/seqkit_fa2fq/seqkit_fa2fq.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m fastx: stat 1: no such file or directory",
+      "expected_outputs": [
+        "seqkit_fa2fq.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "seqkit_fa2fq.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_subseq",
+      "argv": [
+        "seqkit",
+        "subseq",
+        "--region",
+        "1",
+        "-o",
+        "/work/out/seqkit_subseq/seqkit_subseq.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m invalid region: 1. type \"seqkit subseq -h\" for more examples",
+      "expected_outputs": [
+        "seqkit_subseq.out"
+      ],
+      "produced": [
+        "seqkit_subseq.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_sliding",
+      "argv": [
+        "seqkit",
+        "sliding",
+        "--step",
+        "1",
+        "--window",
+        "1",
+        "-o",
+        "/work/out/seqkit_sliding/seqkit_sliding.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqkit_sliding.out"
+      ],
+      "produced": [
+        "seqkit_sliding.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_pair",
+      "argv": [
+        "seqkit",
+        "pair",
+        "-o",
+        "/work/out/seqkit_pair/seqkit_pair.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m no positional arguments are allowed: /work/mini.fasta",
+      "expected_outputs": [
+        "seqkit_pair.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "seqkit_pair.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_sana",
+      "argv": [
+        "seqkit",
+        "sana",
+        "-o",
+        "/work/out/seqkit_sana/seqkit_sana.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "[INFO]\u001b[0m File: /work/mini.fasta\tdiscarded line: Invalid line states!\t1:\t >seq1\n[INFO]\u001b[0m File: /work/mini.fasta\tdiscarded line: Invalid line states!\t2:\t ACGTACGTAC\n[INFO]\u001b[0m File: /work/mini.fasta\tdiscarded line: Invalid line states!\t3:\t >seq2\n[INFO]\u001b[0m File: /work/mini.fasta\tdiscarded line: Invalid line states!\t4:\t ACGTACGTACGTACGTACGT\n[INFO]\u001b[0m File: /work/mini.fasta\tdiscarded line: Invali",
+      "expected_outputs": [
+        "seqkit_sana.out"
+      ],
+      "produced": [
+        "seqkit_sana.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_shuffle",
+      "argv": [
+        "seqkit",
+        "shuffle",
+        "-o",
+        "/work/out/seqkit_shuffle/seqkit_shuffle.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "[INFO]\u001b[0m read sequences ...\n[INFO]\u001b[0m 4 sequences loaded\n[INFO]\u001b[0m shuffle ...\n[INFO]\u001b[0m output ...",
+      "expected_outputs": [
+        "seqkit_shuffle.out"
+      ],
+      "produced": [
+        "seqkit_shuffle.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_seq",
+      "argv": [
+        "seqkit",
+        "seq",
+        "-o",
+        "/work/out/seqkit_seq/seqkit_seq.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqkit_seq.out"
+      ],
+      "produced": [
+        "seqkit_seq.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_rename",
+      "argv": [
+        "seqkit",
+        "rename",
+        "-o",
+        "/work/out/seqkit_rename/seqkit_rename.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqkit_rename.out"
+      ],
+      "produced": [
+        "seqkit_rename.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_fish",
+      "argv": [
+        "seqkit",
+        "fish",
+        "-o",
+        "/work/out/seqkit_fish/seqkit_fish.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 0,
+      "stdout_chars": 0,
+      "stderr": "",
+      "expected_outputs": [
+        "seqkit_fish.out"
+      ],
+      "produced": [
+        "seqkit_fish.out"
+      ],
+      "missing_outputs": [],
+      "status": "ok"
+    },
+    {
+      "node_id": "seqkit_range",
+      "argv": [
+        "seqkit",
+        "range",
+        "--range",
+        "1",
+        "-o",
+        "/work/out/seqkit_range/seqkit_range.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "\u001b[31m[ERRO]\u001b[0m invalid range: 1. type \"seqkit range -h\" for more examples",
+      "expected_outputs": [
+        "seqkit_range.out"
+      ],
+      "produced": [],
+      "missing_outputs": [
+        "seqkit_range.out"
+      ],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_amplicon",
+      "argv": [
+        "seqkit",
+        "amplicon",
+        "-o",
+        "/work/out/seqkit_amplicon/seqkit_amplicon.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 2,
+      "stdout_chars": 0,
+      "stderr": "[INFO]\u001b[0m 1 primer pair loaded\npanic: runtime error: invalid memory address or nil pointer dereference\n[signal SIGSEGV: segmentation violation code=0x1 addr=0x8 pc=0x5573f492cd8a]\n\ngoroutine 1 [running]:\ngithub.com/shenwei356/seqkit/v2/seqkit/cmd.(*AmpliconFinder).Reset(0x0, {0x2e8be96c2000?, 0x4?, 0x5573f49bebe7?}, 0x0)\n\tgithub.com/shenwei356/seqkit/v2/seqkit/cmd/amplicon.go:670 +0x8a\ngithub.com",
+      "expected_outputs": [
+        "seqkit_amplicon.out"
+      ],
+      "produced": [
+        "seqkit_amplicon.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    },
+    {
+      "node_id": "seqkit_scat",
+      "argv": [
+        "seqkit",
+        "scat",
+        "-o",
+        "/work/out/seqkit_scat/seqkit_scat.out",
+        "/work/mini.fasta"
+      ],
+      "exit_code": 255,
+      "stdout_chars": 0,
+      "stderr": "[INFO]\u001b[0m Input format is: fastq\n[INFO]\u001b[0m Output format is: fastq\n[INFO]\u001b[0m Will watch files matching regexp: \".*\\.(fastq|fq)(\\.gz){0,1}$\"\n[INFO]\u001b[0m Watcher (fastq) launched on root: /work/mini.fasta\n\u001b[31m[ERRO]\u001b[0m Not a directory",
+      "expected_outputs": [
+        "seqkit_scat.out"
+      ],
+      "produced": [
+        "seqkit_scat.out"
+      ],
+      "missing_outputs": [],
+      "status": "failed"
+    }
+  ],
+  "scope": "Smoke check only: the node's own argv ran in a pinned image and its declared outputs appeared. No scientific correctness was validated."
+}

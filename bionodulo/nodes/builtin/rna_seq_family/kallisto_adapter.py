@@ -108,6 +108,14 @@ class _KallistoCommandNode(CommandNode):
     UPSTREAM_TAG = "v0.52.0"
     UPSTREAM_CLI_SOURCE = "src/main.cpp"
     DOCUMENTATION_URL = "https://github.com/pachterlab/kallisto/tree/v0.52.0"
+    # Kallisto is one of the most widely cited tools in the catalog and shipped with
+    # no DOI at all. Crossref-checked 2026-09-28: 10.1038/nbt.3519 is "Near-optimal
+    # probabilistic RNA-seq quantification", Nature Biotechnology 2016. An earlier
+    # candidate, 10.1038/nbt.2727, resolved to a chromatin-scaffolding paper and was
+    # discarded.
+    CITATION_DOIS = ["10.1038/nbt.3519"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = "Near-optimal probabilistic RNA-seq quantification."
     CONDA_PACKAGE_CONSTRAINTS = {"kallisto": VERSION}
     PACKAGE_CONSTRAINTS = (f"kallisto=={VERSION}",)
     PACKAGE_CONSTRAINT = PACKAGE_CONSTRAINTS[0]

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "node_id": "csvtk_cut",
+  "node_class": "bionodulo.nodes.builtin.csvtk_family.cut.CsvtkCutNode",
+  "execution": {
+    "kind": "digest_pinned_container",
+    "image": "quay.io/biocontainers/csvtk:0.31.0--h9ee0642_0",
+    "image_digest_expected": "sha256:e73ae7d1626058e06af6023e70945664ee08f55edf2f41fb9aa151b9a6a3f954",
+    "image_digest_observed_after_run": "quay.io/biocontainers/csvtk@sha256:e73ae7d1626058e06af6023e70945664ee08f55edf2f41fb9aa151b9a6a3f954",
+    "digest_stable": true,
+    "container_workdir": "/work",
+    "network": "none",
+    "cpus": 1,
+    "memory": "2048m",
+    "host_platform": "win32"
+  },
+  "rendered_command": [
+    "csvtk",
+    "cut",
+    "-t",
+    "-T",
+    "-f",
+    "gene,sample",
+    "/work/mini_table.tsv"
+  ],
+  "rendered_command_as_rendered_on_this_host": [
+    "csvtk",
+    "cut",
+    "-t",
+    "-T",
+    "-f",
+    "gene,sample",
+    "/work/mini_table.tsv"
+  ],
+  "platform_path_rewrites": [],
+  "platform_path_rewrite_note": "render_command() builds output paths with pathlib.Path, so on Windows the argv contains backslash paths. A linux-64 worker renders the same arguments with forward slashes. The rewritten form was executed; the raw form is retained for comparison.",
+  "rendered_command_argv0_in_container": "csvtk",
+  "inputs": {
+    "delimiter": "tab",
+    "columns": "gene,sample",
+    "table": "/work/mini_table.tsv",
+    "output": "/work/out"
+  },
+  "planned_outputs": [
+    "reports\\run-receipts\\csvtk-cut\\work\\csvtk_cut\\selected.tsv"
+  ],
+  "tool_version_stdout": "Error: unknown flag: --version\nUsage:\n  csvtk [command] \n\nCommands for Information:",
+  "status": "completed",
+  "exit_code": 0,
+  "stdout": "gene\tsample\nalpha\ts1\nbeta\ts2\ngamma\ts3\ndelta\ts4\nepsilon\ts5\n",
+  "stderr": "",
+  "started_at_utc": "2026-09-25T07:05:20.655734+00:00",
+  "completed_at_utc": "2026-09-25T07:05:21.614486+00:00",
+  "fixture": {
+    "name": "mini_table.tsv",
+    "sha256": "05a8a886f2bdd61c73805005dcddb9b46b76435e28a9481f44a44406fffa3536",
+    "bytes": 98,
+    "source": "tests/nodes/csvtk_family/fixtures/mini_table.tsv"
+  },
+  "artifacts": [
+    {
+      "path": "work/mini_table.tsv",
+      "bytes": 98,
+      "sha256": "05a8a886f2bdd61c73805005dcddb9b46b76435e28a9481f44a44406fffa3536"
+    }
+  ],
+  "artifact_count": 1,
+  "scope": "The node's own render_command argv executed in an immutable digest-pinned image. Proves the declared command runs in a pinned Linux environment and produced these bytes. Does not prove scientific correctness; that requires the independent oracle."
+}

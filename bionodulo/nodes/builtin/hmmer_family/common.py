@@ -18,6 +18,11 @@ HMMER_GIT_COMMIT = "9acd8b6758a0ca5d21db6d167e0277484341929b"
 HMMER_TAG_OBJECT = "e0b6aeb0eec19774c7484e690985af0eb0c98fe9"
 HMMER_SOURCE_ROOT = f"https://github.com/EddyRivasLab/hmmer/blob/{HMMER_GIT_COMMIT}"
 HMMER_CITATION_DOI = "10.1093/nar/gkr367"
+# The nodes in this family run the command-line tools (hmmsearch, hmmscan, ...), not
+# the HMMER web server, but the family cited only the web-server paper. The HMMER3
+# paper is the right primary reference for the CLI; the web-server paper stays as a
+# secondary. Crossref-checked 2026-09-28.
+HMMER_CLI_CITATION_DOI = "10.1371/journal.pcbi.1002195"
 HMMER_NUCLEOTIDE_CITATION_DOI = "10.1093/bioinformatics/btt403"
 HMMER_PRESSED_SUFFIXES = (".h3f", ".h3i", ".h3m", ".h3p")
 EASEL_VERSION = "0.49"
@@ -289,9 +294,12 @@ class HMMERContractNode(ValidatedCommandContract):
     REQUIRED_CONDA_PACKAGES = ["hmmer"]
     CONDA_PACKAGE_CONSTRAINTS = {"hmmer": HMMER_VERSION}
     PACKAGE_CONSTRAINT = f"hmmer=={HMMER_VERSION}"
-    CITATION_DOIS = [HMMER_CITATION_DOI]
-    CITATION_URLS = [f"https://doi.org/{HMMER_CITATION_DOI}"]
-    CITATION_TEXT = "HMMER web server: interactive sequence similarity searching."
+    CITATION_DOIS = [HMMER_CLI_CITATION_DOI, HMMER_CITATION_DOI]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = (
+        "Accelerated Profile HMM Searches; HMMER web server: interactive sequence "
+        "similarity searching."
+    )
     OPTION_PARSER_VERSION = EASEL_VERSION
     OPTION_PARSER_GIT_URL = "https://github.com/EddyRivasLab/easel.git"
     OPTION_PARSER_GIT_COMMIT = EASEL_GIT_COMMIT

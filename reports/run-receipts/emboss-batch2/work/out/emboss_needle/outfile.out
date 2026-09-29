@@ -1,0 +1,80 @@
+########################################
+# Program: needle
+# Rundate: Sat 26 Sep 2026 15:00:48
+# Commandline: needle
+#    -asequence /work/dna.fasta
+#    -bsequence /work/dna.fasta
+#    -outfile /work/out/emboss_needle/outfile.out
+#    -auto
+# Align_format: srspair
+# Report_file: /work/out/emboss_needle/outfile.out
+########################################
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: dna1
+# 2: dna1
+# Matrix: EDNAFULL
+# Gap_penalty: 10.0
+# Extend_penalty: 0.5
+#
+# Length: 124
+# Identity:     124/124 (100.0%)
+# Similarity:   124/124 (100.0%)
+# Gaps:           0/124 ( 0.0%)
+# Score: 620.0
+# 
+#
+#=======================================
+
+dna1               1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGT     50
+                     ||||||||||||||||||||||||||||||||||||||||||||||||||
+dna1               1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGT     50
+
+dna1              51 AGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGC    100
+                     ||||||||||||||||||||||||||||||||||||||||||||||||||
+dna1              51 AGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGC    100
+
+dna1             101 ATCGATCGATCGTAGCTAGCTAGC    124
+                     ||||||||||||||||||||||||
+dna1             101 ATCGATCGATCGTAGCTAGCTAGC    124
+
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: dna1
+# 2: dna2
+# Matrix: EDNAFULL
+# Gap_penalty: 10.0
+# Extend_penalty: 0.5
+#
+# Length: 158
+# Identity:      72/158 (45.6%)
+# Similarity:    72/158 (45.6%)
+# Gaps:          68/158 (43.0%)
+# Score: 222.5
+# 
+#
+#=======================================
+
+dna1               1 --------------------------------ATGGCTAGCTAGCTAGGC     18
+                                                     ||.|.|.|.|.|.|.|  
+dna2               1 TTTAAACCCGGGTTTAAACCCGGGATCGATCGATCGATCGATCGATCG--     48
+
+dna1              19 ATCGATCGATCGGGCTAGCTAGC-ATCGATCGTAGCTAGCTAGC-ATCGA     66
+                     ||||||||||||..|.|.|.|.| |||||||| |.|.|.|.|.| |||||
+dna2              49 ATCGATCGATCGATCGATCGATCGATCGATCG-ATCGATCGATCGATCGA     97
+
+dna1              67 TCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGCATCGATCGATCGTAGC    116
+                     |||||||||||||||                               ||||
+dna2              98 TCGTAGCTAGCTAGC-------------------------------TAGC    116
+
+dna1             117 TAGCTAGC    124
+                     ||||||||
+dna2             117 TAGCTAGC    124
+
+
+#---------------------------------------
+#---------------------------------------

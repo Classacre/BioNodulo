@@ -740,6 +740,11 @@ def _to_node_info(
         info["custom_node_package"] = dict(custom_node_package)
     if getattr(node_class, "REGISTRY_ORIGIN", None):
         info["registry_origin"] = dict(getattr(node_class, "REGISTRY_ORIGIN"))
+    knowledge = getattr(node_class, "KNOWLEDGE", None)
+    if knowledge is not None:
+        from bionodulo.nodes.knowledge import validate_knowledge
+
+        info["knowledge"] = validate_knowledge(knowledge, node_id=node_class.NODE_ID)
     contract = getattr(node_class, "CONTRACT_SPEC", None)
     if contract is not None and getattr(contract, "cwl_invocation", None) is not None:
         invocation = contract.cwl_invocation

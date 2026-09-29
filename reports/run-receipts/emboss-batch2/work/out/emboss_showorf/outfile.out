@@ -1,0 +1,29 @@
+SHOWORF of dna1 from 1 to 124
+
+           ---------|---------|---------|---------|---------|
+         1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGT 50
+F1       1 M  A  S  *  L  G  I  D  R  S  G  *  L  A  S  I  V  5
+F2       1  W  L  A  S  *  A  S  I  D  R  A  S  *  H  R  S  * 3
+F3       1   G  *  L  A  R  H  R  S  I  G  L  A  S  I  D  R   14
+R1       4   H  S  A  L  *  A  D  I  S  R  A  L  *  C  R  D   9
+R2       1    P  *  S  A  L  C  R  D  I  P  S  A  L  M  S  R  2
+R3       2     A  L  *  S  P  M  S  R  D  P  *  S  A  D  I  T 3
+
+           ---------|---------|---------|---------|---------|
+        51 AGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGC 100
+F1       6  A  S  *  H  R  S  *  L  A  S  P  G  K  F  S  *  H 1
+F2       1   L  A  S  I  D  R  S  *  L  A  P  G  N  L  A  S   8
+F3      15 S  *  L  A  S  I  V  A  S  *  P  R  E  I  *  L  A  2
+R1       8 Y  S  A  L  M  S  R  L  *  S  A  G  P  F  K  A  L  9
+R2       1  L  *  S  A  D  I  T  A  L  *  G  R  S  I  *  S  A 6
+R3       2   A  L  *  C  R  D  Y  S  A  L  G  P  F  N  L  *   1
+
+           ---------|---------|----
+       101 ATCGATCGATCGTAGCTAGCTAGC 124
+F1       2   R  S  I  V  A  S  *    7
+F2       9 I  D  R  S  *  L  A  S   3
+F3       3  S  I  D  R  S  *  L     1
+R1       8  M  S  R  D  Y  S  A  L  1
+R2       5   D  I  S  R  L  *  S  A 1
+R3       7 C  R  D  I  T  A  L  *   1
+

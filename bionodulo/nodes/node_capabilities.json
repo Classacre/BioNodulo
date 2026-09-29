@@ -1378,6 +1378,20 @@
     ],
     "requires_gpu": false
   },
+  "bgzip_compress": {
+    "required_executables": [
+      "bgzip",
+      "tabix"
+    ],
+    "requires_gpu": false
+  },
+  "bgzip_decompress": {
+    "required_executables": [
+      "bgzip",
+      "tabix"
+    ],
+    "requires_gpu": false
+  },
   "biapy": {
     "required_executables": [
       "biapy",
@@ -2414,6 +2428,288 @@
     "required_executables": [],
     "requires_gpu": false
   },
+  "csvtk_add_header": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_cat": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_comb": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_concat": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_convert": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_corr": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_cut": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_del_header": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_del_quotes": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_dim": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_filter": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_filter2": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_fix": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_fix_quotes": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_fmtdate": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_fold": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_freq": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_gather": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_grep": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_head": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_headers": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_inter": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_join": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_mutate": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_mutate2": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_mutate3": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_ncol": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_nrow": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_plot": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_pretty": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_rename": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_rename2": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_replace": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_round": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_sample": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_sep": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_sort": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_space2tab": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_split": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_splitxlsx": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_spread": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_stats": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_transpose": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_unfold": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_uniq": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_watch": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
+  "csvtk_xlsx2csv": {
+    "required_executables": [
+      "csvtk"
+    ],
+    "requires_gpu": false
+  },
   "customize_metaphlan_database": {
     "required_executables": [
       "python",
@@ -2431,6 +2727,10 @@
     "required_executables": [
       "cuteSV"
     ],
+    "requires_gpu": false
+  },
+  "cwl_file_input": {
+    "required_executables": [],
     "requires_gpu": false
   },
   "das_tool": {
@@ -2624,6 +2924,1020 @@
   },
   "embedding_generation": {
     "required_executables": [],
+    "requires_gpu": false
+  },
+  "emboss_aaindexextract": {
+    "required_executables": [
+      "aaindexextract"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_abiview": {
+    "required_executables": [
+      "abiview"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_antigenic": {
+    "required_executables": [
+      "antigenic"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_backtranambig": {
+    "required_executables": [
+      "backtranambig"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_backtranseq": {
+    "required_executables": [
+      "backtranseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_banana": {
+    "required_executables": [
+      "banana"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_biosed": {
+    "required_executables": [
+      "biosed"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_btwisted": {
+    "required_executables": [
+      "btwisted"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_cai": {
+    "required_executables": [
+      "cai"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_chaos": {
+    "required_executables": [
+      "chaos"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_charge": {
+    "required_executables": [
+      "charge"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_checktrans": {
+    "required_executables": [
+      "checktrans"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_chips": {
+    "required_executables": [
+      "chips"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_cirdna": {
+    "required_executables": [
+      "cirdna"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_codcmp": {
+    "required_executables": [
+      "codcmp"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_codcopy": {
+    "required_executables": [
+      "codcopy"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_coderet": {
+    "required_executables": [
+      "coderet"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_compseq": {
+    "required_executables": [
+      "compseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_cons": {
+    "required_executables": [
+      "cons"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_consambig": {
+    "required_executables": [
+      "consambig"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_cpgplot": {
+    "required_executables": [
+      "cpgplot"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_cpgreport": {
+    "required_executables": [
+      "cpgreport"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_cusp": {
+    "required_executables": [
+      "cusp"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_cutgextract": {
+    "required_executables": [
+      "cutgextract"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_cutseq": {
+    "required_executables": [
+      "cutseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_dan": {
+    "required_executables": [
+      "dan"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_degapseq": {
+    "required_executables": [
+      "degapseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_density": {
+    "required_executables": [
+      "density"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_descseq": {
+    "required_executables": [
+      "descseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_diffseq": {
+    "required_executables": [
+      "diffseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_digest": {
+    "required_executables": [
+      "digest"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_distmat": {
+    "required_executables": [
+      "distmat"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_dotmatcher": {
+    "required_executables": [
+      "dotmatcher"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_dotpath": {
+    "required_executables": [
+      "dotpath"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_dottup": {
+    "required_executables": [
+      "dottup"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_dreg": {
+    "required_executables": [
+      "dreg"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_edialign": {
+    "required_executables": [
+      "edialign"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_einverted": {
+    "required_executables": [
+      "einverted"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_emma": {
+    "required_executables": [
+      "emma"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_emowse": {
+    "required_executables": [
+      "emowse"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_entret": {
+    "required_executables": [
+      "entret"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_epestfind": {
+    "required_executables": [
+      "epestfind"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_eprimer3": {
+    "required_executables": [
+      "eprimer3"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_eprimer32": {
+    "required_executables": [
+      "eprimer32"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_equicktandem": {
+    "required_executables": [
+      "equicktandem"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_est2genome": {
+    "required_executables": [
+      "est2genome"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_etandem": {
+    "required_executables": [
+      "etandem"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_extractalign": {
+    "required_executables": [
+      "extractalign"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_extractfeat": {
+    "required_executables": [
+      "extractfeat"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_extractseq": {
+    "required_executables": [
+      "extractseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_featreport": {
+    "required_executables": [
+      "featreport"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_findkm": {
+    "required_executables": [
+      "findkm"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_freak": {
+    "required_executables": [
+      "freak"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_fuzznuc": {
+    "required_executables": [
+      "fuzznuc"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_fuzzpro": {
+    "required_executables": [
+      "fuzzpro"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_fuzztran": {
+    "required_executables": [
+      "fuzztran"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_garnier": {
+    "required_executables": [
+      "garnier"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_geecee": {
+    "required_executables": [
+      "geecee"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_getorf": {
+    "required_executables": [
+      "getorf"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_helixturnhelix": {
+    "required_executables": [
+      "helixturnhelix"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_hmoment": {
+    "required_executables": [
+      "hmoment"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_iep": {
+    "required_executables": [
+      "iep"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_infoalign": {
+    "required_executables": [
+      "infoalign"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_infoassembly": {
+    "required_executables": [
+      "infoassembly"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_inforesidue": {
+    "required_executables": [
+      "inforesidue"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_infoseq": {
+    "required_executables": [
+      "infoseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_isochore": {
+    "required_executables": [
+      "isochore"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_jaspscan": {
+    "required_executables": [
+      "jaspscan"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_lindna": {
+    "required_executables": [
+      "lindna"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_listor": {
+    "required_executables": [
+      "listor"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_makenucseq": {
+    "required_executables": [
+      "makenucseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_makeprotseq": {
+    "required_executables": [
+      "makeprotseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_marscan": {
+    "required_executables": [
+      "marscan"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_maskambignuc": {
+    "required_executables": [
+      "maskambignuc"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_maskambigprot": {
+    "required_executables": [
+      "maskambigprot"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_maskfeat": {
+    "required_executables": [
+      "maskfeat"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_maskseq": {
+    "required_executables": [
+      "maskseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_matcher": {
+    "required_executables": [
+      "matcher"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_megamerger": {
+    "required_executables": [
+      "megamerger"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_merger": {
+    "required_executables": [
+      "merger"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_msbar": {
+    "required_executables": [
+      "msbar"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_mwcontam": {
+    "required_executables": [
+      "mwcontam"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_mwfilter": {
+    "required_executables": [
+      "mwfilter"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_needle": {
+    "required_executables": [
+      "needle"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_needleall": {
+    "required_executables": [
+      "needleall"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_newcpgreport": {
+    "required_executables": [
+      "newcpgreport"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_newcpgseek": {
+    "required_executables": [
+      "newcpgseek"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_noreturn": {
+    "required_executables": [
+      "noreturn"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_notseq": {
+    "required_executables": [
+      "notseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_nthseq": {
+    "required_executables": [
+      "nthseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_nthseqset": {
+    "required_executables": [
+      "nthseqset"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_octanol": {
+    "required_executables": [
+      "octanol"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_oddcomp": {
+    "required_executables": [
+      "oddcomp"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_palindrome": {
+    "required_executables": [
+      "palindrome"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pasteseq": {
+    "required_executables": [
+      "pasteseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_patmatdb": {
+    "required_executables": [
+      "patmatdb"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_patmatmotifs": {
+    "required_executables": [
+      "patmatmotifs"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pepcoil": {
+    "required_executables": [
+      "pepcoil"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pepdigest": {
+    "required_executables": [
+      "pepdigest"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pepinfo": {
+    "required_executables": [
+      "pepinfo"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pepnet": {
+    "required_executables": [
+      "pepnet"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pepstats": {
+    "required_executables": [
+      "pepstats"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pepwheel": {
+    "required_executables": [
+      "pepwheel"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pepwindow": {
+    "required_executables": [
+      "pepwindow"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pepwindowall": {
+    "required_executables": [
+      "pepwindowall"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_plotcon": {
+    "required_executables": [
+      "plotcon"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_plotorf": {
+    "required_executables": [
+      "plotorf"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_polydot": {
+    "required_executables": [
+      "polydot"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_preg": {
+    "required_executables": [
+      "preg"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_prettyplot": {
+    "required_executables": [
+      "prettyplot"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_prettyseq": {
+    "required_executables": [
+      "prettyseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_primersearch": {
+    "required_executables": [
+      "primersearch"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_printsextract": {
+    "required_executables": [
+      "printsextract"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_profit": {
+    "required_executables": [
+      "profit"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_prophecy": {
+    "required_executables": [
+      "prophecy"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_prophet": {
+    "required_executables": [
+      "prophet"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_pscan": {
+    "required_executables": [
+      "pscan"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_psiphi": {
+    "required_executables": [
+      "psiphi"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_rebaseextract": {
+    "required_executables": [
+      "rebaseextract"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_recoder": {
+    "required_executables": [
+      "recoder"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_remap": {
+    "required_executables": [
+      "remap"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_restover": {
+    "required_executables": [
+      "restover"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_restrict": {
+    "required_executables": [
+      "restrict"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_revseq": {
+    "required_executables": [
+      "revseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_seqcount": {
+    "required_executables": [
+      "seqcount"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_seqmatchall": {
+    "required_executables": [
+      "seqmatchall"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_seqret": {
+    "required_executables": [
+      "seqret"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_seqretsetall": {
+    "required_executables": [
+      "seqretsetall"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_seqretsplit": {
+    "required_executables": [
+      "seqretsplit"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_showalign": {
+    "required_executables": [
+      "showalign"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_showfeat": {
+    "required_executables": [
+      "showfeat"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_showorf": {
+    "required_executables": [
+      "showorf"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_showpep": {
+    "required_executables": [
+      "showpep"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_showseq": {
+    "required_executables": [
+      "showseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_shuffleseq": {
+    "required_executables": [
+      "shuffleseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_sigcleave": {
+    "required_executables": [
+      "sigcleave"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_silent": {
+    "required_executables": [
+      "silent"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_sirna": {
+    "required_executables": [
+      "sirna"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_sixpack": {
+    "required_executables": [
+      "sixpack"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_skipseq": {
+    "required_executables": [
+      "skipseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_splitsource": {
+    "required_executables": [
+      "splitsource"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_splitter": {
+    "required_executables": [
+      "splitter"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_stretcher": {
+    "required_executables": [
+      "stretcher"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_stssearch": {
+    "required_executables": [
+      "stssearch"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_supermatcher": {
+    "required_executables": [
+      "supermatcher"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_syco": {
+    "required_executables": [
+      "syco"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_taxget": {
+    "required_executables": [
+      "taxget"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_taxgetdown": {
+    "required_executables": [
+      "taxgetdown"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_taxgetrank": {
+    "required_executables": [
+      "taxgetrank"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_taxgetspecies": {
+    "required_executables": [
+      "taxgetspecies"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_taxgetup": {
+    "required_executables": [
+      "taxgetup"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_tcode": {
+    "required_executables": [
+      "tcode"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_textsearch": {
+    "required_executables": [
+      "textsearch"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_tfextract": {
+    "required_executables": [
+      "tfextract"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_tfscan": {
+    "required_executables": [
+      "tfscan"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_tmap": {
+    "required_executables": [
+      "tmap"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_tranalign": {
+    "required_executables": [
+      "tranalign"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_transeq": {
+    "required_executables": [
+      "transeq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_trimest": {
+    "required_executables": [
+      "trimest"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_trimseq": {
+    "required_executables": [
+      "trimseq"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_twofeat": {
+    "required_executables": [
+      "twofeat"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_union": {
+    "required_executables": [
+      "union"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_vectorstrip": {
+    "required_executables": [
+      "vectorstrip"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_water": {
+    "required_executables": [
+      "water"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_wobble": {
+    "required_executables": [
+      "wobble"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_wordcount": {
+    "required_executables": [
+      "wordcount"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_wordfinder": {
+    "required_executables": [
+      "wordfinder"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_wordmatch": {
+    "required_executables": [
+      "wordmatch"
+    ],
+    "requires_gpu": false
+  },
+  "emboss_yank": {
+    "required_executables": [
+      "yank"
+    ],
     "requires_gpu": false
   },
   "ensembl_gene_lookup": {
@@ -4969,6 +6283,204 @@
     "required_executables": [],
     "requires_gpu": false
   },
+  "seqfu_amplicheck": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_bases": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_cat": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_check": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_count": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_derep": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_grep": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_head": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_lanes": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_list": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_metadata": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_orf": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_rc": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_rotate": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_shred": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_sort": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_stats": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_subtract": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_tab": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_tabcheck": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_tail": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_tofasta": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqfu_trim": {
+    "required_executables": [
+      "seqfu"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_amplicon": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_bam": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_common": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_concat": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_convert": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_duplicate": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_fa2fq": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_faidx": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_fish": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_fq2fa": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
   "seqkit_fx2tab": {
     "required_executables": [
       "seqkit"
@@ -4987,13 +6499,115 @@
     ],
     "requires_gpu": false
   },
+  "seqkit_head_genome": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
   "seqkit_locate": {
     "required_executables": [
       "seqkit"
     ],
     "requires_gpu": false
   },
+  "seqkit_merge_slides": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_mutate": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_pair": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_range": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_rename": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_replace": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_restart": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_rmdup": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_sample": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_sample2": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_sana": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_scat": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_seq": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_shuffle": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_sliding": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
   "seqkit_sort": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_split": {
     "required_executables": [
       "seqkit"
     ],
@@ -5011,7 +6625,31 @@
     ],
     "requires_gpu": false
   },
+  "seqkit_subseq": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_sum": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_tab2fx": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
   "seqkit_translate": {
+    "required_executables": [
+      "seqkit"
+    ],
+    "requires_gpu": false
+  },
+  "seqkit_watch": {
     "required_executables": [
       "seqkit"
     ],
@@ -5335,8 +6973,58 @@
     "required_executables": [],
     "requires_gpu": false
   },
+  "tabix_index": {
+    "required_executables": [
+      "bgzip",
+      "tabix"
+    ],
+    "requires_gpu": false
+  },
+  "tabix_query": {
+    "required_executables": [
+      "bgzip",
+      "tabix"
+    ],
+    "requires_gpu": false
+  },
   "table_preview": {
     "required_executables": [],
+    "requires_gpu": false
+  },
+  "taxonkit_cami_filter": {
+    "required_executables": [
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonkit_create_taxdump": {
+    "required_executables": [
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonkit_filter": {
+    "required_executables": [
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonkit_lca": {
+    "required_executables": [
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonkit_lineage": {
+    "required_executables": [
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonkit_list": {
+    "required_executables": [
+      "taxonkit"
+    ],
     "requires_gpu": false
   },
   "taxonkit_name2taxid": {
@@ -5347,6 +7035,18 @@
     "requires_gpu": false
   },
   "taxonkit_profile2cami": {
+    "required_executables": [
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonkit_reformat": {
+    "required_executables": [
+      "taxonkit"
+    ],
+    "requires_gpu": false
+  },
+  "taxonkit_reformat2": {
     "required_executables": [
       "taxonkit"
     ],
@@ -5454,6 +7154,18 @@
   },
   "tsv_to_fasta": {
     "required_executables": [],
+    "requires_gpu": false
+  },
+  "tximport_salmon": {
+    "required_executables": [
+      "Rscript"
+    ],
+    "requires_gpu": false
+  },
+  "tximport_stringtie": {
+    "required_executables": [
+      "Rscript"
+    ],
     "requires_gpu": false
   },
   "type_cast": {
@@ -5592,6 +7304,144 @@
     ],
     "requires_gpu": false
   },
+  "unikmer_common": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_concat": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_count": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_decode": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_diff": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_dump": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_encode": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_filter": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_grep": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_head": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_info": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_inter": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_locate": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_map": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_merge": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_num": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_rfilter": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_sample": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_sort": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_split": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_tsplit": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_union": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
+  "unikmer_view": {
+    "required_executables": [
+      "unikmer"
+    ],
+    "requires_gpu": false
+  },
   "uniprot_retrieve": {
     "required_executables": [],
     "requires_gpu": false
@@ -5601,6 +7451,10 @@
     "requires_gpu": false
   },
   "utr_feature_builder": {
+    "required_executables": [],
+    "requires_gpu": false
+  },
+  "validate_semantic_artifact": {
     "required_executables": [],
     "requires_gpu": false
   },
@@ -5621,6 +7475,498 @@
   },
   "vcf_stats_chart": {
     "required_executables": [],
+    "requires_gpu": false
+  },
+  "vcflib_abba_baba": {
+    "required_executables": [
+      "abba-baba"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_bfst": {
+    "required_executables": [
+      "bFst"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_dumpcontigsfromheader": {
+    "required_executables": [
+      "dumpContigsFromHeader"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_genotypesummary": {
+    "required_executables": [
+      "genotypeSummary"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_haplrt": {
+    "required_executables": [
+      "hapLrt"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_ihs": {
+    "required_executables": [
+      "iHS"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_meltehh": {
+    "required_executables": [
+      "meltEHH"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_normalize_ihs": {
+    "required_executables": [
+      "normalize-iHS"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_permutegpat": {
+    "required_executables": [
+      "permuteGPAT++"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_permutesmooth": {
+    "required_executables": [
+      "permuteSmooth"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_pfst": {
+    "required_executables": [
+      "pFst"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_popstats": {
+    "required_executables": [
+      "popStats"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_pvst": {
+    "required_executables": [
+      "pVst"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_segmentfst": {
+    "required_executables": [
+      "segmentFst"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_segmentihs": {
+    "required_executables": [
+      "segmentIhs"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_sequencediversity": {
+    "required_executables": [
+      "sequenceDiversity"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_smoother": {
+    "required_executables": [
+      "smoother"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcf2dag": {
+    "required_executables": [
+      "vcf2dag"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcf2tsv": {
+    "required_executables": [
+      "vcf2tsv"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfaddinfo": {
+    "required_executables": [
+      "vcfaddinfo"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfafpath": {
+    "required_executables": [
+      "vcfafpath"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfallelicprimitives": {
+    "required_executables": [
+      "vcfallelicprimitives"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfannotate": {
+    "required_executables": [
+      "vcfannotate"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfannotategenotypes": {
+    "required_executables": [
+      "vcfannotategenotypes"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfbreakmulti": {
+    "required_executables": [
+      "vcfbreakmulti"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfcat": {
+    "required_executables": [
+      "vcfcat"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfcheck": {
+    "required_executables": [
+      "vcfcheck"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfclassify": {
+    "required_executables": [
+      "vcfclassify"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfcleancomplex": {
+    "required_executables": [
+      "vcfcleancomplex"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfcombine": {
+    "required_executables": [
+      "vcfcombine"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfcommonsamples": {
+    "required_executables": [
+      "vcfcommonsamples"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfcountalleles": {
+    "required_executables": [
+      "vcfcountalleles"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfcreatemulti": {
+    "required_executables": [
+      "vcfcreatemulti"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfecho": {
+    "required_executables": [
+      "vcfecho"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfentropy": {
+    "required_executables": [
+      "vcfentropy"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfevenregions": {
+    "required_executables": [
+      "vcfevenregions"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcffilter": {
+    "required_executables": [
+      "vcffilter"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcffixup": {
+    "required_executables": [
+      "vcffixup"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfflatten": {
+    "required_executables": [
+      "vcfflatten"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfgeno2haplo": {
+    "required_executables": [
+      "vcfgeno2haplo"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfgenosamplenames": {
+    "required_executables": [
+      "vcfgenosamplenames"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfgenotypecompare": {
+    "required_executables": [
+      "vcfgenotypecompare"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfglbound": {
+    "required_executables": [
+      "vcfglbound"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfglxgt": {
+    "required_executables": [
+      "vcfglxgt"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfgtcompare_sh": {
+    "required_executables": [
+      "vcfgtcompare.sh"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfhetcount": {
+    "required_executables": [
+      "vcfhetcount"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfhethomratio": {
+    "required_executables": [
+      "vcfhethomratio"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfindex": {
+    "required_executables": [
+      "vcfindex"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfinfosummarize": {
+    "required_executables": [
+      "vcfinfosummarize"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfintersect": {
+    "required_executables": [
+      "vcfintersect"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfjoincalls": {
+    "required_executables": [
+      "vcfjoincalls"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfkeepgeno": {
+    "required_executables": [
+      "vcfkeepgeno"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfkeepinfo": {
+    "required_executables": [
+      "vcfkeepinfo"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfkeepsamples": {
+    "required_executables": [
+      "vcfkeepsamples"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfld": {
+    "required_executables": [
+      "vcfld"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfleftalign": {
+    "required_executables": [
+      "vcfleftalign"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcflength": {
+    "required_executables": [
+      "vcflength"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfnullgenofields": {
+    "required_executables": [
+      "vcfnullgenofields"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfnumalt": {
+    "required_executables": [
+      "vcfnumalt"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfoverlay": {
+    "required_executables": [
+      "vcfoverlay"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfparsealts": {
+    "required_executables": [
+      "vcfparsealts"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfprimers": {
+    "required_executables": [
+      "vcfprimers"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfrandom": {
+    "required_executables": [
+      "vcfrandom"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfrandomsample": {
+    "required_executables": [
+      "vcfrandomsample"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfregionreduce": {
+    "required_executables": [
+      "vcfregionreduce"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfregionreduce_and_cut": {
+    "required_executables": [
+      "vcfregionreduce_and_cut"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfregionreduce_pipe": {
+    "required_executables": [
+      "vcfregionreduce_pipe"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfregionreduce_uncompressed": {
+    "required_executables": [
+      "vcfregionreduce_uncompressed"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfremap": {
+    "required_executables": [
+      "vcfremap"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfremoveaberrantgenotypes": {
+    "required_executables": [
+      "vcfremoveaberrantgenotypes"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfremovesamples": {
+    "required_executables": [
+      "vcfremovesamples"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfroc": {
+    "required_executables": [
+      "vcfroc"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfsample2info": {
+    "required_executables": [
+      "vcfsample2info"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfsamplediff": {
+    "required_executables": [
+      "vcfsamplediff"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfsamplenames": {
+    "required_executables": [
+      "vcfsamplenames"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfsitesummarize": {
+    "required_executables": [
+      "vcfsitesummarize"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfstats": {
+    "required_executables": [
+      "vcfstats"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfstreamsort": {
+    "required_executables": [
+      "vcfstreamsort"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfuniq": {
+    "required_executables": [
+      "vcfuniq"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfuniqalleles": {
+    "required_executables": [
+      "vcfuniqalleles"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_vcfwave": {
+    "required_executables": [
+      "vcfwave"
+    ],
+    "requires_gpu": false
+  },
+  "vcflib_wcfst": {
+    "required_executables": [
+      "wcFst"
+    ],
     "requires_gpu": false
   },
   "vcftools_filter": {

@@ -1,0 +1,49 @@
+dna1
+
+
+
+          M  A  S  *  L  G  I  D  R  S  G  *  L  A  S  I  V  A  S  *     F1
+           W  L  A  S  *  A  S  I  D  R  A  S  *  H  R  S  *  L  A  S    F2
+            G  *  L  A  R  H  R  S  I  G  L  A  S  I  D  R  S  *  L  A   F3
+        1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGTAGCTAGCTAG 60
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+        1 TACCGATCGATCGATCCGTAGCTAGCTAGCCCGATCGATCGTAGCTAGCATCGATCGATC 60
+           X  A  L  *  S  P  M  S  R  D  P  *  S  A  D  I  T  A  L  *    F6
+          X  P  *  S  A  L  C  R  D  I  P  S  A  L  M  S  R  L  *  S     F5
+            H  S  A  L  *  A  D  I  S  R  A  L  *  C  R  D  Y  S  A  L   F4
+
+
+          H  R  S  *  L  A  S  P  G  K  F  S  *  H  R  S  I  V  A  S     F1
+           I  D  R  S  *  L  A  P  G  N  L  A  S  I  D  R  S  *  L  A    F2
+            S  I  V  A  S  *  P  R  E  I  *  L  A  S  I  D  R  S  *  L   F3
+       61 CATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGCATCGATCGATCGTAGCTAGC 120
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+       61 GTAGCTAGCATCGATCGATCGGGGCCCTTTAAATCGATCGTAGCTAGCTAGCATCGATCG 120
+           C  R  D  Y  S  A  L  G  P  F  N  L  *  C  R  D  I  T  A  L    F6
+          A  D  I  T  A  L  *  G  R  S  I  *  S  A  D  I  S  R  L  *     F5
+            M  S  R  L  *  S  A  G  P  F  K  A  L  M  S  R  D  Y  S  A   F4
+
+
+          *  X                                                           F1
+           S                                                             F2
+            A                                                            F3
+      121 TAGC 124
+          ----
+      121 ATCG 124
+           *                                                             F6
+          S  A                                                           F5
+            L                                                            F4
+
+##############################
+Minimum size of ORFs : 1
+
+Total ORFs in frame 1 :     7
+Total ORFs in frame 2 :     6
+Total ORFs in frame 3 :     6
+Total ORFs in frame 4 :     4
+Total ORFs in frame 5 :     6
+Total ORFs in frame 6 :     5
+
+Total ORFs :    34
+##############################
+

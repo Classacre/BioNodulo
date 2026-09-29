@@ -1,0 +1,18 @@
+                  10        20        30        40        50        60
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+dna1      ............................................................
+dna2      T.TAAACC.GG.T.TAAACC..GGATCGATC.A.C.A.C.ATCGATCGA.C.A.C.A.C.
+Consensus aTggctagCtaGcTaggcatCGatcgatcggGcTaGcTaGcatcgatcgTaGcTaGcTaG
+
+                  70        80        90       100       110       120
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+dna1      ............................................................
+dna2      ATCGATCGA.C.A.C.A.C.AT.GATCG.TCGATCGATCGTAGCTAGCTAGC........
+Consensus catcgatcgTaGcTaGcTaGccCcgggaAatttagctagcatcgatcgatcgTAGCTAGC
+
+              
+          ----
+dna1      ....
+dna2      ....
+Consensus TAGC
+

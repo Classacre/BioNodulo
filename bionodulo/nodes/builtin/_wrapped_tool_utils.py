@@ -267,6 +267,13 @@ BAM_TO_SCIDX_CITATION_TEXT = (
 
 BIOEXT_CITATION_URL = "http://hyphy.org/"
 
+# BioExt is a support library from the HyPhy group and has no publication of its own,
+# so these nodes cite the parent project's paper. The citation text therefore names
+# HyPhy while DOCUMENTATION_URL points at the BioExt repository. That is deliberate,
+# not a copy-paste error: pointing at HyPhy is the only paper reference available for
+# this family, and removing it would leave the nodes with no paper at all. Flagged in
+# reports/node-expansion/CITATION-AUDIT-2026-09-28.md as a citation the reader should
+# read as "cite the parent project".
 BIOEXT_CITATION_TEXT = "HyPhy: Hypothesis Testing using Phylogenies."
 
 BIOEXT_DOCUMENTATION_URL = "https://github.com/veg/BioExt"

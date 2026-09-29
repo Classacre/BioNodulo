@@ -3,6 +3,7 @@ import type { InputSpec, ObjectInfo, NodeMetadata } from '../../types';
 import { safeValidateObjectInfo } from '../../api/validators';
 import { apiGet, ApiError } from '../../api/client';
 import { logError } from '../../state/logging';
+import { normalizeNodeKnowledge } from '../../utils/nodeKnowledge';
 
 function normalizeInputSpec(spec: unknown): InputSpec {
   if (Array.isArray(spec)) {
@@ -120,7 +121,7 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
   const entries = Object.entries(data as Record<string, Record<string, unknown>>);
   return Object.fromEntries(entries.map(([key, raw]) => {
     if (raw.input_types) {
-      return [key, raw as unknown as NodeMetadata];
+      return [key, { ...raw, knowledge: normalizeNodeKnowledge(raw.knowledge) } as unknown as NodeMetadata];
     }
     // Key the registry by the ORIGINAL `key` — that's what WorkflowNode.type
     // references (objectInfo[wn.type]). Re-keying by raw.name diverged the map
@@ -154,6 +155,7 @@ function normalizeObjectInfo(data: unknown): ObjectInfo {
       citation_dois: stringList(raw.citation_dois),
       citation_urls: stringList(raw.citation_urls),
       citation_text: optionalString(raw.citation_text),
+      knowledge: normalizeNodeKnowledge(raw.knowledge),
       builtin: typeof raw.builtin === 'boolean' ? raw.builtin : undefined,
       git_url: optionalString(raw.git_url),
       git_commit: optionalString(raw.git_commit),

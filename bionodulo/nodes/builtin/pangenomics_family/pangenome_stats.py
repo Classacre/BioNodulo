@@ -22,6 +22,10 @@ class PangenomeStatsNode(PangenomicsCommandContract):
     REQUIRED_EXECUTABLES = ["panacus"]
     REQUIRED_CONDA_PACKAGES = ["panacus"]
     DOCUMENTATION_URL = "https://github.com/marschall-lab/panacus"
+    # Crossref-checked 2026-09-28.
+    CITATION_DOIS = ["10.1093/bioinformatics/btae720"]
+    CITATION_URLS = [f"https://doi.org/{doi}" for doi in CITATION_DOIS]
+    CITATION_TEXT = "Panacus: fast and exact pangenome growth and core size estimation."
     VERSION = "0.3.3"
     SHELL = True
     ADAPTER_OUTPUT_POLICY = (

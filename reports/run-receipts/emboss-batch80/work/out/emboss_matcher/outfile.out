@@ -1,0 +1,51 @@
+########################################
+# Program: matcher
+# Rundate: Sat 26 Sep 2026 15:19:52
+# Commandline: matcher
+#    -asequence /work/dna.fasta
+#    -bsequence /work/dna.fasta
+#    -outfile /work/out/emboss_matcher/outfile.out
+#    -auto
+# Align_format: markx0
+# Report_file: /work/out/emboss_matcher/outfile.out
+########################################
+
+#=======================================
+#
+# Aligned_sequences: 2
+# 1: dna1
+# 2: dna1
+# Matrix: EDNAFULL
+# Gap_penalty: 16
+# Extend_penalty: 4
+#
+# Length: 124
+# Identity:     124/124 (100.0%)
+# Similarity:   124/124 (100.0%)
+# Gaps:           0/124 ( 0.0%)
+# Score: 620
+# 
+#
+#=======================================
+
+               10        20        30        40        50
+  dna1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGT
+       ::::::::::::::::::::::::::::::::::::::::::::::::::
+  dna1 ATGGCTAGCTAGCTAGGCATCGATCGATCGGGCTAGCTAGCATCGATCGT
+               10        20        30        40        50
+
+               60        70        80        90       100
+  dna1 AGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGC
+       ::::::::::::::::::::::::::::::::::::::::::::::::::
+  dna1 AGCTAGCTAGCATCGATCGTAGCTAGCTAGCCCCGGGAAATTTAGCTAGC
+               60        70        80        90       100
+
+              110       120    
+  dna1 ATCGATCGATCGTAGCTAGCTAGC
+       ::::::::::::::::::::::::
+  dna1 ATCGATCGATCGTAGCTAGCTAGC
+              110       120    
+
+
+#---------------------------------------
+#---------------------------------------
