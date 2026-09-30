@@ -120,7 +120,7 @@ import { setCollabRemoteBase } from './collab/remoteBase';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { cancelCloudRun, getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';
-import { createCloudWorkflow } from './api/website';
+import { createCloudWorkflow, saveCloudWorkflow } from './api/website';
 import {
   mapCloudRunStatus,
   isTerminalCloudStatus,
@@ -521,16 +521,29 @@ export default function App() {
     if (authUser && !cloudRestored) return;
     doiFlowStartedRef.current = true;
     pendingDoiRef.current = null;
+    setDoiTelemetry({ ...EMPTY_DOI_TELEMETRY, startedAt: Date.now() });
+    let doiTabId: string | undefined;
+    let doiCloudTabId: string | undefined;
+    const targetIndex = () => {
+      if (!doiTabId) throw new Error('DOI workflow tab is unavailable');
+      const index = workflowsStateRef.current.findIndex(wf => wf.id === doiTabId);
+      if (index < 0) throw new Error('DOI workflow tab was closed');
+      return index;
+    };
     void runDoiFlow(doi, {
       objectInfo,
       signedIn: Boolean(authUser),
       createCloudTab: async (name) => {
         const created = await createCloudWorkflow(name);
-        await openCloudWorkflow(created.id as string);
+        if (!created.id) throw new Error('Cloud workflow has no ID');
+        doiTabId = created.id;
+        doiCloudTabId = created.id;
+        addWorkflow(created);
       },
       addLocalTab: (name) => {
+        doiTabId = createWorkflowId();
         addWorkflow({
-          id: '',
+          id: doiTabId,
           version: '2.0',
           app: 'bionodulo',
           name,
@@ -542,16 +555,22 @@ export default function App() {
           parameters: [],
         });
       },
-      renameActive: (name) => updateWorkflow(activeIndexStateRef.current, { name }),
-      getWorkflow: () => workflowsStateRef.current[activeIndexStateRef.current],
-      setWorkflow: (updater) => setWorkflow(activeIndexStateRef.current, updater),
+      renameActive: (name) => updateWorkflow(targetIndex(), { name }),
+      getWorkflow: () => workflowsStateRef.current[targetIndex()],
+      setWorkflow: (updater) => setWorkflow(targetIndex(), updater),
+      persistWorkflow: async () => {
+        const target = workflowsStateRef.current[targetIndex()];
+        if (!doiCloudTabId) return;
+        if (!target || target.id !== doiCloudTabId) throw new Error('DOI workflow tab is unavailable');
+        await saveCloudWorkflow(target);
+      },
       fitView: () => {
         requestAnimationFrame(() => requestAnimationFrame(() => canvasRef.current?.fitView()));
       },
       setUploadRequest: setDoiUploadRequest,
       onProgress: (line) => {
         if (!line) {
-          setDoiTelemetry({ ...EMPTY_DOI_TELEMETRY, startedAt: Date.now() });
+          setDoiTelemetry(prev => ({ ...prev, active: false }));
           return;
         }
         // An empty line is the flow's completion signal: the island keeps the
@@ -561,6 +580,14 @@ export default function App() {
             ? { ...prev, active: true, lines: [...prev.lines, line] }
             : { ...prev, active: false },
         );
+      },
+      onAnalysisMetrics: ({ model, inputTokens, outputTokens }) => {
+        setDoiTelemetry(prev => ({
+          ...prev,
+          model: model ?? prev.model,
+          inputTokens: inputTokens ?? prev.inputTokens,
+          outputTokens: outputTokens ?? prev.outputTokens,
+        }));
       },
       notify: {
         loading: (title, id) => toast.loading(title, { id }),
@@ -577,6 +604,13 @@ export default function App() {
         }),
       },
       t,
+    }).catch(() => {
+      setDoiUploadRequest(null);
+      setDoiTelemetry(prev => ({ ...prev, active: false }));
+      toast.error(
+        t('doiFlow.interruptedTitle', { defaultValue: 'Paper workflow build stopped' }),
+        { id: 'doi-flow', message: t('doiFlow.interruptedHint', { defaultValue: 'The workflow tab was closed or became unavailable. Open the DOI link again to retry.' }) },
+      );
     });
   }, [editorMode, configResolved, objectInfoLoading, authUser, cloudRestored, objectInfo, addWorkflow, openCloudWorkflow, setWorkflow, updateWorkflow, t]);
 

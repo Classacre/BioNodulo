@@ -54,6 +54,46 @@ _OPENALEX_WORK = {
 
 
 @pytest.mark.asyncio
+async def test_open_access_doi_excerpt_reads_methods_with_provenance(monkeypatch: pytest.MonkeyPatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/search"):
+            assert request.url.params["query"] == "DOI:10.1186/s13059-014-0550-8"
+            return _json_response({"resultList": {"result": [{
+                "doi": "10.1186/s13059-014-0550-8", "pmcid": "PMC4302049",
+                "isOpenAccess": "Y", "title": "DESeq2 methods paper",
+            }]}})
+        assert request.url.path.endswith("/PMC4302049/fullTextXML")
+        return httpx.Response(200, text=(
+            "<article><body><sec><title>Background</title><p>Intro.</p></sec>"
+            "<sec><title>Materials and methods</title><p>Count matrix and sample design.</p></sec>"
+            "</body></article>"
+        ))
+
+    _install_transport(monkeypatch, handler)
+    result = await research_tools.open_access_excerpt_by_doi("10.1186/s13059-014-0550-8")
+    assert result is not None
+    assert result["source_url"] == "https://europepmc.org/articles/PMC4302049"
+    assert "Count matrix and sample design" in result["full_text_excerpt"]
+    assert "Intro" not in result["full_text_excerpt"]
+    assert result["full_text_truncated"] is False
+
+
+@pytest.mark.asyncio
+async def test_open_access_doi_excerpt_does_not_fetch_closed_article(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return _json_response({"resultList": {"result": [{
+            "doi": "10.1186/s13059-014-0550-8", "pmcid": "PMC4302049", "isOpenAccess": "N",
+        }]}})
+
+    _install_transport(monkeypatch, handler)
+    assert await research_tools.open_access_excerpt_by_doi("10.1186/s13059-014-0550-8") is None
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
 async def test_literature_search_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.host == "api.openalex.org"

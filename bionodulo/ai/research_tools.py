@@ -58,7 +58,7 @@ _HOST_MIN_INTERVAL_S = {
 _DEFAULT_MIN_INTERVAL_S = 0.5
 
 # Test seams: a MockTransport replaces the network; a no-op replaces the sleep.
-_TRANSPORT: httpx.BaseTransport | None = None
+_TRANSPORT: httpx.AsyncBaseTransport | None = None
 _SLEEP = asyncio.sleep
 
 _last_request_at: dict[str, float] = {}
@@ -216,7 +216,8 @@ def _pubmed_abstracts_from_xml(xml_text: str) -> dict[str, str]:
         return abstracts
     for article in root.iter("PubmedArticle"):
         pmid_el = article.find("./MedlineCitation/PMID")
-        if pmid_el is None or not (pmid_el.text or "").strip():
+        pmid = pmid_el.text if pmid_el is not None else None
+        if not pmid or not pmid.strip():
             continue
         parts = []
         for abstext in article.findall("./MedlineCitation/Article/Abstract/AbstractText"):
@@ -227,7 +228,7 @@ def _pubmed_abstracts_from_xml(xml_text: str) -> dict[str, str]:
             parts.append(f"{label}: {text}" if label else text)
         abstract = "\n".join(parts).strip()
         if abstract:
-            abstracts[pmid_el.text.strip()] = abstract[:4000]
+            abstracts[pmid.strip()] = abstract[:4000]
     return abstracts
 
 
@@ -510,6 +511,73 @@ async def _get_paper(ctx: ToolContext, identifier: str, **kwargs: Any) -> dict[s
         return {"error": f"Paper lookup failed for '{identifier}': {exc}", "identifier": identifier}
     card["identifier"] = identifier
     return card
+
+
+async def open_access_excerpt_by_doi(doi: str) -> dict[str, Any] | None:
+    """Read bounded methods/results text from Europe PMC's OA XML, when present.
+
+    A metadata or abstract record is not the paper's methods. Keep the source
+    URL and truncation explicit so a workflow draft cannot imply full review.
+    """
+    kind, value = _classify_identifier(doi)
+    if kind != "doi":
+        return None
+    async with _new_client() as client:
+        search = await _get_json(client, f"{EUROPEPMC_BASE}/search", {
+            "query": f"DOI:{value}", "format": "json", "pageSize": 3,
+        })
+        entries = (search.get("resultList") or {}).get("result") or []
+        match = next((entry for entry in entries if isinstance(entry, dict)
+                      and str(entry.get("doi", "")).lower() == value.lower()
+                      and entry.get("isOpenAccess") == "Y"
+                      and re.fullmatch(r"PMC\d+", str(entry.get("pmcid", "")))), None)
+        if match is None:
+            return None
+        pmcid = str(match["pmcid"])
+        url = f"{EUROPEPMC_BASE}/{pmcid}/fullTextXML"
+        await _throttle(url)
+        xml_bytes = bytearray()
+        async with client.stream("GET", url) as response:
+            response.raise_for_status()
+            async for chunk in response.aiter_bytes():
+                xml_bytes.extend(chunk)
+                if len(xml_bytes) > 2_000_000:
+                    raise ValueError("Open-access article exceeds the 2 MB reading limit")
+    root = ET.fromstring(bytes(xml_bytes))
+    sections: list[tuple[int, str]] = []
+    for section in root.findall("./body/sec"):
+        title = " ".join((section.findtext("title") or "").split())
+        if not re.search(r"method|material|result|data|analysis|implementation", title, re.I):
+            continue
+        content = " ".join(" ".join(section.itertext()).split())
+        if content:
+            priority = 0 if re.search(r"method|material|implementation", title, re.I) else 1
+            sections.append((priority, content))
+    if not sections:
+        body = root.find("./body")
+        if body is not None:
+            sections = [(0, " ".join(" ".join(body.itertext()).split()))]
+    if not sections:
+        return None
+    sections.sort(key=lambda item: item[0])
+    selected: list[str] = []
+    remaining = 24_000
+    truncated = False
+    for priority, content in sections:
+        take = min(remaining, 16_000 if priority == 0 else 8_000)
+        if take:
+            selected.append(content[:take])
+            remaining -= take
+        truncated = truncated or len(content) > take
+    full = "\n\n".join(selected)
+    return {
+        "title": match.get("title") or "",
+        "doi": value,
+        "source_url": f"https://europepmc.org/articles/{pmcid}",
+        "xml_url": url,
+        "full_text_excerpt": full,
+        "full_text_truncated": truncated,
+    }
 
 
 async def _citation_lookup(ctx: ToolContext, doi: str, **kwargs: Any) -> dict[str, Any]:

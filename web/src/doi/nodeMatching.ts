@@ -26,11 +26,12 @@ function normalize(text: string): string {
 
 /**
  * Find the registry node type that best matches a suggested tool name.
- * Order: exact id/display-name/alias hit → fuzzy (Fuse) hit → note fallback.
+ * Order: exact id/display-name/alias hit → fuzzy name hit → note fallback.
+ * Category describes a method class, so it cannot identify a specific tool.
  */
 export function matchToolToNodeType(
   name: string,
-  category: string | undefined,
+  _category: string | undefined,
   objectInfo: ObjectInfo,
 ): NodeTypeMatch {
   const entries = Object.entries(objectInfo);
@@ -63,12 +64,10 @@ export function matchToolToNodeType(
         { name: 'meta.display_name', weight: 0.4 },
         { name: 'type', weight: 0.3 },
         { name: 'meta.search_aliases', weight: 0.25 },
-        { name: 'meta.category', weight: 0.05 },
       ],
     },
   );
-  const query = category ? `${name} ${category}` : name;
-  const [best] = fuse.search(query);
+  const [best] = fuse.search(name);
   if (best && (best.score ?? 1) <= 0.3) {
     return { type: best.item.type, meta: best.item.meta, fellBackToNote: false };
   }
@@ -109,14 +108,18 @@ function matchPlaced(label: string, placed: PlacedNode[]): PlacedNode | null {
   };
   let best: PlacedNode | null = null;
   let bestScore = 2;
+  let ambiguous = false;
   for (const p of placed) {
     const s = score(p);
     if (s < bestScore) {
       best = p;
       bestScore = s;
+      ambiguous = false;
+    } else if (s === bestScore && s < 2) {
+      ambiguous = true;
     }
   }
-  return best;
+  return ambiguous ? null : best;
 }
 
 interface Port {
@@ -148,6 +151,15 @@ function typesCompatible(outType: string, inType: string): boolean {
   return a === b || a === '*' || b === '*' || a === 'ANY' || b === 'ANY';
 }
 
+export function compatiblePortPair(fromMeta: NodeMetadata | undefined | null, toMeta: NodeMetadata | undefined | null): { out: Port; inp: Port } | null {
+  for (const out of outputsOf(fromMeta)) {
+    for (const inp of inputsOf(toMeta)) {
+      if (typesCompatible(out.type, inp.type)) return { out, inp };
+    }
+  }
+  return null;
+}
+
 /**
  * Wire "A -> B" suggestions into edges between placed nodes. Picks the first
  * type-compatible output→input port pair; silently skips connections that
@@ -160,25 +172,32 @@ export function wireSuggestion(
   objectInfo: ObjectInfo,
 ): WorkflowEdge[] {
   const edges: WorkflowEdge[] = [];
+  const reaches = (start: string, goal: string): boolean => {
+    const pending = [start];
+    const visited = new Set<string>();
+    while (pending.length) {
+      const current = pending.pop()!;
+      if (current === goal) return true;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      for (const edge of edges) if (edge.from.node === current) pending.push(edge.to.node);
+    }
+    return false;
+  };
   for (const raw of connections) {
     const parsed = parseConnection(raw);
     if (!parsed) continue;
     const [fromLabel, toLabel] = parsed;
     const from = matchPlaced(fromLabel, placed);
     const to = matchPlaced(toLabel, placed);
-    if (!from || !to) continue;
+    if (!from || !to || from.node.id === to.node.id) continue;
+    if (reaches(to.node.id, from.node.id)) continue;
 
     const fromMeta = objectInfo[from.node.type];
     const toMeta = objectInfo[to.node.type];
-    const pair = ((): { out: Port; inp: Port } | null => {
-      for (const out of outputsOf(fromMeta)) {
-        for (const inp of inputsOf(toMeta)) {
-          if (typesCompatible(out.type, inp.type)) return { out, inp };
-        }
-      }
-      return null;
-    })();
+    const pair = compatiblePortPair(fromMeta, toMeta);
     if (!pair) continue;
+    if (edges.some(edge => edge.to.node === to.node.id && edge.to.input === pair.inp.name)) continue;
 
     edges.push({
       id: `doi-e${edges.length}`,

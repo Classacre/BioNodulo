@@ -74,6 +74,14 @@ describe('matchToolToNodeType', () => {
     expect(match.type).toBe('note');
     expect(match.fellBackToNote).toBe(true);
   });
+
+  it('does not identify a tool from its category alone', () => {
+    const info: ObjectInfo = {
+      generic: meta({ id: 'generic', display_name: 'FastQC', category: 'alignment' }),
+      note: objectInfo.note,
+    };
+    expect(matchToolToNodeType('Unreported aligner', 'alignment', info).type).toBe('note');
+  });
 });
 
 describe('parseConnection', () => {
@@ -105,6 +113,30 @@ describe('wireSuggestion', () => {
   it('skips incompatible pairs instead of emitting broken edges', () => {
     // FastQC only outputs HTML; STAR only accepts FASTQ/REFERENCE.
     expect(wireSuggestion(placed, ['FastQC -> STAR Aligner'], objectInfo)).toEqual([]);
+  });
+
+  it('does not connect two producers to the same input port', () => {
+    const edges = wireSuggestion(placed, ['Trim Galore -> STAR Aligner', 'Trim Galore -> STAR Aligner'], objectInfo);
+    expect(edges).toHaveLength(1);
+  });
+
+  it('rejects cycles even when every port type matches', () => {
+    const chain: PlacedNode[] = ['A', 'B', 'C'].map((label, i) => ({
+      node: { id: label, type: 'trim_galore', position: [i, 0], params: {} }, label,
+    }));
+    const edges = wireSuggestion(chain, ['A -> B', 'B -> C', 'C -> A'], objectInfo);
+    expect(edges.map(edge => `${edge.from.node}->${edge.to.node}`)).toEqual(['A->B', 'B->C']);
+  });
+
+  it('keeps one producer per input even when producers differ', () => {
+    const sources: PlacedNode[] = [
+      { node: { id: 'A', type: 'trim_galore', position: [0, 0], params: {} }, label: 'A' },
+      { node: { id: 'B', type: 'trim_galore', position: [1, 0], params: {} }, label: 'B' },
+      { node: { id: 'C', type: 'trim_galore', position: [2, 0], params: {} }, label: 'C' },
+    ];
+    const edges = wireSuggestion(sources, ['A -> C', 'B -> C'], objectInfo);
+    expect(edges).toHaveLength(1);
+    expect(edges[0].from.node).toBe('A');
   });
 
   it('skips connections that name unknown nodes', () => {
