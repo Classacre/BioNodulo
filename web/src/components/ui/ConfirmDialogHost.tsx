@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import '../../i18n';
 import { resolveDialog, useDialogQueue } from '../../state/dialogs';
+import { useFocusTrap } from '../../hooks/ui';
 import { useFoundationStyles } from './FoundationStyles';
 
 export function ConfirmDialogHost() {
@@ -11,6 +12,8 @@ export function ConfirmDialogHost() {
   const queue = useDialogQueue();
   const dialog = queue[0];
   const [promptValue, setPromptValue] = useState('');
+  const alertDialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(alertDialogRef, dialog?.kind === 'alert');
   const title = useMemo(() => {
     if (!dialog) return '';
     if (dialog.title) return dialog.title;
@@ -22,6 +25,21 @@ export function ConfirmDialogHost() {
   useEffect(() => {
     setPromptValue(dialog?.kind === 'prompt' ? dialog.defaultValue ?? '' : '');
   }, [dialog?.id, dialog?.kind, dialog?.defaultValue]);
+
+  useEffect(() => {
+    if (!dialog || dialog.kind !== 'alert') return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      window.setTimeout(() => {
+        const dialogs = document.querySelectorAll<HTMLElement>('.modal-overlay [role="dialog"]');
+        const underlyingDialog = dialogs[dialogs.length - 1];
+        const fallbackFocus = underlyingDialog?.querySelector<HTMLElement>('textarea, input:not([disabled]), button:not([disabled])');
+        const target = previouslyFocused && previouslyFocused !== document.body && !previouslyFocused.hasAttribute('disabled')
+          ? previouslyFocused : fallbackFocus;
+        if (target && document.contains(target)) target.focus({ preventScroll: true });
+      }, 0);
+    };
+  }, [dialog]);
 
   useEffect(() => {
     if (!dialog) return;
@@ -52,8 +70,9 @@ export function ConfirmDialogHost() {
     : 'bn-ui-button bn-ui-button-primary';
 
   return createPortal(
-    <div className="bn-ui-overlay" role="presentation" onMouseDown={() => resolveDialog(dialog.id, dialog.kind === 'prompt' ? null : false)}>
+    <div className="bn-ui-overlay bn-ui-alert-overlay" role="presentation" onMouseDown={() => resolveDialog(dialog.id, dialog.kind === 'prompt' ? null : false)}>
       <section
+        ref={alertDialogRef}
         aria-describedby={`bn-dialog-message-${dialog.id}`}
         aria-labelledby={`bn-dialog-title-${dialog.id}`}
         aria-modal="true"

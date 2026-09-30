@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 
 import pytest
 from fastapi.testclient import TestClient
@@ -104,6 +105,53 @@ def test_api_cwl_bundle_rejects_path_traversal_and_changed_tool() -> None:
         })
         assert changed.status_code == 400
         assert "changed" in changed.json()["detail"]
+
+
+def test_api_foreign_cwl_bundle_validates_shapes_and_sources() -> None:
+    from server import create_app
+
+    workflow = {
+        "class": "Workflow", "cwlVersion": "v1.2",
+        "inputs": {"data": "File"},
+        "outputs": {"result": {"type": "File", "outputSource": "convert/out"}},
+        "steps": {"convert": {"run": "tools/convert.cwl", "in": {"data": "data"}, "out": ["out"]}},
+    }
+    tool = {"class": "CommandLineTool", "baseCommand": ["cat"],
+            "inputs": {"data": "File"}, "outputs": {"out": {"type": "File"}}}
+
+    def bundle(wf: object, tl: object) -> dict[str, str]:
+        return {"workflow.cwl": json.dumps(wf), "tools/convert.cwl": json.dumps(tl)}
+
+    with TestClient(create_app()) as client:
+        valid = client.post("/api/workflow/import", json={
+            "source": "cwl", "content": json.dumps(bundle(workflow, tool)),
+        })
+        assert valid.status_code == 200, valid.text
+        assert valid.json()["workflow"]["nodes"][0]["type"] == "generic_command"
+        assert "structural draft" in valid.json()["warnings"][0]
+
+        cases: list[tuple[str, object, object]] = [("Workflow object", [], tool)]
+        for label, change in [
+            ("named workflow steps", lambda wf: wf.update(steps=[])),
+            ("inputs must be a named object", lambda wf: wf["steps"]["convert"].update({"in": []})),
+            ("requires one string source", lambda wf: wf["steps"]["convert"].update({"in": {"data": [7]}})),
+            ("unknown source", lambda wf: wf["steps"]["convert"].update({"in": {"data": "missing/out"}})),
+            ("unknown tool output", lambda wf: wf["steps"]["convert"].update(out=["missing"])),
+            ("unknown source", lambda wf: wf["outputs"]["result"].update(outputSource="convert/missing")),
+        ]:
+            altered = deepcopy(workflow)
+            change(altered)
+            cases.append((label, altered, tool))
+        cases.extend([
+            ("tool must be an object", workflow, []),
+            ("tool outputs must be a named object", workflow, {**tool, "outputs": []}),
+        ])
+        for expected, wf, tl in cases:
+            response = client.post("/api/workflow/import", json={
+                "source": "cwl", "content": json.dumps(bundle(wf, tl)),
+            })
+            assert response.status_code == 400, (expected, response.text)
+            assert expected.lower() in response.json()["detail"].lower()
 
 
 def test_api_import_unsupported_format_and_yaml_are_client_errors() -> None:

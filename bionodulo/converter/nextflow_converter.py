@@ -103,7 +103,9 @@ def export_to_nextflow(
             lines.append("    memory '" + str(memory) + " MB'")
 
         lines.append("    input:")
-        lines.append("        path input_0")
+        # Preserve the source basename in a separate directory. Nextflow's
+        # default staging can otherwise link an input over a declared output.
+        lines.append("        path input_0, name: 'bionodulo_input/*'")
 
         output_defs: list[str] = []
         for port in node_outputs(node):
@@ -275,14 +277,22 @@ def _build_nextflow_script(
         stem = str(widgets.get("filename") or "multiqc_report").removesuffix(".html")
         if not stem or "/" in stem or "\\" in stem or stem in {".", ".."}:
             raise ValueError("MultiQC export requires a filename basename")
-        flags = ["--filename", _shell_arg(stem), "--force"]
+        force = widgets.get("force", False)
+        if not isinstance(force, bool):
+            raise ValueError("MultiQC force option must be a boolean")
+        flags = ["--filename", _shell_arg(stem)]
+        if force:
+            flags.append("--force")
         for name in ("title", "comment"):
             if widgets.get(name):
                 flags.extend(["--" + name, _shell_arg(widgets[name])])
+        # Nextflow stages inputs in the process directory; isolate MultiQC's
+        # generated names so they cannot overwrite a staged input there.
         return (
-            "multiqc " + q_in + " --outdir . " + " ".join(flags)
-            + "\nmv -- " + _shell_arg(stem + ".html") + " report_output"
-            + "\nmv -- " + _shell_arg(stem + "_data") + " data_dir_output"
+            'multiqc_tmp=\\$(mktemp -d)\ntrap \'rm -rf "\\$multiqc_tmp"\' EXIT\n'
+            + "multiqc " + q_in + ' --outdir "\\$multiqc_tmp" ' + " ".join(flags)
+            + '\nmv -- "\\$multiqc_tmp"/' + _shell_arg(stem + ".html") + " report_output"
+            + '\nmv -- "\\$multiqc_tmp"/' + _shell_arg(stem + "_data") + " data_dir_output"
         )
     q_index = _shell_arg(widgets.get("index", "index"))
     q_ref = _shell_arg(widgets.get("ref", "ref.fa"))

@@ -141,6 +141,7 @@ const FOUNDATION_CSS = `
   padding: 10vh 16px 16px;
   background: rgba(0,0,0,0.42);
 }
+.bn-ui-alert-overlay { z-index: 2000; }
 .bn-ui-dialog,
 .bn-ui-command,
 .bn-ui-shortcuts {

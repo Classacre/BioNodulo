@@ -300,7 +300,12 @@ def _build_shell_command(
         stem = str(widgets.get("filename") or "multiqc_report").removesuffix(".html")
         if not stem or "/" in stem or "\\" in stem or stem in {".", ".."}:
             raise ValueError("MultiQC export requires a filename basename")
-        flags = ["--filename", _widget_arg(stem), "--force"]
+        force = widgets.get("force", False)
+        if not isinstance(force, bool):
+            raise ValueError("MultiQC force option must be a boolean")
+        flags = ["--filename", _widget_arg(stem)]
+        if force:
+            flags.append("--force")
         for name in ("title", "comment"):
             if widgets.get(name):
                 flags.extend(["--" + name, _widget_arg(widgets[name])])

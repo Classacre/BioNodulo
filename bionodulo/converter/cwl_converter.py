@@ -94,6 +94,8 @@ def import_from_cwl(
     """Parse CWL workflow + tools into a BioNodulo workflow."""
     wf_path = Path(workflow_path)
     workflow_cwl = json.loads(wf_path.read_text(encoding="utf-8"))
+    if not isinstance(workflow_cwl, dict):
+        raise ValueError("CWL import requires a Workflow object")
     tools_dir = Path(tools_dir) if tools_dir else wf_path.parent / "tools"
 
     manifest = wf_path.parent / "bionodulo-roundtrip.json"
@@ -113,18 +115,32 @@ def import_from_cwl(
 
     if workflow_cwl.get("class") != "Workflow":
         raise ValueError("CWL import requires a Workflow document")
+    for section in ("inputs", "outputs"):
+        if section in workflow_cwl and not isinstance(workflow_cwl[section], dict):
+            raise ValueError(f"CWL workflow {section} must be a named object")
+        if any(not name for name in workflow_cwl.get(section, {})):
+            raise ValueError(f"CWL workflow {section} contains an unnamed port")
     steps = workflow_cwl.get("steps", {})
     if not isinstance(steps, dict) or not steps:
         raise ValueError("CWL import requires named workflow steps")
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     node_id_map: dict[str, str] = {}
+    step_output_names: dict[str, set[str]] = {}
 
     for step_id, step in steps.items():
+        if not isinstance(step_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+", step_id):
+            raise ValueError(f"CWL step name {step_id!r} is unsupported")
         if not isinstance(step, dict) or not isinstance(step.get("run"), str) or not step["run"]:
             raise ValueError(f"CWL step {step_id!r} requires a referenced tool file")
         if set(step) - {"run", "in", "out", "id", "label", "doc", "hints", "requirements"}:
             raise ValueError(f"CWL step {step_id!r} uses unsupported workflow features")
+        step_inputs = step.get("in", {})
+        if not isinstance(step_inputs, dict):
+            raise ValueError(f"CWL step {step_id!r} inputs must be a named object")
+        for inp_name in step_inputs:
+            if not isinstance(inp_name, str) or not inp_name:
+                raise ValueError(f"CWL step {step_id!r} has an unnamed input")
         node_id = "node_" + step_id
         node_id_map[step_id] = node_id
 
@@ -141,26 +157,46 @@ def import_from_cwl(
             if not tool_path.resolve().is_relative_to(wf_path.parent.resolve()):
                 raise ValueError("CWL tool path escapes the workflow directory")
             tool_def = json.loads(tool_path.read_text(encoding="utf-8"))
+            if not isinstance(tool_def, dict):
+                raise ValueError(f"CWL step {step_id!r} tool must be an object")
             if tool_def.get("class") != "CommandLineTool":
                 raise ValueError(f"CWL step {step_id!r} requires a CommandLineTool")
+            for section in ("inputs", "outputs"):
+                if section in tool_def and not isinstance(tool_def[section], dict):
+                    raise ValueError(f"CWL step {step_id!r} tool {section} must be a named object")
+                if any(not name for name in tool_def.get(section, {})):
+                    raise ValueError(f"CWL step {step_id!r} tool {section} contains an unnamed port")
+
+        tool_outputs = tool_def.get("outputs", {})
+        if any(not isinstance(name, str) or not name for name in tool_outputs):
+            raise ValueError(f"CWL step {step_id!r} tool has an unnamed output")
+        step_out = step.get("out", list(tool_outputs))
+        if not isinstance(step_out, list) or any(not isinstance(name, str) or not name for name in step_out):
+            raise ValueError(f"CWL step {step_id!r} outputs must be a list of names")
+        if set(step_out) - set(tool_outputs):
+            raise ValueError(f"CWL step {step_id!r} references an unknown tool output")
+        step_output_names[step_id] = set(step_out)
 
         node_type = "generic_command"
 
         inputs = {}
-        for inp_name, inp_val in step.get("in", {}).items():
+        for inp_name, inp_val in step_inputs.items():
             if isinstance(inp_val, dict):
+                if set(inp_val) != {"source"}:
+                    raise ValueError(f"CWL step {step_id!r} input {inp_name!r} has unsupported binding fields")
                 inp_val = inp_val.get("source")
-            if isinstance(inp_val, str):
-                inputs[inp_name] = {"type": "FILE", "value": inp_val}
-            elif isinstance(inp_val, list):
+            if isinstance(inp_val, list):
                 if len(inp_val) != 1:
                     raise ValueError(f"CWL step {step_id!r} input {inp_name!r} has unsupported multiple sources")
-                inputs[inp_name] = {"type": "FILE", "value": inp_val[0]}
-            else:
+                if not isinstance(inp_val[0], str):
+                    raise ValueError(f"CWL step {step_id!r} input {inp_name!r} requires one string source")
+                inp_val = inp_val[0]
+            if not isinstance(inp_val, str) or not inp_val:
                 raise ValueError(f"CWL step {step_id!r} input {inp_name!r} has unsupported source")
+            inputs[inp_name] = {"type": "FILE", "value": inp_val}
 
         outputs = {}
-        for out_name in tool_def.get("outputs", {}).keys():
+        for out_name in step_out:
             outputs[out_name] = {"type": "FILE"}
 
         widgets = {}
@@ -172,6 +208,10 @@ def import_from_cwl(
                     widgets["memory"] = req["ramMin"]
 
         base_cmd = tool_def.get("baseCommand", [])
+        if not isinstance(base_cmd, str) and not (
+            isinstance(base_cmd, list) and all(isinstance(part, str) for part in base_cmd)
+        ):
+            raise ValueError(f"CWL step {step_id!r} tool baseCommand must be a string or string list")
         if base_cmd:
             widgets["command"] = " ".join(base_cmd) if isinstance(base_cmd, list) else base_cmd
 
@@ -194,17 +234,25 @@ def import_from_cwl(
                 inp_val = inp_val.get("source")
             if isinstance(inp_val, list):
                 inp_val = inp_val[0]
-            if isinstance(inp_val, str):
-                parts = inp_val.split("/")
-                if len(parts) == 2 and parts[0] in node_id_map:
-                    src_id = node_id_map[parts[0]]
-                    edges.append({
-                        "id": "edge_" + parts[0] + "_" + step_id + "_" + inp_name,
-                        "source": src_id,
-                        "target": tgt_id,
-                        "source_output": parts[1],
-                        "target_input": inp_name,
-                    })
+            parts = inp_val.split("/")
+            if len(parts) == 2 and parts[0] in node_id_map and parts[1] in step_output_names[parts[0]]:
+                src_id = node_id_map[parts[0]]
+                edges.append({
+                    "id": "edge_" + parts[0] + "_" + step_id + "_" + inp_name,
+                    "source": src_id,
+                    "target": tgt_id,
+                    "source_output": parts[1],
+                    "target_input": inp_name,
+                })
+            elif "/" in inp_val or inp_val not in workflow_cwl.get("inputs", {}):
+                raise ValueError(f"CWL step {step_id!r} input {inp_name!r} references an unknown source")
+
+    for output_name, output_spec in workflow_cwl.get("outputs", {}).items():
+        if not isinstance(output_spec, dict) or not isinstance(output_spec.get("outputSource"), str):
+            raise ValueError(f"CWL workflow output {output_name!r} requires one string outputSource")
+        parts = output_spec["outputSource"].split("/")
+        if len(parts) != 2 or parts[1] not in step_output_names.get(parts[0], set()):
+            raise ValueError(f"CWL workflow output {output_name!r} references an unknown source")
 
     return canonicalize_foreign_workflow({
         "id": workflow_id, "name": "Imported CWL Workflow", "nodes": nodes, "edges": edges,

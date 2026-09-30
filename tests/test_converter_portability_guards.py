@@ -67,6 +67,7 @@ def test_native_qc_exports_reject_unmodeled_widgets_and_quote_special_values(exp
     assert "sample one.fastq" in exported
     assert "input sample;" in exported
     if exporter is export_to_nextflow:
+        assert exported.count("path input_0, name: 'bionodulo_input/*'") == 2
         assert "\\$HOME" in exported
         assert '"${input_0}"' not in exported
         assert "summary(qc.out.report_dir)" in exported
@@ -78,6 +79,42 @@ def test_native_qc_exports_reject_unmodeled_widgets_and_quote_special_values(exp
         assert "title=lambda wildcards: 'input sample; $HOME {input}'" in exported
     workflow["nodes"][0]["widgets"]["mystery_parameter"] = 10
     with pytest.raises(ValueError, match="cannot preserve widgets"):
+        exporter(workflow)
+
+
+@pytest.mark.parametrize("exporter", [export_to_nextflow, export_to_snakemake])
+@pytest.mark.parametrize("force", [None, False, True])
+def test_native_multiqc_export_preserves_force_and_isolates_outputs(exporter, force) -> None:
+    params = {"filename": "report O'Brien", "title": "QC $HOME {input}"}
+    if force is not None:
+        params["force"] = force
+    workflow = {"nodes": [
+        {"id": "summary", "type": "multiqc", "inputs": {"reports": {}},
+         "outputs": {"report": {}, "data_dir": {}}, "params": params},
+    ], "edges": []}
+    exported = exporter(workflow)
+    assert ("--force" in exported) is (force is True)
+    assert "mktemp -d" in exported
+    assert "report_output" in exported and "data_dir_output" in exported
+    if exporter is export_to_nextflow:
+        assert "path input_0, name: 'bionodulo_input/*'" in exported
+        assert '--outdir "\\$multiqc_tmp"' in exported
+        assert "--outdir ." not in exported
+        assert 'mv -- "\\$multiqc_tmp"/' in exported
+        assert "\\$HOME" in exported
+    else:
+        assert '--outdir "$multiqc_tmp"' in exported
+        assert 'mv "$multiqc_tmp"/' in exported
+        assert "{{input}}" in exported
+
+
+@pytest.mark.parametrize("exporter", [export_to_nextflow, export_to_snakemake])
+def test_native_multiqc_export_rejects_non_boolean_force(exporter) -> None:
+    workflow = {"nodes": [
+        {"id": "summary", "type": "multiqc", "inputs": {"reports": {}},
+         "outputs": {"report": {}, "data_dir": {}}, "params": {"force": "false"}},
+    ], "edges": []}
+    with pytest.raises(ValueError, match="force option must be a boolean"):
         exporter(workflow)
 
 
