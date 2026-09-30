@@ -301,8 +301,9 @@ def test_set_workspace_root_rejects_paths_outside_base(tmp_path, monkeypatch):
     allowed = tmp_path / "ws"
     allowed.mkdir()
     with TestClient(create_app()) as client:
-        ok = client.post("/api/workspace/root", json={"path": str(allowed)})
-        assert ok.status_code == 200
+        pending_restart = client.post("/api/workspace/root", json={"path": str(allowed)})
+        assert pending_restart.status_code == 409
+        assert "BIONODULO_ROOT" in pending_restart.json()["detail"]
         bad = client.post("/api/workspace/root", json={"path": "/"})
         assert bad.status_code == 403
 

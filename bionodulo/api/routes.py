@@ -1389,11 +1389,11 @@ async def get_workspace_root(request: Request) -> dict[str, str]:
 async def set_workspace_root(
     request: Request, body: WorkspaceRootRequest
 ) -> dict[str, str]:
-    """Set a new workspace root directory.
+    """Validate a workspace root request without mixing live workspace state.
 
-    Constrained to the user's home directory tree (or BIONODULO_ROOT_BASE) so a
-    caller cannot repoint the root at "/" or a system directory and then read or
-    write arbitrary files through the workspace file endpoints.
+    The executor, run store, custom-node registry, settings manager, and
+    collaboration stores are initialized at startup. Switching only the
+    displayed root would leave those services writing to the old workspace.
     """
     new_root = Path(body.path).resolve()
     if not new_root.exists():
@@ -1413,9 +1413,12 @@ async def set_workspace_root(
         )
 
     settings = _get_settings(request)
-    settings.project_root = new_root
-    settings.ensure_directories()
-    return {"root": str(new_root), "status": "changed"}
+    if new_root != settings.project_root.resolve():
+        raise HTTPException(
+            status_code=409,
+            detail="Workspace changes require setting BIONODULO_ROOT and restarting BioNodulo",
+        )
+    return {"root": str(new_root), "status": "unchanged"}
 
 
 @router.get("/workspace/directories")
@@ -1763,6 +1766,7 @@ def _sync_s3_put(
 def _sync_s3_get(tid: str, url: str, save_path: Path) -> None:
     import httpx
     info = _CLOUD_TRANSFERS[tid]
+    temporary_path: Path | None = None
     try:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         with httpx.Client(timeout=None, follow_redirects=False) as client:
@@ -1772,14 +1776,27 @@ def _sync_s3_get(tid: str, url: str, save_path: Path) -> None:
                     info["error"] = f"S3 responded {resp.status_code}"
                     return
                 info["total"] = int(resp.headers.get("content-length") or 0)
-                with open(save_path, "wb") as fh:
+                if info["total"] > _CLOUD_MAX_UPLOAD_BYTES:
+                    raise ValueError("Cloud download exceeds the maximum file size")
+                descriptor, temporary_name = tempfile.mkstemp(
+                    prefix=f".{save_path.name}.", suffix=".part", dir=save_path.parent,
+                )
+                temporary_path = Path(temporary_name)
+                with os.fdopen(descriptor, "wb") as fh:
                     for chunk in resp.iter_bytes(_CLOUD_TRANSFER_CHUNK):
+                        if info["loaded"] + len(chunk) > _CLOUD_MAX_UPLOAD_BYTES:
+                            raise ValueError("Cloud download exceeds the maximum file size")
                         fh.write(chunk)
                         info["loaded"] += len(chunk)
+        os.replace(temporary_path, save_path)
+        temporary_path = None
         info["status"] = "done"
     except Exception as exc:  # noqa: BLE001
         info["status"] = "error"
         info["error"] = str(exc)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 @router.post("/workspace/cloud-upload")
@@ -1981,9 +1998,11 @@ async def cloud_download(request: Request) -> dict[str, Any]:
     _validate_s3_url(url)
     # Sanitize the name so it cannot escape the downloads dir.
     name = os.path.basename(raw_name).replace("..", "_").strip() or "download"
-    save_path = (settings.project_root / "cloud-downloads" / name).resolve()
-    # Defence in depth: the resolved path must stay under the workspace root.
-    if not str(save_path).startswith(str(settings.project_root.resolve())):
+    downloads_root = (settings.project_root / "cloud-downloads").resolve()
+    save_path = (downloads_root / name).resolve()
+    # Resolve links and require the file to remain inside cloud-downloads.
+    if (downloads_root.parent != settings.project_root.resolve()
+            or save_path.parent != downloads_root):
         raise HTTPException(status_code=400, detail="Invalid save path")
 
     tid = uuid.uuid4().hex
@@ -2030,9 +2049,9 @@ def _validate_clerk_url(url: str) -> None:
     p = urlparse(url)
     host = (p.hostname or "").lower()
     ok = p.scheme == "https" and (
-        host.endswith(".clerk.accounts.dev")
+        host == "clerk.bionodulo.com"
+        or host.endswith(".clerk.accounts.dev")
         or host.endswith(".clerk.com")
-        or host.endswith(".clerk.com") or host.endswith(".clerk.accounts.dev")  # custom prod FAPI, e.g. clerk.bionodulo.com
     )
     if not ok:
         raise HTTPException(status_code=400, detail="URL is not a Clerk endpoint")
@@ -2185,6 +2204,14 @@ async def file_operation(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    workspace_root = settings.project_root.resolve()
+    if source == workspace_root or target == workspace_root:
+        raise HTTPException(status_code=400, detail="Cannot copy or move the workspace root")
+    if source == target:
+        raise HTTPException(status_code=400, detail="Source and target must differ")
+    if source.is_dir() and source in target.parents:
+        raise HTTPException(status_code=400, detail="Cannot copy or move a directory into itself")
+
     if not source.exists():
         raise HTTPException(status_code=404, detail=f"Source not found: \\\'{body.source}\\\'")
 
@@ -2211,6 +2238,9 @@ async def delete_files(request: Request, body: DeleteFilesRequest) -> dict[str, 
     for path_str in body.paths:
         try:
             target = _safe_path(path_str, settings.project_root)
+            if target == settings.project_root.resolve():
+                failed.append({"path": path_str, "reason": "cannot delete the workspace root"})
+                continue
             if not target.exists():
                 failed.append({"path": path_str, "reason": "not found"})
                 continue

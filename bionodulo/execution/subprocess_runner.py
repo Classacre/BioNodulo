@@ -224,6 +224,22 @@ async def _terminate_process(process: "asyncio.subprocess.Process") -> None:
     if process.returncode is not None:
         return
 
+    if os.name == "nt" and process.pid is not None:
+        # CREATE_NEW_PROCESS_GROUP does not make SIGTERM recursive on Windows.
+        # taskkill /T terminates descendants as well as the process itself.
+        try:
+            killer = await asyncio.create_subprocess_exec(
+                "taskkill", "/PID", str(process.pid), "/T", "/F",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(killer.wait(), timeout=TERMINATE_GRACE_SECONDS)
+            if killer.returncode == 0:
+                await process.wait()
+                return
+        except (OSError, asyncio.TimeoutError):
+            pass
+
     def _signal_group(sig: int) -> None:
         try:
             if os.name != "nt" and process.pid is not None:
@@ -490,6 +506,12 @@ async def run_subprocess(
             await _terminate_process(process)
             await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
             raise CommandCancelledError(cmd_str)
+        except asyncio.CancelledError:
+            # Queue shutdown cancels the task itself, rather than signalling
+            # cancel_event. The child still needs explicit termination.
+            await _terminate_process(process)
+            await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+            raise
         stdout_result, stderr_result = await asyncio.gather(stdout_task, stderr_task)
     except asyncio.TimeoutError:
         raise
