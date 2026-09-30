@@ -118,6 +118,8 @@ test.beforeEach(async ({ context, page }, testInfo) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  // Shortcuts are registered when React mounts, after DOMContentLoaded.
+  await expect(page.getByRole('button', { name: /Export workflow/ })).toBeVisible();
 });
 
 for (const [label, extension, format] of [
