@@ -509,21 +509,20 @@ export default function App() {
   // Fresh-state refs so the async flow never reads a stale closure mid-build.
   const workflowsStateRef = useRef(workflows);
   workflowsStateRef.current = workflows;
-  const activeIndexStateRef = useRef(activeIndex);
-  activeIndexStateRef.current = activeIndex;
   const doiFlowStartedRef = useRef(false);
   useEffect(() => {
     const doi = pendingDoiRef.current;
     if (!doi || doiFlowStartedRef.current) return;
     if (!editorMode || !configResolved || objectInfoLoading) return;
-    // Signed-in users: wait for the cloud tab restore so it can't wipe the
-    // tab the flow is about to build on. Guests skip it (it 401s anyway).
-    if (authUser && !cloudRestored) return;
+    // The website identity arrives after /api/config. A null authUser here
+    // does not mean guest: cloud restoration can still be replacing tabs.
+    if (!cloudRestored) return;
     doiFlowStartedRef.current = true;
     pendingDoiRef.current = null;
     setDoiTelemetry({ ...EMPTY_DOI_TELEMETRY, startedAt: Date.now() });
     let doiTabId: string | undefined;
     let doiCloudTabId: string | undefined;
+    let doiPhase = 'starting';
     const targetIndex = () => {
       if (!doiTabId) throw new Error('DOI workflow tab is unavailable');
       const index = workflowsStateRef.current.findIndex(wf => wf.id === doiTabId);
@@ -532,15 +531,27 @@ export default function App() {
     };
     void runDoiFlow(doi, {
       objectInfo,
-      signedIn: Boolean(authUser),
+      // In editor mode, try the cookie-authenticated cloud endpoint even if
+      // /api/me has not yet populated authUser. A genuine guest falls back.
+      signedIn: Boolean(authUser) || editorMode,
       createCloudTab: async (name) => {
-        const created = await createCloudWorkflow(name);
-        if (!created.id) throw new Error('Cloud workflow has no ID');
-        doiTabId = created.id;
-        doiCloudTabId = created.id;
-        addWorkflow(created);
+        doiPhase = 'creating-cloud-tab';
+        try {
+          const created = await createCloudWorkflow(name);
+          if (!created.id) throw new Error('Cloud workflow has no ID');
+          doiTabId = created.id;
+          doiCloudTabId = created.id;
+          addWorkflow(created);
+        } catch (error) {
+          toast.info(
+            t('doiFlow.localDraftTitle', { defaultValue: 'Cloud save unavailable; this draft is local' }),
+            { id: 'doi-local-draft', message: t('doiFlow.localDraftHint', { defaultValue: 'Keep this tab open. Sign in or retry cloud saving when available.' }) },
+          );
+          throw error;
+        }
       },
       addLocalTab: (name) => {
+        doiPhase = 'creating-local-tab';
         doiTabId = createWorkflowId();
         addWorkflow({
           id: doiTabId,
@@ -555,10 +566,14 @@ export default function App() {
           parameters: [],
         });
       },
-      renameActive: (name) => updateWorkflow(targetIndex(), { name }),
+      renameActive: (name) => {
+        doiPhase = 'building';
+        updateWorkflow(targetIndex(), { name });
+      },
       getWorkflow: () => workflowsStateRef.current[targetIndex()],
       setWorkflow: (updater) => setWorkflow(targetIndex(), updater),
       persistWorkflow: async () => {
+        doiPhase = 'saving';
         const target = workflowsStateRef.current[targetIndex()];
         if (!doiCloudTabId) return;
         if (!target || target.id !== doiCloudTabId) throw new Error('DOI workflow tab is unavailable');
@@ -615,7 +630,11 @@ export default function App() {
         }),
       },
       t,
-    }).catch(() => {
+    }).catch((error: unknown) => {
+      const tabPresent = Boolean(doiTabId && workflowsStateRef.current.some(wf => wf.id === doiTabId));
+      const reason = error instanceof Error && error.message.startsWith('DOI workflow tab')
+        ? error.message : error instanceof Error ? error.name : 'UnknownError';
+      logError('doi.flow', new Error(`phase=${doiPhase}; reason=${reason}; targetPresent=${tabPresent}`));
       setDoiUploadRequest(null);
       setDoiTelemetry(prev => ({ ...prev, active: false, result: 'failed' }));
       toast.error(

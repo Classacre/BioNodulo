@@ -83,9 +83,28 @@ available for buffered integrations; it does not supply live SSE delivery.
 
 The free-provider proxy has an 85-second total budget and bounded individual
 attempts. Provider-specific authentication/model failures may fall through to
-another configured provider. It only reports global quota exhaustion when all
-providers report quota failure. A stream cannot fail over after bytes have
+another configured provider. Rate-limit errors are described as temporary;
+they do not invent a daily reset or claim the user's allowance is exhausted.
+A stream cannot fail over after bytes have
 been delivered; a partial failure must be visible instead.
+
+## Paper drafts
+
+A bare DOI resolves paper metadata and available open-access text before the
+model drafts. An uploaded PDF is decoded with bounded page, byte and text
+budgets. Retrieved paper text stays in untrusted source context. Node contracts
+come from the installed registry, including exact IDs, named typed ports and
+package requirements.
+
+For an empty canvas and an identified method, the assistant scopes a minimal
+draft to citation-matched nodes (or one explicit method in a PDF heading) and
+compatible input helpers. Missing file inputs become blank, connected source
+nodes. Proposals are checked before display, and their source and limitations
+are saved in the workflow description. Existing canvases and multi-method PDFs
+retain the general graph-editing path. These are illustrative drafts: passing
+structural checks does not verify file contents, experimental settings, software
+versions, or reproduction of published results. Apply commits the proposal to
+the canvas; it does not execute the workflow.
 
 ## Verification and remaining scope
 

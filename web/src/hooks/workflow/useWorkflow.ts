@@ -226,6 +226,7 @@ export function useWorkflow() {
   useEffect(() => {
     if (!editorMode || cloudLoadStartedRef.current) return;
     cloudLoadStartedRef.current = true;
+    const idsAtRestoreStart = new Set(workflows.map(wf => wf.id));
     (async () => {
       try {
         const requested =
@@ -272,8 +273,6 @@ export function useWorkflow() {
           setCloudRestored(true);
           return;
         }
-        setWorkflows(tabs);
-
         // Select the deep-linked workflow by identity, not by position.
         // Failed fetches are dropped from `tabs`, so if the requested one did
         // not load, index 0 is somebody's unrelated recent workflow -- the
@@ -286,14 +285,26 @@ export function useWorkflow() {
             new Error(`Requested workflow ${requested} could not be opened`),
           );
         }
-        setActiveIndex(requestedIndex >= 0 ? requestedIndex : 0);
+        setWorkflows(prev => {
+          // A new tab may have been created while the async restore fetched
+          // rows. Preserve it rather than replacing it with the old snapshot.
+          const restoredIds = new Set(tabs.map(wf => wf.id));
+          const addedDuringRestore = prev.filter(wf => !idsAtRestoreStart.has(wf.id) && !restoredIds.has(wf.id));
+          setActiveIndex(addedDuringRestore.length
+            ? tabs.length + addedDuringRestore.length - 1
+            : requestedIndex >= 0 ? requestedIndex : 0);
+          return [...tabs, ...addedDuringRestore];
+        });
         cloudLoadedRef.current = true;
         setCloudRestored(true);
       } catch (err) {
         logError('cloud.workflows.load', err);
+        // Let a DOI import fall back to a local draft if cloud restoration
+        // fails; otherwise it remains queued forever behind cloudRestored.
+        setCloudRestored(true);
       }
     })();
-  }, [editorMode]);
+  }, [editorMode, workflows]);
 
   // Remember which tabs are open, so the next visit restores this set and not
   // whatever happens to be recent. Guarded on cloudLoadedRef so the initial
