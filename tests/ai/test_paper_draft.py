@@ -208,3 +208,30 @@ async def test_exhausted_model_does_not_claim_a_completed_paper_draft(monkeypatc
     assert response.proposed_workflow is None
     assert "I drafted" not in response.reply
     assert any(step.type == "error" for step in response.steps)
+
+
+@pytest.mark.asyncio
+async def test_pdf_draft_receives_catalog_contracts_and_connected_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    rounds = 0
+    monkeypatch.setattr(assistant, "_extract_pdf_text", lambda _data: "Moderated estimation of fold change with DESeq2\nAbstract: Count analysis.")
+
+    async def model(**kwargs):
+        nonlocal rounds
+        rounds += 1
+        if rounds == 1:
+            assert "tool identity appears in supplied paper heading" in str(kwargs["messages"])
+            assert not any(tool["function"]["name"] == "search_literature" for tool in kwargs["tools"])
+            return ModelTurn("", [{"id": "method", "name": "add_node", "arguments": {"node_type": "deseq2_analysis"}}])
+        return ModelTurn("Drafted the method using the uploaded preprint; supply your own count data.")
+
+    monkeypatch.setattr(assistant, "_call_llm", model)
+    events = []
+    response = await assistant.chat_with_tools("Build a workflow from this paper.", workflow=None, history=[],
+        api_key="test", registry=NodeRegistry.create_isolated(), on_step=events.append,
+        files=[{"name": "author-preprint.pdf", "mime_type": "application/pdf", "data_url": "data:application/pdf;base64,dGVzdA=="}])
+    assert response.proposed_workflow is not None
+    assert len(response.proposed_workflow["edges"]) == 2
+    assert len(response.proposed_workflow["nodes"]) == 3
+    assert "attached PDF" in response.proposed_workflow["description"]
+    assert "doi.org" not in response.reply
+    assert [event.workflow for event in events if event.type == "propose_changes"][-1] == response.proposed_workflow

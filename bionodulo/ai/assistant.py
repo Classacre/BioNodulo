@@ -317,7 +317,7 @@ def _complete_cited_paper_draft(
         if created.get("status") != "ok":
             return None, "Could not draft the cited method node from the available catalog."
         method_nodes = [created["result"]["added_node"]]
-    helpers = {str(item["supplies_type"]): item for item in helper_contracts}
+    helpers = {str(item["supplies_type"]): item for item in helper_contracts if "supplies_type" in item}
     used_helper_ids: set[str] = set()
     for node in method_nodes:
         meta = registry.object_info(str(node["type"]))
@@ -766,6 +766,35 @@ async def chat_with_tools(
     paper_title = ""
     excerpt_truncated = False
     paper_source_url = ""
+    pdf_draft = bool(attached_pdf and not doi_in_request and registry and not ctx.workflow.get("nodes")
+                     and system_prompt == BIONODULO_SYSTEM_PROMPT and tool_names is None)
+    if pdf_draft:
+        pdf_blocks = [block["text"] for block in user_content if isinstance(block, dict)
+                      and block.get("type") == "text" and "--- Untrusted PDF source text:" in block.get("text", "")]
+        pdf_heading = "\n".join(block.split("---\n", 1)[-1][:240] for block in pdf_blocks)
+        matching_contracts = catalog_matches_for_paper(ctx, "", pdf_heading)
+        helper_contracts = input_helpers_for_contracts(ctx, matching_contracts)
+        paper_method_contracts = [contract for contract in matching_contracts
+                                  if contract.get("match_reason") == "tool identity appears in supplied paper heading"]
+        paper_helper_contracts = input_helpers_for_contracts(ctx, paper_method_contracts)
+        # Only a single explicit method identity supports a minimal fallback
+        # draft. Multi-method papers remain open to the model's graph plan.
+        paper_scope = len(paper_method_contracts) == 1
+        paper_title = "the supplied PDF"
+        messages.append({"role": "user", "content": "Retrieved catalog candidates for the supplied PDF heading "
+                         "(not evidence that every candidate belongs in the workflow): "
+                         + json.dumps({"methods": matching_contracts, "inputs": helper_contracts}, default=str)})
+        messages.insert(1, {"role": "system", "content": (
+            "The attached PDF is the primary source. Candidate node contracts have already been inspected below. "
+            "Use applicable contracts directly and add independent nodes in one turn, then wire their named ports. "
+            "Search the catalog only for missing stages; do not spend turns repeating a general literature search "
+            "for this supplied paper. Create an illustrative draft now if supported; do not claim reproduction."
+        )})
+        source_note = "\n\nSource: attached PDF text excerpt. Its version and settings must be reviewed; no execution or reproduction was verified."
+        draft_tools = {"get_workflow_summary", "get_node_info", "list_available_nodes", "get_paper",
+                       "add_node", "add_edge", "update_node", "remove_node", "remove_edge", "validate_workflow"}
+        active_tools = [tool for tool in active_tools if tool.name in draft_tools]
+        tool_schemas = tools_to_openai_schema(active_tools)
 
     def emit_preflight(step: ChatStep) -> None:
         preflight_steps.append(step)
@@ -889,6 +918,10 @@ async def chat_with_tools(
     synthetic_proposal: ChatStep | None = None
 
     def proposal_note() -> str:
+        if pdf_draft:
+            return ("Method draft from the attached PDF excerpt, using a registered method named in its heading. "
+                    "Review input files, implementation version and all settings. Catalog defaults are not verified "
+                    "paper parameters; no results were reproduced.")
         source = f"; open-access source {paper_source_url}" if paper_source_url else "; abstract only"
         limit = ("The available full-text excerpt was truncated. " if excerpt_truncated else
                  "The available source does not establish every original setting. ")
@@ -928,6 +961,23 @@ async def chat_with_tools(
 
     def forward_step(step: ChatStep) -> None:
         nonlocal finalized_paper_workflow, paper_validation_error, synthetic_proposal
+        if pdf_draft and not paper_scope and step.type == "propose_changes" and step.workflow is not None:
+            contracts = []
+            for node_type in dict.fromkeys(node["type"] for node in step.workflow.get("nodes", [])):
+                inspected = execute_tool("get_node_info", {"node_type": node_type}, ctx)
+                if inspected.get("status") == "ok":
+                    contracts.append(inspected["result"])
+            methods = [contract for contract in contracts if str(contract.get("category", "")).lower() != "input"]
+            if methods:
+                finalized_paper_workflow, paper_validation_error = _complete_cited_paper_draft(
+                    step.workflow, ctx.registry, methods, contracts + input_helpers_for_contracts(ctx, methods),
+                )
+                if finalized_paper_workflow is None:
+                    if on_step:
+                        on_step(ChatStep(type="error", content=paper_validation_error, status="error"))
+                    return
+                step.workflow = finalized_paper_workflow
+                step.workflow["description"] = str(step.workflow.get("description") or "") + source_note
         if paper_scope and step.type == "propose_changes" and step.workflow is not None:
             finalized_paper_workflow, paper_validation_error = _complete_cited_paper_draft(
                 step.workflow, ctx.registry, paper_method_contracts, paper_helper_contracts,
@@ -966,6 +1016,12 @@ async def chat_with_tools(
         request_timeout=max(1, REQUEST_TIMEOUT_SECONDS - (time.monotonic() - request_started)),
     )
     response.steps[:0] = preflight_steps
+    if pdf_draft:
+        if paper_validation_error:
+            response.proposed_workflow = None
+            response.steps = [step for step in response.steps if step.type != "propose_changes"]
+        elif finalized_paper_workflow is not None:
+            response.proposed_workflow = finalized_paper_workflow
     if paper_scope:
         if synthetic_proposal is not None:
             reply_index = next((index for index, step in enumerate(response.steps) if step.type == "reply"), len(response.steps))

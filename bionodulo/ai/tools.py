@@ -441,6 +441,13 @@ def catalog_matches_for_paper(ctx: ToolContext, doi: str, title: str, limit: int
             continue
         aliases = " ".join(str(value) for value in meta.get("search_aliases") or [])
         identity = f"{node_id} {meta.get('display_name', '')} {aliases}".lower()
+        # An explicit tool identity in a PDF title is a useful retrieval hint,
+        # even when it is a single word (e.g. a distinctive package name).
+        identities = [node_id.replace("_", " "), str(meta.get("display_name", ""))]
+        if any(len(value) >= 5 and re.search(r"(?<!\w)" + re.escape(value.lower()) + r"(?!\w)", title.lower())
+               for value in identities):
+            ranked.append((50, node_id, "tool identity appears in supplied paper heading"))
+            continue
         matches = sum(word in identity for word in words)
         if matches >= 2:
             ranked.append((matches, node_id, "paper title keywords match node identity"))
