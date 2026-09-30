@@ -218,7 +218,10 @@ async function callUpload(
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
       const detail = [400, 413, 422, 429].includes(res.status) && typeof body.error === 'string'
-        ? body.error.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 200)
+        ? Array.from(body.error, char => {
+          const code = char.charCodeAt(0);
+          return code < 32 || code === 127 ? ' ' : char;
+        }).join('').trim().slice(0, 200)
         : undefined;
       return { kind: 'fail', message: `upload-http-${res.status}`, detail };
     }
