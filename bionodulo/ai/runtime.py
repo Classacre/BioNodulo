@@ -142,7 +142,7 @@ async def run_turn(
                               duration_ms=round((time.monotonic() - started) * 1000)))
                 payload = result.get("result")
                 workflow = payload.get("workflow") if isinstance(payload, dict) else None
-                if not failed and isinstance(workflow, dict):
+                if not failed and result.get("mutates") is True and isinstance(workflow, dict):
                     response.proposed_workflow = workflow
                     response.proposed_description = "Review and apply the workflow changes drafted by the assistant."
                 messages.append({"role": "tool", "tool_call_id": call_id, "name": name,

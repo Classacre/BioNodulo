@@ -307,15 +307,16 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     if (id === activeSessionIdRef.current) {
       if (inFlightRef.current) interruptCurrentTurn();
     }
+    const replacement = createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting'));
     setSessions(prev => {
       const next = prev.filter(s => s.id !== id);
-      if (next.length === 0) next.push(createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting')));
+      if (next.length === 0) next.push(replacement);
       return next;
     });
     setActiveSessionId(prev => {
       if (prev === id) {
         const remaining = sessions.filter(s => s.id !== id);
-        return remaining[0]?.id || createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting')).id;
+        return remaining[0]?.id || replacement.id;
       }
       return prev;
     });
@@ -559,6 +560,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
 
   const handleApply = useCallback(
     (proposed: Workflow) => {
+      if (sending || inFlightRef.current) return;
       onApplyWorkflow(proposed);
       setSessions(prev =>
         prev.map(s =>
@@ -574,7 +576,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         )
       );
     },
-    [onApplyWorkflow, activeSessionId, t]
+    [onApplyWorkflow, activeSessionId, sending, t]
   );
 
   // --- Slash-command skill autocomplete -----------------------------------
@@ -775,6 +777,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                         key={si}
                         step={step}
                         onApply={handleApply}
+                        applyDisabled={sending}
                         toolOutcome={step.type === 'tool_call'
                           ? (() => {
                               const result = turn.steps?.find(later => later.type === 'tool_result' && later.id && later.id === step.id);
@@ -962,7 +965,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   );
 }
 
-function StepRenderer({ step, onApply, toolOutcome }: { step: ChatStep; onApply: (wf: Workflow) => void; toolOutcome?: string }) {
+function StepRenderer({ step, onApply, toolOutcome, applyDisabled }: { step: ChatStep; onApply: (wf: Workflow) => void; toolOutcome?: string; applyDisabled?: boolean }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
@@ -1028,7 +1031,7 @@ function StepRenderer({ step, onApply, toolOutcome }: { step: ChatStep; onApply:
           <p className="ai-step-propose-desc">{step.description || t('aiWorkflow.steps.proposalFallbackDescription')}</p>
           {step.workflow && (
             <div className="ai-step-propose-actions">
-              <button className="btn btn-primary btn-sm" onClick={() => onApply(step.workflow!)}>
+              <button className="btn btn-primary btn-sm" disabled={applyDisabled} onClick={() => onApply(step.workflow!)}>
                 {t('aiWorkflow.steps.applyChanges')}
               </button>
               <button

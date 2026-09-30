@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -212,10 +213,37 @@ async def test_doc_store_sync_bridge_rejects_running_event_loop() -> None:
         doc_store._run_ystore_sync(noop)
 
 
-def test_assistant_graph_is_compiled_once() -> None:
-    from bionodulo.ai.assistant import _compiled_assistant_graph
+@pytest.mark.asyncio
+async def test_assistant_turns_keep_concurrent_workflows_isolated(monkeypatch) -> None:
+    """The explicit driver keeps request state separate without a cached graph."""
+    from bionodulo.ai import assistant
 
-    assert _compiled_assistant_graph() is _compiled_assistant_graph()
+    ready = asyncio.Event()
+    entered = 0
+
+    async def model(**kwargs):
+        nonlocal entered
+        messages = kwargs["messages"]
+        if messages[-1]["role"] == "tool":
+            return assistant.LLMResponse(messages[-1]["content"])
+        entered += 1
+        if entered == 2:
+            ready.set()
+        await asyncio.wait_for(ready.wait(), timeout=2)
+        return assistant.LLMResponse("", [{
+            "id": "same-provider-call-id", "name": "get_current_workflow", "arguments": {},
+        }])
+
+    monkeypatch.setattr(assistant, "_call_llm", model)
+    replies = await asyncio.gather(*[
+        assistant.chat_with_tools(
+            user_message="Inspect", workflow={"id": workflow_id, "nodes": [], "edges": []},
+            workflow_id=workflow_id, history=[], tool_names=["get_current_workflow"],
+        )
+        for workflow_id in ("alice-private", "bob-private")
+    ])
+    assert json.loads(replies[0].reply)["result"]["workflow"]["id"] == "alice-private"
+    assert json.loads(replies[1].reply)["result"]["workflow"]["id"] == "bob-private"
 
 
 def test_netguard_blocks_internal_addresses_and_allows_public():

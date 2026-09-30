@@ -124,6 +124,23 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getByTitle('Eliminar')).toBeInTheDocument();
   });
 
+  it('keeps the replacement session active after deleting the last chat', async () => {
+    await import('../i18n');
+    vi.mocked(streamAIChat).mockImplementationOnce(async (_request, onStep) => {
+      onStep({ type: 'reply', content: 'New session reply' });
+    });
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} />);
+    fireEvent.click(screen.getByTitle('Sessions'));
+    fireEvent.click(screen.getByTitle('Delete'));
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), {
+      target: { value: 'Hello replacement' },
+    });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
+    expect(screen.getByText('Hello replacement')).toBeInTheDocument();
+    expect(screen.getByText('New session reply')).toBeInTheDocument();
+  });
+
   it('renders quick prompts and input controls from the active locale', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const { setLanguage } = await import('../i18n');
@@ -404,6 +421,64 @@ describe('AIWorkflowModal i18n', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
     expect(screen.getAllByText('Checking nodes')).toHaveLength(1);
     expect(screen.getByText('Done')).toBeInTheDocument();
+  });
+
+  it('waits for the proposal stream to settle before allowing Apply', async () => {
+    await import('../i18n');
+    let release!: () => void;
+    vi.mocked(streamAIChat).mockImplementationOnce(async (_request, onStep) => {
+      onStep({ type: 'propose_changes', content: '', workflow: { nodes: [], edges: [] } });
+      await new Promise<void>(resolve => { release = resolve; });
+      onStep({ type: 'reply', content: 'Final answer' });
+    });
+    const onApplyWorkflow = vi.fn();
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={onApplyWorkflow} />);
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), {
+      target: { value: 'Change workflow' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    const applyButton = await screen.findByRole('button', { name: 'Apply Changes' });
+    expect(applyButton).toBeDisabled();
+    fireEvent.click(applyButton);
+    expect(onApplyWorkflow).not.toHaveBeenCalled();
+    await act(async () => { release(); });
+    expect(applyButton).toBeEnabled();
+    fireEvent.click(applyButton);
+    expect(onApplyWorkflow).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Final answer')).toBeInTheDocument();
+  });
+
+  it('keeps older proposal actions disabled during a newer stream', async () => {
+    await import('../i18n');
+    storage.set('bionodulo-ai-sessions', JSON.stringify([{
+      id: 'session-1', name: 'Earlier proposal', createdAt: Date.now(), turns: [{
+        role: 'assistant', steps: [{ type: 'propose_changes', content: '', workflow: workflow({ name: 'Earlier draft' }) }],
+      }],
+    }]));
+    let release!: () => void;
+    vi.mocked(streamAIChat).mockImplementationOnce(async (_request, onStep) => {
+      await new Promise<void>(resolve => { release = resolve; });
+      onStep({ type: 'reply', content: 'Newer final answer' });
+    });
+    const onApplyWorkflow = vi.fn();
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={onApplyWorkflow} />);
+    const applyButton = screen.getByRole('button', { name: 'Apply Changes' });
+    expect(applyButton).toBeEnabled();
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), {
+      target: { value: 'A newer question' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(applyButton).toBeDisabled();
+    fireEvent.click(applyButton);
+    expect(onApplyWorkflow).not.toHaveBeenCalled();
+    await act(async () => { release(); });
+    expect(screen.getByText('Newer final answer')).toBeInTheDocument();
+    expect(applyButton).toBeEnabled();
+    fireEvent.click(applyButton);
+    expect(onApplyWorkflow).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Newer final answer')).toBeInTheDocument();
   });
 
   it('renders stopped assistant note from the active locale', async () => {

@@ -172,3 +172,23 @@ async def test_round_limit_and_empty_reply_are_visible_failures() -> None:
 
     with pytest.raises(RuntimeError, match="empty response"):
         await drive(empty_model, execute)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mutates", [False, True])
+async def test_only_mutating_tool_results_propose_workflow_changes(mutates: bool) -> None:
+    rounds = 0
+    workflow = {"nodes": [], "edges": []}
+
+    async def model(_messages, _on_text):
+        nonlocal rounds
+        rounds += 1
+        return ModelTurn("", [call()]) if rounds == 1 else ModelTurn("Done")
+
+    async def execute(_name, _arguments):
+        return {"status": "ok", "result": {"workflow": workflow}, "mutates": mutates}
+
+    response = await drive(model, execute)
+    assert response.reply == "Done"
+    assert response.proposed_workflow == (workflow if mutates else None)
+    assert any(step.type == "propose_changes" for step in response.steps) is mutates
