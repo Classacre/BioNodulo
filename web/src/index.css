@@ -1419,7 +1419,10 @@ body.is-dragging-panel {
 
 .bio-node-params { padding: 2px 8px; color: var(--muted); font-size: 10px; }
 .bio-node-param { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
-.bio-node-note-body { padding: 6px 8px; white-space: pre-wrap; color: var(--text); }
+.bio-node-note-body { padding: 6px 8px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.bio-node-note-fixed { display: flex; flex-direction: column; }
+.bio-node-note-fixed .bio-node-header { flex: none; }
+.bio-node-note-fixed .bio-node-note-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
 /* Interactive on-node widgets (toggles/sliders/selects/number/text/colour).
    The node auto-sizes to fit these — no fixed height. */

@@ -157,6 +157,7 @@ describe('runDoiFlow', () => {
     const wf = h.getWf();
     expect(wf.name).toBe('The Paper Title');
     expect(wf.nodes[0].type).toBe('note'); // summary note first
+    expect(wf.nodes[0].ui).toMatchObject({ width: 320, height: 180 });
     expect(String(wf.nodes[0].params.text)).toContain('A paper about RNA-seq.');
     expect(wf.nodes.map((n) => n.type)).toEqual(['note', 'trim_galore', 'star_aligner']);
     expect(wf.edges).toEqual([

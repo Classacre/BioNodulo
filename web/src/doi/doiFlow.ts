@@ -235,13 +235,13 @@ async function callUpload(
   }
 }
 
-function makeNoteNode(text: string, position: [number, number], idSuffix: string, title?: string): WorkflowNode {
+function makeNoteNode(text: string, position: [number, number], idSuffix: string, title?: string, size?: { width: number; height: number }): WorkflowNode {
   return {
     id: `doi-note-${idSuffix}`,
     type: 'note',
     position,
     params: { text },
-    ...(title ? { ui: { title } } : {}),
+    ...(title || size ? { ui: { ...(title ? { title } : {}), ...size } } : {}),
   };
 }
 
@@ -475,6 +475,7 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
           [minX, minY - (NOTE_SIZE.height + 60)],
           'summary',
           t('doiFlow.summaryNoteTitle', { defaultValue: 'Paper summary' }),
+          NOTE_SIZE,
         ),
       ],
     }));

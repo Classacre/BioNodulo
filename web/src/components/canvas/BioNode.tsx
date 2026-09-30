@@ -67,6 +67,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
         missingDependency ? 'missing-dep' : '',
         running ? 'running' : '',
         g.collapsed ? 'bio-node-collapsed' : '',
+        g.visualOnly && g.type === 'note' && g.height > NODE_HEADER_H && !g.collapsed ? 'bio-node-note-fixed' : '',
         g.isSubgraph ? 'bio-node-subgraph' : '',
       ].filter(Boolean).join(' ')}
       style={{ ['--bio-node-color' as string]: g.color }}
@@ -134,8 +135,8 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
       {/* Note nodes are a text card; collapsed nodes hide their body. Every real
           port still gets a <Handle> so edges stay anchored — collapsed handles
           are pinned to the header centre via CSS. */}
-      {g.visualOnly && g.type === 'note' ? (
-        <div className="bio-node-note-body">{String(g.params?.text ?? '')}</div>
+      {g.visualOnly && g.type === 'note' && !g.collapsed ? (
+        <div className="bio-node-note-body nodrag nowheel">{String(g.params?.text ?? '')}</div>
       ) : !g.visualOnly && !g.collapsed ? (
         <>
         <div className="bio-node-io">
