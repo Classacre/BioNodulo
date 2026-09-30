@@ -6,7 +6,7 @@ import type { NodeMetadata, ObjectInfo } from '../../types';
 import { useNodeSearch } from '../../utils/nodeSearch';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { safeKnowledgeUrl } from '../../utils/nodeKnowledge';
-import { buildToolGraphIndex, graphCoverage, isDeprecated, neighborId, normalizeDoi, relatedTools, type RelationKind, type ToolRelation } from '../../utils/toolKnowledgeGraph';
+import { buildToolGraphIndex, graphCoverage, isDeprecated, neighborId, relatedTools, toolCitationUrls, type RelationKind, type ToolRelation } from '../../utils/toolKnowledgeGraph';
 import { saveToFile } from '../../utils';
 import Dialog from '../ui/Dialog';
 import './ToolAtlas.css';
@@ -214,7 +214,7 @@ export default function ToolAtlas({ objectInfo, onAddNode, onClose }: {
           </details>
           <section className="atlas-references" aria-label={t('toolAtlas.references')}><h3>{t('toolAtlas.references')}</h3>
             {focus.citation_text && <p>{focus.citation_text}</p>}
-            <ul>{[...new Set([...(focus.citation_dois || []).map(doi => `https://doi.org/${normalizeDoi(doi)}`), ...(focus.citation_urls || [])])].filter(url => safeKnowledgeUrl(url)).map(url => <li key={url}><a href={url} target="_blank" rel="noreferrer">{url}</a></li>)}</ul>
+            <ul>{toolCitationUrls(focus).map(url => <li key={url}><a href={url} target="_blank" rel="noreferrer">{url}</a></li>)}</ul>
             {!focus.citation_text && !focus.citation_dois?.length && !focus.citation_urls?.length && <p>{t('toolAtlas.noReferences')}</p>}
             {focus.knowledge?.citation_evidence?.map((e, i) => <p key={i}><a href={e.source_url} target="_blank" rel="noreferrer">{e.identifier}</a> · {t('toolAtlas.checked', { date: e.checked_at })}<br />{e.note}</p>)}
             <p className="atlas-note">{t('toolAtlas.citationCaveat')}</p><p>{t('toolAtlas.exportHelp')}</p>

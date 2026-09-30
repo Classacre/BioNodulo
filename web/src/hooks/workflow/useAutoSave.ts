@@ -8,6 +8,7 @@ import { useEffect, useState, useRef } from 'react';
 import type { Workflow } from '../../types';
 import { renderRecentThumbnail } from '../../utils/workflowThumbnail';
 import { refreshRecentThumbnail } from '../../state/recentWorkflows';
+import { logError } from '../../state/logging';
 
 const AUTO_SAVE_LAST_KEY = 'bionodulo.autoSave.last';
 
@@ -17,6 +18,7 @@ export interface UseAutoSaveArgs {
   latestWorkflow: Workflow;
   publishCollabWorkflowSnapshot: (workflow: Workflow) => Promise<void>;
   setDirty: (dirty: boolean) => void;
+  clearDirtyOnInterval?: boolean;
 }
 
 export interface UseAutoSaveResult {
@@ -29,6 +31,7 @@ export function useAutoSave({
   latestWorkflow,
   publishCollabWorkflowSnapshot,
   setDirty,
+  clearDirtyOnInterval = true,
 }: UseAutoSaveArgs): UseAutoSaveResult {
   const [lastAutoSaveAt, setLastAutoSaveAt] = useState<string | null>(() => {
     try {
@@ -48,7 +51,7 @@ export function useAutoSave({
     const seconds = parseInt(autoSaveSetting.replace('s', ''), 10);
     if (!Number.isFinite(seconds) || seconds <= 0) return;
 
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
       const workflow = latestWorkflowRef.current;
       try {
         localStorage.setItem(AUTO_SAVE_LAST_KEY, new Date().toISOString());
@@ -56,7 +59,12 @@ export function useAutoSave({
         /* quota — ignore */
       }
       if (collabEnabled) {
-        void publishCollabWorkflowSnapshot(workflow);
+        try {
+          await publishCollabWorkflowSnapshot(workflow);
+          if (clearDirtyOnInterval && latestWorkflowRef.current === workflow) setDirty(false);
+        } catch (err) {
+          logError('workflow.autoSave.collab', err);
+        }
       }
       // Keep the recents thumbnail current so reopening from Getting Started
       // reflects the current shape of the workflow, not the moment of import.
@@ -71,11 +79,11 @@ export function useAutoSave({
       }
       const savedAt = new Date().toISOString();
       setLastAutoSaveAt(savedAt);
-      setDirty(false);
+      if (!collabEnabled && clearDirtyOnInterval) setDirty(false);
     }, seconds * 1000);
 
     return () => clearInterval(timer);
-  }, [autoSaveSetting, collabEnabled, publishCollabWorkflowSnapshot, setDirty]);
+  }, [autoSaveSetting, collabEnabled, publishCollabWorkflowSnapshot, setDirty, clearDirtyOnInterval]);
 
   return { lastAutoSaveAt };
 }

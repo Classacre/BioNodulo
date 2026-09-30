@@ -397,6 +397,8 @@ const en = {
     runMenu: 'Run',
     helpMenu: 'Help',
     newWorkflow: 'New workflow',
+    localDraftTitle: 'This workflow is a local draft',
+    localDraftMessage: 'It is not saved to the cloud. Export the workflow before leaving this page.',
     openWorkflow: 'Open workflow...',
     saveWorkflow: 'Save workflow',
     saveWorkflowAs: 'Save workflow as...',
@@ -2576,6 +2578,7 @@ const en = {
       galaxy: '{\n  "a_galaxy_workflow": "true",\n  "steps": {...}\n}',
     },
     uploadHint: 'Paste workflow code above, or upload a file (PNGs with embedded workflow metadata are decoded automatically):',
+    sourceLabel: 'Workflow source',
     parsing: 'Parsing...',
     errors: {
       parseFormat: 'Could not parse the workflow. Ensure the format is correct.',
@@ -2585,6 +2588,14 @@ const en = {
       pngReadFailedTitle: 'PNG read failed',
       pngReadFailedMessage: 'Could not read the workflow PNG. Export the workflow again or import the JSON file instead.',
     },
+  },
+  cloudSave: {
+    loadFailedTitle: 'Could not restore cloud workflows',
+    loadFailedMessage: 'Your open tabs were kept for the next visit. Open a workflow or create a new one to continue.',
+    newWorkflow: 'New workflow',
+    failedTitle: 'Workflow could not be saved',
+    failedMessage: 'Your changes are still open in this session. Retry saving before leaving.',
+    retry: 'Retry save',
   },
   exportModal: {
     title: 'Export workflow',

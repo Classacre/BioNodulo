@@ -117,6 +117,36 @@ describe('ImportModal i18n', () => {
     expect(onImport.mock.calls[0][0].name).toBe('Imported workflow');
   });
 
+  it('rejects JSON values that are not workflows without replacing the current graph', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const onImport = vi.fn();
+    const onClose = vi.fn();
+    render(<ImportModal onImport={onImport} onClose={onClose} />);
+    fireEvent.change(screen.getByPlaceholderText(/"version": "2.0"/), {
+      target: { value: '{"nodes":"missing graph","edges":[]}' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith('Could not parse the workflow.'));
+    expect(onImport).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ nodes: [{ id: 'same', type: 'tool' }, { id: 'same', type: 'tool' }], edges: [] }, 'duplicate node IDs'],
+    [{ nodes: [{ id: 'a', type: 'tool' }], edges: [{ source: 'a', target: 'a' }] }, 'foreign edge shape'],
+    [{ nodes: [{ id: 'a', type: 'tool' }], edges: [{ from: { node: 'a' }, to: { node: 'missing' } }] }, 'dangling edge'],
+  ])('rejects %s (%s) before import', async (graph) => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const onImport = vi.fn();
+    render(<ImportModal onImport={onImport} onClose={() => undefined} />);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Workflow source' }), {
+      target: { value: JSON.stringify(graph) },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith('Could not parse the workflow.'));
+    expect(onImport).not.toHaveBeenCalled();
+  });
+
   it('renders import format labels and placeholders from the active locale', async () => {
     const { default: ImportModal } = await import('../components/modals/ImportModal');
     const { setLanguage } = await import('../i18n');
@@ -176,6 +206,23 @@ describe('ImportModal i18n', () => {
       content: snakefile,
     });
     expect(onImport).toHaveBeenCalledWith(importedWorkflow);
+  });
+
+  it('selects the converter for an uploaded workflow file', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    apiMocks.apiPost.mockResolvedValueOnce({ workflow: JSON.parse(workflowJson('From file')) });
+    const onImport = vi.fn();
+    const { container } = render(<ImportModal onImport={onImport} onClose={() => undefined} />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const source = 'rule fastqc:\n    shell: "fastqc reads.fastq"';
+    fireEvent.change(input, { target: { files: [new File([source], 'Snakefile.smk')] } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Snakemake' })).toHaveAttribute('aria-pressed', 'true'));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Workflow source' })).toHaveValue(source));
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => expect(apiMocks.apiPost).toHaveBeenCalledWith('/workflow/import', {
+      source: 'snakemake', content: source,
+    }));
+    expect(onImport).toHaveBeenCalledWith(expect.objectContaining({ name: 'From file' }));
   });
 
   it('uses localized parse-format errors from the active locale', async () => {

@@ -114,6 +114,7 @@ function workflowSaveKey(wf: Workflow): string {
 }
 
 const LOCAL_WORKFLOWS_KEY = 'bionodulo.local.workflows';
+type CloudSaveState = { key: string; phase: 'pending' | 'saving' | 'error' | 'local' };
 
 function latestRunStatus<T extends string>(previous: T | undefined, incoming: T | undefined): T | undefined {
   const rank = (status: string) => status === 'pending' ? 0 : status === 'running' ? 1 : 2;
@@ -204,10 +205,19 @@ export function useWorkflow() {
   // (which has a client id the DB doesn't know → 404).
   const cloudLoadStartedRef = useRef(false);
   const cloudLoadedRef = useRef(false);
+  const cloudTabRecordReadyRef = useRef(false);
   // State, not just the ref: the effect that records open tabs has to re-run
   // when restoration finishes, and a ref assignment does not schedule a render.
   const [cloudRestored, setCloudRestored] = useState(false);
-  const cloudSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [cloudLoadError, setCloudLoadError] = useState(false);
+  const cloudServerIdsRef = useRef(new Set<string>());
+  const cloudSaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const cloudScheduledKeys = useRef(new Map<string, string>());
+  const cloudSavedKeys = useRef(new Map<string, string>());
+  const cloudQueuedKeys = useRef(new Map<string, string>());
+  const cloudSaveChains = useRef(new Map<string, Promise<void>>());
+  const cloudLatestKeys = useRef(new Map<string, string>());
+  const [cloudSaveStates, setCloudSaveStates] = useState<Record<string, CloudSaveState>>({});
   // Server ids of workflows created this session, mapped to the exact payload
   // that was written at creation time. While the current state still matches
   // that snapshot there is nothing to PUT.
@@ -234,7 +244,7 @@ export function useWorkflow() {
             ? new URLSearchParams(window.location.search).get('workflow')
             : null;
 
-        const list = await listCloudWorkflows().catch(() => []);
+        const list = await listCloudWorkflows();
         const known = new Set(list.map(summary => summary.id));
         const remembered = readOpenWorkflows();
 
@@ -267,9 +277,9 @@ export function useWorkflow() {
         );
         const tabs = loaded.filter((w): w is Workflow => w !== null);
         if (tabs.length === 0) {
-          // Nothing to restore. Still mark restoration done, or the open-tab
-          // record is never written and every later change is forgotten too.
-          cloudLoadedRef.current = true;
+          // A transient fetch failure must not replace the remembered tabs
+          // with the local placeholder on the next visit.
+          setCloudLoadError(true);
           setCloudRestored(true);
           return;
         }
@@ -295,10 +305,14 @@ export function useWorkflow() {
             : requestedIndex >= 0 ? requestedIndex : 0);
           return [...tabs, ...addedDuringRestore];
         });
+        for (const wf of tabs) if (wf.id) cloudServerIdsRef.current.add(wf.id);
         cloudLoadedRef.current = true;
+        cloudTabRecordReadyRef.current = tabs.length === ids.length;
+        setCloudLoadError(tabs.length !== ids.length);
         setCloudRestored(true);
       } catch (err) {
         logError('cloud.workflows.load', err);
+        setCloudLoadError(true);
         // Let a DOI import fall back to a local draft if cloud restoration
         // fails; otherwise it remains queued forever behind cloudRestored.
         setCloudRestored(true);
@@ -308,30 +322,121 @@ export function useWorkflow() {
 
   // Remember which tabs are open, so the next visit restores this set and not
   // whatever happens to be recent. Guarded on cloudLoadedRef so the initial
-  // placeholder does not overwrite the record before restoration runs.
+  // placeholder or a partial/failed restore does not overwrite the record.
   useEffect(() => {
-    if (!editorMode || !cloudRestored) return;
+    if (!editorMode || !cloudRestored || !cloudTabRecordReadyRef.current) return;
     writeOpenWorkflows(
-      workflows.filter(w => w.id && !w.cloudPending).map(w => w.id as string),
+      workflows.filter(w => w.id && !w.cloudPending && cloudServerIdsRef.current.has(w.id))
+        .map(w => w.id as string),
     );
   }, [workflows, editorMode, cloudRestored]);
 
-  // Cloud save: debounced PUT of the active workflow's definition.
+  const scheduleCloudSave = useCallback((wf: Workflow, immediate = false) => {
+    const id = wf.id;
+    if (!id || wf.cloudPending) return;
+    const key = workflowSaveKey(wf);
+    cloudLatestKeys.current.set(id, key);
+    const oldTimer = cloudSaveTimers.current.get(id);
+    if (oldTimer) clearTimeout(oldTimer);
+    cloudSaveTimers.current.delete(id);
+    cloudScheduledKeys.current.delete(id);
+    setCloudSaveStates(prev => prev[id]?.key === key && prev[id].phase === 'pending'
+      ? prev : { ...prev, [id]: { key, phase: 'pending' } });
+    cloudScheduledKeys.current.set(id, key);
+    cloudSaveTimers.current.set(id, setTimeout(() => {
+      cloudSaveTimers.current.delete(id);
+      cloudScheduledKeys.current.delete(id);
+      cloudQueuedKeys.current.set(id, key);
+      const previous = cloudSaveChains.current.get(id) ?? Promise.resolve();
+      const next = previous.then(async () => {
+        if (cloudLatestKeys.current.get(id) === key) {
+          setCloudSaveStates(prev => prev[id]?.key === key
+            ? { ...prev, [id]: { key, phase: 'saving' } } : prev);
+        }
+        try {
+          await saveCloudWorkflow(wf);
+          cloudSavedKeys.current.set(id, key);
+          if (cloudLatestKeys.current.get(id) === key) {
+            setCloudSaveStates(prev => {
+              if (prev[id]?.key !== key) return prev;
+              const nextStates = { ...prev };
+              delete nextStates[id];
+              return nextStates;
+            });
+          }
+        } catch (err) {
+          logError('cloud.workflows.save', err);
+          if (cloudLatestKeys.current.get(id) === key) {
+            setCloudSaveStates(prev => prev[id]?.key === key
+              ? { ...prev, [id]: { key, phase: 'error' } } : prev);
+          }
+        } finally {
+          if (cloudQueuedKeys.current.get(id) === key) cloudQueuedKeys.current.delete(id);
+        }
+      });
+      cloudSaveChains.current.set(id, next);
+    }, immediate ? 0 : 1200));
+  }, []);
+
+  // Cloud save: debounce each tab independently. Switching tabs must not
+  // cancel the previous tab's pending save, and writes for one tab finish in
+  // edit order even if a slower request overlaps the next debounce.
   useEffect(() => {
-    if (!editorMode || !cloudLoadedRef.current) return;
-    const wf = workflows[activeIndex];
-    // cloudPending = row still being created server-side; its temp id would 404.
-    // Pristine match = freshly created and untouched since — nothing to save.
-    if (!wf?.id || wf.cloudPending) return;
-    if (cloudPristineRef.current.get(wf.id) === workflowSaveKey(wf)) return;
-    if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
-    cloudSaveTimer.current = setTimeout(() => {
-      saveCloudWorkflow(wf).catch(err => logError('cloud.workflows.save', err));
-    }, 1200);
-    return () => {
-      if (cloudSaveTimer.current) clearTimeout(cloudSaveTimer.current);
-    };
-  }, [workflows, activeIndex, editorMode]);
+    if (!editorMode) return;
+    const visibleIds = new Set(workflows.map(wf => wf.id).filter((id): id is string => Boolean(id)));
+    setCloudSaveStates(prev => {
+      const stale = Object.keys(prev).filter(id => !visibleIds.has(id));
+      if (stale.length === 0) return prev;
+      const nextStates = { ...prev };
+      for (const id of stale) delete nextStates[id];
+      return nextStates;
+    });
+    for (const wf of workflows) {
+      // cloudPending = row still being created server-side; its temp id would 404.
+      if (!wf.id || wf.cloudPending) continue;
+      const id = wf.id;
+      const key = workflowSaveKey(wf);
+      if (!cloudServerIdsRef.current.has(id)) {
+        // A local draft (for example a DOI guest fallback or duplicated tab)
+        // cannot be PUT to a server row. Keep it visibly unsaved instead.
+        if (cloudRestored && (wf.nodes.length > 0 || wf.edges.length > 0 || wf.name !== i18n.t('common.untitled'))) {
+          setCloudSaveStates(prev => prev[id]?.key === key && prev[id].phase === 'local'
+            ? prev : { ...prev, [id]: { key, phase: 'local' } });
+        }
+        continue;
+      }
+      if (!cloudLoadedRef.current) continue;
+      cloudLatestKeys.current.set(id, key);
+      if (cloudScheduledKeys.current.get(id) !== key) {
+        const previousTimer = cloudSaveTimers.current.get(id);
+        if (previousTimer) clearTimeout(previousTimer);
+        cloudSaveTimers.current.delete(id);
+        cloudScheduledKeys.current.delete(id);
+      }
+      if (((cloudPristineRef.current.get(id) === key || cloudSavedKeys.current.get(id) === key)
+        && !cloudQueuedKeys.current.has(id))
+        || cloudScheduledKeys.current.get(id) === key || cloudQueuedKeys.current.get(id) === key) {
+        if (!cloudQueuedKeys.current.has(id) && cloudScheduledKeys.current.get(id) !== key) {
+          setCloudSaveStates(prev => {
+            if (!prev[id] || prev[id].key === key) return prev;
+            const nextStates = { ...prev };
+            delete nextStates[id];
+            return nextStates;
+          });
+        }
+        continue;
+      }
+      // Failed saves wait for an explicit retry; unrelated renders must not
+      // silently clear the error or start an unbounded retry loop.
+      if (cloudSaveStates[id]?.key === key && cloudSaveStates[id].phase === 'error') continue;
+      scheduleCloudSave(wf);
+    }
+  }, [workflows, editorMode, cloudRestored, cloudSaveStates, scheduleCloudSave]);
+
+  const retryCloudSave = useCallback((id: string) => {
+    const wf = workflows.find(item => item.id === id);
+    if (wf) scheduleCloudSave(wf, true);
+  }, [workflows, scheduleCloudSave]);
 
   const addRun = useCallback((run: RunRecord) => {
     setRuns(prev => upsertRun(prev, run));
@@ -365,6 +470,16 @@ export function useWorkflow() {
     });
   }, []);
 
+  const addCloudWorkflow = useCallback((wf: Workflow) => {
+    if (!wf.id) throw new Error('A cloud workflow must have a server ID');
+    cloudServerIdsRef.current.add(wf.id);
+    cloudLoadedRef.current = true;
+    setWorkflows(prev => {
+      setActiveIndex(prev.length);
+      return [...prev, normalizeWorkflow(wf)];
+    });
+  }, []);
+
   // Open a DB-backed cloud workflow as a tab. If it's already open, just focus
   // it; otherwise fetch it and append a tab. No-op outside editor mode.
   const openCloudWorkflow = useCallback(async (id: string) => {
@@ -380,6 +495,9 @@ export function useWorkflow() {
     }
     try {
       const wf = normalizeWorkflow(await getCloudWorkflow(id));
+      cloudServerIdsRef.current.add(id);
+      cloudLoadedRef.current = true;
+      setCloudLoadError(false);
       setWorkflows(prev => {
         const existing = prev.findIndex(w => w.id === id);
         if (existing >= 0) { setActiveIndex(existing); return prev; }
@@ -406,6 +524,9 @@ export function useWorkflow() {
     });
     try {
       const created = await createCloudWorkflow(i18n.t('common.untitled'));
+      cloudServerIdsRef.current.add(created.id as string);
+      cloudLoadedRef.current = true;
+      setCloudLoadError(false);
       setWorkflows(prev => prev.map(w => {
         if (w.id !== tempId) return w;
         // Tab closed before the row landed — leave the map alone; the empty
@@ -436,9 +557,24 @@ export function useWorkflow() {
   }, [editorMode]);
 
   const closeTab = useCallback((index: number) => {
+    const closingId = workflows[index]?.id;
+    if (closingId) {
+      const timer = cloudSaveTimers.current.get(closingId);
+      if (timer) clearTimeout(timer);
+      cloudSaveTimers.current.delete(closingId);
+      cloudScheduledKeys.current.delete(closingId);
+      cloudLatestKeys.current.delete(closingId);
+      setCloudSaveStates(prev => {
+        if (!prev[closingId]) return prev;
+        const next = { ...prev };
+        delete next[closingId];
+        return next;
+      });
+    }
     let nextLen = 0;
     setWorkflows(prev => {
       const next = prev.filter((_, i) => i !== index);
+      // An empty editor is a local blank draft until New creates a server row.
       if (next.length === 0) next.push(emptyWorkflow());
       nextLen = next.length;
       return next;
@@ -447,7 +583,7 @@ export function useWorkflow() {
     // not the render-closure `workflows.length` which lags one render behind
     // and could leave activeIndex pointing a tab off after rapid closes.
     setActiveIndex(prev => Math.max(0, Math.min(prev, nextLen - 1)));
-  }, []);
+  }, [workflows]);
 
   const reorderWorkflows = useCallback((from: number, to: number) => {
     setWorkflows(prev => {
@@ -601,10 +737,12 @@ export function useWorkflow() {
 
   return {
     workflows, activeIndex, activeWorkflow, validation, runs,
-    setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
+    setWorkflow, updateWorkflow, addTab, addWorkflow, addCloudWorkflow, closeTab, reorderWorkflows, setActiveIndex,
     openCloudWorkflow, newCloudWorkflow,
+    cloudSaveStates, retryCloudSave,
     validate, resolve, resolveReport, clearResolveReport, submitRun, exportWorkflow, importWorkflow,
     addRun, updateRun, setRuns,
     cloudRestored,
+    cloudLoadError,
   };
 }

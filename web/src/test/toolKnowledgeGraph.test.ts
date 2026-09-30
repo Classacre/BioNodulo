@@ -3,7 +3,7 @@ import rawMetadata from '../../../bionodulo/nodes/node_metadata.json';
 import type { NodeMetadata, ObjectInfo } from '../types';
 import { normalizeNodeKnowledge, safeKnowledgeUrl } from '../utils/nodeKnowledge';
 import {
-  buildToolGraphIndex, graphCoverage, graphPortType, graphPortTypes, neighborId, normalizeDoi, relatedTools,
+  buildToolGraphIndex, graphCoverage, graphPortType, graphPortTypes, neighborId, normalizeDoi, relatedTools, toolCitationUrls,
 } from '../utils/toolKnowledgeGraph';
 
 function meta(id: string, overrides: Partial<NodeMetadata> = {}): NodeMetadata {
@@ -17,6 +17,26 @@ function edge(source: string, target: string, kind: string, value?: string) {
 const evidence = { url: 'https://example.org/manual', checked_at: '2026-09-25', note: 'Authors document this relationship.' };
 
 describe('tool knowledge graph', () => {
+  it('shows one reference per DOI across URL case and resolver aliases', () => {
+    expect(toolCitationUrls({
+      citation_dois: ['10.18129/b9.bioc.deseq2'],
+      citation_urls: [
+        'https://doi.org/10.18129/B9.bioc.DESeq2',
+        'http://dx.doi.org/10.18129/B9.bioc.DESeq2',
+        'https://doi.org/10.18129%2FB9.bioc.DESeq2?source=registry',
+        'https://example.org/Manual', 'https://example.org/manual',
+        'https://example.org/Manual', 'javascript:alert(1)',
+      ],
+    })).toEqual([
+      'https://doi.org/10.18129/b9.bioc.deseq2',
+      'https://example.org/Manual', 'https://example.org/manual',
+    ]);
+    expect(toolCitationUrls({ citation_urls: [
+      'https://doi.org/10.18129/B9.bioc.DESeq2',
+      'https://doi.org/10.18129/b9.bioc.deseq2',
+    ] })).toEqual(['https://doi.org/10.18129/B9.bioc.DESeq2']);
+  });
+
   it('indexes the complete shipped builtin metadata by the registry key', () => {
     // Build from the actual raw object-info manifest, using the hook's input/output
     // normalization contract. This catches schema drift across the entire catalog.

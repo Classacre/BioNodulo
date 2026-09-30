@@ -1,5 +1,5 @@
 import type { NodeMetadata, ObjectInfo } from '../types';
-import { normalizeNodeKnowledge } from './nodeKnowledge';
+import { normalizeNodeKnowledge, safeKnowledgeUrl } from './nodeKnowledge';
 
 export type RelationKind = 'format' | 'category' | 'citation' | 'tool' | 'topic' | 'operation'
   | 'alternative_to' | 'complements' | 'documented_successor' | 'superseded_by';
@@ -39,6 +39,25 @@ export function graphPortTypes(type: string): string[] {
 }
 export function normalizeDoi(value: string): string {
   return value.trim().replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, '').replace(/^doi:\s*/i, '').toLowerCase();
+}
+export function toolCitationUrls(meta: Pick<NodeMetadata, 'citation_dois' | 'citation_urls'>): string[] {
+  const seen = new Set<string>();
+  return [
+    ...(meta.citation_dois || []).map(doi => `https://doi.org/${normalizeDoi(doi)}`),
+    ...(meta.citation_urls || []),
+  ].filter(value => {
+    if (!safeKnowledgeUrl(value)) return false;
+    const parsed = new URL(value);
+    let identity = `url:${value}`;
+    if (/^(?:dx\.)?doi\.org$/i.test(parsed.hostname)) {
+      let doi = parsed.pathname.slice(1);
+      try { doi = decodeURIComponent(doi); } catch { /* preserve invalid escapes */ }
+      identity = `doi:${normalizeDoi(doi)}`;
+    }
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
 }
 function push<T>(map: Map<string, T[]>, key: string, value: T) {
   const bucket = map.get(key);

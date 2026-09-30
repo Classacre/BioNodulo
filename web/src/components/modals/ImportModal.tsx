@@ -42,6 +42,29 @@ const FORMATS: { id: ImportFormat; labelKey: string; placeholderKey: string }[] 
   },
 ];
 
+function asWorkflow(value: unknown): Workflow | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (!Array.isArray(candidate.nodes) || !Array.isArray(candidate.edges)) return null;
+  if (!candidate.nodes.every(node => node && typeof node === 'object'
+    && typeof node.id === 'string' && typeof node.type === 'string')) return null;
+  const ids = new Set(candidate.nodes.map(node => node.id as string));
+  if (ids.size !== candidate.nodes.length) return null;
+  if (!candidate.edges.every(edge => {
+    if (!edge || typeof edge !== 'object') return false;
+    const from = edge.from;
+    const to = edge.to;
+    return from && typeof from === 'object' && typeof from.node === 'string'
+      && to && typeof to === 'object' && typeof to.node === 'string'
+      && ids.has(from.node) && ids.has(to.node);
+  })) return null;
+  return candidate as unknown as Workflow;
+}
+
+function parseWorkflowJson(source: string): Workflow | null {
+  try { return asWorkflow(JSON.parse(source) as unknown); } catch { return null; }
+}
+
 export default function ImportModal({ onImport, onClose }: ImportModalProps) {
   const { t } = useTranslation();
   const [format, setFormat] = useState<ImportFormat>('json');
@@ -52,9 +75,9 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
     setParsing(true);
     try {
       if (format === 'json') {
-        const wf = JSON.parse(source) as Workflow;
-        onImport(wf);
-        onClose();
+        const wf = parseWorkflowJson(source);
+        if (wf) { onImport(wf); onClose(); }
+        else await alertDialog(t('importModal.errors.parse'));
         return;
       }
       try {
@@ -62,8 +85,9 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
           source: format,
           content: source,
         });
-        if (data.workflow) {
-          onImport(data.workflow);
+        const imported = asWorkflow(data?.workflow);
+        if (imported) {
+          onImport(imported);
           onClose();
           return;
         }
@@ -73,24 +97,16 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         // Backend converter unavailable: fall through to the local JSON
         // parse attempt below.
       }
-      // Fallback: try JSON
-      try {
-        const wf = JSON.parse(source) as Workflow;
-        onImport(wf);
-        onClose();
-      } catch {
-        await alertDialog(t('importModal.errors.parseFormat'));
-      }
-    } catch {
-      try {
-        const wf = JSON.parse(source) as Workflow;
-        onImport(wf);
-        onClose();
-      } catch {
-        await alertDialog(t('importModal.errors.parse'));
-      }
+      // Fallback: a JSON workflow may have been pasted under another format.
+      const wf = parseWorkflowJson(source);
+      if (wf) { onImport(wf); onClose(); }
+      else await alertDialog(t('importModal.errors.parseFormat'));
+    } catch (err) {
+      logError('importModal.import', err);
+      await alertDialog(t('importModal.errors.parseFormat'));
+    } finally {
+      setParsing(false);
     }
-    setParsing(false);
   };
 
   return (
@@ -114,7 +130,9 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         {FORMATS.map((f) => (
           <button
             key={f.id}
+            type="button"
             className={`env-type-tab ${format === f.id ? 'active' : ''}`}
+            aria-pressed={format === f.id}
             onClick={() => setFormat(f.id)}
           >
             {t(f.labelKey)}
@@ -122,6 +140,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         ))}
       </div>
       <textarea
+        aria-label={t('importModal.sourceLabel')}
         value={source}
         onChange={(e) => setSource(e.target.value)}
         placeholder={t(
@@ -141,7 +160,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
           resize: 'vertical',
         }}
       />
-      <div style={{ marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
+      <label style={{ display: 'block', marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
         {t('importModal.uploadHint')}
         <input
           type="file"
@@ -153,7 +172,7 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
             if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
               try {
                 const buffer = await file.arrayBuffer();
-                const workflow = extractWorkflowFromPng(new Uint8Array(buffer));
+                const workflow = asWorkflow(extractWorkflowFromPng(new Uint8Array(buffer)));
                 if (workflow) {
                   onImport(workflow);
                   onClose();
@@ -172,12 +191,17 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
               }
               return;
             }
+            const extension = file.name.toLowerCase().split('.').pop();
+            const formatForExtension: Record<string, ImportFormat> = {
+              json: 'json', smk: 'snakemake', nf: 'nextflow', cwl: 'cwl', ga: 'galaxy',
+            };
+            if (extension && formatForExtension[extension]) setFormat(formatForExtension[extension]);
             const reader = new FileReader();
             reader.onload = () => setSource(reader.result as string);
             reader.readAsText(file);
           }}
         />
-      </div>
+      </label>
     </Dialog>
   );
 }

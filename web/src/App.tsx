@@ -293,10 +293,11 @@ export default function App() {
   const { get, getBool, set, ready: settingsReady } = useSettings();
   const {
     workflows, activeIndex, activeWorkflow, validation, resolveReport, runs,
-    setWorkflow, updateWorkflow, addTab, addWorkflow, closeTab, reorderWorkflows, setActiveIndex,
+    setWorkflow, updateWorkflow, addTab, addWorkflow, addCloudWorkflow, closeTab, reorderWorkflows, setActiveIndex,
     openCloudWorkflow, newCloudWorkflow,
+    cloudSaveStates, retryCloudSave,
     validate, resolve, clearResolveReport, submitRun, addRun, updateRun, setRuns,
-    cloudRestored,
+    cloudRestored, cloudLoadError,
   } = useWorkflow();
   // Theme is fully owned by the palette system (usePaletteTheme + state/palettes),
   // which applies the active palette and its light/dark class on load and on change.
@@ -431,6 +432,40 @@ export default function App() {
   const computeSpec = useAtomValue(computeSpecAtom);
   // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
   const { cloudConfig, cloudMode, editorMode } = useCloudConfig();
+  useEffect(() => {
+    if (!editorMode || !cloudLoadError) {
+      toast.dismiss('cloud-workflow-load-error');
+      return;
+    }
+    toast.show({
+      id: 'cloud-workflow-load-error', tone: 'error', duration: 0, dismissible: true,
+      title: t('cloudSave.loadFailedTitle'),
+      message: t('cloudSave.loadFailedMessage'),
+      actions: [{ label: t('cloudSave.newWorkflow'), onClick: () => void newCloudWorkflow(), dismiss: true }],
+    });
+  }, [editorMode, cloudLoadError, newCloudWorkflow, t]);
+  const shownCloudSaveErrorsRef = useRef(new Set<string>());
+  useEffect(() => {
+    const failed = new Set(Object.entries(cloudSaveStates)
+      .filter(([, state]) => state.phase === 'error' || state.phase === 'local').map(([id]) => id));
+    for (const id of shownCloudSaveErrorsRef.current) {
+      if (!failed.has(id)) {
+        toast.dismiss(`cloud-save-${id}`);
+        shownCloudSaveErrorsRef.current.delete(id);
+      }
+    }
+    for (const id of failed) {
+      if (shownCloudSaveErrorsRef.current.has(id)) continue;
+      shownCloudSaveErrorsRef.current.add(id);
+      const isLocal = cloudSaveStates[id]?.phase === 'local';
+      toast.show({
+        id: `cloud-save-${id}`, tone: isLocal ? 'warning' : 'error', duration: 0, dismissible: true,
+        title: t(isLocal ? 'cloudSave.localDraftTitle' : 'cloudSave.failedTitle'),
+        message: t(isLocal ? 'cloudSave.localDraftMessage' : 'cloudSave.failedMessage'),
+        actions: isLocal ? [] : [{ label: t('cloudSave.retry'), onClick: () => retryCloudSave(id), dismiss: true }],
+      });
+    }
+  }, [cloudSaveStates, retryCloudSave, t]);
   // True once /api/config has resolved (success or fallback). Host-only boot
   // polls wait for this so they don't fire in the sub-second window before
   // editorMode is known — otherwise the cloud editor briefly hits host-only
@@ -541,7 +576,7 @@ export default function App() {
           if (!created.id) throw new Error('Cloud workflow has no ID');
           doiTabId = created.id;
           doiCloudTabId = created.id;
-          addWorkflow(created);
+          addCloudWorkflow(created);
         } catch (error) {
           toast.info(
             t('doiFlow.localDraftTitle', { defaultValue: 'Cloud save unavailable; this draft is local' }),
@@ -642,7 +677,7 @@ export default function App() {
         { id: 'doi-flow', message: t('doiFlow.interruptedHint', { defaultValue: 'The workflow tab was closed or became unavailable. Open the DOI link again to retry.' }) },
       );
     });
-  }, [editorMode, configResolved, objectInfoLoading, authUser, cloudRestored, objectInfo, addWorkflow, openCloudWorkflow, setWorkflow, updateWorkflow, t]);
+  }, [editorMode, configResolved, objectInfoLoading, authUser, cloudRestored, objectInfo, addWorkflow, addCloudWorkflow, openCloudWorkflow, setWorkflow, updateWorkflow, t]);
 
   useEffect(() => {
     if (initialRequestedWorkflowId && requestedWorkflowId !== initialRequestedWorkflowId) {
@@ -1575,6 +1610,9 @@ export default function App() {
   }, [setFocusMode]);
   const [dismissedReport, setDismissedReport] = useState<ResolveReport | null>(null);
   const [dirty, setDirty] = useState(false);
+  const cloudUnsavedIds = useMemo(() => new Set(Object.keys(cloudSaveStates)), [cloudSaveStates]);
+  const activeDirty = editorMode ? cloudUnsavedIds.has(activeWorkflow.id || '') : dirty;
+  const hasUnsavedWorkflows = editorMode ? cloudUnsavedIds.size > 0 : dirty;
 
   const startPanelResize = useCallback((tab: OpenPanelTab, startClientX: number, startWidth: number, isRight = false) => {
     const sign = isRight ? -1 : 1;
@@ -3360,9 +3398,10 @@ export default function App() {
   useAutoSave({
     autoSaveSetting,
     collabEnabled: collabSessionActive,
-    latestWorkflow: latestWorkflowRef.current,
+    latestWorkflow: activeWorkflow,
     publishCollabWorkflowSnapshot,
     setDirty,
+    clearDirtyOnInterval: !editorMode,
   });
 
   const workflowResolveKey = useMemo(() => JSON.stringify({
@@ -3403,7 +3442,7 @@ export default function App() {
   }, [workflowResolveKey, validate, resolve, clearResolveReport]);
 
   const { queueMode, setQueueMode } = useQueueMode({
-    dirty,
+    dirty: activeDirty,
     isRunning,
     activeNodes: activeWorkflow.nodes,
     runs,
@@ -3421,13 +3460,13 @@ export default function App() {
           persistViewportStore();
         }
       }
-      if (!dirty) return;
+      if (!hasUnsavedWorkflows) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [activeIndex, dirty, persistViewportStore, workflows]);
+  }, [activeIndex, hasUnsavedWorkflows, persistViewportStore, workflows]);
 
   // Reset banners when workflow changes
   useEffect(() => {
@@ -3762,10 +3801,7 @@ export default function App() {
         active={activeIndex}
         onChange={setActiveIndex}
         onClose={async (index) => {
-          // Guard the active tab if it has unsaved changes; other tabs
-          // currently don't track dirtiness individually so we close them
-          // without confirmation (autosave covers the common case).
-          if (index === activeIndex && dirty) {
+          if (editorMode ? cloudUnsavedIds.has(workflows[index]?.id || '') : index === activeIndex && dirty) {
             const wfName = workflows[index]?.name || t('workflowTabs.thisWorkflow');
             const ok = await confirmDialog({
               title: t('workflowTabs.closeUnsavedTitle'),
@@ -3781,7 +3817,9 @@ export default function App() {
         onRename={handleRenameTab}
         onDuplicate={handleDuplicateTab}
         onReorder={handleReorderTabs}
-        dirtyIndices={dirty ? new Set([activeIndex]) : undefined}
+        dirtyIndices={editorMode
+          ? new Set(workflows.flatMap((wf, index) => cloudUnsavedIds.has(wf.id || '') ? [index] : []))
+          : dirty ? new Set([activeIndex]) : undefined}
       />
 
       <LeftRail active={railTab} onChange={setRailTab} />

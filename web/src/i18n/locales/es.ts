@@ -400,6 +400,8 @@ const es = {
     runMenu: 'Ejecutar',
     helpMenu: 'Ayuda',
     newWorkflow: 'Nuevo flujo de trabajo',
+    localDraftTitle: 'Este flujo de trabajo es un borrador local',
+    localDraftMessage: 'No esta guardado en la nube. Exporta el flujo de trabajo antes de salir de esta pagina.',
     openWorkflow: 'Abrir workflow...',
     saveWorkflow: 'Guardar workflow',
     saveWorkflowAs: 'Guardar workflow como...',
@@ -2582,6 +2584,7 @@ const es = {
       galaxy: '{\n  "a_galaxy_workflow": "true",\n  "steps": {...}\n}',
     },
     uploadHint: 'Pega codigo de flujo de trabajo arriba o sube un archivo (los PNG con metadatos de flujo de trabajo incrustados se decodifican automaticamente):',
+    sourceLabel: 'Codigo fuente del flujo de trabajo',
     parsing: 'Analizando...',
     errors: {
       parseFormat: 'No se pudo analizar el flujo de trabajo. Asegurate de que el formato sea correcto.',
@@ -2591,6 +2594,14 @@ const es = {
       pngReadFailedTitle: 'No se pudo leer el PNG',
       pngReadFailedMessage: 'No se pudo leer el PNG del flujo de trabajo. Exporta el flujo de trabajo de nuevo o importa el archivo JSON.',
     },
+  },
+  cloudSave: {
+    loadFailedTitle: 'No se pudieron restaurar los flujos de trabajo en la nube',
+    loadFailedMessage: 'Las pestanas abiertas se conservaron para la proxima visita. Abre un flujo de trabajo o crea uno nuevo para continuar.',
+    newWorkflow: 'Nuevo flujo de trabajo',
+    failedTitle: 'No se pudo guardar el flujo de trabajo',
+    failedMessage: 'Los cambios siguen abiertos en esta sesion. Vuelve a guardar antes de salir.',
+    retry: 'Reintentar guardado',
   },
   exportModal: {
     title: 'Exportar flujo de trabajo',
