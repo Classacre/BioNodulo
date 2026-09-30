@@ -573,11 +573,10 @@ export default function App() {
           setDoiTelemetry(prev => ({ ...prev, active: false }));
           return;
         }
-        // An empty line is the flow's completion signal: the island keeps the
-        // stage lines visible ("Built from paper") and settles on its own.
+        // Keep stage lines visible while the outcome callback settles the title.
         setDoiTelemetry((prev) =>
           line
-            ? { ...prev, active: true, lines: [...prev.lines, line] }
+            ? { ...prev, active: true, result: 'running', lines: [...prev.lines, line] }
             : { ...prev, active: false },
         );
       },
@@ -591,10 +590,22 @@ export default function App() {
       },
       notify: {
         loading: (title, id) => toast.loading(title, { id }),
-        success: (title, id, message) => toast.success(title, { id, message }),
-        info: (title, id, message) => toast.info(title, { id, message, duration: 8000 }),
-        error: (title, id, message) => toast.error(title, { id, message }),
-        dismiss: (id) => toast.dismiss(id),
+        success: (title, id, message) => {
+          setDoiTelemetry(prev => ({ ...prev, active: false, result: 'succeeded' }));
+          toast.success(title, { id, message });
+        },
+        info: (title, id, message) => {
+          setDoiTelemetry(prev => ({ ...prev, active: false, result: 'succeeded' }));
+          toast.info(title, { id, message, duration: 8000 });
+        },
+        error: (title, id, message) => {
+          setDoiTelemetry(prev => ({ ...prev, active: false, result: 'failed' }));
+          toast.error(title, { id, message });
+        },
+        dismiss: (id) => {
+          setDoiTelemetry(prev => ({ ...prev, active: false, result: 'cancelled' }));
+          toast.dismiss(id);
+        },
         guestBanner: () => toast.show({
           id: 'doi-guest-banner',
           tone: 'info',
@@ -606,7 +617,7 @@ export default function App() {
       t,
     }).catch(() => {
       setDoiUploadRequest(null);
-      setDoiTelemetry(prev => ({ ...prev, active: false }));
+      setDoiTelemetry(prev => ({ ...prev, active: false, result: 'failed' }));
       toast.error(
         t('doiFlow.interruptedTitle', { defaultValue: 'Paper workflow build stopped' }),
         { id: 'doi-flow', message: t('doiFlow.interruptedHint', { defaultValue: 'The workflow tab was closed or became unavailable. Open the DOI link again to retry.' }) },

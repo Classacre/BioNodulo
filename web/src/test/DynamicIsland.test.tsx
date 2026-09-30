@@ -101,6 +101,23 @@ describe('DynamicIsland', () => {
     }
   });
 
+  it('marks the interrupted DOI stage as failed instead of claiming the paper was built', () => {
+    const { rerender } = render(
+      <DynamicIsland workflow={workflow} systemStats={false} doi={EMPTY_DOI_TELEMETRY} />,
+    );
+    rerender(<DynamicIsland workflow={workflow} systemStats={false} doi={{
+      ...EMPTY_DOI_TELEMETRY, active: true, result: 'running', lines: ['Resolving DOI…', 'Analysing paper…'],
+    }} />);
+    rerender(<DynamicIsland workflow={workflow} systemStats={false} doi={{
+      ...EMPTY_DOI_TELEMETRY, result: 'failed', lines: ['Resolving DOI…', 'Analysing paper…'],
+    }} />);
+    expect(document.querySelector('.island-peek-title')?.textContent).toBe('Paper import failed');
+    fireEvent.click(document.querySelector('.island-pill') as HTMLElement);
+    expect(document.querySelector('.workflow-stats-doi-title')?.textContent).toBe('Paper import failed');
+    expect(Array.from(document.querySelectorAll('.workflow-stats-doi-mark')).map(mark => mark.textContent)).toEqual(['✓', '✕']);
+    expect(document.querySelector('.island-full')?.textContent).not.toContain('Built from paper');
+  });
+
   it('fully expands on click and folds on the collapse button', () => {
     render(<DynamicIsland workflow={workflow} systemStats={false} />);
     fireEvent.click(screen.getByRole('button'));

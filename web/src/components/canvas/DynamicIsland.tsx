@@ -61,7 +61,8 @@ interface SystemStats {
 /** Live telemetry for an in-flight (or just-finished) AI workflow build. */
 export interface DoiTelemetry {
   active: boolean;
-  /** Completed stage lines, oldest first. */
+  result: 'idle' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  /** Stage lines, oldest first; the final line can be active or failed. */
   lines: string[];
   /** Sanitized model label currently answering (e.g. "glm-5.2"), or null. */
   model: string | null;
@@ -75,6 +76,7 @@ export interface DoiTelemetry {
 
 export const EMPTY_DOI_TELEMETRY: DoiTelemetry = {
   active: false,
+  result: 'idle',
   lines: [],
   model: null,
   thinking: '',
@@ -180,6 +182,15 @@ export default function DynamicIsland({ workflow, hidden, systemStats = true, do
   const stats = useMemo(() => summarise(workflow, t, t('workflowStats.categoryFallback')), [workflow, t]);
 
   const doiActive = Boolean(doi?.active);
+  const doiFailed = doi?.result === 'failed';
+  const doiCancelled = doi?.result === 'cancelled';
+  const doiTitle = doiFailed
+    ? t('doiFlow.islandTitleFailed', { defaultValue: 'Paper import failed' })
+    : doiCancelled
+      ? t('doiFlow.islandTitleCancelled', { defaultValue: 'Paper import cancelled' })
+      : doiActive
+        ? t('doiFlow.islandTitleActive', { defaultValue: 'Building from paper' })
+        : t('doiFlow.islandTitleDone', { defaultValue: 'Built from paper' });
   const showDoi = Boolean(doi && (doi.active || doi.lines.length > 0));
 
   // --- notifications: the island is the toast surface now -------------------
@@ -346,11 +357,7 @@ export default function DynamicIsland({ workflow, hidden, systemStats = true, do
           <button type="button" className="island-peek" onClick={expand}>
             {showDoi ? (
               <>
-                <span className="island-peek-title">
-                  {doiActive
-                    ? t('doiFlow.islandTitleActive', { defaultValue: 'Building from paper' })
-                    : t('doiFlow.islandTitleDone', { defaultValue: 'Built from paper' })}
-                </span>
+                <span className="island-peek-title" style={doiFailed ? { color: 'var(--danger)' } : undefined}>{doiTitle}</span>
                 {doi?.model && <span className="island-chip">{doi.model}</span>}
                 <span className="island-peek-line">{lastLine || t('doiFlow.islandWorking', { defaultValue: 'Working…' })}</span>
               </>
@@ -391,11 +398,7 @@ export default function DynamicIsland({ workflow, hidden, systemStats = true, do
       {showDoi && doi && (
         <div className="workflow-stats-doi">
           <div className="workflow-stats-doi-header">
-            <span className="workflow-stats-doi-title">
-              {doiActive
-                ? t('doiFlow.islandTitleActive', { defaultValue: 'Building from paper' })
-                : t('doiFlow.islandTitleDone', { defaultValue: 'Built from paper' })}
-            </span>
+            <span className="workflow-stats-doi-title" style={doiFailed ? { color: 'var(--danger)' } : undefined}>{doiTitle}</span>
             {doi.model && <span className="workflow-stats-chip">{doi.model}</span>}
             {(doi.outputTokens > 0 || doi.inputTokens > 0) && (
               <span className="workflow-stats-chip">
@@ -408,8 +411,10 @@ export default function DynamicIsland({ workflow, hidden, systemStats = true, do
             {doi.lines.map((line, i) => {
               const isLast = i === doi.lines.length - 1;
               return (
-                <div key={`${i}-${line}`} className="workflow-stats-doi-row" style={{ opacity: isLast && doiActive ? 1 : 0.55 }}>
-                  <span className="workflow-stats-doi-mark">{isLast && doiActive ? '●' : '✓'}</span>
+                <div key={`${i}-${line}`} className="workflow-stats-doi-row" style={{ opacity: isLast && (doiActive || doiFailed || doiCancelled) ? 1 : 0.55 }}>
+                  <span className="workflow-stats-doi-mark" style={isLast && doiFailed ? { color: 'var(--danger)' } : undefined}>
+                    {isLast && doiFailed ? '✕' : isLast && doiCancelled ? '—' : isLast && doiActive ? '●' : '✓'}
+                  </span>
                   <span>{line}</span>
                 </div>
               );

@@ -499,7 +499,7 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
 
   deps.fitView();
   deps.getWorkflow(); // The DOI tab may have been closed during the staged build.
-  deps.onProgress('');
+  if (cloudTab) progress('doiFlow.stepSaving', 'Saving workflow…');
   try {
     await deps.persistWorkflow?.();
   } catch {
@@ -510,6 +510,7 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
     );
     return;
   }
+  deps.onProgress('');
   if (matchedCount === 0) {
     notify.info(
       t('doiFlow.noMatchedToolsTitle', { defaultValue: 'Paper analysed; no registered tools matched' }),
