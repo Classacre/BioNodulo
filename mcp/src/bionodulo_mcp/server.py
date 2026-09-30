@@ -18,6 +18,7 @@ from typing import Any
 import os
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 
 from .auth import AuthError, build_token_provider
 from .client import ApiError, CloudClient, DesktopClient
@@ -25,12 +26,10 @@ from .config import load_settings
 
 
 def _http_auth():
-    """Optional bearer-token auth for the HTTP transport.
+    """Bearer-token verifier for the loopback-only personal HTTP transport.
 
-    When serving over HTTP (e.g. for ChatGPT / Claude.ai connectors or a
-    shared team deployment), set BIONODULO_MCP_TOKEN to require
-    ``Authorization: Bearer <token>`` on every MCP request. Stdio transport
-    never uses this (the parent process owns the pipe).
+    The entry point refuses HTTP without BIONODULO_MCP_TOKEN. Cloud users
+    should connect to the hosted OAuth MCP endpoint instead.
     """
     token = os.environ.get("BIONODULO_MCP_TOKEN")
     if not token:
@@ -42,6 +41,8 @@ def _http_auth():
     )
 
 
+_cloud_enabled = os.environ.get("BIONODULO_CLOUD", "1").lower() not in {"0", "false", "no"}
+
 mcp = FastMCP(
     "BioNodulo",
     auth=_http_auth(),
@@ -52,6 +53,9 @@ mcp = FastMCP(
         "manage workflows and files, use the hosted AI, manage collaboration "
         "invites and team members, and — when the desktop app is running — "
         "interact with the local execution engine (desktop_* tools)."
+    ) if _cloud_enabled else (
+        "Use desktop_* tools to inspect and operate the local BioNodulo app. "
+        "Cloud account, billing, and team tools are disabled in this connector."
     ),
 )
 
@@ -88,16 +92,24 @@ def _desktop_client() -> DesktopClient:
 
 
 def _guard(func):
-    """Convert API/auth errors into structured tool results."""
+    """Raise MCP tool errors so clients receive isError=true."""
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
-            return await func(*args, **kwargs)
+            result = await func(*args, **kwargs)
+            if isinstance(result, dict) and result.get("ok") is False:
+                raise ToolError(str(result.get("error") or "The operation failed."))
+            return result
         except (ApiError, AuthError) as exc:
-            return {"ok": False, "error": str(exc)}
+            raise ToolError(str(exc)) from exc
 
     return wrapper
+
+
+def _cloud_registration(decorator):
+    """Omit personal cloud tools in desktop-only packages."""
+    return decorator if _cloud_enabled else (lambda func: func)
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +117,7 @@ def _guard(func):
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_account_info() -> Any:
     """Get the signed-in BioNodulo user's account info.
@@ -115,14 +127,14 @@ async def get_account_info() -> Any:
     return await _cloud_client().get("/api/me")
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_service_health() -> Any:
     """Check the BioNodulo cloud service health (public endpoint, no auth)."""
     return await CloudClient(_settings.api_url, token_provider=None).get("/api/health")
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_credit_balance() -> Any:
     """Get the team's credit balance and plan.
@@ -133,14 +145,14 @@ async def get_credit_balance() -> Any:
     return await _cloud_client().get("/api/billing/credits")
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_credit_usage() -> Any:
     """Get the team's detailed credit usage / consumption ledger."""
     return await _cloud_client().get("/api/billing/usage")
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_usage_analytics(days: int = 30) -> Any:
     """Get dashboard usage analytics (credit consumption over time).
@@ -153,10 +165,10 @@ async def get_usage_analytics(days: int = 30) -> Any:
     return await _cloud_client().get("/api/dashboard/usage", params={"days": days})
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def estimate_run_cost(vcpu: float, ram_gb: float) -> Any:
-    """Estimate the credit cost of a cloud run for a given compute size.
+    """Get the credit rate per second/hour for a compute size.
 
     Args:
         vcpu: Number of virtual CPUs.
@@ -167,7 +179,7 @@ async def estimate_run_cost(vcpu: float, ram_gb: float) -> Any:
     )
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def list_invoices() -> Any:
     """List the team's billing invoices (Stripe top-ups and subscriptions)."""
@@ -181,7 +193,7 @@ async def list_invoices() -> Any:
 _RESOURCE_PROFILES = "micro, small, medium, large, gpu, xlarge, extreme"
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def list_runs() -> Any:
     """List the team's recent workflow runs (up to 50, newest first).
@@ -192,7 +204,7 @@ async def list_runs() -> Any:
     return await _cloud_client().get("/api/runs")
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_run_status(run_id: str) -> Any:
     """Get a run's current status snapshot.
@@ -206,7 +218,7 @@ async def get_run_status(run_id: str) -> Any:
     return await _cloud_client().get(f"/api/runs/{run_id}")
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_run_events(run_id: str) -> Any:
     """Get the durable event ledger for a run (lifecycle and node events).
@@ -217,7 +229,7 @@ async def get_run_events(run_id: str) -> Any:
     return await _cloud_client().get(f"/api/runs/{run_id}/events")
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_run_outputs(run_id: str) -> Any:
     """List the output files produced by a run (with download locations).
@@ -228,7 +240,7 @@ async def get_run_outputs(run_id: str) -> Any:
     return await _cloud_client().get(f"/api/runs/{run_id}/outputs")
 
 
-@mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False}))
 @_guard
 async def submit_run(
     workflow_id: str,
@@ -270,7 +282,7 @@ async def submit_run(
     return await _cloud_client().post("/api/runs", json=body)
 
 
-@mcp.tool(annotations={"openWorldHint": True, "destructiveHint": True})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "destructiveHint": True}))
 @_guard
 async def cancel_run(run_id: str) -> Any:
     """Cancel a queued or running cloud run.
@@ -286,14 +298,14 @@ async def cancel_run(run_id: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def list_workflows() -> Any:
     """List the team's saved workflows (id, name, description, updated time)."""
     return await _cloud_client().get("/api/workflows")
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_workflow(workflow_id: str) -> Any:
     """Get a saved workflow, including its node-graph definition.
@@ -304,7 +316,7 @@ async def get_workflow(workflow_id: str) -> Any:
     return await _cloud_client().get(f"/api/workflows/{workflow_id}")
 
 
-@mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False}))
 @_guard
 async def create_workflow(
     name: str,
@@ -326,7 +338,7 @@ async def create_workflow(
     return await _cloud_client().post("/api/workflows", json=body)
 
 
-@mcp.tool(annotations={"openWorldHint": True, "idempotentHint": True})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "idempotentHint": True}))
 @_guard
 async def update_workflow(
     workflow_id: str,
@@ -354,7 +366,7 @@ async def update_workflow(
     return await _cloud_client().put(f"/api/workflows/{workflow_id}", json=body)
 
 
-@mcp.tool(annotations={"openWorldHint": True, "destructiveHint": True})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "destructiveHint": True}))
 @_guard
 async def delete_workflow(workflow_id: str) -> Any:
     """Delete a workflow. This cannot be undone.
@@ -370,7 +382,7 @@ async def delete_workflow(workflow_id: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def list_files() -> Any:
     """List the team's files: uploads and run outputs, with download URLs.
@@ -380,29 +392,46 @@ async def list_files() -> Any:
     return await _cloud_client().get("/api/files")
 
 
-@mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False}))
 @_guard
-async def get_upload_url(filename: str, content_type: str = "application/octet-stream") -> Any:
+async def get_upload_url(filename: str, size: int, content_type: str = "application/octet-stream") -> Any:
     """Get a presigned URL to upload a file to the team's storage.
 
     Args:
         filename: Name of the file to upload.
+        size: Exact file size in bytes; the server verifies this after upload.
         content_type: MIME type of the file.
     """
+    if size < 0:
+        raise ToolError("size must be non-negative")
     return await _cloud_client().post(
-        "/api/files/presign", json={"filename": filename, "contentType": content_type}
+        "/api/files/presign", json={"filename": filename, "size": size, "contentType": content_type}
     )
 
 
-@mcp.tool(annotations={"openWorldHint": True, "destructiveHint": True})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "idempotentHint": True}))
 @_guard
-async def delete_file(file_id: str) -> Any:
+async def complete_file_upload(key: str) -> Any:
+    """Verify and finish an upload after PUT succeeds at the presigned URL.
+
+    Args:
+        key: Storage key returned by get_upload_url.
+    """
+    return await _cloud_client().post("/api/files/complete", json={"key": key})
+
+
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "destructiveHint": True}))
+@_guard
+async def delete_file(key: str, source: str = "upload") -> Any:
     """Delete a file from the team's storage.
 
     Args:
-        file_id: The file id (from list_files).
+        key: Storage key from list_files.
+        source: The file source from list_files, either upload or output.
     """
-    return await _cloud_client().post("/api/files/delete", json={"fileId": file_id})
+    if source not in {"upload", "output"}:
+        raise ToolError("source must be upload or output")
+    return await _cloud_client().post("/api/files/delete", json={"key": key, "source": source})
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +439,7 @@ async def delete_file(file_id: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def get_ai_analysis(
     analysis_id: str | None = None, doi: str | None = None
@@ -430,7 +459,7 @@ async def get_ai_analysis(
     return await _cloud_client().get("/api/ai/status", params=params)
 
 
-@mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False}))
 @_guard
 async def chat_with_bionodulo_ai(
     message: str,
@@ -461,7 +490,7 @@ async def chat_with_bionodulo_ai(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+@_cloud_registration(mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True}))
 @_guard
 async def list_collab_invites(workflow_id: str) -> Any:
     """List share-link invites for a workflow.
@@ -474,7 +503,7 @@ async def list_collab_invites(workflow_id: str) -> Any:
     )
 
 
-@mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False}))
 @_guard
 async def create_collab_invite(workflow_id: str, role: str = "viewer") -> Any:
     """Create a share link (bni_ token) for a workflow.
@@ -490,7 +519,7 @@ async def create_collab_invite(workflow_id: str, role: str = "viewer") -> Any:
     )
 
 
-@mcp.tool(annotations={"openWorldHint": True, "destructiveHint": True})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "destructiveHint": True}))
 @_guard
 async def revoke_collab_invite(invite_id: str) -> Any:
     """Revoke a workflow share-link invite.
@@ -501,7 +530,7 @@ async def revoke_collab_invite(invite_id: str) -> Any:
     return await _cloud_client().delete("/api/collab/invites", params={"id": invite_id})
 
 
-@mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False})
+@_cloud_registration(mcp.tool(annotations={"openWorldHint": True, "idempotentHint": False}))
 @_guard
 async def invite_team_member(email: str) -> Any:
     """Invite someone to the team by email (sends a Clerk organization invite).
@@ -533,7 +562,7 @@ async def desktop_status() -> Any:
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": False})
 @_guard
 async def desktop_list_node_types(search: str | None = None) -> Any:
-    """List node types available in the desktop app's registry (~800 nodes).
+    """List node types available in the desktop app's registry.
 
     Args:
         search: Optional substring filter on node type names (case-insensitive).
@@ -559,7 +588,7 @@ async def desktop_get_node_info(node_type: str) -> Any:
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": False})
 @_guard
 async def desktop_list_templates() -> Any:
-    """List the desktop app's built-in workflow templates (23 templates)."""
+    """List the desktop app's built-in workflow templates."""
     return await _desktop_client().get("/api/workflow_templates")
 
 
@@ -659,7 +688,7 @@ async def desktop_get_system_stats() -> Any:
 # ---------------------------------------------------------------------------
 
 
-@mcp.resource("bionodulo://account")
+@_cloud_registration(mcp.resource("bionodulo://account"))
 async def account_resource() -> str:
     """Current BioNodulo account snapshot (user + team)."""
     try:
@@ -669,7 +698,7 @@ async def account_resource() -> str:
     return json.dumps(data, indent=2)
 
 
-@mcp.resource("bionodulo://credits")
+@_cloud_registration(mcp.resource("bionodulo://credits"))
 async def credits_resource() -> str:
     """Current team credit balance and plan."""
     try:
@@ -679,7 +708,7 @@ async def credits_resource() -> str:
     return json.dumps(data, indent=2)
 
 
-@mcp.resource("bionodulo://runs")
+@_cloud_registration(mcp.resource("bionodulo://runs"))
 async def runs_resource() -> str:
     """Recent cloud workflow runs (up to 50)."""
     try:
@@ -694,7 +723,7 @@ async def runs_resource() -> str:
 # ---------------------------------------------------------------------------
 
 
-@mcp.prompt
+@_cloud_registration(mcp.prompt)
 def run_status_report(run_id: str) -> str:
     """Summarize the status, events and outputs of a cloud run."""
     return (
@@ -704,7 +733,7 @@ def run_status_report(run_id: str) -> str:
     )
 
 
-@mcp.prompt
+@_cloud_registration(mcp.prompt)
 def troubleshoot_failed_run(run_id: str) -> str:
     """Diagnose why a run failed and suggest fixes."""
     return (
@@ -715,7 +744,7 @@ def troubleshoot_failed_run(run_id: str) -> str:
     )
 
 
-@mcp.prompt
+@_cloud_registration(mcp.prompt)
 def plan_cloud_run(workflow_id: str) -> str:
     """Prepare and cost-check a cloud run before submitting it."""
     return (
@@ -759,10 +788,13 @@ def main() -> None:
         choices=["claude-code", "claude-desktop", "codex", "all"],
         default="all",
     )
-    install.add_argument("--clerk-secret-key", default=os.environ.get("CLERK_SECRET_KEY"))
+    install.add_argument("--mode", choices=["remote", "personal"], default="remote")
+    install.add_argument("--url", default="https://bionodulo.com/api/mcp")
+    install.add_argument("--clerk-secret-key", default=None,
+                         help="Personal cloud mode only; prefer CLERK_SECRET_KEY environment")
     install.add_argument(
         "--user-email",
-        default=os.environ.get("BIONODULO_USER_EMAIL"),
+        default=None,
         help="BioNodulo account email (used to mint Clerk session tokens)",
     )
 
@@ -773,13 +805,19 @@ def main() -> None:
 
         install_clients(
             client=args.client,
-            clerk_secret_key=args.clerk_secret_key,
-            user_email=args.user_email,
+            clerk_secret_key=args.clerk_secret_key or (os.environ.get("CLERK_SECRET_KEY") if args.mode == "personal" else None),
+            user_email=args.user_email or (os.environ.get("BIONODULO_USER_EMAIL") if args.mode == "personal" else None),
+            mode=args.mode,
+            url=args.url,
         )
         return
 
     transport = getattr(args, "transport", "stdio")
     if transport == "http":
+        if args.host not in {"127.0.0.1", "::1", "localhost"}:
+            parser.error("Personal HTTP transport is restricted to loopback. Use the hosted OAuth endpoint for remote clients.")
+        if not os.environ.get("BIONODULO_MCP_TOKEN"):
+            parser.error("Personal HTTP transport requires BIONODULO_MCP_TOKEN.")
         mcp.run(
             transport="streamable-http",
             host=args.host,

@@ -1,0 +1,37 @@
+{
+  "manifest_version": "0.4",
+  "name": "bionodulo-desktop",
+  "display_name": "BioNodulo Desktop",
+  "version": "0.1.0",
+  "description": "Use the running BioNodulo desktop app through local MCP tools.",
+  "author": {
+    "name": "BioNodulo",
+    "url": "https://bionodulo.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Classacre/BioNodulo"
+  },
+  "homepage": "https://bionodulo.com",
+  "license": "GPL-3.0-only",
+  "keywords": ["bioinformatics", "workflows", "desktop"],
+  "server": {
+    "type": "uv",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "server.py"],
+      "env": {
+        "BIONODULO_CLOUD": "0",
+        "BIONODULO_DESKTOP": "1",
+        "BIONODULO_DESKTOP_URL": "http://127.0.0.1:8765"
+      }
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.13"
+    }
+  }
+}

@@ -1,145 +1,31 @@
-# BioNodulo MCP Server
+# BioNodulo MCP connections
 
-An [MCP](https://modelcontextprotocol.io) server (built with
-[FastMCP](https://gofastmcp.com)) that exposes the **BioNodulo platform** —
-the cloud app at [bionodulo.com](https://bionodulo.com) and, optionally, a
-locally running BioNodulo desktop app — to AI agents and chat clients
-(Claude, Codex/ChatGPT, Cursor, …).
+For normal account access, connect your AI client to BioNodulo's remote MCP server:
 
-## What it covers
+```text
+https://bionodulo.com/api/mcp
+```
 
-| Area | Tools |
-|---|---|
-| **Account** | `get_account_info`, `get_service_health` |
-| **Billing & credits** | `get_credit_balance`, `get_credit_usage`, `get_usage_analytics`, `estimate_run_cost`, `list_invoices` |
-| **Runs (cloud)** | `list_runs`, `get_run_status`, `get_run_events`, `get_run_outputs`, `submit_run`, `cancel_run` |
-| **Workflows** | `list_workflows`, `get_workflow`, `create_workflow`, `update_workflow`, `delete_workflow` |
-| **Files** | `list_files`, `get_upload_url`, `delete_file` |
-| **Hosted AI** | `get_ai_analysis`, `chat_with_bionodulo_ai` |
-| **Collab & team** | `list_collab_invites`, `create_collab_invite`, `revoke_collab_invite`, `invite_team_member` |
-| **Desktop app** (local) | `desktop_status`, `desktop_list_node_types`, `desktop_get_node_info`, `desktop_list_templates`, `desktop_validate_workflow`, `desktop_submit_run`, `desktop_get_run`, `desktop_get_run_logs`, `desktop_get_queue`, `desktop_get_history`, `desktop_get_system_stats` |
+The client starts a browser sign-in. Authorize the requested access to your BioNodulo account and team. You do not need to copy a Clerk session token or receive a Clerk backend secret. Read, write, and run actions use separate OAuth permissions, and each request is checked against the account and selected team. A default login may grant read access only; reconnect with `bionodulo:write` or `bionodulo:run` when needed. Starting a run requires the user's authorization to use that team's credits.
 
-Plus resources (`bionodulo://account`, `bionodulo://credits`,
-`bionodulo://runs`) and prompts (`run_status_report`,
-`troubleshoot_failed_run`, `plan_cloud_run`).
+See the [client guide](https://docs.bionodulo.com/mcp/clients) for ChatGPT, Claude, Codex, and Claude Code setup. The remote endpoint exposes cloud tools only; it cannot reach a desktop app running on your computer.
 
-## Install
+## Local desktop connection
+
+The Python package in this directory provides a local MCP server for desktop tools such as node inspection, local queue status, and local runs. It talks to a BioNodulo desktop backend on the same computer (default `http://127.0.0.1:8765`). A local Claude Desktop `.mcpb` extension can be built with:
 
 ```bash
-cd mcp
-uv sync
+python mcp/scripts/build_native_plugins.py
 ```
 
-## Configuration
+The [Claude Desktop extension download](https://github.com/Classacre/BioNodulo/releases/download/plugin-v0.1.0/bionodulo-desktop-0.1.0.mcpb) is the release build. Install it in Claude Desktop **Settings → Extensions**. It exposes only the local `desktop_*` tools; use the remote connector for cloud data. The portable plugin [release ZIP](https://github.com/Classacre/BioNodulo/releases/download/plugin-v0.1.0/bionodulo-plugin-0.1.0.zip) contains the cloud integration for supported plugin hosts. Sources live in `integrations/bionodulo/`; repository marketplace catalogs are under `.agents/plugins/` and `.claude-plugin/`.
 
-| Env var | Purpose |
-|---|---|
-| `BIONODULO_API_URL` | Cloud API base URL (default `https://bionodulo.com`) |
-| `BIONODULO_AUTH_TOKEN` | A pre-minted Clerk session JWT (short-lived) |
-| `CLERK_SECRET_KEY` | Clerk backend secret — enables **automatic token refresh** |
-| `BIONODULO_USER_EMAIL` / `BIONODULO_USER_ID` | Which Clerk user to mint session tokens for |
-| `BIONODULO_TEAM_ID` | Optional `X-Team-Id` override (defaults to first team) |
-| `BIONODULO_DESKTOP_URL` | Local desktop backend (default `http://127.0.0.1:8765`) |
-| `BIONODULO_DESKTOP` | Set to `0` to disable the `desktop_*` tools |
-| `BIONODULO_MCP_TOKEN` | Require this bearer token on the HTTP transport |
+For source development, install this Python package with `uv sync` from the `mcp/` directory and use `uv run bionodulo-mcp` for stdio. The desktop app must be running for `desktop_*` tools to work.
 
-Authentication: the cloud API accepts a Clerk session JWT as a bearer token.
-Because session JWTs are short-lived, the recommended setup is
-`CLERK_SECRET_KEY` + `BIONODULO_USER_EMAIL`: the server mints and refreshes
-10-minute session tokens from the user's most recently active Clerk session
-(preferring sessions with an active organization), entirely server-side.
-Alternatively pass a fixed `BIONODULO_AUTH_TOKEN`.
+## Developer and operator configuration
 
-## Connect your client
+The legacy Python server can also call BioNodulo cloud APIs. Its `CLERK_SECRET_KEY` plus `BIONODULO_USER_EMAIL` or `BIONODULO_USER_ID` flow uses a **backend administrator secret** to mint session tokens. It is an advanced server-operator path, not user connection setup. Keep that secret in trusted server infrastructure; never put it in AI client configuration, an extension bundle, or documentation examples for end users. A fixed `BIONODULO_AUTH_TOKEN` is short-lived and likewise unsuitable as a general connection method.
 
-### One-shot installer (Claude Code, Claude Desktop, Codex)
+For developer reference, the package supports `BIONODULO_API_URL`, `BIONODULO_DESKTOP_URL`, `BIONODULO_DESKTOP`, and `BIONODULO_TEAM_ID`. Its optional HTTP transport can be protected with `BIONODULO_MCP_TOKEN`, but that legacy transport does not replace the public account-based OAuth endpoint above. The legacy package also includes cloud tools, three `bionodulo://` resources, and guided prompts; see its source modules for exact capabilities.
 
-```bash
-uv run bionodulo-mcp install \
-  --clerk-secret-key sk_live_... \
-  --user-email you@example.com
-```
-
-This writes/merges:
-
-- **Codex CLI, Codex IDE extension & ChatGPT desktop app** → `~/.codex/config.toml`
-  (`[mcp_servers.bionodulo]`). Verify with `codex mcp list`, and use `/mcp` in
-  a Codex session to confirm the tools are visible.
-- **Claude Desktop** → `claude_desktop_config.json` (restart Claude Desktop
-  afterwards).
-- **Claude Code** → registered at user scope via `claude mcp add`
-  (verify with `claude mcp list`).
-
-Use `--client claude-code|claude-desktop|codex` to install just one.
-
-### Codex (manual)
-
-```bash
-codex mcp add bionodulo \
-  --env CLERK_SECRET_KEY=sk_live_... \
-  --env BIONODULO_USER_EMAIL=you@example.com \
-  -- uv --directory /path/to/BioNodulo/mcp run bionodulo-mcp
-```
-
-### Claude Code (manual)
-
-```bash
-claude mcp add bionodulo --scope user \
-  --env CLERK_SECRET_KEY=sk_live_... \
-  --env BIONODULO_USER_EMAIL=you@example.com \
-  -- uv --directory /path/to/BioNodulo/mcp run bionodulo-mcp
-```
-
-### Claude Desktop (manual)
-
-`%APPDATA%\Claude\claude_desktop_config.json` (Windows),
-`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
-
-```json
-{
-  "mcpServers": {
-    "bionodulo": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/BioNodulo/mcp", "run", "bionodulo-mcp"],
-      "env": {
-        "CLERK_SECRET_KEY": "sk_live_...",
-        "BIONODULO_USER_EMAIL": "you@example.com"
-      }
-    }
-  }
-}
-```
-
-### ChatGPT web & Claude.ai web (remote connectors)
-
-Web chat clients can't spawn local processes — they need the server exposed
-over **HTTPS** with the streamable-HTTP transport:
-
-```bash
-# 1. Run the server over HTTP (set a token to protect the endpoint)
-export BIONODULO_MCP_TOKEN=$(openssl rand -hex 32)
-export CLERK_SECRET_KEY=sk_live_...
-export BIONODULO_USER_EMAIL=you@example.com
-uv run bionodulo-mcp serve --transport http --host 0.0.0.0 --port 8787
-
-# 2. Expose it publicly, e.g. with a Cloudflare tunnel
-cloudflared tunnel --url http://localhost:8787
-```
-
-Then, using `https://<your-host>/mcp`:
-
-- **ChatGPT**: Settings → Apps → Advanced → enable *Developer Mode* →
-  **Create app**, paste the `/mcp` URL, choose authentication (bearer token
-  via advanced settings, or none for a local tunnel you control).
-- **Claude.ai**: Customize → Connectors → **Add custom connector**, paste the
-  `/mcp` URL.
-
-> Keep `BIONODULO_MCP_TOKEN` set whenever the endpoint is reachable from the
-> internet — it gates every MCP request with `Authorization: Bearer`.
-
-## Test
-
-```bash
-CLERK_SECRET_KEY=sk_live_... BIONODULO_USER_EMAIL=you@example.com \
-  uv run python scripts/test_live.py
-```
+No live client or desktop operation is implied by building the package or installing a connector. Verify the connection and requested tools in the AI client after setup.

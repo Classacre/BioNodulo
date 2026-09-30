@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "bionodulo",
+  "version": "0.1.0",
+  "description": "Manage BioNodulo workflows, runs, files, credits, and node metadata through its authenticated MCP server.",
+  "author": {
+    "name": "BioNodulo",
+    "url": "https://bionodulo.com"
+  },
+  "homepage": "https://bionodulo.com",
+  "repository": "https://github.com/Classacre/BioNodulo",
+  "license": "GPL-3.0-only",
+  "keywords": ["bioinformatics", "workflows", "MCP"]
+}

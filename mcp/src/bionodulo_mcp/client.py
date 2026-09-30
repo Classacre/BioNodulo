@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+from urllib.parse import urlsplit
 
 from .auth import USER_AGENT
 
@@ -115,6 +116,11 @@ class DesktopClient:
     """Async client for a locally running BioNodulo desktop backend."""
 
     def __init__(self, base_url: str, timeout: float = 30.0) -> None:
+        parsed = urlsplit(base_url)
+        if (parsed.scheme != "http" or parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+                or parsed.username or parsed.password or parsed.path not in {"", "/"}
+                or parsed.query or parsed.fragment):
+            raise ApiError("The desktop endpoint must be an HTTP loopback URL.")
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
 
@@ -131,11 +137,12 @@ class DesktopClient:
                 base_url=self._base_url,
                 headers={"User-Agent": USER_AGENT},
                 timeout=self._timeout,
+                trust_env=False,
             ) as client:
                 resp = await client.request(method, path, params=params, json=json)
         except httpx.HTTPError as exc:
             raise ApiError(
-                f"Cannot reach the local BioNodulo app at {self._base_url}: {exc}. "
+                f"Cannot reach the local BioNodulo app at {self._base_url} ({type(exc).__name__}). "
                 "Start it with `python main.py --dev --port 8765` (or set "
                 "BIONODULO_DESKTOP_URL to the right address)."
             ) from exc

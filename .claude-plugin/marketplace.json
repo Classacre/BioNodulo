@@ -1,0 +1,14 @@
+{
+  "name": "bionodulo-repo",
+  "description": "BioNodulo plugins for workflow and run management.",
+  "owner": {
+    "name": "BioNodulo"
+  },
+  "plugins": [
+    {
+      "name": "bionodulo",
+      "source": "./integrations/bionodulo",
+      "description": "Manage BioNodulo workflows, runs, files, credits, and node metadata."
+    }
+  ]
+}

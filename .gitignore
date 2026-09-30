@@ -71,6 +71,7 @@ examples/data/
 # Ad-hoc QA / screenshot output produced by local tooling
 artifacts/
 output/
+integrations/dist/
 
 # Playwright run artifacts
 web/test-results/

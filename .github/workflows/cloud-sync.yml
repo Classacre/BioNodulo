@@ -131,7 +131,7 @@ jobs:
               if JOBS="$jobs" python3 - <<'PY'
           import os
           jobs = dict(line.split('\t', 1) for line in os.environ['JOBS'].splitlines())
-          required = ['Python 3.11', 'Python 3.12', 'Python 3.13', 'Python quality', 'Frontend', 'Browser E2E', 'Docker image']
+          required = ['Python 3.11', 'Python 3.12', 'Python 3.13', 'Python quality', 'Frontend', 'Browser E2E', 'Docker image', 'MCP integrations']
           raise SystemExit(0 if all(jobs.get(name) == 'success' for name in required) else 1)
           PY
               then ci_green=true; break; fi

@@ -1,0 +1,20 @@
+{
+  "name": "bionodulo-repo",
+  "interface": {
+    "displayName": "BioNodulo"
+  },
+  "plugins": [
+    {
+      "name": "bionodulo",
+      "source": {
+        "source": "local",
+        "path": "./integrations/bionodulo"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

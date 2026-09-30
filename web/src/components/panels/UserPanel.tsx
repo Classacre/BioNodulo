@@ -233,6 +233,9 @@ export default function UserPanel({ onClose, clerkAuth }: UserPanelProps) {
               <a className="btn btn-sm account-action" href={`${accountUrl}/dashboard/settings`} target="_blank" rel="noopener noreferrer">
                 <Icon name="lock" size={13} /> {t('account.apiKeys', { defaultValue: 'API keys' })} <Icon name="link" size={11} />
               </a>
+              <a className="btn btn-sm account-action" href={`${accountUrl}/dashboard/settings?tab=integrations`} target="_blank" rel="noopener noreferrer">
+                <Icon name="link" size={13} /> {t('account.aiIntegrations', { defaultValue: 'AI integrations' })} <Icon name="link" size={11} />
+              </a>
               <a className="btn btn-sm account-action" href={`${accountUrl}/dashboard/files`} target="_blank" rel="noopener noreferrer">
                 <Icon name="folder" size={13} /> {t('account.cloudFiles', { defaultValue: 'Cloud files' })} <Icon name="link" size={11} />
               </a>

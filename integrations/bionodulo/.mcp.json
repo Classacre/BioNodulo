@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bionodulo": {
+      "type": "http",
+      "url": "https://bionodulo.com/api/mcp"
+    }
+  }
+}

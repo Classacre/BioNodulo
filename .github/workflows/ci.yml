@@ -20,6 +20,30 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  mcp-integrations:
+    name: MCP integrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install locked MCP runtime
+        run: python -m pip install 'uv==0.11.15'
+      - name: Test authentication boundaries and native packaging
+        # The app's importlib test mode shadows the installed `mcp` SDK with
+        # this repository's `mcp/` directory; keep this runtime isolated.
+        run: uv run --locked --directory mcp --with pytest python -m pytest --import-mode=prepend tests/ -q
+      - name: Build native installers
+        run: uv run --locked --directory mcp python scripts/build_native_plugins.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-ai-integrations
+          path: integrations/dist/*
+          if-no-files-found: error
+          retention-days: 7
+
   python:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
@@ -225,7 +249,7 @@ jobs:
   # checks pass. A prepared website SHA can be supplied as a repository
   # variable before merging main; the cloud workflow validates its own CI.
   cloud-sync:
-    needs: [python, python-quality, frontend, e2e, docker]
+    needs: [python, python-quality, frontend, e2e, docker, mcp-integrations]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     uses: ./.github/workflows/cloud-sync.yml
     with:
@@ -302,7 +326,7 @@ jobs:
           fi
 
   desktop-release:
-    needs: [python, python-quality, frontend, e2e, check-desktop-release]
+    needs: [python, python-quality, frontend, e2e, mcp-integrations, check-desktop-release]
     if: needs.check-desktop-release.outputs.needed == 'true'
     # Releasing from a red commit is worse than releasing late, hence the full
     # `needs` above.
