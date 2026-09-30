@@ -426,8 +426,8 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
   const allEdges = wireSuggestion(planned, suggestion.suggestedConnections ?? [], deps.objectInfo);
   const matchedCount = planned.filter(p => p.node.type !== 'note').length;
   const unmatched = planned.filter(p => p.node.type === 'note').map(p => p.label);
-  const unconnected = planned.filter(p => p.node.type !== 'note').slice(1)
-    .filter(p => !allEdges.some(edge => edge.to.node === p.node.id))
+  const unconnected = planned.filter(p => p.node.type !== 'note')
+    .filter(p => !allEdges.some(edge => edge.to.node === p.node.id || edge.from.node === p.node.id))
     .map(p => p.label);
 
   const positions = dagreLayout(
@@ -458,9 +458,9 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
     (analysis.summary || '').trim(),
     suggestion.description ? `Suggested approach: ${suggestion.description}` : '',
     analysis.methodology?.pipeline?.length ? `Paper methods:\n${analysis.methodology.pipeline.map((step, i) => `${i + 1}. ${step}`).join('\n')}` : '',
-    `Registered tool coverage: ${matchedCount}/${planned.length} suggested steps. Review all inputs and parameters before running.`,
+    `Registered tool coverage: ${matchedCount}/${planned.length} suggested steps. Tool parameters use defaults, not experimental settings extracted from this paper. Supply required files and verify design, contrast, and other parameters where applicable before running.`,
     unmatched.length ? `Unmatched suggestions (shown as notes): ${unmatched.join(', ')}` : '',
-    unconnected.length ? `Unconnected steps (no valid suggested connection): ${unconnected.join(', ')}` : '',
+    unconnected.length ? `Unconnected steps (no incoming or outgoing valid suggested connection): ${unconnected.join(', ')}` : '',
     recommended.length ? `Why these steps:\n${recommended.map(rec => `- ${rec.name}: ${rec.reason || 'No rationale supplied'}`).join('\n')}` : '',
   ]
     .filter(Boolean)

@@ -271,7 +271,7 @@ describe('runDoiFlow', () => {
     expect(pipeline).toHaveLength(3);
     expect(wf.edges).toEqual([]);
     expect(String(wf.nodes[0].params.text)).toContain('Unconnected steps');
-    expect(String(wf.nodes[0].params.text)).toContain('no valid suggested connection');
+    expect(String(wf.nodes[0].params.text)).toContain('no incoming or outgoing valid suggested connection');
   });
 
   it('leaves incompatible steps unconnected and explains the gap', async () => {
@@ -319,6 +319,10 @@ describe('runDoiFlow', () => {
     await runDoiFlow('10.1/deseq2', h.deps);
     expect(h.getWf().nodes.map(node => node.type)).toEqual(['note', 'input_file', 'input_file', 'deseq2']);
     expect(h.getWf().edges.map(edge => edge.to.input)).toEqual(['count_matrix', 'sample_info']);
+    const summary = String(h.getWf().nodes[0].params.text);
+    expect(summary).not.toContain('Unconnected steps');
+    expect(summary).toContain('Tool parameters use defaults, not experimental settings extracted from this paper');
+    expect(summary).toContain('Supply required files and verify design, contrast');
   });
 
   it('does not replace an unknown explicit nodeType with a name match', async () => {
