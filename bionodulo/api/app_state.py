@@ -26,6 +26,12 @@ class AppState:
 
     @property
     def workspace_root(self) -> Path:
+        # A running app owns its startup workspace. Re-reading process-wide
+        # environment here could send lazy collaboration stores to a different
+        # root than its executor/settings (or another app in the same process).
+        settings = getattr(self.state, "settings", None)
+        if settings is not None:
+            return Path(settings.project_root).resolve()
         return resolve_workspace_root()
 
     @property

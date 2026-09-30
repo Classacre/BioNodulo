@@ -26,7 +26,7 @@ def _workflow(node_type: str) -> dict:
                 "type": node_type,
                 "widgets": {},
                 "outputs": {
-                    "html": {"path": "results/qc/fastqc.html"},
+                    "report_dir": {"path": "results/qc/report_dir_output"},
                 },
                 "meta": {},
             }
@@ -45,7 +45,7 @@ def _frontend_connected_workflow() -> dict:
                 "type": "fastqc",
                 "widgets": {},
                 "outputs": {
-                    "html": {"path": "results/qc/fastqc.html"},
+                    "report_dir": {"path": "results/qc/report_dir_output"},
                 },
                 "meta": {},
             },
@@ -55,7 +55,8 @@ def _frontend_connected_workflow() -> dict:
                 "widgets": {},
                 "inputs": {"reports": {"type": "FILE"}},
                 "outputs": {
-                    "html": {"path": "results/summary/multiqc.html"},
+                    "report": {"path": "results/summary/report_output"},
+                    "data_dir": {"path": "results/summary/data_dir_output"},
                 },
                 "meta": {},
             },
@@ -63,7 +64,7 @@ def _frontend_connected_workflow() -> dict:
         "edges": [
             {
                 "id": "edge-qc-summary",
-                "from": {"node": "qc", "output": "html"},
+                "from": {"node": "qc", "output": "report_dir"},
                 "to": {"node": "summary", "input": "reports"},
             }
         ],
@@ -74,10 +75,10 @@ def _frontend_node_info_output_workflow() -> dict:
     workflow = _frontend_connected_workflow()
     for node in workflow["nodes"]:
         node.pop("outputs", None)
-        node["node_info"] = {
-            "return_names": ["html"],
-            "return_types": ["FILE"],
-        }
+        node["node_info"] = ({"return_names": ["report_dir"], "return_types": ["QC_REPORT_DIR"]}
+                             if node["type"] == "fastqc" else
+                             {"return_names": ["report", "data_dir"],
+                              "return_types": ["HTML_REPORT", "DIRECTORY"]})
     return workflow
 
 
@@ -200,24 +201,28 @@ def _merge_tables_workflow() -> dict:
 
 
 def _cwl_runner_command(tool: dict, replacements: dict[str, str]) -> list[str]:
-    return [*tool["baseCommand"], *(replacements.get(argument, argument) for argument in tool["arguments"])]
+    def replace(argument: str) -> str:
+        if argument.startswith("$(String(inputs.") and argument.endswith("))"):
+            argument = "$(inputs." + argument[len("$(String(inputs."):-2] + ")"
+        return replacements.get(argument, argument)
+    return [*tool["baseCommand"], *(replace(argument) for argument in tool["arguments"])]
 
 
 def test_export_workflow_delegates_to_pipeline_converters() -> None:
     snakemake = export_workflow(_workflow("fastqc"), "snakemake", name="qc")
     nextflow = export_workflow(_workflow("fastqc"), "nextflow", name="qc")
-    cwl = export_workflow(_workflow("fastqc"), "cwl", name="qc")
+    cwl = export_workflow(_normalize_data_workflow(), "cwl", name="norm")
     galaxy = export_workflow(_workflow("fastqc"), "galaxy", name="qc")
 
     assert "rule qc:" in snakemake
-    assert "fastqc -o" in snakemake
+    assert "fastqc --threads" in snakemake
     assert "process qc {" in nextflow
-    assert "fastqc -o" in nextflow
+    assert "fastqc --threads" in nextflow
     assert "workflow.cwl" in cwl
     assert "\"a_galaxy_workflow\": \"true\"" in galaxy
 
 
-@pytest.mark.parametrize("fmt", ["snakemake", "nextflow", "cwl", "galaxy"])
+@pytest.mark.parametrize("fmt", ["snakemake", "nextflow", "galaxy"])
 def test_pipeline_exports_ignore_decorative_notes_without_mutating_the_workflow(fmt: str) -> None:
     workflow = _frontend_connected_workflow()
     workflow["nodes"].insert(0, {"id": "canvas_note", "type": "note", "params": {"text": "Protocol notes"}})
@@ -225,7 +230,12 @@ def test_pipeline_exports_ignore_decorative_notes_without_mutating_the_workflow(
 
     exported = export_workflow(workflow, fmt)
 
-    assert "canvas_note" not in exported
+    if fmt == "cwl":
+        assert "canvas_note" not in json.loads(exported)["workflow.cwl"]
+    elif fmt == "galaxy":
+        assert "canvas_note" not in json.dumps(json.loads(exported)["steps"])
+    else:
+        assert "canvas_note" not in exported
     assert "fastqc" in exported
     assert "multiqc" in exported
     assert json.dumps(workflow, sort_keys=True) == original
@@ -287,7 +297,7 @@ def test_cwl_export_supports_normalize_data_with_builtin_node_runner() -> None:
 
     assert workflow["inputs"] == {"norm_table": "File"}
     assert workflow["steps"]["norm"]["in"] == {"table": "norm_table"}
-    assert tool["baseCommand"] == [sys.executable, "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["baseCommand"] == ["python", "-m", "bionodulo.converter.cwl_node_runner"]
     assert tool["arguments"] == [
         "--node-type",
         "normalize_data",
@@ -345,7 +355,7 @@ def test_cwl_export_supports_additional_data_transform_nodes_with_builtin_runner
 
     assert cwl_workflow["inputs"] == {root_input: "File"}
     assert cwl_workflow["steps"][node_id]["in"] == {root_input.rsplit("_", 1)[1]: root_input}
-    assert tool["baseCommand"] == [sys.executable, "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["baseCommand"] == ["python", "-m", "bionodulo.converter.cwl_node_runner"]
     assert tool["arguments"][:6] == [
         "--node-type",
         node_type,
@@ -393,7 +403,7 @@ def test_cwl_export_supports_core_table_transform_nodes_with_builtin_runner(
     tool = json.loads(exported[f"tools/{node_id}.cwl"])
 
     assert cwl_workflow["inputs"] == root_inputs
-    assert tool["baseCommand"] == [sys.executable, "-m", "bionodulo.converter.cwl_node_runner"]
+    assert tool["baseCommand"] == ["python", "-m", "bionodulo.converter.cwl_node_runner"]
     assert tool["arguments"][:4] == [
         "--node-type",
         node_type,
@@ -628,7 +638,7 @@ def test_snakemake_export_preserves_frontend_shaped_edges() -> None:
     assert (
         'rule summary:\n'
         '    input:\n'
-        '        "results/qc/fastqc.html",\n'
+        "        'results/qc/report_dir_output',\n"
         '    output:'
     ) in exported
 
@@ -637,15 +647,14 @@ def test_nextflow_export_preserves_frontend_shaped_edges() -> None:
     exported = export_to_nextflow(_frontend_connected_workflow())
 
     assert "process summary {\n" in exported
-    assert "    input:\n        path input_0 from qc" in exported
-    assert "    summary(ch_qc)" in exported
+    assert "    input:\n        path input_0" in exported
+    assert "path input_0 from qc" not in exported
+    assert "    summary(qc.out.report_dir)" in exported
 
 
 def test_cwl_export_preserves_frontend_shaped_edges() -> None:
-    exported = export_to_cwl(_frontend_connected_workflow())
-    workflow = json.loads(exported["workflow.cwl"])
-
-    assert workflow["steps"]["summary"]["in"] == {"reports": "qc/html"}
+    with pytest.raises(ValueError, match="unsupported node type 'fastqc'"):
+        export_to_cwl(_frontend_connected_workflow())
 
 
 def test_galaxy_export_preserves_frontend_shaped_edges() -> None:
@@ -655,7 +664,7 @@ def test_galaxy_export_preserves_frontend_shaped_edges() -> None:
     assert summary_step["input_connections"] == {
         "reports": {
             "id": 1,
-            "output_name": "html",
+            "output_name": "report_dir",
         }
     }
 
@@ -663,13 +672,13 @@ def test_galaxy_export_preserves_frontend_shaped_edges() -> None:
 def test_snakemake_export_derives_outputs_from_frontend_node_info() -> None:
     exported = export_to_snakemake(_frontend_node_info_output_workflow())
 
-    assert '"results/summary/html_output",' in exported
+    assert "'results/summary/report_output'," in exported
     assert (
         'rule summary:\n'
         '    input:\n'
-        '        "results/qc/html_output",\n'
+        "        'results/qc/report_dir_output',\n"
         '    output:\n'
-        '        html="results/summary/html_output",'
+        "        report='results/summary/report_output',"
     ) in exported
 
 
@@ -677,32 +686,16 @@ def test_nextflow_export_derives_outputs_from_frontend_node_info() -> None:
     exported = export_to_nextflow(_frontend_node_info_output_workflow())
 
     assert "process summary {\n" in exported
-    assert '    output:\n        path "html_output"' in exported
+    assert '    output:\n        path "report_output", emit: report' in exported
 
 
 def test_cwl_export_derives_outputs_from_frontend_node_info() -> None:
-    exported = export_to_cwl(_frontend_node_info_output_workflow())
-    workflow = json.loads(exported["workflow.cwl"])
-    summary_tool = json.loads(exported["tools/summary.cwl"])
-
-    assert workflow["steps"]["summary"]["out"] == ["html"]
-    assert workflow["outputs"]["summary_html"]["outputSource"] == "summary/html"
-    assert summary_tool["outputs"] == {
-        "html": {
-            "type": "File",
-            "outputBinding": {"glob": "html_output"},
-        }
-    }
+    with pytest.raises(ValueError, match="unsupported node type 'fastqc'"):
+        export_to_cwl(_frontend_node_info_output_workflow())
 
 
 def test_galaxy_export_derives_outputs_from_frontend_node_info() -> None:
     exported = json.loads(export_to_galaxy(_frontend_node_info_output_workflow()))
     summary_step = next(step for step in exported["steps"].values() if step["label"] == "summary")
 
-    assert summary_step["outputs"] == [
-        {
-            "name": "html",
-            "type": "data",
-            "output_name": "html",
-        }
-    ]
+    assert [item["name"] for item in summary_step["outputs"]] == ["report", "data_dir"]

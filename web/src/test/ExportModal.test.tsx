@@ -199,6 +199,36 @@ describe('ExportModal i18n', () => {
     expect(screen.queryByDisplayValue(/"version": "2.0"/)).not.toBeInTheDocument();
   });
 
+  it('downloads CWL as the JSON file bundle returned by the converter', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    const bundle = JSON.stringify({ 'workflow.cwl': 'class: Workflow', 'tools/step.cwl': 'class: CommandLineTool' });
+    apiMocks.apiPost.mockResolvedValueOnce({ format: 'cwl', content: bundle, filename: 'wrong.cwl' });
+    render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'CWL bundle (.json)' }));
+    expect(screen.getByText(/Unpack it before running/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(bundle));
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    expect(utilsMocks.saveToFile).toHaveBeenCalledWith(bundle, 'Export example.cwl-bundle.json', 'application/json');
+  });
+
+  it('ignores a stale export response after switching formats', async () => {
+    const { default: ExportModal } = await import('../components/modals/ExportModal');
+    let finishOld!: (value: { content: string }) => void;
+    apiMocks.apiPost.mockReturnValueOnce(new Promise(resolve => { finishOld = resolve; }));
+    apiMocks.apiPost.mockResolvedValueOnce({ content: 'new nextflow content' });
+    render(<ExportModal workflow={workflow()} onClose={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Snakemake' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Nextflow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('new nextflow content'));
+    finishOld({ content: 'old snakemake content' });
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('new nextflow content'));
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+    expect(utilsMocks.saveToFile).toHaveBeenCalledWith('new nextflow content', 'Export example.nf', 'text/plain');
+  });
+
   it('logs PNG download embedding failures while preserving the inline error', async () => {
     const { default: ExportModal } = await import('../components/modals/ExportModal');
     const { setLanguage } = await import('../i18n');

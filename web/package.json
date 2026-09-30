@@ -1,6 +1,6 @@
 {
   "name": "bionodulo-web",
-  "version": "0.1.1-alpha.2",
+  "version": "0.1.1-alpha.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "test": "vitest run",
+    "test:dependencies": "node scripts/verify-security-overrides.mjs",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
@@ -33,6 +34,14 @@
     "y-protocols": "^1.0.6",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.24"
+  },
+  "overrides": {
+    "@solana/web3.js": {
+      "jayson": "5.0.0"
+    },
+    "metro": {
+      "image-size": "2.0.3"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

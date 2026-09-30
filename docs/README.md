@@ -6,6 +6,7 @@ Start with the [project README](../README.md) for installation and the repositor
 
 - [Getting started](help/getting-started.md)
 - [Workflow templates](templates.md)
+- [Workflow portability and import boundaries](workflow-portability.md)
 - [Tool Atlas: explore builtins and their connections](tool-atlas.md)
 - [Custom nodes](help/custom-nodes.md)
 - [Windows local execution](desktop/windows-local-execution.md)

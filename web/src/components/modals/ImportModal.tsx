@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Workflow } from '../../types';
-import { alertDialog } from '../ui';
+import { alertDialog, toast } from '../ui';
 import { extractWorkflowFromPng } from '../../utils/pngMetadata';
 import { apiPost, ApiError } from '../../api/client';
 import { logError } from '../../state/logging';
@@ -65,6 +65,12 @@ function parseWorkflowJson(source: string): Workflow | null {
   try { return asWorkflow(JSON.parse(source) as unknown); } catch { return null; }
 }
 
+function converterErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError) || !error.body || typeof error.body !== 'object') return null;
+  const detail = (error.body as { detail?: unknown }).detail;
+  return typeof detail === 'string' && detail.trim() ? detail : null;
+}
+
 export default function ImportModal({ onImport, onClose }: ImportModalProps) {
   const { t } = useTranslation();
   const [format, setFormat] = useState<ImportFormat>('json');
@@ -80,30 +86,25 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
         else await alertDialog(t('importModal.errors.parse'));
         return;
       }
-      try {
-        const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', {
-          source: format,
-          content: source,
+      const data = await apiPost<{ workflow?: Workflow; warnings?: string[] }>('/workflow/import', {
+        source: format,
+        content: source,
+      });
+      const imported = asWorkflow(data?.workflow);
+      if (imported) {
+        onImport(imported);
+        onClose();
+        const warnings = Array.isArray(data.warnings)
+          ? data.warnings.filter(warning => typeof warning === 'string' && warning.trim()) : [];
+        if (warnings.length) toast.show({
+          id: 'workflow-structural-import', tone: 'warning', duration: 0, dismissible: true,
+          title: t('importModal.structuralWarningTitle'), message: warnings.join('\n'),
         });
-        const imported = asWorkflow(data?.workflow);
-        if (imported) {
-          onImport(imported);
-          onClose();
-          return;
-        }
-      } catch (err) {
-        if (!(err instanceof ApiError)) throw err;
-        logError('importModal.backendImport', err);
-        // Backend converter unavailable: fall through to the local JSON
-        // parse attempt below.
       }
-      // Fallback: a JSON workflow may have been pasted under another format.
-      const wf = parseWorkflowJson(source);
-      if (wf) { onImport(wf); onClose(); }
       else await alertDialog(t('importModal.errors.parseFormat'));
     } catch (err) {
-      logError('importModal.import', err);
-      await alertDialog(t('importModal.errors.parseFormat'));
+      logError(format === 'json' ? 'importModal.import' : 'importModal.backendImport', err);
+      await alertDialog(converterErrorMessage(err) || t('importModal.errors.parseFormat'));
     } finally {
       setParsing(false);
     }
@@ -191,11 +192,13 @@ export default function ImportModal({ onImport, onClose }: ImportModalProps) {
               }
               return;
             }
-            const extension = file.name.toLowerCase().split('.').pop();
+            const lowerName = file.name.toLowerCase();
+            const extension = lowerName.split('.').pop();
             const formatForExtension: Record<string, ImportFormat> = {
               json: 'json', smk: 'snakemake', nf: 'nextflow', cwl: 'cwl', ga: 'galaxy',
             };
-            if (extension && formatForExtension[extension]) setFormat(formatForExtension[extension]);
+            if (lowerName.endsWith('.cwl-bundle.json')) setFormat('cwl');
+            else if (extension && formatForExtension[extension]) setFormat(formatForExtension[extension]);
             const reader = new FileReader();
             reader.onload = () => setSource(reader.result as string);
             reader.readAsText(file);

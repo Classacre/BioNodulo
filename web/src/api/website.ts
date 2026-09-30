@@ -84,34 +84,56 @@ export async function getCloudWorkflow(id: string): Promise<Workflow> {
 /** Create a new empty workflow row. The POST returns the full row, so this
  * resolves straight to the editor-shaped workflow — callers must not re-GET
  * it (that second round trip is what made new tabs feel slow). */
-export async function createCloudWorkflow(name: string): Promise<Workflow> {
+export interface CloudWriteContext {
+  expectedUserId: string;
+  expectedTeamId: string;
+}
+
+export async function createCloudWorkflow(name: string, options?: Partial<CloudWriteContext> & {
+  clientRequestId?: string;
+  workflow?: Workflow;
+}): Promise<Workflow> {
   const row = await call<WorkflowRow>('/workflows', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(options ? {
+      name,
+      clientRequestId: options.clientRequestId,
+      expectedUserId: options.expectedUserId,
+      expectedTeamId: options.expectedTeamId,
+      ...(options.workflow ? {
+        ...(options.workflow.description?.trim() ? { description: options.workflow.description } : {}),
+        definition: workflowDefinition(options.workflow),
+      } : {}),
+    } : { name }),
   });
   return rowToWorkflow(row);
 }
 
+export function workflowDefinition(wf: Workflow) {
+  const {
+    id: _id, name: _name, description: _description,
+    cloudPending: _cloudPending, cloudRequestId: _cloudRequestId,
+    ...native
+  } = wf;
+  return {
+    ...native,
+    nodes: wf.nodes ?? [], edges: wf.edges ?? [], groups: wf.groups ?? [],
+    outputs: wf.outputs ?? {}, environment: wf.environment,
+    dependencies: wf.dependencies, parameters: wf.parameters ?? [],
+    comments: wf.comments ?? [], version: wf.version, app: wf.app,
+  };
+}
+
 /** Persist the editor workflow's name/description/definition to its row. */
-export function saveCloudWorkflow(wf: Workflow): Promise<WorkflowRow> {
-  const { id, name, description, ...rest } = wf;
+export function saveCloudWorkflow(wf: Workflow, context?: CloudWriteContext): Promise<WorkflowRow> {
+  const { id, name, description } = wf;
   return call<WorkflowRow>(`/workflows/${id}`, {
     method: 'PUT',
     body: JSON.stringify({
       name: name || 'Untitled',
       description: description || null,
-      definition: {
-        nodes: rest.nodes ?? [],
-        edges: rest.edges ?? [],
-        groups: rest.groups ?? [],
-        outputs: rest.outputs ?? {},
-        environment: rest.environment,
-        dependencies: rest.dependencies,
-        parameters: rest.parameters ?? [],
-        comments: rest.comments ?? [],
-        version: rest.version,
-        app: rest.app,
-      },
+      definition: workflowDefinition(wf),
+      ...context,
     }),
   });
 }
@@ -322,7 +344,13 @@ export function presignCloudUpload(
 
 function rowToWorkflow(row: WorkflowRow): Workflow {
   const def = row.definition || {};
+  const {
+    id: _id, name: _name, description: _description,
+    cloudPending: _cloudPending, cloudRequestId: _cloudRequestId,
+    ...native
+  } = def;
   return {
+    ...native,
     id: row.id,
     version: (def.version as string) || '2.0',
     app: (def.app as string) || 'bionodulo',

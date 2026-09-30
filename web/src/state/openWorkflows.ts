@@ -26,9 +26,10 @@ const MAX_TABS = 8;
  * showing recent work, whereas an empty list means the user closed everything
  * and should get an empty editor rather than a wall of restored tabs.
  */
-export function readOpenWorkflows(): string[] | null {
+export function readOpenWorkflows(scope?: string | null): string[] | null {
+  if (scope === null) return null;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(scope ? `${STORAGE_KEY}.${scope}` : STORAGE_KEY);
     if (raw === null) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return null;
@@ -41,10 +42,11 @@ export function readOpenWorkflows(): string[] | null {
 }
 
 /** Record the currently open tabs. Safe to call on every change. */
-export function writeOpenWorkflows(ids: string[]): void {
+export function writeOpenWorkflows(ids: string[], scope?: string | null): void {
+  if (scope === null) return;
   try {
     const unique = [...new Set(ids.filter(Boolean))].slice(0, MAX_TABS);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(unique));
+    window.localStorage.setItem(scope ? `${STORAGE_KEY}.${scope}` : STORAGE_KEY, JSON.stringify(unique));
   } catch {
     /* Nothing to do; the next visit falls back to recent work. */
   }

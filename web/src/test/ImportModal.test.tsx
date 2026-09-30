@@ -25,6 +25,7 @@ vi.mock('../api/client', () => apiMocks);
 
 const dialogMocks = vi.hoisted(() => ({
   alertDialog: vi.fn(),
+  toast: { show: vi.fn() },
 }));
 
 const loggingMock = vi.hoisted(() => ({
@@ -73,6 +74,7 @@ describe('ImportModal i18n', () => {
     storage.clear();
     apiMocks.apiPost.mockReset();
     dialogMocks.alertDialog.mockReset();
+    dialogMocks.toast.show.mockReset();
     loggingMock.logError.mockReset();
     pngMetadataMocks.extractWorkflowFromPng.mockReset();
     pngMetadataMocks.extractWorkflowFromPng.mockReturnValue(undefined);
@@ -169,7 +171,7 @@ describe('ImportModal i18n', () => {
     expect(screen.getByPlaceholderText(/proceso alinear/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'CWL' }));
-    expect(screen.getByPlaceholderText(/clase: Workflow/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/paquete JSON CWL/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Galaxy (.ga)' }));
     expect(screen.getByPlaceholderText(/"a_galaxy_workflow": "true"/)).toBeInTheDocument();
@@ -208,6 +210,28 @@ describe('ImportModal i18n', () => {
     expect(onImport).toHaveBeenCalledWith(importedWorkflow);
   });
 
+  it('keeps the backend structural-only warning visible after import', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const warning = 'Imported external workflow as a structural draft. Review and map each tool and input before running.';
+    apiMocks.apiPost.mockResolvedValueOnce({
+      workflow: JSON.parse(workflowJson('Structural draft')), warnings: [warning],
+    });
+    const onImport = vi.fn();
+    const onClose = vi.fn();
+    render(<ImportModal onImport={onImport} onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Snakemake' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Workflow source' }), {
+      target: { value: 'rule qc:\n  shell: "fastqc sample.fastq"' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => expect(onImport).toHaveBeenCalledOnce());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(dialogMocks.toast.show).toHaveBeenCalledWith(expect.objectContaining({
+      tone: 'warning', duration: 0, dismissible: true,
+      title: 'Structural import — review before running', message: warning,
+    }));
+  });
+
   it('selects the converter for an uploaded workflow file', async () => {
     const { default: ImportModal } = await import('../components/modals/ImportModal');
     apiMocks.apiPost.mockResolvedValueOnce({ workflow: JSON.parse(workflowJson('From file')) });
@@ -223,6 +247,41 @@ describe('ImportModal i18n', () => {
       source: 'snakemake', content: source,
     }));
     expect(onImport).toHaveBeenCalledWith(expect.objectContaining({ name: 'From file' }));
+  });
+
+  it('routes an exported CWL JSON bundle to the CWL converter', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const bundle = JSON.stringify({ 'workflow.cwl': 'class: Workflow', 'tools/step.cwl': 'class: CommandLineTool' });
+    apiMocks.apiPost.mockResolvedValueOnce({ workflow: JSON.parse(workflowJson('CWL restored')) });
+    const onImport = vi.fn();
+    const { container } = render(<ImportModal onImport={onImport} onClose={() => undefined} />);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File([bundle], 'Export example.cwl-bundle.json')] } });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'CWL' })).toHaveAttribute('aria-pressed', 'true'));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Workflow source' })).toHaveValue(bundle));
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => expect(apiMocks.apiPost).toHaveBeenCalledWith('/workflow/import', {
+      source: 'cwl', content: bundle,
+    }));
+    expect(onImport).toHaveBeenCalledWith(expect.objectContaining({ name: 'CWL restored' }));
+  });
+
+  it('shows converter rejection details without falling back to JSON import', async () => {
+    const { default: ImportModal } = await import('../components/modals/ImportModal');
+    const error = new apiMocks.ApiError('HTTP 400', 400, 'Bad Request', {
+      detail: 'CWL bundle contains an unsafe tool path',
+    });
+    apiMocks.apiPost.mockRejectedValueOnce(error);
+    const onImport = vi.fn();
+    render(<ImportModal onImport={onImport} onClose={() => undefined} />);
+    fireEvent.click(screen.getByRole('button', { name: 'CWL' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Workflow source' }), {
+      target: { value: workflowJson('Looks like JSON') },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+    await waitFor(() => expect(dialogMocks.alertDialog).toHaveBeenCalledWith('CWL bundle contains an unsafe tool path'));
+    expect(onImport).not.toHaveBeenCalled();
+    expect(loggingMock.logError).toHaveBeenCalledWith('importModal.backendImport', error);
   });
 
   it('uses localized parse-format errors from the active locale', async () => {

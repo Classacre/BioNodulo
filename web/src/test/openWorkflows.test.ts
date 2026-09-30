@@ -33,6 +33,13 @@ describe('open workflow tabs', () => {
     expect(readOpenWorkflows()).toEqual(['a', 'b']);
   });
 
+  it('keeps remembered tabs isolated by account and team', () => {
+    writeOpenWorkflows(['team-a-tab'], 'user-a.team-a');
+    expect(readOpenWorkflows('user-a.team-a')).toEqual(['team-a-tab']);
+    expect(readOpenWorkflows('user-a.team-b')).toBeNull();
+    expect(readOpenWorkflows('user-b.team-a')).toBeNull();
+  });
+
   it('distinguishes "never recorded" from "everything closed"', () => {
     // The difference decides whether the editor falls back to recent work or
     // honours an empty desk. Conflating them is what resurrected closed tabs.

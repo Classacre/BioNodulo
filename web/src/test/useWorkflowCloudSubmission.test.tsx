@@ -12,7 +12,9 @@ const websiteMocks = vi.hoisted(() => ({
 
 const loggingMocks = vi.hoisted(() => ({ logError: vi.fn() }));
 
-vi.mock('../api/website', () => websiteMocks);
+vi.mock('../api/website', async importOriginal => ({
+  ...(await importOriginal<typeof import('../api/website')>()), ...websiteMocks,
+}));
 vi.mock('../state/logging', () => loggingMocks);
 
 import { useWorkflow } from '../hooks/workflow/useWorkflow';

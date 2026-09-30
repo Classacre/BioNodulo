@@ -204,6 +204,8 @@ export interface Workflow {
    * PUTting the client-generated temp id would 404.
    */
   cloudPending?: boolean;
+  /** Stable create request UUID for a local cloud draft; never sent in workflow definitions. */
+  cloudRequestId?: string;
 }
 
 export interface NodeStatus {

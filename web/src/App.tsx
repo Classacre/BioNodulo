@@ -77,6 +77,7 @@ import { paletteDisplayName } from './state/palettes';
 import { rememberRecentWorkflow } from './state/recentWorkflows';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
+import { duplicateWorkflow } from './utils/duplicateWorkflow';
 import { buildShareUrl, readWorkflowFromHash, clearShareHash } from './utils/workflowShare';
 import { nodeCategoryDisplayLabel } from './utils/nodeCategories';
 import { redactSecrets } from './utils/redaction';
@@ -447,7 +448,7 @@ export default function App() {
   const shownCloudSaveErrorsRef = useRef(new Set<string>());
   useEffect(() => {
     const failed = new Set(Object.entries(cloudSaveStates)
-      .filter(([, state]) => state.phase === 'error' || state.phase === 'local').map(([id]) => id));
+      .filter(([, state]) => state.phase === 'error').map(([id]) => id));
     for (const id of shownCloudSaveErrorsRef.current) {
       if (!failed.has(id)) {
         toast.dismiss(`cloud-save-${id}`);
@@ -457,12 +458,11 @@ export default function App() {
     for (const id of failed) {
       if (shownCloudSaveErrorsRef.current.has(id)) continue;
       shownCloudSaveErrorsRef.current.add(id);
-      const isLocal = cloudSaveStates[id]?.phase === 'local';
       toast.show({
-        id: `cloud-save-${id}`, tone: isLocal ? 'warning' : 'error', duration: 0, dismissible: true,
-        title: t(isLocal ? 'cloudSave.localDraftTitle' : 'cloudSave.failedTitle'),
-        message: t(isLocal ? 'cloudSave.localDraftMessage' : 'cloudSave.failedMessage'),
-        actions: isLocal ? [] : [{ label: t('cloudSave.retry'), onClick: () => retryCloudSave(id), dismiss: true }],
+        id: `cloud-save-${id}`, tone: 'error', duration: 0, dismissible: true,
+        title: t('cloudSave.failedTitle'),
+        message: t('cloudSave.failedMessage'),
+        actions: [{ label: t('cloudSave.retry'), onClick: () => retryCloudSave(id), dismiss: true }],
       });
     }
   }, [cloudSaveStates, retryCloudSave, t]);
@@ -572,7 +572,12 @@ export default function App() {
       createCloudTab: async (name) => {
         doiPhase = 'creating-cloud-tab';
         try {
-          const created = await createCloudWorkflow(name);
+          const context = cloudConfig?.user?.id && cloudConfig?.team?.id ? {
+            expectedUserId: cloudConfig.user.id,
+            expectedTeamId: cloudConfig.team.id,
+          } : null;
+          if (!context) throw new Error('Cloud write identity unavailable');
+          const created = await createCloudWorkflow(name, context);
           if (!created.id) throw new Error('Cloud workflow has no ID');
           doiTabId = created.id;
           doiCloudTabId = created.id;
@@ -587,9 +592,8 @@ export default function App() {
       },
       addLocalTab: (name) => {
         doiPhase = 'creating-local-tab';
-        doiTabId = createWorkflowId();
-        addWorkflow({
-          id: doiTabId,
+        doiTabId = addWorkflow({
+          id: createWorkflowId(),
           version: '2.0',
           app: 'bionodulo',
           name,
@@ -612,7 +616,12 @@ export default function App() {
         const target = workflowsStateRef.current[targetIndex()];
         if (!doiCloudTabId) return;
         if (!target || target.id !== doiCloudTabId) throw new Error('DOI workflow tab is unavailable');
-        await saveCloudWorkflow(target);
+        const context = cloudConfig?.user?.id && cloudConfig?.team?.id ? {
+          expectedUserId: cloudConfig.user.id,
+          expectedTeamId: cloudConfig.team.id,
+        } : null;
+        if (!context) throw new Error('Cloud write identity unavailable');
+        await saveCloudWorkflow(target, context);
       },
       fitView: () => {
         requestAnimationFrame(() => requestAnimationFrame(() => canvasRef.current?.fitView()));
@@ -677,7 +686,7 @@ export default function App() {
         { id: 'doi-flow', message: t('doiFlow.interruptedHint', { defaultValue: 'The workflow tab was closed or became unavailable. Open the DOI link again to retry.' }) },
       );
     });
-  }, [editorMode, configResolved, objectInfoLoading, authUser, cloudRestored, objectInfo, addWorkflow, addCloudWorkflow, openCloudWorkflow, setWorkflow, updateWorkflow, t]);
+  }, [editorMode, configResolved, objectInfoLoading, authUser, cloudConfig, cloudRestored, objectInfo, addWorkflow, addCloudWorkflow, openCloudWorkflow, setWorkflow, updateWorkflow, t]);
 
   useEffect(() => {
     if (initialRequestedWorkflowId && requestedWorkflowId !== initialRequestedWorkflowId) {
@@ -2614,7 +2623,7 @@ export default function App() {
         ...workflow,
         name: workflow.name || run.workflow_name || consoleActionCopy.loadedRunWorkflowName(run),
       };
-      addWorkflow(withWorkflowId(named));
+      addWorkflow(withWorkflowId(named, editorMode ? createWorkflowId() : named.id || createWorkflowId()));
       toast.success(consoleActionCopy.toast.workflowLoadedFromRun, { message: named.name });
       requestAnimationFrame(() => {
         requestAnimationFrame(() => canvasRef.current?.fitView());
@@ -2623,7 +2632,7 @@ export default function App() {
       logError('app.run.loadWorkflow', err);
       toast.error(consoleActionCopy.error.couldNotLoadWorkflow, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [addWorkflow, consoleActionCopy]);
+  }, [addWorkflow, consoleActionCopy, editorMode]);
 
   const handleRetryRun = useCallback(async (run: RunRecord) => {
     try {
@@ -2779,20 +2788,21 @@ export default function App() {
 
   const handleImport = useCallback((wf: Workflow) => {
     logTelemetry('workflow.import', { name: wf.name, nodes: wf.nodes?.length ?? 0 });
-    if (collabSessionActive || editorMode) {
+    const imported = withWorkflowId(wf, editorMode && !collabSessionActive
+      ? createWorkflowId() : wf.id || activeWorkflowId);
+    let openedId = imported.id || activeWorkflowId;
+    if (collabSessionActive) {
       const sharedWorkflow = withWorkflowId(wf, activeWorkflowId);
       updateWorkflow(activeIndex, sharedWorkflow);
-      if (collabSessionActive) {
-        if (collabDoc) {
-          workflowToDoc(sharedWorkflow, collabDoc);
-        }
-        void publishCollabWorkflowSnapshot(sharedWorkflow);
+      if (collabDoc) {
+        workflowToDoc(sharedWorkflow, collabDoc);
       }
+      void publishCollabWorkflowSnapshot(sharedWorkflow);
     } else {
-      addWorkflow(withWorkflowId(wf));
+      openedId = addWorkflow(imported) || openedId;
     }
     rememberRecentWorkflow({
-      id: wf.id || activeWorkflowId,
+      id: openedId,
       name: wf.name || t('workflowImport.importedFallbackName'),
       source: 'import',
       thumbnailUrl: renderRecentThumbnail(wf),
@@ -2833,12 +2843,8 @@ export default function App() {
   const handleDuplicateTab = useCallback((index: number) => {
     const wf = workflows[index];
     if (!wf) return;
-    const dup: Workflow = {
-      ...wf,
-      id: createWorkflowId(),
-      name: t('workflowTabs.duplicateName', { name: wf.name || t('common.untitled') }),
-      nodes: wf.nodes.map(n => ({ ...n, id: `${n.type}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` })),
-    };
+    const dup = duplicateWorkflow(wf, createWorkflowId(),
+      t('workflowTabs.duplicateName', { name: wf.name || t('common.untitled') }));
     addWorkflow(dup);
   }, [workflows, addWorkflow, t]);
 

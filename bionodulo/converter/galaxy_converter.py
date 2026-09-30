@@ -13,8 +13,10 @@ from pathlib import Path
 from typing import Any
 
 from bionodulo.converter.edge_utils import (
-    edge_source, edge_source_port, edge_target, edge_target_port, executable_nodes, node_outputs,
+    edge_source, edge_source_port, edge_target, edge_target_port, executable_edges, executable_nodes, node_outputs, validate_edge_ports,
 )
+from bionodulo.converter.node_adapter import canonicalize_foreign_workflow, node_input_ports, node_parameters
+from bionodulo.converter.roundtrip import restore_workflow_document, stamp_workflow_document
 
 
 def export_to_galaxy(
@@ -31,7 +33,8 @@ def export_to_galaxy(
         The Galaxy workflow JSON as a string.
     """
     nodes = executable_nodes(workflow)
-    edges: list[dict[str, Any]] = workflow.get("edges", [])
+    edges = executable_edges(workflow, nodes)
+    validate_edge_ports(nodes, edges)
 
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     outgoing: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
@@ -57,7 +60,7 @@ def export_to_galaxy(
     for node_id in _topological_sort_galaxy(nodes, incoming):
         node = nodes[node_id]
         node_type = node.get("type", "unknown")
-        widgets = node.get("widgets", {})
+        widgets = node_parameters(node)
 
         galaxy_step = {
             "id": step_counter,
@@ -73,8 +76,8 @@ def export_to_galaxy(
             "input_connections": {},
             "tool_state": _build_tool_state(widgets),
             "position": {
-                "left": node.get("pos", [100 + step_counter * 200, 100])[0],
-                "top": node.get("pos", [100, 100 + step_counter * 150])[1],
+                "left": node.get("position", node.get("pos", [100 + step_counter * 200, 100]))[0],
+                "top": node.get("position", node.get("pos", [100, 100 + step_counter * 150]))[1],
             },
             "post_job_actions": {},
         }
@@ -96,7 +99,7 @@ def export_to_galaxy(
                     "output_name": src_port,
                 }
 
-        for inp_name in node.get("inputs", {}).keys():
+        for inp_name in node_input_ports(node):
             if inp_name not in galaxy_step["input_connections"]:
                 galaxy_step["inputs"].append({"name": inp_name, "description": "Input: " + inp_name})
 
@@ -104,7 +107,7 @@ def export_to_galaxy(
         step_index[node_id] = step_counter
         step_counter += 1
 
-    result = json.dumps(galaxy_wf, indent=2)
+    result = json.dumps(stamp_workflow_document(galaxy_wf, workflow), indent=2)
     if output_path:
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -118,11 +121,16 @@ def import_from_galaxy(
 ) -> dict[str, Any]:
     """Parse a Galaxy workflow JSON (.ga format) into a BioNodulo workflow."""
     content = galaxy_json
-    if Path(galaxy_json).is_file():
+    if not galaxy_json.lstrip().startswith("{") and Path(galaxy_json).is_file():
         content = Path(galaxy_json).read_text(encoding="utf-8")
     galaxy_wf = json.loads(content)
+    original = restore_workflow_document(galaxy_wf)
+    if original is not None:
+        return original
 
     steps = galaxy_wf.get("steps", {})
+    if not isinstance(steps, dict) or not steps:
+        raise ValueError("Galaxy import requires named workflow steps")
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     node_id_map: dict[str, str] = {}
@@ -151,7 +159,7 @@ def import_from_galaxy(
             node_id = "node_" + step.get("label", step_id_str)
             node_id_map[step_id_str] = node_id
             tool_id = step.get("tool_id", "")
-            node_type = _galaxy_tool_to_node_type(tool_id)
+            node_type = "generic_command"
 
             widgets: dict[str, Any] = {}
             tool_state = step.get("tool_state", {})
@@ -190,9 +198,12 @@ def import_from_galaxy(
                 "meta": {
                     "galaxy_tool_id": tool_id,
                     "galaxy_tool_version": step.get("tool_version", ""),
+                    "import_status": "structural_only",
                 },
             }
             nodes.append(node)
+        else:
+            raise ValueError(f"Cannot import unsupported Galaxy step type {step_type!r}")
 
     for step_id_str, step in steps.items():
         tgt_id = node_id_map.get(step_id_str)
@@ -206,6 +217,8 @@ def import_from_galaxy(
                 src_step = str(conn.get("id", ""))
                 src_port = conn.get("output_name", "default")
             elif isinstance(conn, list) and conn:
+                if len(conn) != 1:
+                    raise ValueError(f"Galaxy input {tgt_port!r} has unsupported multiple connections")
                 src_step = str(conn[0].get("id", ""))
                 src_port = conn[0].get("output_name", "default")
             src_id = node_id_map.get(src_step)
@@ -218,12 +231,12 @@ def import_from_galaxy(
                     "target_input": tgt_port,
                 })
 
-    return {
+    return canonicalize_foreign_workflow({
         "id": workflow_id,
         "name": galaxy_wf.get("name", "Imported Galaxy Workflow"),
         "nodes": nodes,
         "edges": edges,
-    }
+    })
 
 
 def _node_type_to_galaxy_tool(node_type: str) -> str:

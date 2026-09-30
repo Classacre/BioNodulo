@@ -2895,7 +2895,13 @@ async def workflow_export(request: Request, body: WorkflowExportRequest) -> Any:
             name=body.name,
             registry=_get_registry(request),
         )
-        return {"format": body.format, "content": content, "filename": f"{body.name}.{body.format}"}
+        extensions = {
+            "snakemake": ".smk", "nextflow": ".nf", "cwl": ".cwl-bundle.json",
+            "galaxy": ".ga", "ris": ".ris", "bibtex": ".bib",
+            "csv": ".csv", "json": ".json",
+        }
+        return {"format": body.format, "content": content,
+                "filename": f"{body.name}{extensions.get(body.format, '.' + body.format)}"}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -2941,20 +2947,46 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
             if file_path_obj:
                 workflow = await asyncio.to_thread(cwl_import, file_path_obj)
             else:
-                with tempfile.NamedTemporaryFile(mode="w", suffix=".cwl", delete=False) as tmp:
-                    tmp.write(content)
-                    tmp_path = tmp.name
                 try:
-                    workflow = await asyncio.to_thread(cwl_import, tmp_path)
-                finally:
-                    os.unlink(tmp_path)
+                    document = json.loads(content)
+                except json.JSONDecodeError as exc:
+                    raise ValueError("CWL content must be a JSON workflow or exported file bundle") from exc
+                if not isinstance(document, dict):
+                    raise ValueError("CWL content must be a JSON object")
+                if "workflow.cwl" in document:
+                    allowed_files = {"workflow.cwl", "bionodulo-roundtrip.json"}
+                    for name, value in document.items():
+                        if not isinstance(name, str) or not isinstance(value, str):
+                            raise ValueError("CWL bundle requires text content keyed by relative file paths")
+                        path = Path(name)
+                        if (name not in allowed_files and not (name.startswith("tools/") and len(path.parts) == 2)) or path.is_absolute() or ".." in path.parts or "\\" in name or ":" in name:
+                            raise ValueError(f"Unsafe or unsupported CWL bundle path: {name}")
+                    with tempfile.TemporaryDirectory(prefix="bionodulo-cwl-import-") as temp_dir:
+                        bundle_root = Path(temp_dir)
+                        for name, value in document.items():
+                            destination = bundle_root / name
+                            destination.parent.mkdir(parents=True, exist_ok=True)
+                            destination.write_text(value, encoding="utf-8")
+                        workflow = await asyncio.to_thread(cwl_import, bundle_root / "workflow.cwl")
+                else:
+                    with tempfile.TemporaryDirectory(prefix="bionodulo-cwl-import-") as temp_dir:
+                        tmp_path = Path(temp_dir) / "workflow.cwl"
+                        tmp_path.write_text(content, encoding="utf-8")
+                        workflow = await asyncio.to_thread(cwl_import, tmp_path)
         elif source == "galaxy":
             from bionodulo.converter.galaxy_converter import import_from_galaxy as galaxy_import
             workflow = await asyncio.to_thread(galaxy_import, content)
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported import format: \\'{source}\\'")
 
-        return {"workflow": workflow, "source": source, "imported": True}
+        structural = any(
+            isinstance(node, dict) and node.get("meta", {}).get("import_status") == "structural_only"
+            for node in workflow.get("nodes", [])
+        )
+        warnings = ([
+            "Imported external workflow as a structural draft. Review and map each tool and input before running; commands and parameters were not converted into executable BioNodulo nodes."
+        ] if structural else [])
+        return {"workflow": workflow, "source": source, "imported": True, "warnings": warnings}
     except ImportError as exc:
         logger.warning("Converter module not available: %s", exc)
         raise HTTPException(
@@ -2964,6 +2996,10 @@ async def workflow_import(request: Request, body: ImportWorkflowRequest) -> dict
                 "Install converter dependencies before importing this format."
             ),
         ) from exc
+    except HTTPException:
+        raise
+    except (ValueError, FileNotFoundError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Import failed: {exc}") from exc
 

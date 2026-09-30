@@ -8,14 +8,16 @@ and vice versa.
 from __future__ import annotations
 
 import json
-import sys
+import re
 from pathlib import Path
 from typing import Any
 
 from bionodulo.converter.edge_utils import (
-    edge_source, edge_source_port, edge_target, edge_target_port, executable_nodes, node_outputs,
+    edge_source, edge_source_port, edge_target, edge_target_port, executable_edges, executable_nodes, node_outputs, validate_edge_ports,
 )
+from bionodulo.converter.node_adapter import canonicalize_foreign_workflow, node_input_ports, node_option_widgets
 from bionodulo.nodes.registry import NodeRegistry
+from bionodulo.converter.roundtrip import restore_workflow_bundle, stamp_workflow_bundle
 
 
 _CWL_NODE_RUNNER_TYPES = {
@@ -42,12 +44,13 @@ def export_to_cwl(
         Dictionary mapping file names to their content strings.
     """
     nodes = executable_nodes(workflow)
-    edges: list[dict[str, Any]] = workflow.get("edges", [])
+    edges = executable_edges(workflow, nodes)
+    validate_edge_ports(nodes, edges)
+    for node_id in nodes:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", node_id) or ".." in node_id:
+            raise ValueError(f"CWL node id {node_id!r} cannot be used as a safe tool filename")
 
     output_dir = Path(output_dir) if output_dir else None
-    if output_dir:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        (output_dir / "tools").mkdir(exist_ok=True)
 
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     outgoing: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
@@ -61,20 +64,24 @@ def export_to_cwl(
     files: dict[str, str] = {}
 
     for node_id, node in nodes.items():
-        tool_cwl = _node_to_command_line_tool(node_id, node)
+        tool_cwl = _node_to_command_line_tool(
+            node_id, node, {edge_target_port(edge) for edge in incoming[node_id]},
+        )
         tool_filename = "tools/" + node_id + ".cwl"
         tool_content = json.dumps(tool_cwl, indent=2)
         files[tool_filename] = tool_content
-        if output_dir:
-            (output_dir / tool_filename).write_text(tool_content, encoding="utf-8")
 
     workflow_cwl = _build_cwl_workflow(
         workflow.get("id", "workflow"), nodes, incoming, outgoing, edges
     )
     wf_content = json.dumps(workflow_cwl, indent=2)
     files["workflow.cwl"] = wf_content
+    files = stamp_workflow_bundle(files, workflow)
     if output_dir:
-        (output_dir / "workflow.cwl").write_text(wf_content, encoding="utf-8")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "tools").mkdir(exist_ok=True)
+        for name, content in files.items():
+            (output_dir / name).write_text(content, encoding="utf-8")
 
     return files
 
@@ -89,33 +96,68 @@ def import_from_cwl(
     workflow_cwl = json.loads(wf_path.read_text(encoding="utf-8"))
     tools_dir = Path(tools_dir) if tools_dir else wf_path.parent / "tools"
 
+    manifest = wf_path.parent / "bionodulo-roundtrip.json"
+    if manifest.exists():
+        if not manifest.resolve().is_relative_to(wf_path.parent.resolve()):
+            raise ValueError("CWL manifest path escapes the workflow directory")
+        bundle = {"workflow.cwl": wf_path.read_text(encoding="utf-8"),
+                  "bionodulo-roundtrip.json": manifest.read_text(encoding="utf-8")}
+        if tools_dir.exists():
+            for tool_path in tools_dir.glob("*.cwl"):
+                if not tool_path.resolve().is_relative_to(wf_path.parent.resolve()):
+                    raise ValueError("CWL tool path escapes the workflow directory")
+                bundle["tools/" + tool_path.name] = tool_path.read_text(encoding="utf-8")
+        original = restore_workflow_bundle(bundle)
+        if original is not None:
+            return original
+
+    if workflow_cwl.get("class") != "Workflow":
+        raise ValueError("CWL import requires a Workflow document")
     steps = workflow_cwl.get("steps", {})
+    if not isinstance(steps, dict) or not steps:
+        raise ValueError("CWL import requires named workflow steps")
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
     node_id_map: dict[str, str] = {}
 
     for step_id, step in steps.items():
+        if not isinstance(step, dict) or not isinstance(step.get("run"), str) or not step["run"]:
+            raise ValueError(f"CWL step {step_id!r} requires a referenced tool file")
+        if set(step) - {"run", "in", "out", "id", "label", "doc", "hints", "requirements"}:
+            raise ValueError(f"CWL step {step_id!r} uses unsupported workflow features")
         node_id = "node_" + step_id
         node_id_map[step_id] = node_id
 
         tool_def: dict[str, Any] = {}
         run_ref = step.get("run", "")
         if run_ref:
+            if (Path(run_ref).is_absolute() or ".." in Path(run_ref).parts or
+                    "\\" in run_ref or ":" in run_ref or len(Path(run_ref).parts) != 2 or
+                    not run_ref.startswith("tools/")):
+                raise ValueError(f"CWL step {step_id!r} requires a safe tools/<name>.cwl reference")
             tool_path = tools_dir / Path(run_ref).name if tools_dir else Path(run_ref)
             if not tool_path.is_file():
                 raise FileNotFoundError(f"Referenced CWL tool file not found: {tool_path}")
+            if not tool_path.resolve().is_relative_to(wf_path.parent.resolve()):
+                raise ValueError("CWL tool path escapes the workflow directory")
             tool_def = json.loads(tool_path.read_text(encoding="utf-8"))
+            if tool_def.get("class") != "CommandLineTool":
+                raise ValueError(f"CWL step {step_id!r} requires a CommandLineTool")
 
-        node_type = _cwl_tool_to_node_type(tool_def)
+        node_type = "generic_command"
 
         inputs = {}
         for inp_name, inp_val in step.get("in", {}).items():
+            if isinstance(inp_val, dict):
+                inp_val = inp_val.get("source")
             if isinstance(inp_val, str):
                 inputs[inp_name] = {"type": "FILE", "value": inp_val}
             elif isinstance(inp_val, list):
-                inputs[inp_name] = {"type": "FILE", "value": inp_val[0] if inp_val else ""}
+                if len(inp_val) != 1:
+                    raise ValueError(f"CWL step {step_id!r} input {inp_name!r} has unsupported multiple sources")
+                inputs[inp_name] = {"type": "FILE", "value": inp_val[0]}
             else:
-                inputs[inp_name] = {"type": "ANY", "value": inp_val}
+                raise ValueError(f"CWL step {step_id!r} input {inp_name!r} has unsupported source")
 
         outputs = {}
         for out_name in tool_def.get("outputs", {}).keys():
@@ -140,7 +182,7 @@ def import_from_cwl(
             "inputs": inputs,
             "outputs": outputs,
             "widgets": widgets,
-            "meta": {},
+            "meta": {"import_status": "structural_only"},
         }
         nodes.append(node)
 
@@ -148,6 +190,10 @@ def import_from_cwl(
     for step_id, step in steps.items():
         tgt_id = node_id_map.get(step_id, "")
         for inp_name, inp_val in step.get("in", {}).items():
+            if isinstance(inp_val, dict):
+                inp_val = inp_val.get("source")
+            if isinstance(inp_val, list):
+                inp_val = inp_val[0]
             if isinstance(inp_val, str):
                 parts = inp_val.split("/")
                 if len(parts) == 2 and parts[0] in node_id_map:
@@ -160,82 +206,49 @@ def import_from_cwl(
                         "target_input": inp_name,
                     })
 
-    return {"id": workflow_id, "name": "Imported CWL Workflow", "nodes": nodes, "edges": edges}
+    return canonicalize_foreign_workflow({
+        "id": workflow_id, "name": "Imported CWL Workflow", "nodes": nodes, "edges": edges,
+    })
 
 
-def _node_to_command_line_tool(node_id: str, node: dict[str, Any]) -> dict[str, Any]:
+def _node_to_command_line_tool(
+    node_id: str, node: dict[str, Any], connected_inputs: set[str],
+) -> dict[str, Any]:
     node_type = node.get("type", "unknown")
-    widgets = node.get("widgets", {})
-    meta = node.get("meta", {})
     if node_type in _CWL_NODE_RUNNER_TYPES:
-        return _node_to_builtin_runner_tool(node_id, node)
-
-    base_cmd = _cwl_base_command(node_type, widgets)
-
-    cwl_inputs: dict[str, Any] = {}
-    for inp_name in node.get("inputs", {}).keys():
-        cwl_inputs[inp_name] = {
-            "type": "File",
-            "inputBinding": {"position": len(cwl_inputs) + 1},
-        }
-
-    cwl_outputs: dict[str, Any] = {}
-    for out_name in node_outputs(node):
-        cwl_outputs[out_name] = {
-            "type": "File",
-            "outputBinding": {"glob": out_name + "_output"},
-        }
-
-    for key, val in widgets.items():
-        if key in ("command", "_node_type", "_output_ports"):
-            continue
-        param_name = "param_" + key
-        cwl_inputs[param_name] = {
-            "type": "string" if isinstance(val, str) else "int" if isinstance(val, int) else "string",
-            "default": val,
-            "inputBinding": {"prefix": "--" + key},
-        }
-
-    tool = {
-        "class": "CommandLineTool",
-        "cwlVersion": "v1.2",
-        "id": node_id,
-        "label": node_type + " - " + node_id,
-        "baseCommand": base_cmd,
-        "inputs": cwl_inputs,
-        "outputs": cwl_outputs,
-        "requirements": [{"class": "InlineJavascriptRequirement"}],
-    }
-
-    threads = meta.get("threads") or widgets.get("threads")
-    memory = meta.get("memory") or widgets.get("memory")
-    requirements = list(tool["requirements"])
-    resource_req: dict[str, Any] = {"class": "ResourceRequirement"}
-    if threads:
-        resource_req["coresMin"] = int(threads)
-    if memory:
-        resource_req["ramMin"] = int(memory)
-    if len(resource_req) > 1:
-        requirements.append(resource_req)
-    tool["requirements"] = requirements
-
-    conda_env = meta.get("conda_env") or widgets.get("conda_env")
-    container = meta.get("container") or widgets.get("container")
-    if container or conda_env:
-        tool["hints"] = []
-        if container:
-            tool["hints"].append({"class": "DockerRequirement", "dockerPull": container})
-        if conda_env:
-            tool["hints"].append({"class": "SoftwareRequirement", "packages": [{"package": conda_env}]})
-
-    return tool
+        return _node_to_builtin_runner_tool(node_id, node, connected_inputs)
+    raise ValueError(f"Cannot export unsupported node type '{node_type}' to CWL")
 
 
-def _node_to_builtin_runner_tool(node_id: str, node: dict[str, Any]) -> dict[str, Any]:
+def _node_to_builtin_runner_tool(
+    node_id: str, node: dict[str, Any], connected_inputs: set[str],
+) -> dict[str, Any]:
     node_type = node.get("type", "unknown")
     node_class = _registered_node_class(node_type)
-    widgets = node.get("widgets", {})
+    widgets = node_option_widgets(node, connected_inputs=connected_inputs)
     input_types = node_class.INPUT_TYPES()
+    specs = dict(_node_runner_input_specs(input_types))
+    unknown_widgets = set(widgets) - set(specs)
+    input_ports = node_input_ports(node)
+    unknown_inputs = set(input_ports) - set(specs)
+    if unknown_widgets or unknown_inputs:
+        raise ValueError(
+            f"CWL node {node_id!r} has unsupported widget/input ports: "
+            + ", ".join(sorted(unknown_widgets | unknown_inputs))
+        )
+    for name in input_ports:
+        spec = specs[name]
+        kind = spec[0] if isinstance(spec, (list, tuple)) else spec
+        if kind != "FILE":
+            raise ValueError(f"CWL node {node_id!r} cannot bind scalar widget {name!r} as a file port")
+    return_names = set(getattr(node_class, "RETURN_NAMES", ()))
+    output_names = set(node_outputs(node))
+    if not output_names or not output_names <= return_names:
+        raise ValueError(f"CWL node {node_id!r} has unsupported output ports")
+    for name, spec in input_types.get("required", {}).items():
+        options = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 and isinstance(spec[1], dict) else {}
+        if name not in input_ports and name not in widgets and "default" not in options:
+            raise ValueError(f"CWL node {node_id!r} lacks required input {name!r}")
     cwl_inputs: dict[str, Any] = {}
     arguments = [
         "--node-type",
@@ -245,12 +258,15 @@ def _node_to_builtin_runner_tool(node_id: str, node: dict[str, Any]) -> dict[str
     ]
 
     for input_name, spec in _node_runner_input_specs(input_types):
-        is_file_input = input_name in node.get("inputs", {})
+        is_file_input = input_name in input_ports
         cwl_inputs[input_name] = _cwl_node_runner_input(input_name, spec, widgets, is_file_input)
+        input_type = cwl_inputs[input_name]["type"]
         arguments.extend([
             "--input",
             input_name,
-            f"$(inputs.{input_name}.path)" if is_file_input else f"$(inputs.{input_name})",
+            f"$(inputs.{input_name}.path)" if is_file_input else (
+                f"$(String(inputs.{input_name}))" if input_type == "boolean" else f"$(inputs.{input_name})"
+            ),
         ])
 
     cwl_outputs: dict[str, Any] = {}
@@ -265,7 +281,9 @@ def _node_to_builtin_runner_tool(node_id: str, node: dict[str, Any]) -> dict[str
         "cwlVersion": "v1.2",
         "id": node_id,
         "label": node_type + " - " + node_id,
-        "baseCommand": [sys.executable, "-m", "bionodulo.converter.cwl_node_runner"],
+        # Resolve the interpreter in the target runtime. An absolute path from
+        # the exporting host (notably C:\\Python... on Windows) is not portable.
+        "baseCommand": ["python", "-m", "bionodulo.converter.cwl_node_runner"],
         "arguments": arguments,
         "inputs": cwl_inputs,
         "outputs": cwl_outputs,
@@ -336,7 +354,7 @@ def _build_cwl_workflow(
             src_port = edge_source_port(edge)
             tgt_port = edge_target_port(edge)
             step_inputs[tgt_port] = str(src) + "/" + src_port
-        for inp_name in node.get("inputs", {}).keys():
+        for inp_name in node_input_ports(node):
             if inp_name not in step_inputs:
                 step_inputs[inp_name] = node_id + "_" + inp_name
         steps[node_id] = {
@@ -348,7 +366,7 @@ def _build_cwl_workflow(
     wf_inputs: dict[str, Any] = {}
     for node_id, node in nodes.items():
         connected_inputs = {edge_target_port(edge) for edge in incoming[node_id]}
-        for inp_name in node.get("inputs", {}).keys():
+        for inp_name in node_input_ports(node):
             if inp_name not in connected_inputs:
                 wf_inputs[node_id + "_" + inp_name] = "File"
 
@@ -371,48 +389,3 @@ def _build_cwl_workflow(
         "outputs": wf_outputs,
         "steps": steps,
     }
-
-
-def _cwl_base_command(node_type: str, widgets: dict[str, Any]) -> list[str]:
-    custom_cmd = widgets.get("command")
-    if custom_cmd:
-        return custom_cmd.split() if isinstance(custom_cmd, str) else [str(custom_cmd)]
-
-    cmd_map: dict[str, list[str]] = {
-        "fastqc": ["fastqc"], "multiqc": ["multiqc"], "fastp": ["fastp"],
-        "trimmomatic": ["trimmomatic"], "bowtie2": ["bowtie2"],
-        "bwa_mem": ["bwa", "mem"], "samtools_sort": ["samtools", "sort"],
-        "samtools_index": ["samtools", "index"],
-        "bcftools_mpileup": ["bcftools", "mpileup"],
-        "spades": ["spades.py"], "prokka": ["prokka"],
-        "star_align": ["STAR"], "hisat2": ["hisat2"],
-        "salmon_quant": ["salmon", "quant"],
-        "featurecounts": ["featureCounts"],
-        "kraken2": ["kraken2"], "iqtree": ["iqtree"],
-    }
-    if node_type not in cmd_map:
-        raise ValueError(f"Cannot export unsupported node type '{node_type}' to CWL")
-    return cmd_map[node_type]
-
-
-def _cwl_tool_to_node_type(tool_def: dict[str, Any]) -> str:
-    base_cmd = tool_def.get("baseCommand", [])
-    if isinstance(base_cmd, str):
-        base_cmd = [base_cmd]
-    cmd_str = " ".join(base_cmd).lower()
-    label = tool_def.get("label", "").lower()
-
-    mapping = {
-        "fastqc": "fastqc", "multiqc": "multiqc", "fastp": "fastp",
-        "trimmomatic": "trimmomatic", "bowtie2": "bowtie2",
-        "bwa mem": "bwa_mem", "samtools sort": "samtools_sort",
-        "samtools index": "samtools_index", "bcftools": "bcftools_mpileup",
-        "spades": "spades", "prokka": "prokka", "star": "star_align",
-        "hisat2": "hisat2", "salmon": "salmon_quant",
-        "featurecounts": "featurecounts", "kraken2": "kraken2",
-        "iqtree": "iqtree",
-    }
-    for key, val in mapping.items():
-        if key in cmd_str or key in label:
-            return val
-    return "generic_command"

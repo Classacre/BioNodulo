@@ -7,8 +7,10 @@ import {
   getCloudWorkflow,
   createCloudWorkflow,
   saveCloudWorkflow,
+  workflowDefinition,
   submitCloudRun,
   type CloudRunInputs,
+  type CloudWriteContext,
 } from '../../api/website';
 import { cloudConfigAtom } from '../../state/appAtoms';
 import { readOpenWorkflows, writeOpenWorkflows } from '../../state/openWorkflows';
@@ -100,21 +102,55 @@ function workflowSaveKey(wf: Workflow): string {
   return JSON.stringify({
     name: wf.name || 'Untitled',
     description: wf.description || null,
-    nodes: wf.nodes ?? [],
-    edges: wf.edges ?? [],
-    groups: wf.groups ?? [],
-    outputs: wf.outputs ?? {},
-    environment: wf.environment,
-    dependencies: wf.dependencies,
-    parameters: wf.parameters ?? [],
-    comments: wf.comments ?? [],
-    version: wf.version,
-    app: wf.app,
+    definition: workflowDefinition(wf),
   });
 }
 
 const LOCAL_WORKFLOWS_KEY = 'bionodulo.local.workflows';
-type CloudSaveState = { key: string; phase: 'pending' | 'saving' | 'error' | 'local' };
+const CLOUD_DRAFTS_KEY = 'bionodulo.cloud.drafts';
+
+function cloudScopeId(userId?: string, teamId?: string): string | null {
+  if (!userId || !teamId) return null;
+  const encode = (id: string) => encodeURIComponent(id).replace(/\./g, '%2E');
+  return `${encode(userId)}.${encode(teamId)}`;
+}
+type CloudSaveState = { key: string; phase: 'pending' | 'saving' | 'error' | 'creating' };
+
+function createRequestId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  // The API accepts an RFC 4122 UUID even on insecure local development hosts.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, digit => {
+    const random = Math.floor(Math.random() * 16);
+    return (digit === 'x' ? random : (random & 3) | 8).toString(16);
+  });
+}
+
+function isSubstantiveDraft(wf: Workflow): boolean {
+  return Boolean(wf.cloudPending || wf.nodes?.length || wf.edges?.length || wf.groups?.length
+    || wf.parameters?.length || wf.description?.trim() || wf.name !== i18n.t('common.untitled'));
+}
+
+function readCloudDrafts(storageKey: string | null): Workflow[] {
+  if (!storageKey) return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey) || '[]') as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is Workflow => Boolean(value && typeof value === 'object'
+      && typeof value.id === 'string' && Array.isArray(value.nodes) && Array.isArray(value.edges)))
+      .map(normalizeWorkflow);
+  } catch { return []; }
+}
+
+function writeCloudDrafts(storageKey: string | null, drafts: Workflow[]): boolean {
+  if (!storageKey) return false;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(drafts));
+    return true;
+  } catch (err) {
+    logError('cloud.workflows.drafts', err);
+    return false;
+  }
+}
 
 function latestRunStatus<T extends string>(previous: T | undefined, incoming: T | undefined): T | undefined {
   const rank = (status: string) => status === 'pending' ? 0 : status === 'running' ? 1 : 2;
@@ -184,6 +220,7 @@ function saveLocalWorkflows(workflows: Workflow[], activeIndex: number) {
 
 export function useWorkflow() {
   const initial = useState(loadLocalWorkflows)[0];
+  const initialLocalKeys = useRef(new Map(initial.workflows.map(wf => [wf.id, workflowSaveKey(wf)])));
   const [workflows, setWorkflows] = useState<Workflow[]>(initial.workflows);
   const [activeIndex, setActiveIndex] = useState(initial.activeIndex);
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({ valid: true, errors: [] });
@@ -200,6 +237,17 @@ export function useWorkflow() {
   // editorMode (from /api/config); default off = unchanged local behaviour.
   const cloudConfig = useAtomValue(cloudConfigAtom);
   const editorMode = Boolean(cloudConfig?.editorMode);
+  const cloudScope = cloudScopeId(cloudConfig?.user?.id, cloudConfig?.team?.id);
+  const cloudDraftKey = cloudScope ? `${CLOUD_DRAFTS_KEY}.${cloudScope}` : null;
+  const cloudWriteContextRef = useRef<CloudWriteContext | null>(null);
+  cloudWriteContextRef.current = cloudConfig?.user?.id && cloudConfig?.team?.id ? {
+    expectedUserId: cloudConfig.user.id,
+    expectedTeamId: cloudConfig.team.id,
+  } : null;
+  const cloudScopeRef = useRef(cloudDraftKey);
+  const cloudConfigScopeRef = useRef(cloudDraftKey);
+  cloudConfigScopeRef.current = cloudDraftKey;
+  const cloudScopeChanging = cloudScopeRef.current !== cloudDraftKey;
   // started = dedups the load; loaded = true ONLY after the DB workflow is set,
   // so the debounced save never fires against the stale local placeholder
   // (which has a client id the DB doesn't know → 404).
@@ -217,6 +265,10 @@ export function useWorkflow() {
   const cloudQueuedKeys = useRef(new Map<string, string>());
   const cloudSaveChains = useRef(new Map<string, Promise<void>>());
   const cloudLatestKeys = useRef(new Map<string, string>());
+  const cloudCreateRequests = useRef(new Map<string, Promise<void>>());
+  const cloudCreateFailed = useRef(new Set<string>());
+  const cloudCreatedIds = useRef(new Map<string, string>());
+  const cloudClosedDraftIds = useRef(new Set<string>());
   const [cloudSaveStates, setCloudSaveStates] = useState<Record<string, CloudSaveState>>({});
   // Server ids of workflows created this session, mapped to the exact payload
   // that was written at creation time. While the current state still matches
@@ -229,14 +281,80 @@ export function useWorkflow() {
     saveLocalWorkflows(workflows, activeIndex);
   }, [workflows, activeIndex, editorMode]);
 
+  useEffect(() => {
+    if (!editorMode || !cloudScopeChanging) return;
+    const drafts = workflows.filter(wf => wf.id
+      && !cloudServerIdsRef.current.has(wf.id) && isSubstantiveDraft(wf)
+      // The editor initially renders local-mode tabs while /api/me loads.
+      // Do not silently publish old local work to a newly identified team.
+      && (cloudScopeRef.current || initialLocalKeys.current.get(wf.id) !== workflowSaveKey(wf)));
+    const destinationKey = cloudScopeRef.current || cloudDraftKey;
+    if (drafts.length && !writeCloudDrafts(destinationKey, drafts)) {
+      // Keep the old in-memory tabs until their request IDs are durable. A
+      // quota error here must not discard an import during account bootstrap.
+      setCloudSaveStates(previous => {
+        if (drafts.every(wf => previous[wf.id!]?.phase === 'error'
+          && previous[wf.id!]?.key === workflowSaveKey(wf))) return previous;
+        const next = { ...previous };
+        for (const draft of drafts) next[draft.id!] = { key: workflowSaveKey(draft), phase: 'error' };
+        return next;
+      });
+      return;
+    }
+    const dirtyServer = workflows.filter(wf => wf.id && cloudServerIdsRef.current.has(wf.id)
+      && cloudPristineRef.current.get(wf.id) !== workflowSaveKey(wf)
+      && cloudSavedKeys.current.get(wf.id) !== workflowSaveKey(wf));
+    if (dirtyServer.length) {
+      for (const wf of dirtyServer) {
+        const timer = cloudSaveTimers.current.get(wf.id!);
+        if (timer) clearTimeout(timer);
+        cloudSaveTimers.current.delete(wf.id!);
+        cloudScheduledKeys.current.delete(wf.id!);
+      }
+      setCloudSaveStates(previous => {
+        if (dirtyServer.every(wf => previous[wf.id!]?.phase === 'error'
+          && previous[wf.id!]?.key === workflowSaveKey(wf))) return previous;
+        const next = { ...previous };
+        for (const wf of dirtyServer) next[wf.id!] = { key: workflowSaveKey(wf), phase: 'error' };
+        return next;
+      });
+      // The old account's edit stays on screen. Returning to that scope can
+      // retry it; a new account must never send this row under its own auth.
+      return;
+    }
+    cloudScopeRef.current = cloudDraftKey;
+    for (const timer of cloudSaveTimers.current.values()) clearTimeout(timer);
+    cloudSaveTimers.current.clear();
+    cloudScheduledKeys.current.clear();
+    cloudSavedKeys.current.clear();
+    cloudQueuedKeys.current.clear();
+    cloudSaveChains.current.clear();
+    cloudLatestKeys.current.clear();
+    cloudServerIdsRef.current.clear();
+    cloudPristineRef.current.clear();
+    cloudCreateFailed.current.clear();
+    cloudCreateRequests.current.clear();
+    cloudCreatedIds.current.clear();
+    cloudClosedDraftIds.current.clear();
+    cloudLoadStartedRef.current = false;
+    cloudLoadedRef.current = false;
+    cloudTabRecordReadyRef.current = false;
+    setCloudSaveStates({});
+    setCloudRestored(false);
+    setCloudLoadError(false);
+    setWorkflows([emptyWorkflow()]);
+    setActiveIndex(0);
+  }, [editorMode, cloudDraftKey, cloudScopeChanging, workflows, cloudSaveStates]);
+
   // Cloud load: on first entry to editor mode, open the team's recent workflows
   // as tabs (the deep-linked one focused first). Workflows are managed in-app via
   // tabs now, so we hydrate several rather than a single one.
   const CLOUD_TAB_LIMIT = 8;
   useEffect(() => {
-    if (!editorMode || cloudLoadStartedRef.current) return;
+    if (!editorMode || !cloudScope || cloudScopeChanging || cloudLoadStartedRef.current) return;
     cloudLoadStartedRef.current = true;
     const idsAtRestoreStart = new Set(workflows.map(wf => wf.id));
+    const savedDrafts = readCloudDrafts(cloudDraftKey);
     (async () => {
       try {
         const requested =
@@ -245,8 +363,9 @@ export function useWorkflow() {
             : null;
 
         const list = await listCloudWorkflows();
+        if (cloudScopeRef.current !== cloudDraftKey) return;
         const known = new Set(list.map(summary => summary.id));
-        const remembered = readOpenWorkflows();
+        const remembered = readOpenWorkflows(cloudScope);
 
         // Restore exactly the tabs that were open, plus any deep link. Only a
         // browser that has never recorded a set falls back to recent work --
@@ -267,18 +386,35 @@ export function useWorkflow() {
             if (known.has(id) && !ids.includes(id)) ids.push(id);
           }
         }
-        // Nothing yet — create a fresh workflow so the editor isn't empty.
+        // An empty team opens a local placeholder. Creating a server row here
+        // would add another unwanted blank workflow on every visit.
         if (ids.length === 0) {
-          ids.push((await createCloudWorkflow(i18n.t('common.untitled'))).id as string);
+          setWorkflows(prev => {
+            const addedDuringRestore = prev.filter(wf => !idsAtRestoreStart.has(wf.id));
+            const seen = new Set(addedDuringRestore.map(wf => wf.id));
+            const drafts = savedDrafts.filter(wf => !seen.has(wf.id));
+            const next = [...addedDuringRestore, ...drafts];
+            setActiveIndex(Math.max(0, next.length - 1));
+            return next.length ? next : [emptyWorkflow()];
+          });
+          cloudTabRecordReadyRef.current = true;
+          setCloudLoadError(false);
+          setCloudRestored(true);
+          return;
         }
 
         const loaded = await Promise.all(
           ids.map(id => getCloudWorkflow(id).then(normalizeWorkflow).catch(() => null)),
         );
+        if (cloudScopeRef.current !== cloudDraftKey) return;
         const tabs = loaded.filter((w): w is Workflow => w !== null);
         if (tabs.length === 0) {
           // A transient fetch failure must not replace the remembered tabs
           // with the local placeholder on the next visit.
+          setWorkflows(prev => {
+            const seen = new Set(prev.map(wf => wf.id));
+            return [...prev, ...savedDrafts.filter(wf => !seen.has(wf.id))];
+          });
           setCloudLoadError(true);
           setCloudRestored(true);
           return;
@@ -300,41 +436,134 @@ export function useWorkflow() {
           // rows. Preserve it rather than replacing it with the old snapshot.
           const restoredIds = new Set(tabs.map(wf => wf.id));
           const addedDuringRestore = prev.filter(wf => !idsAtRestoreStart.has(wf.id) && !restoredIds.has(wf.id));
-          setActiveIndex(addedDuringRestore.length
-            ? tabs.length + addedDuringRestore.length - 1
+          const seen = new Set([...tabs, ...addedDuringRestore].map(wf => wf.id));
+          const drafts = savedDrafts.filter(wf => !seen.has(wf.id));
+          setActiveIndex(addedDuringRestore.length || drafts.length
+            ? tabs.length + addedDuringRestore.length + drafts.length - 1
             : requestedIndex >= 0 ? requestedIndex : 0);
-          return [...tabs, ...addedDuringRestore];
+          return [...tabs, ...addedDuringRestore, ...drafts];
         });
-        for (const wf of tabs) if (wf.id) cloudServerIdsRef.current.add(wf.id);
+        for (const wf of tabs) if (wf.id) {
+          cloudServerIdsRef.current.add(wf.id);
+          cloudPristineRef.current.set(wf.id, workflowSaveKey(wf));
+        }
         cloudLoadedRef.current = true;
         cloudTabRecordReadyRef.current = tabs.length === ids.length;
         setCloudLoadError(tabs.length !== ids.length);
         setCloudRestored(true);
       } catch (err) {
+        if (cloudScopeRef.current !== cloudDraftKey) return;
         logError('cloud.workflows.load', err);
+        setWorkflows(prev => {
+          const seen = new Set(prev.map(wf => wf.id));
+          return [...prev, ...savedDrafts.filter(wf => !seen.has(wf.id))];
+        });
         setCloudLoadError(true);
         // Let a DOI import fall back to a local draft if cloud restoration
         // fails; otherwise it remains queued forever behind cloudRestored.
         setCloudRestored(true);
       }
     })();
-  }, [editorMode, workflows]);
+  }, [editorMode, workflows, cloudDraftKey, cloudScope, cloudScopeChanging]);
 
   // Remember which tabs are open, so the next visit restores this set and not
   // whatever happens to be recent. Guarded on cloudLoadedRef so the initial
   // placeholder or a partial/failed restore does not overwrite the record.
   useEffect(() => {
-    if (!editorMode || !cloudRestored || !cloudTabRecordReadyRef.current) return;
+    if (!editorMode || cloudScopeChanging || !cloudRestored || !cloudTabRecordReadyRef.current) return;
     writeOpenWorkflows(
       workflows.filter(w => w.id && !w.cloudPending && cloudServerIdsRef.current.has(w.id))
         .map(w => w.id as string),
+      cloudScope,
     );
-  }, [workflows, editorMode, cloudRestored]);
+  }, [workflows, editorMode, cloudRestored, cloudScopeChanging, cloudScope]);
+
+  // Keep unresolved cloud drafts and their idempotency keys across reloads.
+  // Server-backed tabs are recorded separately in openWorkflows.
+  useEffect(() => {
+    if (!editorMode || cloudScopeChanging || !cloudRestored) return;
+    writeCloudDrafts(cloudDraftKey, workflows.filter(wf => wf.id && !cloudServerIdsRef.current.has(wf.id)
+      && isSubstantiveDraft(wf)));
+  }, [workflows, editorMode, cloudRestored, cloudDraftKey, cloudScopeChanging]);
+
+  const startCloudCreation = useCallback((wf: Workflow, retry = false): Promise<void> | undefined => {
+    const tempId = wf.id;
+    if (cloudScopeRef.current !== cloudDraftKey) return;
+    if (!tempId || cloudServerIdsRef.current.has(tempId) || cloudCreatedIds.current.has(tempId)) return;
+    const inFlight = cloudCreateRequests.current.get(tempId);
+    if (inFlight) return inFlight;
+    if (cloudCreateFailed.current.has(tempId) && !retry) return;
+    cloudCreateFailed.current.delete(tempId);
+    const draft = { ...wf, cloudRequestId: wf.cloudRequestId || createRequestId() };
+    // Persist the key and document before POST. If its response is lost or the
+    // page reloads, replaying this key resolves the same server row.
+    const stored = readCloudDrafts(cloudDraftKey).filter(item => item.id !== tempId);
+    if (!writeCloudDrafts(cloudDraftKey, [...stored, draft])) {
+      cloudCreateFailed.current.add(tempId);
+      setCloudSaveStates(prev => ({ ...prev,
+        [tempId]: { key: workflowSaveKey(draft), phase: 'error' },
+      }));
+      return;
+    }
+    if (!wf.cloudRequestId) {
+      setWorkflows(prev => prev.map(item => item.id === tempId
+        ? { ...item, cloudRequestId: draft.cloudRequestId } : item));
+    }
+    setCloudSaveStates(prev => ({ ...prev,
+      [tempId]: { key: workflowSaveKey(draft), phase: 'creating' },
+    }));
+    const request = createCloudWorkflow(draft.name || i18n.t('common.untitled'), {
+      clientRequestId: draft.cloudRequestId!, workflow: draft,
+      ...cloudWriteContextRef.current,
+    }).then(created => {
+      if (cloudScopeRef.current !== cloudDraftKey) return;
+      if (!created.id) throw new Error('Cloud workflow has no ID');
+      cloudCreatedIds.current.set(tempId, created.id);
+      cloudServerIdsRef.current.add(created.id);
+      cloudLoadedRef.current = true;
+      cloudPristineRef.current.set(created.id, workflowSaveKey(created));
+      setCloudLoadError(false);
+      setWorkflows(prev => {
+        const draftIndex = prev.findIndex(item => item.id === tempId);
+        if (draftIndex < 0) return prev;
+        const latestDraft = { ...prev[draftIndex], id: created.id,
+          cloudPending: false, cloudRequestId: undefined };
+        const existingIndex = prev.findIndex(item => item.id === created.id);
+        if (existingIndex < 0) return prev.map((item, index) => index === draftIndex ? latestDraft : item);
+        const existingAfterRemoval = existingIndex > draftIndex ? existingIndex - 1 : existingIndex;
+        const next = prev.filter((_, index) => index !== draftIndex);
+        next[existingAfterRemoval] = latestDraft;
+        setActiveIndex(current => current === draftIndex ? existingAfterRemoval
+          : current > draftIndex ? current - 1 : current);
+        return next;
+      });
+      setCloudSaveStates(prev => {
+        if (!prev[tempId]) return prev;
+        const next = { ...prev };
+        delete next[tempId];
+        return next;
+      });
+      if (!cloudTabRecordReadyRef.current && !cloudClosedDraftIds.current.has(tempId)) {
+        writeOpenWorkflows([...(readOpenWorkflows(cloudScope) || []), created.id], cloudScope);
+      }
+    }).catch(err => {
+      if (cloudScopeRef.current !== cloudDraftKey) return;
+      cloudCreateFailed.current.add(tempId);
+      logError('cloud.workflows.createDraft', err);
+      setCloudSaveStates(prev => ({ ...prev,
+        [tempId]: { key: workflowSaveKey(draft), phase: 'error' },
+      }));
+    }).finally(() => { cloudCreateRequests.current.delete(tempId); });
+    cloudCreateRequests.current.set(tempId, request);
+    return request;
+  }, [cloudDraftKey, cloudScope]);
 
   const scheduleCloudSave = useCallback((wf: Workflow, immediate = false) => {
     const id = wf.id;
     if (!id || wf.cloudPending) return;
     const key = workflowSaveKey(wf);
+    const scopeAtSchedule = cloudScopeRef.current;
+    const writeContext = cloudWriteContextRef.current;
     cloudLatestKeys.current.set(id, key);
     const oldTimer = cloudSaveTimers.current.get(id);
     if (oldTimer) clearTimeout(oldTimer);
@@ -349,12 +578,14 @@ export function useWorkflow() {
       cloudQueuedKeys.current.set(id, key);
       const previous = cloudSaveChains.current.get(id) ?? Promise.resolve();
       const next = previous.then(async () => {
+        if (cloudScopeRef.current !== scopeAtSchedule || cloudConfigScopeRef.current !== scopeAtSchedule) return;
         if (cloudLatestKeys.current.get(id) === key) {
           setCloudSaveStates(prev => prev[id]?.key === key
             ? { ...prev, [id]: { key, phase: 'saving' } } : prev);
         }
         try {
-          await saveCloudWorkflow(wf);
+          if (!writeContext) throw new Error('Cloud write identity unavailable');
+          await saveCloudWorkflow(wf, writeContext);
           cloudSavedKeys.current.set(id, key);
           if (cloudLatestKeys.current.get(id) === key) {
             setCloudSaveStates(prev => {
@@ -382,7 +613,7 @@ export function useWorkflow() {
   // cancel the previous tab's pending save, and writes for one tab finish in
   // edit order even if a slower request overlaps the next debounce.
   useEffect(() => {
-    if (!editorMode) return;
+    if (!editorMode || cloudScopeChanging) return;
     const visibleIds = new Set(workflows.map(wf => wf.id).filter((id): id is string => Boolean(id)));
     setCloudSaveStates(prev => {
       const stale = Object.keys(prev).filter(id => !visibleIds.has(id));
@@ -392,19 +623,22 @@ export function useWorkflow() {
       return nextStates;
     });
     for (const wf of workflows) {
-      // cloudPending = row still being created server-side; its temp id would 404.
-      if (!wf.id || wf.cloudPending) continue;
+      if (!wf.id) continue;
       const id = wf.id;
       const key = workflowSaveKey(wf);
       if (!cloudServerIdsRef.current.has(id)) {
-        // A local draft (for example a DOI guest fallback or duplicated tab)
-        // cannot be PUT to a server row. Keep it visibly unsaved instead.
-        if (cloudRestored && (wf.nodes.length > 0 || wf.edges.length > 0 || wf.name !== i18n.t('common.untitled'))) {
-          setCloudSaveStates(prev => prev[id]?.key === key && prev[id].phase === 'local'
-            ? prev : { ...prev, [id]: { key, phase: 'local' } });
+        if (cloudRestored && isSubstantiveDraft(wf)) {
+          if (cloudCreateFailed.current.has(id)) {
+            setCloudSaveStates(prev => prev[id]?.phase === 'error' ? prev
+              : { ...prev, [id]: { key, phase: 'error' } });
+          } else {
+            startCloudCreation(wf);
+          }
         }
         continue;
       }
+      // cloudPending = row still being created server-side; its temp id would 404.
+      if (wf.cloudPending) continue;
       if (!cloudLoadedRef.current) continue;
       cloudLatestKeys.current.set(id, key);
       if (cloudScheduledKeys.current.get(id) !== key) {
@@ -431,12 +665,18 @@ export function useWorkflow() {
       if (cloudSaveStates[id]?.key === key && cloudSaveStates[id].phase === 'error') continue;
       scheduleCloudSave(wf);
     }
-  }, [workflows, editorMode, cloudRestored, cloudSaveStates, scheduleCloudSave]);
+  }, [workflows, editorMode, cloudScopeChanging, cloudRestored, cloudSaveStates, scheduleCloudSave, startCloudCreation]);
 
   const retryCloudSave = useCallback((id: string) => {
     const wf = workflows.find(item => item.id === id);
-    if (wf) scheduleCloudSave(wf, true);
-  }, [workflows, scheduleCloudSave]);
+    if (!wf) return;
+    if (cloudScopeChanging) {
+      setWorkflows(previous => [...previous]);
+      return;
+    }
+    if (cloudServerIdsRef.current.has(id)) scheduleCloudSave(wf, true);
+    else void startCloudCreation(wf, true);
+  }, [workflows, cloudScopeChanging, scheduleCloudSave, startCloudCreation]);
 
   const addRun = useCallback((run: RunRecord) => {
     setRuns(prev => upsertRun(prev, run));
@@ -464,11 +704,17 @@ export function useWorkflow() {
   }, []);
 
   const addWorkflow = useCallback((wf: Workflow) => {
+    // Imported JSON can carry an existing server id, while converters can
+    // assign the same placeholder id to repeated imports. Every cloud copy
+    // needs its own client tab id until POST returns its distinct server id.
+    const added = editorMode ? { ...wf, id: createWorkflowId(),
+      cloudPending: false, cloudRequestId: createRequestId() } : wf;
     setWorkflows(prev => {
       setActiveIndex(prev.length);
-      return [...prev, normalizeWorkflow(wf)];
+      return [...prev, normalizeWorkflow(added)];
     });
-  }, []);
+    return added.id;
+  }, [editorMode]);
 
   const addCloudWorkflow = useCallback((wf: Workflow) => {
     if (!wf.id) throw new Error('A cloud workflow must have a server ID');
@@ -516,49 +762,21 @@ export function useWorkflow() {
   // POST + GET serially before the tab rendered at all.
   const newCloudWorkflow = useCallback(async () => {
     if (!editorMode) return;
-    const placeholder: Workflow = { ...emptyWorkflow(), cloudPending: true };
-    const tempId = placeholder.id as string;
+    const placeholder: Workflow = { ...emptyWorkflow(), cloudPending: true,
+      cloudRequestId: createRequestId() };
     setWorkflows(prev => {
       setActiveIndex(prev.length);
       return [...prev, placeholder];
     });
-    try {
-      const created = await createCloudWorkflow(i18n.t('common.untitled'));
-      cloudServerIdsRef.current.add(created.id as string);
-      cloudLoadedRef.current = true;
-      setCloudLoadError(false);
-      setWorkflows(prev => prev.map(w => {
-        if (w.id !== tempId) return w;
-        // Tab closed before the row landed — leave the map alone; the empty
-        // server row is harmless and shows up in "Open workflow".
-        if (!w.cloudPending) return w;
-        const merged: Workflow = {
-          ...w,
-          id: created.id,
-          description: w.description || created.description,
-          cloudPending: false,
-        };
-        // Pristine key = the SERVER row (created), not `merged` — edits made
-        // while the row was landing must still trip the save effect.
-        cloudPristineRef.current.set(merged.id as string, workflowSaveKey(created));
-        return merged;
-      }));
-    } catch (err) {
-      logError('cloud.workflows.new', err);
-      // Roll the placeholder back out so the user is not left on a dead tab.
-      setWorkflows(prev => {
-        const next = prev.filter(w => w.id !== tempId);
-        if (next.length === 0) next.push(emptyWorkflow());
-        const len = next.length;
-        setActiveIndex(idx => Math.max(0, Math.min(idx, len - 1)));
-        return next;
-      });
-    }
-  }, [editorMode]);
+    await startCloudCreation(placeholder);
+  }, [editorMode, startCloudCreation]);
 
   const closeTab = useCallback((index: number) => {
     const closingId = workflows[index]?.id;
     if (closingId) {
+      cloudClosedDraftIds.current.add(closingId);
+      cloudCreateFailed.current.delete(closingId);
+      writeCloudDrafts(cloudDraftKey, readCloudDrafts(cloudDraftKey).filter(wf => wf.id !== closingId));
       const timer = cloudSaveTimers.current.get(closingId);
       if (timer) clearTimeout(timer);
       cloudSaveTimers.current.delete(closingId);
@@ -583,7 +801,7 @@ export function useWorkflow() {
     // not the render-closure `workflows.length` which lags one render behind
     // and could leave activeIndex pointing a tab off after rapid closes.
     setActiveIndex(prev => Math.max(0, Math.min(prev, nextLen - 1)));
-  }, [workflows]);
+  }, [workflows, cloudDraftKey]);
 
   const reorderWorkflows = useCallback((from: number, to: number) => {
     setWorkflows(prev => {
@@ -677,10 +895,14 @@ export function useWorkflow() {
       // A local workflow id is generated client-side and does not identify a DB
       // row. Forced cloud runs therefore always create a server-owned workflow.
       let id = options?.forceCloud && !editorMode ? undefined : wf.id;
-      if (!id) id = (await createCloudWorkflow(wf.name || i18n.t('common.untitled'))).id as string;
+      const writeContext = cloudWriteContextRef.current;
+      if (editorMode && !writeContext) throw new Error('Cloud write identity unavailable');
+      if (!id) id = (await (writeContext
+        ? createCloudWorkflow(wf.name || i18n.t('common.untitled'), writeContext)
+        : createCloudWorkflow(wf.name || i18n.t('common.untitled')))).id as string;
       const persisted = { ...wf, id };
       try {
-        await saveCloudWorkflow(persisted);
+        await (writeContext ? saveCloudWorkflow(persisted, writeContext) : saveCloudWorkflow(persisted));
       } catch (err) {
         logError('cloud.run.save', err);
         throw err;

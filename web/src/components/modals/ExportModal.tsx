@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Workflow } from '../../types';
 import { saveToFile } from '../../utils';
@@ -20,7 +20,7 @@ const FORMATS: { id: ExportFormat; labelKey: string; ext: string }[] = [
   { id: 'png', labelKey: 'exportModal.formats.png', ext: '.png' },
   { id: 'snakemake', labelKey: 'exportModal.formats.snakemake', ext: '.smk' },
   { id: 'nextflow', labelKey: 'exportModal.formats.nextflow', ext: '.nf' },
-  { id: 'cwl', labelKey: 'exportModal.formats.cwl', ext: '.cwl' },
+  { id: 'cwl', labelKey: 'exportModal.formats.cwl', ext: '.cwl-bundle.json' },
   { id: 'galaxy', labelKey: 'exportModal.formats.galaxy', ext: '.ga' },
   { id: 'references', labelKey: 'exportModal.formats.references', ext: '.ris' },
 ];
@@ -63,6 +63,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
   const [generating, setGenerating] = useState(false);
   const [pngPreview, setPngPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const generationRef = useRef(0);
 
   // PNG-specific options.
   const [transparentBg, setTransparentBg] = useState(false);
@@ -72,40 +73,51 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
   const thumbnailRenderError = () => t('exportModal.thumbnailRenderFailed');
 
   const resetState = () => {
+    generationRef.current += 1;
     setContent('');
     setPngPreview(null);
     setError(null);
+    setGenerating(false);
   };
 
   const generate = async () => {
+    const generation = ++generationRef.current;
     setGenerating(true);
     setError(null);
     try {
       if (format === 'png' && pngJsonOnly) {
-        setContent(JSON.stringify(workflow, null, 2));
-        setPngPreview(null);
+        if (generation === generationRef.current) {
+          setContent(JSON.stringify(workflow, null, 2));
+          setPngPreview(null);
+        }
       } else if (format === 'png') {
         const dataUrl = await renderWorkflowThumbnailPng(workflow, {
           transparent: transparentBg,
           quality: pngQuality,
         });
-        setPngPreview(dataUrl);
-        setContent('');
+        if (generation === generationRef.current) {
+          setPngPreview(dataUrl);
+          setContent('');
+        }
       } else {
         const data = await apiPost<{ content?: string; workflow?: string }>(
           '/workflow/export',
           { workflow, format: format === 'references' ? referenceFormat : format },
         );
-        setContent(data.content || data.workflow || '');
-        setPngPreview(null);
+        if (generation === generationRef.current) {
+          setContent(data.content || data.workflow || '');
+          setPngPreview(null);
+        }
       }
     } catch (err) {
-      logError('exportModal.generate', err);
-      setError(format === 'png' && !pngJsonOnly ? thumbnailRenderError() : exportErrorMessage(err));
-      setContent('');
-      setPngPreview(null);
+      if (generation === generationRef.current) {
+        logError('exportModal.generate', err);
+        setError(format === 'png' && !pngJsonOnly ? thumbnailRenderError() : exportErrorMessage(err));
+        setContent('');
+        setPngPreview(null);
+      }
     }
-    setGenerating(false);
+    if (generation === generationRef.current) setGenerating(false);
   };
 
   // Auto-regenerate the PNG preview when its options change AND a preview is
@@ -141,6 +153,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
   useEffect(() => {
     if (format !== 'references') return;
     let cancelled = false;
+    const generation = ++generationRef.current;
     (async () => {
       setGenerating(true);
       setError(null);
@@ -149,18 +162,18 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
           '/workflow/export',
           { workflow, format: referenceFormat },
         );
-        if (!cancelled) {
+        if (!cancelled && generation === generationRef.current) {
           setContent(data.content || data.workflow || '');
           setPngPreview(null);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && generation === generationRef.current) {
           logError('exportModal.generate', err);
           setError(exportErrorMessage(err));
           setContent('');
         }
       } finally {
-        if (!cancelled) setGenerating(false);
+        if (!cancelled && generation === generationRef.current) setGenerating(false);
       }
     })();
     return () => { cancelled = true; };
@@ -189,7 +202,7 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
       saveToFile(content, `${baseName}${refFmt?.ext || '.txt'}`, refFmt?.mime || 'text/plain');
       return;
     }
-    saveToFile(content, `${baseName}${fmt?.ext || '.txt'}`, 'text/plain');
+    saveToFile(content, `${baseName}${fmt?.ext || '.txt'}`, format === 'cwl' ? 'application/json' : 'text/plain');
   };
 
   const referencesEmpty = format === 'references' && !content && !generating && !error;
@@ -215,6 +228,12 @@ export default function ExportModal({ workflow, onClose }: ExportModalProps) {
           </button>
         ))}
       </div>
+
+      {format !== 'png' && format !== 'references' && (
+        <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 12 }}>
+          {t(`exportModal.formatHelp.${format}`)}
+        </div>
+      )}
 
       {format === 'png' && (
         <div

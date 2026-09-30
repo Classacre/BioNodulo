@@ -65,6 +65,14 @@ export function useCloudConfig(): UseCloudConfigResult {
           getCurrentUser()
             .then(u => {
               if (cancelled || !u?.id) return;
+              // The shared editor's /api/config is anonymous. Keep the /api/me
+              // account and team in runtime config so cloud draft storage can
+              // be scoped to the authenticated destination before any POST.
+              setCloudConfig(previous => previous ? {
+                ...previous,
+                user: { id: u.id, name: u.name || u.email || u.id, email: u.email || '' },
+                team: u.team,
+              } : previous);
               const user = { id: u.id, name: u.name || u.email || u.id, color: getUserColor(u.id), kind: 'account' as const };
               setAuthUser(user);
               setAuthUserAtom(user);

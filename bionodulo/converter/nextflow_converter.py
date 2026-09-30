@@ -12,7 +12,11 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from bionodulo.converter.edge_utils import edge_source, edge_target, executable_nodes, node_outputs
+from bionodulo.converter.edge_utils import (
+    edge_source, edge_source_port, edge_target, edge_target_port, executable_edges, executable_nodes, node_outputs, validate_edge_ports,
+)
+from bionodulo.converter.node_adapter import canonicalize_foreign_workflow, node_option_widgets
+from bionodulo.converter.roundtrip import restore_workflow_source, stamp_workflow_source
 
 
 def export_to_nextflow(
@@ -29,7 +33,8 @@ def export_to_nextflow(
         The NextFlow script content as a string.
     """
     nodes = executable_nodes(workflow)
-    edges: list[dict[str, Any]] = workflow.get("edges", [])
+    edges = executable_edges(workflow, nodes)
+    validate_edge_ports(nodes, edges)
 
     incoming: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
     outgoing: dict[str, list[dict[str, Any]]] = {nid: [] for nid in nodes}
@@ -37,8 +42,35 @@ def export_to_nextflow(
         src = edge_source(edge)
         tgt = edge_target(edge)
         if src in nodes and tgt in nodes:
+            required_input = "reads" if nodes[tgt].get("type") == "fastqc" else "reports"
+            if edge_target_port(edge) != required_input:
+                raise ValueError(f"Nextflow export cannot bind {required_input!r} from edge {edge.get('id', '')!r}")
+            if (nodes[tgt].get("type") != "multiqc" or
+                    nodes[src].get("type") != "fastqc" or edge_source_port(edge) != "report_dir"):
+                raise ValueError("Nextflow export supports only FastQC.report_dir to MultiQC.reports edges")
             incoming[tgt].append(edge)
             outgoing[src].append(edge)
+
+    process_names = {nid: _sanitize_process_name(nid) for nid in nodes}
+    if len(set(process_names.values())) != len(process_names):
+        raise ValueError("Nextflow export has colliding process names after sanitization")
+    for node_id, node in nodes.items():
+        outputs = node_outputs(node)
+        if node.get("type") not in {"fastqc", "multiqc"}:
+            raise ValueError(f"Cannot export unsupported node type '{node.get('type')}' to NextFlow")
+        ports = set(outputs)
+        required_ports = {"report_dir"} if node.get("type") == "fastqc" else {"report", "data_dir"}
+        if ports != required_ports or len(incoming[node_id]) > 1:
+            raise ValueError("Nextflow export requires supported FastQC/MultiQC output ports and at most one incoming edge")
+        supported_widgets = ({"input_path", "threads", "kmers", "nogroup", "extract", "format", "contaminants", "adapters", "limits"} if node.get("type") == "fastqc" else {"input_path", "title", "comment", "filename", "force"})
+        options = node_option_widgets(node, connected_inputs={edge_target_port(e) for e in incoming[node_id]})
+        ignored = set(options) - supported_widgets
+        if ignored:
+            raise ValueError(f"Nextflow export cannot preserve widgets: {', '.join(sorted(ignored))}")
+        if node.get("type") == "fastqc" and any(
+            options.get(name) for name in ("contaminants", "adapters", "limits")
+        ):
+            raise ValueError("Nextflow export cannot stage FastQC adapter/contaminant/limits files")
 
     lines: list[str] = [
         "#!/usr/bin/env nextflow",
@@ -51,17 +83,17 @@ def export_to_nextflow(
     for node_id, node in nodes.items():
         node_type = node.get("type", "unknown")
         meta = node.get("meta", {})
-        widgets = node.get("widgets", {})
-        process_name = _sanitize_process_name(node_id)
+        widgets = node_option_widgets(node, connected_inputs={edge_target_port(e) for e in incoming[node_id]})
+        process_name = process_names[node_id]
         lines.append("process " + process_name + " {")
-        lines.append('    tag "' + node_id + '"')
+        lines.append('    tag "' + process_name + '"')
 
         container = meta.get("container") or widgets.get("container")
         conda_env = meta.get("conda_env") or widgets.get("conda_env")
         if container:
-            lines.append('    container "' + container + '"')
+            lines.append('    container ' + _groovy_string(container))
         if conda_env:
-            lines.append('    conda "' + conda_env + '"')
+            lines.append('    conda ' + _groovy_string(conda_env))
 
         cpus = meta.get("threads") or widgets.get("threads")
         memory = meta.get("memory") or widgets.get("memory")
@@ -70,22 +102,17 @@ def export_to_nextflow(
         if memory:
             lines.append("    memory '" + str(memory) + " MB'")
 
-        input_defs: list[str] = []
-        for i, edge in enumerate(incoming[node_id]):
-            src = edge_source(edge)
-            input_defs.append("        path input_" + str(i) + " from " + str(src))
-        if input_defs:
-            lines.append("    input:")
-            lines.extend(input_defs)
+        lines.append("    input:")
+        lines.append("        path input_0")
 
         output_defs: list[str] = []
         for port in node_outputs(node):
-            output_defs.append('        path "' + port + '_output"')
+            output_defs.append('        path "' + port + '_output", emit: ' + port)
         if output_defs:
             lines.append("    output:")
             lines.extend(output_defs)
 
-        command = _build_nextflow_script(node_type, widgets, incoming[node_id])
+        command = _build_nextflow_script(node_type, widgets, incoming[node_id], next(iter(node_outputs(node))) + "_output")
         lines.append("    script:")
         lines.append('        """')
         lines.append(command)
@@ -96,25 +123,25 @@ def export_to_nextflow(
     lines.append("workflow {")
     input_nodes = [nid for nid, inc in incoming.items() if not inc]
     for nid in input_nodes:
-        node = nodes[nid]
-        params = node.get("widgets", {})
-        if "input_path" in params:
-            lines.append('    ch_' + nid + ' = Channel.fromPath("' + params["input_path"] + '")')
+        var = "ch_" + process_names[nid]
+        input_path = node_option_widgets(nodes[nid]).get("input_path")
+        if input_path:
+            lines.append(f"    params.{process_names[nid]}_input = {_groovy_string(input_path)}")
+        lines.append(f"    {var} = Channel.fromPath(params.{process_names[nid]}_input)")
 
     for node_id in _topological_sort_nf(nodes, incoming):
         process_name = _sanitize_process_name(node_id)
         inc = incoming[node_id]
         if inc:
-            srcs = [edge_source(e) for e in inc]
-            lines.append("    " + process_name + "(ch_" + str(srcs[0]) + ")")
-            lines.append("    ch_" + node_id + " = " + process_name + ".out")
+            edge = inc[0]
+            source = process_names[str(edge_source(edge))]
+            lines.append("    " + process_name + "(" + source + ".out." + edge_source_port(edge) + ")")
         else:
-            lines.append("    " + process_name + "(ch_" + node_id + ")")
-            lines.append("    ch_" + node_id + " = " + process_name + ".out")
+            lines.append("    " + process_name + "(ch_" + process_name + ")")
 
     lines.append("}")
 
-    content = "\n".join(lines)
+    content = stamp_workflow_source("\n".join(lines), workflow, "//")
     if output_path:
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -127,8 +154,18 @@ def import_from_nextflow(
     workflow_id: str = "imported_nextflow",
 ) -> dict[str, Any]:
     """Parse a NextFlow main.nf script into a BioNodulo workflow."""
+    original = restore_workflow_source(script_content, "//")
+    if original is not None:
+        return original
+    _validate_foreign_nextflow(script_content)
     processes = _parse_processes(script_content)
     workflow_block = _parse_workflow_block(script_content)
+    if not processes:
+        raise ValueError("No supported Nextflow processes found")
+    process_names = {process["name"] for process in processes}
+    called_names = {call["process"] for call in workflow_block["calls"]}
+    if not called_names or called_names != process_names or len(workflow_block["calls"]) != len(processes):
+        raise ValueError("Nextflow import requires one workflow call for each process")
 
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, Any]] = []
@@ -138,7 +175,7 @@ def import_from_nextflow(
         proc_name = proc["name"]
         node_id = "node_" + proc_name
         node_id_map[proc_name] = node_id
-        node_type = _nextflow_process_to_node_type(proc_name, proc.get("script", ""))
+        node_type = "generic_command"
 
         inputs = {}
         for i, inp in enumerate(proc.get("inputs", [])):
@@ -164,6 +201,7 @@ def import_from_nextflow(
                 "container": proc.get("container"),
                 "conda_env": proc.get("conda"),
                 "memory": proc.get("memory"),
+                "import_status": "structural_only",
             },
         }
         nodes.append(node)
@@ -189,16 +227,16 @@ def import_from_nextflow(
                     "target_input": "default",
                 })
 
-    return {
+    return canonicalize_foreign_workflow({
         "id": workflow_id,
         "name": "Imported NextFlow Workflow",
         "nodes": nodes,
         "edges": edges,
-    }
+    })
 
 
 def _sanitize_process_name(name: str) -> str:
-    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+    sanitized = re.sub(r"[^a-zA-Z0-9_]", "_", name)
     sanitized = re.sub(r"_+", "_", sanitized).strip("_")
     if sanitized and sanitized[0].isdigit():
         sanitized = "proc_" + sanitized
@@ -206,22 +244,46 @@ def _sanitize_process_name(name: str) -> str:
 
 
 def _shell_arg(value: Any) -> str:
-    raw = str(value)
-    if raw.startswith(("!", "$", "input", "output")):
-        return raw
-    return shlex.quote(raw)
+    return shlex.quote(str(value)).replace("\\", "\\\\").replace("$", "\\$")
+
+
+def _groovy_string(value: Any) -> str:
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
 def _build_nextflow_script(
     node_type: str,
     widgets: dict[str, Any],
     incoming_edges: list[dict[str, Any]],
+    out_file: str,
 ) -> str:
-    input_refs = ["!" + str(i) for i in range(len(incoming_edges))] or ["input"]
-    in_file = input_refs[0]
-    out_file = "output"
-    q_in = _shell_arg(in_file)
+    in_file = "${input_0}"
+    # Nextflow escapes staged TaskPath interpolation for the shell. Wrapping
+    # it in quotes makes an escaped space a literal backslash in the filename.
+    q_in = in_file
     q_out = _shell_arg(out_file)
+    if node_type == "fastqc" and out_file == "report_dir_output":
+        flags = ["--threads", _shell_arg(widgets.get("threads", 1))]
+        for name in ("nogroup", "extract"):
+            if widgets.get(name):
+                flags.append("--" + name)
+        for name in ("kmers", "format", "contaminants", "adapters", "limits"):
+            if widgets.get(name) not in (None, ""):
+                flags.extend(["--" + name, _shell_arg(widgets[name])])
+        return "mkdir -p report_dir_output\nfastqc " + " ".join(flags) + " --outdir report_dir_output " + q_in
+    if node_type == "multiqc" and out_file == "report_output":
+        stem = str(widgets.get("filename") or "multiqc_report").removesuffix(".html")
+        if not stem or "/" in stem or "\\" in stem or stem in {".", ".."}:
+            raise ValueError("MultiQC export requires a filename basename")
+        flags = ["--filename", _shell_arg(stem), "--force"]
+        for name in ("title", "comment"):
+            if widgets.get(name):
+                flags.extend(["--" + name, _shell_arg(widgets[name])])
+        return (
+            "multiqc " + q_in + " --outdir . " + " ".join(flags)
+            + "\nmv -- " + _shell_arg(stem + ".html") + " report_output"
+            + "\nmv -- " + _shell_arg(stem + "_data") + " data_dir_output"
+        )
     q_index = _shell_arg(widgets.get("index", "index"))
     q_ref = _shell_arg(widgets.get("ref", "ref.fa"))
     q_genome_dir = _shell_arg(widgets.get("genome_dir", "./"))
@@ -229,8 +291,8 @@ def _build_nextflow_script(
     q_db = _shell_arg(widgets.get("db", "db"))
 
     templates: dict[str, str] = {
-        "fastqc": f"fastqc -o . {q_in}",
-        "multiqc": f"multiqc . -o {q_out}",
+        "fastqc": f"fastqc -o . {q_in}\nmv -- *_fastqc.{('zip' if out_file.startswith('zip_') else 'html')} {q_out}",
+        "multiqc": f"mkdir -p .multiqc_input\ncp {q_in} .multiqc_input/input_fastqc.zip\nmultiqc .multiqc_input -o .\nmv -- multiqc_report.html {q_out}",
         "fastp": f"fastp -i {q_in} -o {q_out}",
         "trimmomatic": f"trimmomatic PE {q_in} {q_out}",
         "bowtie2": f"bowtie2 -x {q_index} -U {q_in} -S {q_out}",
@@ -320,6 +382,30 @@ def _parse_processes(content: str) -> list[dict[str, Any]]:
     return processes
 
 
+def _validate_foreign_nextflow(content: str) -> None:
+    """Reject DSL features the lightweight structural parser does not model."""
+    unsupported = re.search(
+        r"(?m)^\s*(?:include\b|workflow\s+\w+\s*\{|when:|exec:|shell:|stub:|"
+        r"publishDir\b|errorStrategy\b|retry\b|take:|emit:|main:|if\s*\(|for\s*\()",
+        content,
+    )
+    if unsupported:
+        raise ValueError(f"Unsupported Nextflow construct: {unsupported.group().strip()}")
+    workflow = re.search(r"workflow\s*\{(.*?)\}", content, re.DOTALL)
+    if workflow:
+        for line in workflow.group(1).splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("//"):
+                continue
+            if re.fullmatch(r"\w+\(\s*\w*\s*\)", stripped):
+                continue
+            if re.fullmatch(r"\w+\s*=\s*\w+\.out(?:\.\w+)?", stripped):
+                continue
+            if re.fullmatch(r"\w+\s*=\s*Channel\.fromPath\([^()]+\)", stripped):
+                continue
+            raise ValueError(f"Unsupported Nextflow workflow expression: {stripped[:60]}")
+
+
 def _parse_workflow_block(content: str) -> dict[str, Any]:
     """Parse the workflow block from a NextFlow DSL2 script."""
     calls: list[dict[str, Any]] = []
@@ -329,11 +415,11 @@ def _parse_workflow_block(content: str) -> dict[str, Any]:
     wf_content = wf_match.group(1)
     for line in wf_content.splitlines():
         stripped = line.strip()
-        call_match = re.match(r"(\w+)\(([^)]+)\)", stripped)
+        call_match = re.match(r"(\w+)\(([^)]*)\)", stripped)
         if call_match:
             calls.append({
                 "process": call_match.group(1),
-                "input_channels": [c.strip() for c in call_match.group(2).split(",")],
+                "input_channels": [c.strip() for c in call_match.group(2).split(",") if c.strip()],
             })
         assign_match = re.match(r"(\w+)\s*=\s*(\w+)\.out", stripped)
         if assign_match and calls:

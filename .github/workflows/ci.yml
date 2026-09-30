@@ -103,6 +103,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Verify bounded dependency updates
+        run: npm run test:dependencies
+
+      - name: Check production dependency advisories
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Test
         run: npm test
 
