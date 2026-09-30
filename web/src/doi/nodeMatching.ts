@@ -1,13 +1,21 @@
 // Pure helpers for the DOI→workflow flow: map an AI-suggested tool name onto a
 // real node type from the loaded registry, and wire "A -> B" suggestions into
 // type-compatible edges. Kept React-free so the logic is unit-testable.
-import Fuse from 'fuse.js';
 import type { NodeMetadata, ObjectInfo, WorkflowEdge, WorkflowNode } from '../types';
 
 export interface SuggestedNode {
   name: string;
   category: string;
   reason: string;
+  /** Exact registry ID supplied by the analysis service, when validated there. */
+  nodeType?: string | null;
+}
+
+export interface SuggestedConnection {
+  from: string;
+  to: string;
+  output: string;
+  input: string;
 }
 
 export interface NodeTypeMatch {
@@ -26,52 +34,33 @@ function normalize(text: string): string {
 
 /**
  * Find the registry node type that best matches a suggested tool name.
- * Order: exact id/display-name/alias hit → fuzzy name hit → note fallback.
- * Category describes a method class, so it cannot identify a specific tool.
+ * Only a registered id or display name identifies a runnable tool. Descriptions,
+ * categories, aliases, and approximate similarity can describe a method without
+ * identifying an executable implementation.
  */
 export function matchToolToNodeType(
   name: string,
   _category: string | undefined,
   objectInfo: ObjectInfo,
+  nodeType?: string | null,
 ): NodeTypeMatch {
+  const note = (): NodeTypeMatch => ({ type: NOTE_NODE_TYPE, meta: objectInfo[NOTE_NODE_TYPE] ?? null, fellBackToNote: true });
+  if (nodeType !== undefined) {
+    return typeof nodeType === 'string' && nodeType !== NOTE_NODE_TYPE && Object.prototype.hasOwnProperty.call(objectInfo, nodeType)
+      ? { type: nodeType, meta: objectInfo[nodeType], fellBackToNote: false }
+      : note();
+  }
   const entries = Object.entries(objectInfo);
   const wanted = normalize(name);
   const wantedCompact = wanted.replace(/ /g, '');
 
   if (wanted) {
-    for (const [type, meta] of entries) {
-      if (normalize(type).replace(/ /g, '') === wantedCompact) {
-        return { type, meta, fellBackToNote: false };
-      }
-      if (normalize(meta.display_name).replace(/ /g, '') === wantedCompact) {
-        return { type, meta, fellBackToNote: false };
-      }
-      for (const alias of meta.search_aliases ?? []) {
-        if (normalize(alias).replace(/ /g, '') === wantedCompact) {
-          return { type, meta, fellBackToNote: false };
-        }
-      }
-    }
+    const matches = entries.filter(([type, meta]) =>
+      normalize(type).replace(/ /g, '') === wantedCompact ||
+      normalize(meta.display_name).replace(/ /g, '') === wantedCompact);
+    if (matches.length === 1) return { type: matches[0][0], meta: matches[0][1], fellBackToNote: false };
   }
-
-  const fuse = new Fuse(
-    entries.map(([type, meta]) => ({ type, meta })),
-    {
-      includeScore: true,
-      ignoreLocation: true,
-      threshold: 0.3,
-      keys: [
-        { name: 'meta.display_name', weight: 0.4 },
-        { name: 'type', weight: 0.3 },
-        { name: 'meta.search_aliases', weight: 0.25 },
-      ],
-    },
-  );
-  const [best] = fuse.search(name);
-  if (best && (best.score ?? 1) <= 0.3) {
-    return { type: best.item.type, meta: best.item.meta, fellBackToNote: false };
-  }
-  return { type: NOTE_NODE_TYPE, meta: objectInfo[NOTE_NODE_TYPE] ?? null, fellBackToNote: true };
+  return note();
 }
 
 /** Slug a suggested name into a stable node id fragment. */
@@ -100,26 +89,8 @@ export interface PlacedNode {
 function matchPlaced(label: string, placed: PlacedNode[]): PlacedNode | null {
   const wanted = normalize(label).replace(/ /g, '');
   if (!wanted) return null;
-  const score = (p: PlacedNode): number => {
-    const candidate = normalize(p.label).replace(/ /g, '');
-    if (candidate === wanted) return 0;
-    if (candidate.includes(wanted) || wanted.includes(candidate)) return 1;
-    return 2;
-  };
-  let best: PlacedNode | null = null;
-  let bestScore = 2;
-  let ambiguous = false;
-  for (const p of placed) {
-    const s = score(p);
-    if (s < bestScore) {
-      best = p;
-      bestScore = s;
-      ambiguous = false;
-    } else if (s === bestScore && s < 2) {
-      ambiguous = true;
-    }
-  }
-  return ambiguous ? null : best;
+  const matches = placed.filter(p => normalize(p.label).replace(/ /g, '') === wanted);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 interface Port {
@@ -148,27 +119,28 @@ function inputsOf(meta: NodeMetadata | undefined | null): Port[] {
 function typesCompatible(outType: string, inType: string): boolean {
   const a = outType.toUpperCase();
   const b = inType.toUpperCase();
+  if (!a || !b) return false;
   return a === b || a === '*' || b === '*' || a === 'ANY' || b === 'ANY';
 }
 
-export function compatiblePortPair(fromMeta: NodeMetadata | undefined | null, toMeta: NodeMetadata | undefined | null): { out: Port; inp: Port } | null {
+function compatiblePortPairs(fromMeta: NodeMetadata | undefined | null, toMeta: NodeMetadata | undefined | null): Array<{ out: Port; inp: Port }> {
+  const pairs: Array<{ out: Port; inp: Port }> = [];
   for (const out of outputsOf(fromMeta)) {
     for (const inp of inputsOf(toMeta)) {
-      if (typesCompatible(out.type, inp.type)) return { out, inp };
+      if (typesCompatible(out.type, inp.type)) pairs.push({ out, inp });
     }
   }
-  return null;
+  return pairs;
 }
 
 /**
- * Wire "A -> B" suggestions into edges between placed nodes. Picks the first
- * type-compatible output→input port pair; silently skips connections that
- * match no nodes or no compatible ports — a missing edge is recoverable, a
- * broken one crashes the canvas.
+ * Wire explicit port connections, or legacy "A -> B" links only when exactly
+ * one compatible output/input pair exists. Ambiguity stays visible as an
+ * unconnected step instead of guessing which scientific input was intended.
  */
 export function wireSuggestion(
   placed: PlacedNode[],
-  connections: string[],
+  connections: Array<string | SuggestedConnection>,
   objectInfo: ObjectInfo,
 ): WorkflowEdge[] {
   const edges: WorkflowEdge[] = [];
@@ -185,9 +157,12 @@ export function wireSuggestion(
     return false;
   };
   for (const raw of connections) {
-    const parsed = parseConnection(raw);
-    if (!parsed) continue;
-    const [fromLabel, toLabel] = parsed;
+    const parsed = typeof raw === 'string' ? parseConnection(raw) : null;
+    if (typeof raw === 'string' && !parsed) continue;
+    if (typeof raw !== 'string' && (!raw || typeof raw.from !== 'string' || typeof raw.to !== 'string' ||
+      typeof raw.output !== 'string' || typeof raw.input !== 'string')) continue;
+    const fromLabel = parsed ? parsed[0] : (raw as SuggestedConnection).from;
+    const toLabel = parsed ? parsed[1] : (raw as SuggestedConnection).to;
     const from = matchPlaced(fromLabel, placed);
     const to = matchPlaced(toLabel, placed);
     if (!from || !to || from.node.id === to.node.id) continue;
@@ -195,7 +170,9 @@ export function wireSuggestion(
 
     const fromMeta = objectInfo[from.node.type];
     const toMeta = objectInfo[to.node.type];
-    const pair = compatiblePortPair(fromMeta, toMeta);
+    const pairs = compatiblePortPairs(fromMeta, toMeta);
+    const pair = parsed ? (pairs.length === 1 ? pairs[0] : null)
+      : pairs.find(({ out, inp }) => out.name === (raw as SuggestedConnection).output && inp.name === (raw as SuggestedConnection).input);
     if (!pair) continue;
     if (edges.some(edge => edge.to.node === to.node.id && edge.to.input === pair.inp.name)) continue;
 

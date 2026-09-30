@@ -5,7 +5,7 @@
 // flow unit-testable with mocked fetches.
 import type { ObjectInfo, Workflow, WorkflowNode } from '../types';
 import { dagreLayout } from '../utils/dagreLayout';
-import { matchToolToNodeType, slugify, wireSuggestion, type PlacedNode, type SuggestedNode } from './nodeMatching';
+import { matchToolToNodeType, slugify, wireSuggestion, type PlacedNode, type SuggestedConnection, type SuggestedNode } from './nodeMatching';
 
 export interface DoiAnalysisPaper {
   title: string;
@@ -25,7 +25,7 @@ export interface DoiAnalysis {
   workflowSuggestion?: {
     description?: string;
     recommendedNodes?: SuggestedNode[];
-    suggestedConnections?: string[];
+    suggestedConnections?: Array<string | SuggestedConnection>;
   };
   paper?: DoiAnalysisPaper;
 }
@@ -412,7 +412,7 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
   progress('doiFlow.stepPlan', 'Planning the pipeline…');
 
   const planned = recommended.map((rec, i) => {
-    const match = matchToolToNodeType(rec.name, rec.category, deps.objectInfo);
+    const match = matchToolToNodeType(rec.name, rec.category, deps.objectInfo, rec.nodeType);
     const node: WorkflowNode = {
       id: slugify(rec.name, i),
       type: match.type,

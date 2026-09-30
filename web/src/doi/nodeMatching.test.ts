@@ -57,7 +57,7 @@ describe('matchToolToNodeType', () => {
     expect(matchToolToNodeType('FastQC', undefined, objectInfo).type).toBe('fastqc');
   });
 
-  it('matches a search alias case-insensitively', () => {
+  it('matches normalized spelling of a registered display name', () => {
     expect(matchToolToNodeType('TRIMGALORE', undefined, objectInfo).type).toBe('trim_galore');
   });
 
@@ -65,8 +65,35 @@ describe('matchToolToNodeType', () => {
     expect(matchToolToNodeType('star_aligner', undefined, objectInfo).type).toBe('star_aligner');
   });
 
-  it('fuzzy-matches a close name', () => {
+  it('matches the exact registered display name', () => {
     expect(matchToolToNodeType('STAR aligner', 'alignment', objectInfo).type).toBe('star_aligner');
+  });
+
+  it('matches the registered DESeq2 tool but leaves algorithmic steps as notes', () => {
+    const info: ObjectInfo = {
+      deseq2: meta({ id: 'deseq2', display_name: 'DESeq2', category: 'differential_expression' }),
+      lofreq_filter: meta({
+        id: 'lofreq_filter', display_name: 'LoFreq filter', category: 'variant_calling',
+        description: 'Filter variants with multiple testing correction',
+        search_aliases: ['multiple testing correction'],
+      }),
+      note: objectInfo.note,
+    };
+    expect(matchToolToNodeType('DESeq2', 'differential_expression', info).type).toBe('deseq2');
+    expect(matchToolToNodeType('MultipleTestingCorrection', 'differential_expression', info).type).toBe('note');
+    expect(matchToolToNodeType('SizeFactorEstimation', 'differential_expression', info).type).toBe('note');
+  });
+
+  it('does not convert an alias or a close spelling into an executable tool', () => {
+    expect(matchToolToNodeType('quality control', 'qc', objectInfo).type).toBe('note');
+    expect(matchToolToNodeType('FastQCC', 'qc', objectInfo).type).toBe('note');
+  });
+
+  it('uses an explicit registry ID and never falls back when that ID is unknown', () => {
+    expect(matchToolToNodeType('Count matrix', 'input', objectInfo, 'fastqc').type).toBe('fastqc');
+    expect(matchToolToNodeType('FastQC', 'qc', objectInfo, 'invented_node').type).toBe('note');
+    expect(matchToolToNodeType('FastQC', 'qc', objectInfo, '__proto__').type).toBe('note');
+    expect(matchToolToNodeType('FastQC', 'qc', objectInfo, null).type).toBe('note');
   });
 
   it('falls back to note for unknown tools', () => {
@@ -145,6 +172,40 @@ describe('wireSuggestion', () => {
 
   it('rejects malformed connection strings', () => {
     expect(wireSuggestion(placed, ['Trim Galore STAR Aligner'], objectInfo)).toEqual([]);
+  });
+
+  it('wires two file instances to distinct DESeq2 inputs only with explicit ports', () => {
+    const info: ObjectInfo = {
+      input_file: meta({ id: 'input_file', display_name: 'Input File', return_types: ['FILE'], return_names: ['file'] }),
+      deseq2: meta({ id: 'deseq2', display_name: 'DESeq2', input_types: { required: {
+        count_matrix: { type: 'FILE' }, sample_info: { type: 'FILE' },
+      } } }),
+    };
+    const nodes: PlacedNode[] = [
+      { node: { id: 'counts-0', type: 'input_file', position: [0, 0], params: {} }, label: 'Count matrix' },
+      { node: { id: 'samples-1', type: 'input_file', position: [0, 0], params: {} }, label: 'Sample information' },
+      { node: { id: 'deseq2-2', type: 'deseq2', position: [0, 0], params: {} }, label: 'DESeq2 analysis' },
+    ];
+    expect(wireSuggestion(nodes, ['Count matrix -> DESeq2 analysis'], info)).toEqual([]);
+    const edges = wireSuggestion(nodes, [
+      { from: 'Count matrix', to: 'DESeq2 analysis', output: 'file', input: 'count_matrix' },
+      { from: 'Sample information', to: 'DESeq2 analysis', output: 'file', input: 'sample_info' },
+    ], info);
+    expect(edges).toEqual([
+      { id: 'doi-e0', from: { node: 'counts-0', output: 'file' }, to: { node: 'deseq2-2', input: 'count_matrix' } },
+      { id: 'doi-e1', from: { node: 'samples-1', output: 'file' }, to: { node: 'deseq2-2', input: 'sample_info' } },
+    ]);
+    expect(wireSuggestion(nodes, [
+      { from: 'Count matrix', to: 'DESeq2 analysis', output: 'file', input: 'count_matrix' },
+      { from: 'Sample information', to: 'DESeq2 analysis', output: 'file', input: 'count_matrix' },
+    ], info)).toHaveLength(1);
+  });
+
+  it('rejects explicit ports with wrong names or incompatible types', () => {
+    expect(wireSuggestion(placed, [
+      { from: 'Trim Galore', to: 'STAR Aligner', output: 'wrong', input: 'reads' },
+      { from: 'Trim Galore', to: 'STAR Aligner', output: 'trimmed', input: 'reference' },
+    ], objectInfo)).toEqual([]);
   });
 });
 

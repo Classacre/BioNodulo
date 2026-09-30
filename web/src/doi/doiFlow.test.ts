@@ -293,6 +293,46 @@ describe('runDoiFlow', () => {
     expect(String(h.getWf().nodes[0].params.text)).toContain('Unconnected steps');
   });
 
+  it('builds catalog-validated DESeq2 steps with two explicit file inputs', async () => {
+    const h = makeHarness(async () => jsonResponse(200, { result: {
+      bioinformaticsRelevant: true,
+      workflowSuggestion: {
+        recommendedNodes: [
+          { name: 'Counts', category: 'input', reason: 'raw counts', nodeType: 'input_file' },
+          { name: 'Samples', category: 'input', reason: 'sample metadata', nodeType: 'input_file' },
+          { name: 'DESeq2 analysis', category: 'differential_expression', reason: 'test expression', nodeType: 'deseq2' },
+        ],
+        suggestedConnections: [
+          { from: 'Counts', to: 'DESeq2 analysis', output: 'file', input: 'count_matrix' },
+          { from: 'Samples', to: 'DESeq2 analysis', output: 'file', input: 'sample_info' },
+        ],
+      },
+      paper: { title: 'DESeq2 paper' },
+    } }));
+    h.deps.objectInfo = {
+      ...objectInfo,
+      input_file: { id: 'input_file', display_name: 'Input File', category: 'input', return_types: ['FILE'], return_names: ['file'] },
+      deseq2: { id: 'deseq2', display_name: 'DESeq2', category: 'differential_expression', input_types: { required: {
+        count_matrix: { type: 'FILE' }, sample_info: { type: 'FILE' },
+      } } },
+    } as ObjectInfo;
+    await runDoiFlow('10.1/deseq2', h.deps);
+    expect(h.getWf().nodes.map(node => node.type)).toEqual(['note', 'input_file', 'input_file', 'deseq2']);
+    expect(h.getWf().edges.map(edge => edge.to.input)).toEqual(['count_matrix', 'sample_info']);
+  });
+
+  it('does not replace an unknown explicit nodeType with a name match', async () => {
+    const h = makeHarness(async () => jsonResponse(200, { result: {
+      bioinformaticsRelevant: true,
+      workflowSuggestion: { recommendedNodes: [
+        { name: 'FastQC', category: 'qc', reason: 'suggested by model', nodeType: 'not_registered' },
+      ] },
+      paper: { title: 'Paper' },
+    } }));
+    await runDoiFlow('10.1/unknown', h.deps);
+    expect(h.getWf().nodes.map(node => node.type)).toEqual(['note', 'note']);
+  });
+
   it('preserves evidence limits and suggested reasons without guessing parameters', async () => {
     const h = makeHarness(async () => jsonResponse(200, {
       result: {
