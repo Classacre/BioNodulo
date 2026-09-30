@@ -659,6 +659,10 @@ const es = {
       },
     },
     steps: {
+      tool: 'Herramienta',
+      modelReceived: 'Respuesta del modelo recibida',
+      modelFailed: 'La solicitud al modelo fallo',
+      modelEnded: 'La solicitud al modelo termino',
       assistantUpdate: 'Actualizacion del asistente',
       showActivity: 'Mostrar actividad',
       hideActivity: 'Ocultar actividad',

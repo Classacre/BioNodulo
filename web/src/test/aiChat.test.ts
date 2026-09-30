@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readAIChatEvents, AIChatStreamError, type AIChatStep } from '../api/aiChat';
+import { apiRequest } from '../api/client';
+import { readAIChatEvents, streamAIChat, AIChatStreamError, type AIChatStep } from '../api/aiChat';
+
+vi.mock('../api/client', () => ({ apiRequest: vi.fn() }));
 
 function stream(chunks: string[]): Response {
   const encoder = new TextEncoder();
@@ -81,5 +84,45 @@ describe('assistant event stream', () => {
     controller.abort();
     await expect(readAIChatEvents(stream(['data: [DONE]\n\n']), vi.fn(), controller.signal))
       .rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
+
+describe('assistant connection deadlines', () => {
+  it('allows a cold connection to respond after 35 seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(apiRequest).mockImplementationOnce((_path, init) => new Promise((resolve, reject) => {
+        const timer = window.setTimeout(() => resolve(stream([
+          'data: {"type":"reply","content":"Ready"}\n\n',
+          'data: [DONE]\n\n',
+        ])), 60_000);
+        init.signal?.addEventListener('abort', () => {
+          window.clearTimeout(timer);
+          reject(new DOMException('Aborted', 'AbortError'));
+        }, { once: true });
+      }));
+      const steps: AIChatStep[] = [];
+      const pending = streamAIChat({}, step => steps.push(step));
+      await vi.advanceTimersByTimeAsync(60_000);
+      await expect(pending).resolves.toBeUndefined();
+      expect(steps.map(step => step.content)).toEqual(['Ready']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still times out a connected stream that stops sending activity', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(apiRequest).mockResolvedValueOnce(new Response(new ReadableStream(), {
+        headers: { 'Content-Type': 'text/event-stream' },
+      }));
+      const pending = streamAIChat({}, vi.fn());
+      const assertion = expect(pending).rejects.toThrow('stopped sending activity');
+      await vi.advanceTimersByTimeAsync(35_001);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

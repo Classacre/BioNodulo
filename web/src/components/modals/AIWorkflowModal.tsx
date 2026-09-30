@@ -123,6 +123,11 @@ function toolResultState(step: ChatStep): 'completed' | 'error' | 'cancelled' {
   return step.status === 'error' ? 'error' : 'completed';
 }
 
+function displayToolName(name: string | undefined, fallback: string): string {
+  const spaced = (name || fallback).replace(/[_-]+/g, ' ').trim();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 function createSession(name: string, greeting: string): ChatSession {
   return {
     id: makeId(),
@@ -433,6 +438,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     inFlightRef.current = abortController;
     setSending(true);
     const startedAt = Date.now();
+    setNow(startedAt);
     setSessions(prev => prev.map(s => s.id === sessionId
       ? { ...s, turns: [...s.turns, { role: 'assistant', steps: [], streaming: true, startedAt, lastActivityAt: startedAt }] }
       : s));
@@ -765,8 +771,8 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                       <div className="ai-activity-summary" role="status">
                         <span className="ai-spinner" />
                         <span>{turn.steps.length ? t('aiWorkflow.generation.active') : t('aiWorkflow.generation.queued')}</span>
-                        <span>{t('aiWorkflow.generation.elapsed', { seconds: Math.floor((now - (turn.startedAt || now)) / 1000) })}</span>
-                        <span>{t('aiWorkflow.generation.lastActivity', { seconds: Math.floor((now - (turn.lastActivityAt || now)) / 1000) })}</span>
+                        <span>{t('aiWorkflow.generation.elapsed', { seconds: Math.max(0, Math.floor((now - (turn.startedAt || now)) / 1000)) })}</span>
+                        <span>{t('aiWorkflow.generation.lastActivity', { seconds: Math.max(0, Math.floor((now - (turn.lastActivityAt || now)) / 1000)) })}</span>
                         <button className="btn btn-sm btn-ghost" onClick={stop} title={t('aiWorkflow.generation.stopTitle')}>
                           {t('aiWorkflow.generation.stop')}
                         </button>
@@ -778,6 +784,14 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                         step={step}
                         onApply={handleApply}
                         applyDisabled={sending}
+                        statusOutcome={step.type === 'status' && step.status === 'running'
+                          ? (() => {
+                              const later = turn.steps?.slice(si + 1) || [];
+                              if (later.some(next => ['commentary', 'tool_call', 'reply', 'propose_changes'].includes(next.type))) return 'received';
+                              if (later.some(next => next.type === 'error')) return 'error';
+                              return turn.streaming ? undefined : 'ended';
+                            })()
+                          : undefined}
                         toolOutcome={step.type === 'tool_call'
                           ? (() => {
                               const result = turn.steps?.find(later => later.type === 'tool_result' && later.id && later.id === step.id);
@@ -786,7 +800,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                           : undefined}
                       />
                     ))}
-                    {!turn.streaming && !turn.isError && <div className="ai-model-badge">{turn.model || t('aiWorkflow.modelUnknown')}</div>}
+                    {!turn.streaming && !turn.isError && turn.model && <div className="ai-model-badge">{turn.model}</div>}
                   </div>
                 ) : (
                   <div
@@ -965,13 +979,18 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   );
 }
 
-function StepRenderer({ step, onApply, toolOutcome, applyDisabled }: { step: ChatStep; onApply: (wf: Workflow) => void; toolOutcome?: string; applyDisabled?: boolean }) {
+function StepRenderer({ step, onApply, toolOutcome, applyDisabled, statusOutcome }: { step: ChatStep; onApply: (wf: Workflow) => void; toolOutcome?: string; applyDisabled?: boolean; statusOutcome?: 'received' | 'error' | 'ended' }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   switch (step.type) {
     case 'status':
-      return <div className="ai-step-status"><Icon name="clock" size={12} /> {step.content}</div>;
+      return <div className="ai-step-status">
+        <Icon name={statusOutcome === 'received' ? 'check' : statusOutcome === 'error' ? 'warning' : 'clock'} size={12} />
+        {statusOutcome === 'received' ? t('aiWorkflow.steps.modelReceived')
+          : statusOutcome === 'error' ? t('aiWorkflow.steps.modelFailed')
+            : statusOutcome === 'ended' ? t('aiWorkflow.steps.modelEnded') : step.content}
+      </div>;
 
     case 'commentary':
       return <div className="ai-step-commentary">
@@ -1000,8 +1019,8 @@ function StepRenderer({ step, onApply, toolOutcome, applyDisabled }: { step: Cha
       return (
         <div className="ai-step-tool-call">
           <button className="ai-step-header ai-step-expand" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
-            <Icon name="terminal" size={12} />
-            <span className="ai-step-name">{step.name}</span>
+            <Icon name="settings" size={12} />
+            <span className="ai-step-name" title={step.name}>{displayToolName(step.name, t('aiWorkflow.steps.tool'))}</span>
             <span className="ai-step-state">{t(toolOutcome === 'cancelled' ? 'aiWorkflow.steps.cancelled' : toolOutcome === 'error' ? 'aiWorkflow.steps.failed' : toolOutcome ? 'aiWorkflow.steps.completed' : 'aiWorkflow.steps.running')}</span>
           </button>
           {expanded && <pre className="ai-step-pre">{JSON.stringify(step.arguments, null, 2)}</pre>}
@@ -1013,7 +1032,7 @@ function StepRenderer({ step, onApply, toolOutcome, applyDisabled }: { step: Cha
         <div className={`ai-step-tool-result ${step.status === 'error' ? 'failed' : ''}`}>
           <button className="ai-step-header ai-step-expand" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
             <Icon name={toolResultState(step) === 'completed' ? 'check' : 'warning'} size={12} />
-            <span className="ai-step-name">{t('aiWorkflow.steps.toolResult', { name: step.name })}</span>
+            <span className="ai-step-name" title={step.name}>{t('aiWorkflow.steps.toolResult', { name: displayToolName(step.name, t('aiWorkflow.steps.tool')) })}</span>
             <span className="ai-step-state">{t(toolResultState(step) === 'cancelled' ? 'aiWorkflow.steps.cancelled' : toolResultState(step) === 'error' ? 'aiWorkflow.steps.failed' : 'aiWorkflow.steps.completed')}</span>
             {typeof step.duration_ms === 'number' && <span>{(step.duration_ms / 1000).toFixed(1)}s</span>}
           </button>

@@ -216,7 +216,7 @@ describe('AIWorkflowModal i18n', () => {
     expect(reasoningToggle).toBeInTheDocument();
     fireEvent.click(reasoningToggle);
     expect(screen.getByRole('button', { name: /Ocultar actividad/ })).toBeInTheDocument();
-    expect(screen.getByText('get_workflow_summary resultado')).toBeInTheDocument();
+    expect(screen.getByText('Get workflow summary resultado')).toBeInTheDocument();
     expect(screen.getByText('Cambios propuestos')).toBeInTheDocument();
     expect(screen.getByText('La IA sugiere modificar el flujo de trabajo.')).toBeInTheDocument();
     expect(screen.queryByText('La IA sugiere modificar el workflow.')).not.toBeInTheDocument();
@@ -387,6 +387,26 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getAllByRole('button', { name: /Detener/ })).toHaveLength(2);
   });
 
+  it('starts elapsed and last activity clocks at zero after an idle modal', async () => {
+    await import('../i18n');
+    let clock = 1_000;
+    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    try {
+      const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+      render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} />);
+      clock = 97_000;
+      fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), {
+        target: { value: 'Check progress' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+      expect(screen.getByText('0s elapsed')).toBeInTheDocument();
+      expect(screen.getByText('Last activity 0s ago')).toBeInTheDocument();
+      expect(screen.queryByText(/-\d+s elapsed/)).not.toBeInTheDocument();
+    } finally {
+      dateNow.mockRestore();
+    }
+  });
+
   it('shows chronological tool activity and replaces a draft with the final reply', async () => {
     await import('../i18n');
     vi.mocked(streamAIChat).mockImplementationOnce(async (_request, onStep) => {
@@ -402,8 +422,8 @@ describe('AIWorkflowModal i18n', () => {
     fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), { target: { value: 'scan' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
     expect(await screen.findByText('Final response')).toBeInTheDocument();
-    expect(screen.getByText('Waiting for model')).toBeInTheDocument();
-    expect(screen.getByText('scan result')).toBeInTheDocument();
+    expect(screen.getByText('Model response received')).toBeInTheDocument();
+    expect(screen.getByText('Scan result')).toBeInTheDocument();
     expect(screen.getAllByText('Completed').length).toBeGreaterThan(0);
     expect(screen.queryByText('Partial')).not.toBeInTheDocument();
   });
@@ -684,7 +704,7 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 
-  it('renders the missing model fallback from the active locale', async () => {
+  it('omits model metadata when the stream does not supply it', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const { setLanguage } = await import('../i18n');
 
@@ -706,8 +726,8 @@ describe('AIWorkflowModal i18n', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
-    expect(await screen.findByText('Modelo desconocido')).toBeInTheDocument();
-    expect(screen.queryByText('unknown')).not.toBeInTheDocument();
+    expect(await screen.findByText('Listo')).toBeInTheDocument();
+    expect(screen.queryByText('Modelo desconocido')).not.toBeInTheDocument();
   });
 
   it('keeps AI workflow shell copy behind i18n keys', () => {
@@ -754,7 +774,6 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.generation.stopped',
       'aiWorkflow.generation.regenerateTitle',
       'aiWorkflow.generation.regenerate',
-      'aiWorkflow.modelUnknown',
       'aiWorkflow.error.backend',
       'aiWorkflow.error.hint',
       'aiWorkflow.popout.openTitle',

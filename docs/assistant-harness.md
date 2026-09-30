@@ -58,7 +58,8 @@ comments indicate an open connection, not completed model or tool work.
 - Three identical failing calls stop the turn rather than loop indefinitely.
 - Malformed arguments, unavailable tools, nested domain errors, empty replies,
   incomplete streams and truncated model output cannot become silent success.
-- UI inactivity and total deadlines are separate from backend deadlines.
+- UI allows 90 seconds for cold-start response headers, then 35 seconds of stream
+  inactivity; its overall deadline is 270 seconds. Backend deadlines are separate.
 - Local ASGI disconnects cancel the task. Hosted disconnect propagation also
   depends on the reverse proxy and Lambda adapter. Already-started external
   operations cannot be assumed reversible or stopped by closing a connection.

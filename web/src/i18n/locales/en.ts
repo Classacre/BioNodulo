@@ -655,6 +655,10 @@ const en = {
       },
     },
     steps: {
+      tool: 'Tool',
+      modelReceived: 'Model response received',
+      modelFailed: 'Model request failed',
+      modelEnded: 'Model request ended',
       assistantUpdate: 'Assistant update',
       showActivity: 'Show activity',
       hideActivity: 'Hide activity',

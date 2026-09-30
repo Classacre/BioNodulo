@@ -122,14 +122,15 @@ export async function streamAIChat(
     controller.abort();
   }, 270_000);
   let idleTimer: number | undefined;
-  const resetIdle = () => {
+  const resetIdle = (delayMs = 35_000) => {
     window.clearTimeout(idleTimer);
     idleTimer = window.setTimeout(() => {
       timeoutReason = 'The assistant connection stopped sending activity.';
       controller.abort();
-    }, 35_000);
+    }, delayMs);
   };
-  resetIdle();
+  // A cold hosted editor can take longer to return its first response headers.
+  resetIdle(90_000);
   try {
     const response = await apiRequest('/ai/chat/stream', {
       method: 'POST',
@@ -140,6 +141,7 @@ export async function streamAIChat(
     if (!(response.headers.get('Content-Type') || '').includes('text/event-stream')) {
       throw new AIChatStreamError('The assistant did not provide a live activity stream.');
     }
+    resetIdle();
     await readAIChatEvents(response, onStep, controller.signal, resetIdle);
   } catch (error) {
     if (timeoutReason) throw new AIChatStreamError(timeoutReason);
