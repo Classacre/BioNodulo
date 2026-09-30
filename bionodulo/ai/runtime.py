@@ -124,6 +124,7 @@ async def run_turn(
                 name, args, call_id = call["name"], call.get("arguments", {}), call["id"]
                 emit(ChatStep(type="tool_call", name=name, arguments=args, id=call_id, status="running"))
                 started = time.monotonic()
+                result: dict[str, Any]
                 if name not in allowed_tools:
                     result = {"status": "error", "error": "This tool is not available in this session."}
                 elif call.get("parse_error"):
@@ -139,8 +140,10 @@ async def run_turn(
                 emit(ChatStep(type="tool_result", name=name, result=result, id=call_id,
                               status="error" if failed else "completed",
                               duration_ms=round((time.monotonic() - started) * 1000)))
-                if not failed and isinstance(result.get("result"), dict) and "workflow" in result["result"]:
-                    response.proposed_workflow = result["result"]["workflow"]
+                payload = result.get("result")
+                workflow = payload.get("workflow") if isinstance(payload, dict) else None
+                if not failed and isinstance(workflow, dict):
+                    response.proposed_workflow = workflow
                     response.proposed_description = "Review and apply the workflow changes drafted by the assistant."
                 messages.append({"role": "tool", "tool_call_id": call_id, "name": name,
                                  "content": truncate(json.dumps(result, default=str))})
