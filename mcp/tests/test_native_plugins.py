@@ -16,7 +16,7 @@ SPEC.loader.exec_module(build)
 
 
 def test_native_plugin_manifest_contracts() -> None:
-    assert build.check() == "0.1.0"
+    assert build.check() == ("0.1.1", "0.1.0")
 
 
 def test_desktop_bundle_contains_only_local_configuration(tmp_path: Path) -> None:
@@ -39,3 +39,18 @@ def test_archives_are_reproducible(tmp_path: Path) -> None:
     build.write_zip(first, entries)
     build.write_zip(second, entries)
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_release_archive_never_replaces_different_content(tmp_path: Path) -> None:
+    target = tmp_path / "released.zip"
+    build.write_release_archive(target, [("entry.txt", b"original")])
+    original = target.read_bytes()
+    build.write_release_archive(target, [("entry.txt", b"original")])
+    assert target.read_bytes() == original
+    try:
+        build.write_release_archive(target, [("entry.txt", b"changed")])
+    except FileExistsError:
+        pass
+    else:
+        raise AssertionError("a published archive was overwritten")
+    assert target.read_bytes() == original

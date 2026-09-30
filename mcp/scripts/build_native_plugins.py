@@ -6,6 +6,7 @@ Run from any directory: python mcp/scripts/build_native_plugins.py
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
 from pathlib import Path
@@ -26,7 +27,7 @@ def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def check() -> str:
+def check() -> tuple[str, str]:
     portable = read_json(PACKAGE / "plugin.json")
     portable_mcp = read_json(PACKAGE / "mcp.json")
     claude = read_json(PACKAGE / ".claude-plugin" / "plugin.json")
@@ -40,7 +41,9 @@ def check() -> str:
     assert portable["name"] == claude["name"] == "bionodulo"
     version = portable["version"]
     assert VERSION_RE.fullmatch(version), f"invalid plugin version: {version}"
-    assert version == claude["version"] == desktop["version"]
+    assert version == claude["version"]
+    desktop_version = desktop["version"]
+    assert VERSION_RE.fullmatch(desktop_version), f"invalid desktop version: {desktop_version}"
     assert portable["license"] == claude["license"] == desktop["license"] == "GPL-3.0-only"
     assert portable_mcp["mcpServers"] == {
         "bionodulo": {"type": "streamable-http", "url": REMOTE_URL}
@@ -68,7 +71,7 @@ def check() -> str:
     sensitive = re.compile(r"(?:sk_live_|sk_test_|CLERK_SECRET_KEY|BIONODULO_AUTH_TOKEN)")
     for file in [PACKAGE / "plugin.json", PACKAGE / "mcp.json", PACKAGE / ".mcp.json", DESKTOP / "manifest.json", DESKTOP / "server.py"]:
         assert not sensitive.search(file.read_text(encoding="utf-8")), f"sensitive credential reference in {file}"
-    return version
+    return version, desktop_version
 
 
 def add_bytes(archive: ZipFile, path: str, data: bytes) -> None:
@@ -101,21 +104,37 @@ def write_zip(path: Path, entries: list[tuple[str, bytes]]) -> None:
             add_bytes(archive, name, data)
 
 
+def write_release_archive(path: Path, entries: list[tuple[str, bytes]]) -> None:
+    """Create an archive without silently replacing a previously built release."""
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w") as archive:
+        for name, data in entries:
+            add_bytes(archive, name, data)
+    payload = buffer.getvalue()
+    if path.exists():
+        if path.read_bytes() != payload:
+            raise FileExistsError(f"existing archive differs; choose a new version: {path}")
+        return
+    path.write_bytes(payload)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="validate sources without creating archives")
+    parser.add_argument("--plugin-only", action="store_true", help="build only the portable plugin; preserve the independently versioned desktop extension")
     args = parser.parse_args()
-    version = check()
+    version, desktop_version = check()
     if args.check:
-        print(f"Plugin manifests and bundle inputs valid ({version})")
+        print(f"Plugin manifests and bundle inputs valid (plugin {version}, desktop {desktop_version})")
         return
     DIST.mkdir(parents=True, exist_ok=True)
     portable_path = DIST / f"bionodulo-plugin-{version}.zip"
-    desktop_path = DIST / f"bionodulo-desktop-{version}.mcpb"
-    write_zip(portable_path, package_files())
-    write_zip(desktop_path, desktop_files())
+    write_release_archive(portable_path, package_files())
     print(portable_path)
-    print(desktop_path)
+    if not args.plugin_only:
+        desktop_path = DIST / f"bionodulo-desktop-{desktop_version}.mcpb"
+        write_release_archive(desktop_path, desktop_files())
+        print(desktop_path)
 
 
 if __name__ == "__main__":

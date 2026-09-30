@@ -116,7 +116,7 @@ function normalizeVersioning(raw: unknown): NodeMetadata['versioning'] | undefin
   };
 }
 
-function normalizeObjectInfo(data: unknown): ObjectInfo {
+export function normalizeObjectInfo(data: unknown): ObjectInfo {
   if (!data || typeof data !== 'object') return {};
   const entries = Object.entries(data as Record<string, Record<string, unknown>>);
   return Object.fromEntries(entries.map(([key, raw]) => {

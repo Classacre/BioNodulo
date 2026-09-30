@@ -1,6 +1,6 @@
 {
   "name": "bionodulo-web",
-  "version": "0.1.1-alpha.5",
+  "version": "0.1.1-alpha.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -22,6 +22,7 @@
   "dependencies": {
     "@clerk/clerk-js": "^6.18.1",
     "@dagrejs/dagre": "^3.0.0",
+    "@modelcontextprotocol/ext-apps": "1.7.5",
     "@xyflow/react": "^12.11.1",
     "fuse.js": "^7.3.0",
     "html-to-image": "^1.11.13",

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bionodulo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Manage BioNodulo workflows, runs, files, credits, and node metadata through its authenticated MCP server.",
   "author": {
     "name": "BioNodulo",
