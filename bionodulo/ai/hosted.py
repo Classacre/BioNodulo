@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import re
+from datetime import datetime, timezone
 
 # Default cloud host. Overridable for staging and for self-hosted deployments,
 # but never pointing at the upstream provider -- that indirection is the point.
@@ -93,29 +94,32 @@ def hosted_unavailable_reason() -> str:
     )
 
 
-# Matches the ISO reset timestamp the proxy embeds in quota errors.
-_RESET_ISO_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z")
+# Only an explicit reset field in a hosted quota error may be shown to users.
+_RESET_ISO_RE = re.compile(r"(?:reset_at|resets? at)[^0-9]{0,8}(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)", re.I)
 
 
 def friendly_hosted_error(exc: BaseException) -> str:
     """Translate a hosted-mode failure into a message safe to show a user.
 
     The hosted path must never leak the upstream provider or model, so raw
-    LiteLLM/proxy error text is never passed through. The shared daily quota
-    (which resets at 00:00 UTC) gets a specific, actionable message; every
-    other failure gets a generic one.
+    LiteLLM/proxy error text is never passed through. A 429 can mean a brief
+    upstream rate limit, not exhaustion of a shared daily allowance.
     """
     text = str(exc)
     lowered = text.lower()
-    if "global_quota_exhausted" in text or "429" in text or "rate limit" in lowered:
-        match = _RESET_ISO_RE.search(text)
-        when = match.group(0) if match else "00:00 UTC"
-        return (
-            "Our global free-AI quota for today has run out — it resets at "
-            f"{when}. Please come back after the reset, or add your own "
-            "provider API key in Settings → AI to continue right away with "
-            "your own GPT or Claude model."
-        )
+    if "global_quota_exhausted" in lowered or "hosted_rate_limited" in lowered or "429" in lowered or "rate limit" in lowered:
+        match = _RESET_ISO_RE.search(text) if "global_quota_exhausted" in lowered else None
+        reset = None
+        if match:
+            try:
+                parsed = datetime.fromisoformat(match.group(1).replace("Z", "+00:00"))
+                if parsed > datetime.now(timezone.utc):
+                    reset = match.group(1)
+            except ValueError:
+                pass
+        guidance = f" The service reports a reset at {reset}." if reset else " Please try again shortly."
+        return ("The hosted AI assistant is temporarily rate-limited." + guidance
+                + " You can also add your own provider API key in Settings → AI.")
     return (
         "The hosted AI assistant is temporarily unavailable. Please try again "
         "in a moment, or add your own provider API key in Settings → AI to "

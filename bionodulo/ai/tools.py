@@ -200,11 +200,12 @@ def _node_defaults(meta: dict[str, Any] | None) -> dict[str, Any]:
     params: dict[str, Any] = {}
     if not meta:
         return params
-    inputs = meta.get("input_types") or {}
+    inputs = meta.get("input") or meta.get("input_types") or {}
     for section in ("required", "optional"):
         for name, spec in (inputs.get(section) or {}).items():
-            if isinstance(spec, dict) and "default" in spec:
-                params[name] = spec["default"]
+            options = spec[1] if isinstance(spec, (list, tuple)) and len(spec) > 1 else spec
+            if isinstance(options, dict) and "default" in options:
+                params[name] = options["default"]
     return params
 
 
@@ -212,12 +213,12 @@ def _node_slot_names(meta: dict[str, Any] | None, direction: str) -> list[str]:
     if not meta:
         return []
     if direction == "input":
-        inputs = meta.get("input_types") or {}
+        inputs = meta.get("input") or meta.get("input_types") or {}
         return list((inputs.get("required") or {}).keys()) + list((inputs.get("optional") or {}).keys())
-    names = meta.get("return_names") or []
+    names = meta.get("output_name") or meta.get("return_names") or []
     if names:
         return list(names)
-    return [f"output_{idx}" for idx, _ in enumerate(meta.get("return_types") or [])]
+    return [f"output_{idx}" for idx, _ in enumerate(meta.get("output") or meta.get("return_types") or [])]
 
 
 def _find_node(workflow: dict[str, Any], node_id: str) -> dict[str, Any] | None:
@@ -338,30 +339,61 @@ def _explain_last_failure(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
     }
 
 
-def _list_available_nodes(ctx: ToolContext, category: str | None = None, **kwargs: Any) -> dict[str, Any]:
+def _category_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+
+def _list_available_nodes(ctx: ToolContext, category: str | None = None, query: str | None = None,
+                          max_results: int = 12, offset: int = 0, **kwargs: Any) -> dict[str, Any]:
     nodes: list[dict[str, Any]] = []
     info = _object_info(ctx)
-    category_query = category.lower() if isinstance(category, str) and category else None
+    category_query = _category_key(category) if isinstance(category, str) and category.strip() else None
+    search_query = query.strip().lower() if isinstance(query, str) and query.strip() else None
+    categories: set[str] = set()
     for node_id, meta in (info or {}).items():
         meta = meta or {}
         node_category = str(meta.get("category", "Unknown"))
-        if category_query and category_query not in node_category.lower():
+        categories.add(node_category)
+        if category_query and category_query not in _category_key(node_category):
+            continue
+        searchable = " ".join(str(item) for item in [node_id, meta.get("display_name", ""),
+                              meta.get("description", ""), node_category,
+                              *(meta.get("search_aliases") or []), *(meta.get("citation_dois") or [])]).lower()
+        if search_query and search_query not in searchable:
             continue
         nodes.append(
             {
                 "id": node_id,
                 "display_name": meta.get("display_name", node_id),
                 "category": node_category,
-                "description": meta.get("description", ""),
+                "description": str(meta.get("description", ""))[:160],
                 "inputs": _node_slot_names(meta, "input"),
                 "outputs": _node_slot_names(meta, "output"),
-                "return_types": meta.get("return_types", []),
-                "requires_tools": meta.get("requires_external_tools", []),
+                "return_types": meta.get("output") or meta.get("return_types") or [],
+                "requires_tools": bool(meta.get("requires_external_tools", False)),
+                "required_executables": meta.get("required_executables") or [],
                 "hidden": bool(meta.get("hidden", False)),
                 "visual_only": bool(meta.get("visual_only", False)),
             }
         )
-    return {"nodes": nodes, "count": len(nodes)}
+    if search_query:
+        nodes.sort(key=lambda node: (0 if node["id"].lower() == search_query else
+                                     1 if str(node["display_name"]).lower() == search_query else 2,
+                                     node["id"]))
+    total = len(nodes)
+    page_size = max(1, min(int(max_results or 12), 30))
+    start = max(0, int(offset or 0))
+    page = nodes[start:start + page_size]
+    # The assistant's tool-result budget is 8k characters. Keep this response
+    # valid JSON with explicit pagination rather than truncating mid-object.
+    while len(page) > 1 and len(json.dumps(page, ensure_ascii=False)) > 7000:
+        page.pop()
+    result: dict[str, Any] = {"nodes": page, "count": len(page),
+                              "total": total, "offset": start, "has_more": start + len(page) < total}
+    if category_query and not any(category_query in _category_key(value) for value in categories):
+        result["category_hint"] = "No matching category. Use query to search IDs, names, aliases, descriptions, or DOIs."
+        result["categories"] = sorted(categories)[:80]
+    return result
 
 
 def _get_node_info(ctx: ToolContext, node_type: str, **kwargs: Any) -> dict[str, Any]:
@@ -373,19 +405,52 @@ def _get_node_info(ctx: ToolContext, node_type: str, **kwargs: Any) -> dict[str,
         "display_name": meta.get("display_name", node_type),
         "category": meta.get("category", "Unknown"),
         "description": meta.get("description", ""),
-        "inputs": meta.get("input_types", {}),
+        "inputs": meta.get("input") or meta.get("input_types") or {},
         "input_names": _node_slot_names(meta, "input"),
         "outputs": _node_slot_names(meta, "output"),
-        "return_types": meta.get("return_types", []),
-        "return_names": meta.get("return_names", []),
-        "required_tools": meta.get("requires_external_tools", []),
-        "required_python_packages": meta.get("requires_python_packages", []),
-        "required_r_packages": meta.get("requires_r_packages", []),
+        "return_types": meta.get("output") or meta.get("return_types") or [],
+        "return_names": meta.get("output_name") or meta.get("return_names") or [],
+        "requires_external_tools": bool(meta.get("requires_external_tools", False)),
+        "required_tools": meta.get("required_executables") or [],
+        "required_executables": meta.get("required_executables") or [],
+        "required_conda_packages": meta.get("required_conda_packages") or [],
+        "required_python_packages": meta.get("required_python_packages") or meta.get("requires_python_packages") or [],
+        "required_r_packages": meta.get("required_r_packages") or meta.get("requires_r_packages") or [],
         "environment": meta.get("environment"),
         "output_node": bool(meta.get("output_node", False)),
         "hidden": bool(meta.get("hidden", False)),
         "visual_only": bool(meta.get("visual_only", False)),
     }
+
+
+def catalog_matches_for_paper(ctx: ToolContext, doi: str, title: str, limit: int = 4) -> list[dict[str, Any]]:
+    """Provide a few actual node contracts before a paper-draft model turn."""
+    info = _object_info(ctx)
+    if not isinstance(info, dict):
+        return []
+    words = set(re.findall(r"[a-z0-9]{4,}", title.lower())) - {
+        "with", "from", "using", "based", "study", "analysis", "data", "method", "methods", "paper",
+    }
+    ranked: list[tuple[int, str, str]] = []
+    for node_id, meta in info.items():
+        if not isinstance(meta, dict):
+            continue
+        citations = [str(value).lower() for value in meta.get("citation_dois") or []]
+        if doi.lower() in citations:
+            ranked.append((100, node_id, "paper DOI cited by node"))
+            continue
+        aliases = " ".join(str(value) for value in meta.get("search_aliases") or [])
+        identity = f"{node_id} {meta.get('display_name', '')} {aliases}".lower()
+        matches = sum(word in identity for word in words)
+        if matches >= 2:
+            ranked.append((matches, node_id, "paper title keywords match node identity"))
+    ranked.sort(key=lambda row: (-row[0], row[1]))
+    contracts: list[dict[str, Any]] = []
+    for _, node_id, reason in ranked[:max(0, min(limit, 6))]:
+        contract = _get_node_info(ctx, node_id)
+        contract["match_reason"] = reason
+        contracts.append(contract)
+    return contracts
 
 
 def _get_dependency_report(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
@@ -969,7 +1034,8 @@ def _template_output_ports(
     for node in inner.get("nodes", []):
         if not isinstance(node, dict) or node.get("id") in sources:
             continue
-        info = node.get("node_info") if isinstance(node.get("node_info"), dict) else {}
+        raw_info = node.get("node_info")
+        info = raw_info if isinstance(raw_info, dict) else {}
         slots = [str(s) for s in (info.get("return_names") or [])] or ["default"]
         for slot in slots:
             ports.append(
@@ -1398,7 +1464,7 @@ async def _search_literature(
     except (TypeError, ValueError):
         count = 5
     base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-    params_search = {"db": "pubmed", "term": query, "retmax": count, "retmode": "json"}
+    params_search: dict[str, str | int] = {"db": "pubmed", "term": query, "retmax": count, "retmode": "json"}
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             search = await client.get(f"{base}/esearch.fcgi", params=params_search)
@@ -1432,7 +1498,7 @@ async def _search_literature(
                     label = abstext.get("Label")
                     parts.append(f"{label}: {text}" if label else text)
                 abstract = "\n".join(parts).strip()
-                if abstract:
+                if abstract and pmid_el.text:
                     abstracts[pmid_el.text.strip()] = abstract[:2000]
     except Exception as exc:
         return {"error": f"Literature search failed: {exc}", "query": query}
@@ -1666,8 +1732,12 @@ ALL_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         "list_available_nodes",
-        "List available node types from the live node registry. Category matching is case-insensitive.",
-        [ToolParameter("category", "string", "Optional category filter, e.g. RNA-Seq or Alignment", required=False, default=None)],
+        "Search node types by query (ID, name, aliases, description, citation DOI) or normalized category. "
+        "Returns at most 30 matches with total/offset; use get_node_info for full contracts.",
+        [ToolParameter("category", "string", "Optional category filter, e.g. RNA-Seq matches rna_seq", required=False, default=None),
+         ToolParameter("query", "string", "Optional search term or exact paper DOI", required=False, default=None),
+         ToolParameter("max_results", "integer", "Page size (max 30, defaults to 12)", required=False, default=12),
+         ToolParameter("offset", "integer", "Pagination offset", required=False, default=0)],
         _list_available_nodes,
     ),
     ToolDefinition(

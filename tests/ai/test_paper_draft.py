@@ -5,6 +5,7 @@ import pytest
 
 from bionodulo.ai import assistant, research_tools
 from bionodulo.ai.runtime import ModelTurn
+from bionodulo.nodes.registry import NodeRegistry
 
 
 DOI = "10.1186/s13059-014-0550-8"
@@ -41,7 +42,8 @@ async def test_bare_doi_grounds_and_proposes_a_draft(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(assistant, "_call_llm", model)
 
     response = await assistant.chat_with_tools(DOI, workflow={"nodes": [], "edges": []}, history=[],
-                                               api_key="test", on_step=events.append)
+                                               api_key="test", registry=NodeRegistry.create_isolated(),
+                                               on_step=events.append)
     assert response.proposed_workflow == drafted
     assert [step.type for step in events[:2]] == ["tool_call", "tool_result"]
     assert events[0].name == "get_paper"
@@ -49,6 +51,8 @@ async def test_bare_doi_grounds_and_proposes_a_draft(monkeypatch: pytest.MonkeyP
     assert "https://europepmc.org/articles/PMC4302049" in str(model_messages[0])
     assert "full_text_excerpt" not in str([message for message in model_messages[0] if message["role"] == "system"])
     assert "full_text_excerpt" in str([message for message in model_messages[0] if message["role"] == "user"])
+    assert "paper DOI cited by node" in str(model_messages[0])
+    assert "count_matrix" in str(model_messages[0])
     assert any(step.type == "propose_changes" for step in response.steps)
     assert "no run" in response.reply
     assert "https://doi.org/10.1186/s13059-014-0550-8" in response.reply

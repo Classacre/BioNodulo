@@ -26,6 +26,7 @@ from bionodulo.ai.tools import (
     ALL_TOOLS,
     ToolContext,
     aexecute_tool,
+    catalog_matches_for_paper,
     tool_available,
     tools_to_openai_schema,
 )
@@ -693,6 +694,15 @@ async def chat_with_tools(
             "evidence_level": "open_access_full_text_excerpt" if excerpt.get("full_text_excerpt") else "abstract_only",
         }
         verified = bool(evidence["title"] and (evidence["abstract"] or evidence["full_text_excerpt"]))
+        if verified:
+            evidence["matching_node_contracts"] = catalog_matches_for_paper(ctx, doi, str(evidence["title"]))
+            if evidence["matching_node_contracts"]:
+                messages.insert(1, {"role": "system", "content": (
+                    "Relevant node contracts have already been inspected and are included with the paper evidence "
+                    "in the user message. Use those contracts directly; search the catalog again only for missing "
+                    "stages. When independent nodes are needed, call add_node for them in the same model turn, "
+                    "then connect their returned IDs. Propose the supported draft without asking whether to begin."
+                )})
         result = {"status": "ok" if verified else "error", "result": evidence if verified else {},
                   **({} if verified else {"error": "No readable abstract or open-access methods were found for this DOI."})}
         emit_preflight(ChatStep(type="tool_result", name="get_paper", result=result, id=lookup_id,
