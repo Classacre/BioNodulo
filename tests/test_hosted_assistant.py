@@ -106,26 +106,28 @@ def _shipped_text_matches(root: Path, pattern: str) -> list[str]:
     return matches
 
 
-def test_quota_errors_become_an_actionable_message_with_the_reset_time() -> None:
+def test_quota_errors_show_only_an_explicit_future_reset_time() -> None:
     class Boom(Exception):
         pass
 
     exc = Boom(
         '429 {"error": {"type": "global_quota_exhausted", '
-        '"reset_at": "2026-08-13T00:00:00.000Z"}}'
+        '"reset_at": "2099-08-13T00:00:00.000Z"}}'
     )
 
     message = hosted.friendly_hosted_error(exc)
 
-    assert "quota" in message.lower()
-    assert "2026-08-13T00:00:00.000Z" in message
+    assert "temporarily rate-limited" in message.lower()
+    assert "2099-08-13T00:00:00.000Z" in message
     assert "API key" in message  # offers the bring-your-own-key way forward
 
 
-def test_quota_errors_fall_back_to_the_daily_reset_time() -> None:
+def test_generic_rate_limit_does_not_invent_a_daily_reset() -> None:
     message = hosted.friendly_hosted_error(Exception("429 too many requests"))
 
-    assert "00:00 UTC" in message
+    assert "temporarily rate-limited" in message.lower()
+    assert "00:00 UTC" not in message
+    assert "today" not in message.lower()
 
 
 def test_other_hosted_failures_never_leak_upstream_text() -> None:
