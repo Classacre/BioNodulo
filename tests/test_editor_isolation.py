@@ -115,6 +115,29 @@ def test_shared_chat_uses_only_the_proxy_verified_identity(
     assert calls[0]["api_base"] == hosted_api_base()
 
 
+def test_stream_emits_live_steps_and_terminal_error(editor_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from bionodulo.api import ai_routes
+    from bionodulo.ai.assistant import ChatStep
+
+    async def fake_chat(**kwargs):
+        kwargs["on_step"](ChatStep(type="tool_call", name="get_workflow_summary", id="call_1", status="running"))
+        kwargs["on_step"](ChatStep(type="tool_result", name="get_workflow_summary", id="call_1", status="completed", duration_ms=2))
+        raise RuntimeError("upstream failed")
+
+    monkeypatch.setattr(ai_routes, "chat_with_tools", fake_chat)
+    response = editor_client.post(
+        "/api/ai/chat/stream", json={"message": "inspect"},
+        headers={"X-Bionodulo-Authorization": "Bearer verified-test-token"},
+    )
+    assert response.status_code == 200
+    events = [json.loads(line.removeprefix("data: ")) for line in response.text.splitlines()
+              if line.startswith("data: {")]
+    assert [event["type"] for event in events] == ["tool_call", "tool_result", "error"]
+    assert events[0]["id"] == events[1]["id"] == "call_1"
+    assert events[-1]["status"] == "error" and events[-1]["content"]
+    assert response.text.endswith("data: [DONE]\n\n")
+
+
 @pytest.mark.asyncio
 async def test_shared_editor_blocks_assistant_file_execution_and_settings_tools(
     monkeypatch: pytest.MonkeyPatch,

@@ -10,6 +10,7 @@ Start with the [project README](../README.md) for installation and the repositor
 - [Custom nodes](help/custom-nodes.md)
 - [Windows local execution](desktop/windows-local-execution.md)
 - [AI assistant research tools](assistant-research.md)
+- [Assistant harness and activity lifecycle](assistant-harness.md)
 - [Desktop development](../desktop/README.md)
 - [MCP server](../mcp/README.md)
 

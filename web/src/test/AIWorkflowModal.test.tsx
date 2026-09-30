@@ -1,12 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { apiGet, apiPost } from '../api/client';
+import { apiGet, apiPost, ApiError } from '../api/client';
+import { streamAIChat } from '../api/aiChat';
 import type { Workflow } from '../types';
 
 vi.mock('../api/client', () => {
-  class ApiError extends Error {}
+  class ApiError extends Error {
+    constructor(message: string, public status: number, _statusText: string, public body: unknown) {
+      super(message);
+    }
+  }
 
   return {
     ApiError,
@@ -26,6 +31,13 @@ vi.mock('../api/client', () => {
     ),
   };
 });
+
+vi.mock('../api/aiChat', () => ({
+  streamAIChat: vi.fn(async (request: unknown, onStep: (step: { type: string; content: string }) => void, signal: AbortSignal) => {
+    const data = await vi.mocked(apiPost)('/ai/chat/stream', request, { signal }) as { steps?: Array<{ type: string; content: string }> };
+    for (const step of data?.steps || []) onStep(step);
+  }),
+}));
 
 const loggingMock = vi.hoisted(() => ({
   logError: vi.fn(),
@@ -71,6 +83,7 @@ describe('AIWorkflowModal i18n', () => {
     loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
     Element.prototype.scrollIntoView = vi.fn();
+    vi.mocked(streamAIChat).mockClear();
   });
 
   afterEach(async () => {
@@ -182,10 +195,10 @@ describe('AIWorkflowModal i18n', () => {
       />,
     );
 
-    const reasoningToggle = screen.getByRole('button', { name: /Mostrar razonamiento/ });
+    const reasoningToggle = screen.getByRole('button', { name: /Mostrar actividad/ });
     expect(reasoningToggle).toBeInTheDocument();
     fireEvent.click(reasoningToggle);
-    expect(screen.getByRole('button', { name: /Ocultar razonamiento/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ocultar actividad/ })).toBeInTheDocument();
     expect(screen.getByText('get_workflow_summary resultado')).toBeInTheDocument();
     expect(screen.getByText('Cambios propuestos')).toBeInTheDocument();
     expect(screen.getByText('La IA sugiere modificar el flujo de trabajo.')).toBeInTheDocument();
@@ -352,9 +365,45 @@ describe('AIWorkflowModal i18n', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }));
 
-    expect(await screen.findByText('Pensando...')).toBeInTheDocument();
+    expect(await screen.findByText('Solicitud en cola')).toBeInTheDocument();
     expect(screen.getAllByTitle('Detener generacion')).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /Detener/ })).toHaveLength(2);
+  });
+
+  it('shows chronological tool activity and replaces a draft with the final reply', async () => {
+    await import('../i18n');
+    vi.mocked(streamAIChat).mockImplementationOnce(async (_request, onStep) => {
+      onStep({ type: 'status', content: 'Waiting for model', status: 'running' });
+      onStep({ type: 'tool_call', content: '', name: 'scan', id: 'tool-1', arguments: { file: 'x' }, status: 'running' });
+      onStep({ type: 'tool_result', content: '', name: 'scan', id: 'tool-1', result: { ok: true }, status: 'completed', duration_ms: 1200 });
+      onStep({ type: 'reply_delta', content: 'Part' });
+      onStep({ type: 'reply_delta', content: 'ial' });
+      onStep({ type: 'reply', content: 'Final response' });
+    });
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} />);
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), { target: { value: 'scan' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
+    expect(await screen.findByText('Final response')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for model')).toBeInTheDocument();
+    expect(screen.getByText('scan result')).toBeInTheDocument();
+    expect(screen.getAllByText('Completed').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Partial')).not.toBeInTheDocument();
+  });
+
+  it('replaces streamed tool planning text with its matching commentary event', async () => {
+    await import('../i18n');
+    vi.mocked(streamAIChat).mockImplementationOnce(async (_request, onStep) => {
+      onStep({ type: 'reply_delta', content: 'Checking nodes', id: 'model-1' });
+      onStep({ type: 'commentary', content: 'Checking nodes', id: 'model-1' });
+      onStep({ type: 'reply', content: 'Done', id: 'model-2' });
+    });
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} />);
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), { target: { value: 'check' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
+    expect(screen.getAllByText('Checking nodes')).toHaveLength(1);
+    expect(screen.getByText('Done')).toBeInTheDocument();
   });
 
   it('renders stopped assistant note from the active locale', async () => {
@@ -466,6 +515,30 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.queryByText(/Para RNA-Seq, recomiendo/)).not.toBeInTheDocument();
   });
 
+  it('shows the server detail and retry action for an API failure', async () => {
+    await import('../i18n');
+    vi.mocked(apiPost).mockRejectedValueOnce(new ApiError('HTTP 429', 429, 'Too Many Requests', { error: 'Daily assistant quota reached' }));
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} />);
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), { target: { value: 'help' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText('The assistant request failed: Daily assistant quota reached')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Retry/ })).toBeInTheDocument();
+  });
+
+  it('labels a cancelled tool separately from a failed tool', async () => {
+    await import('../i18n');
+    storage.set('bionodulo-ai-sessions', JSON.stringify([{
+      id: 'session-1', name: 'Run help', createdAt: Date.now(), turns: [{ role: 'assistant', steps: [
+        { type: 'tool_call', content: '', name: 'scan', id: 'c1', status: 'running' },
+        { type: 'tool_result', content: '', name: 'scan', id: 'c1', status: 'error', result: { result: { status: 'cancelled' } } },
+      ] }],
+    }]));
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} />);
+    expect(screen.getAllByText('Cancelled')).toHaveLength(2);
+  });
+
   it('logs unexpected chat failures and renders them as error turns too', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const thrownValue = 'unexpected-chat-failure';
@@ -487,7 +560,7 @@ describe('AIWorkflowModal i18n', () => {
 
     expect(await screen.findByText('The assistant request failed: unexpected-chat-failure')).toBeInTheDocument();
     expect(screen.getByText('Check your connection or sign-in status, then try again.')).toBeInTheDocument();
-    expect(loggingMock.logError).toHaveBeenCalledWith('aiWorkflow.chat.fallback', thrownValue);
+    expect(loggingMock.logError).toHaveBeenCalledWith('aiWorkflow.chat', thrownValue);
     expect(screen.queryByText(/For RNA-Seq, I recommend/)).not.toBeInTheDocument();
   });
 
@@ -588,8 +661,8 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.input.pastedNodes.nodeLabel',
       'aiWorkflow.input.pastedNodes.edgeSuffix',
       'aiWorkflow.input.pastedNodes.edgeLabel',
-      'aiWorkflow.steps.showReasoning',
-      'aiWorkflow.steps.hideReasoning',
+      'aiWorkflow.steps.showActivity',
+      'aiWorkflow.steps.hideActivity',
       'aiWorkflow.steps.toolResult',
       'aiWorkflow.steps.proposedChanges',
       'aiWorkflow.steps.proposalFallbackDescription',
@@ -597,7 +670,10 @@ describe('AIWorkflowModal i18n', () => {
       'aiWorkflow.steps.copyToCanvas',
       'aiWorkflow.steps.previewJson',
       'aiWorkflow.steps.applySuccess',
-      'aiWorkflow.generation.thinking',
+      'aiWorkflow.generation.queued',
+      'aiWorkflow.generation.active',
+      'aiWorkflow.generation.elapsed',
+      'aiWorkflow.generation.lastActivity',
       'aiWorkflow.generation.stopTitle',
       'aiWorkflow.generation.stop',
       'aiWorkflow.generation.stopped',

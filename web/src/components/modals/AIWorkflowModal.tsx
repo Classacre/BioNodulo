@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { Workflow } from '../../types';
-import { apiGet, apiPost, ApiError } from '../../api/client';
+import { apiGet, ApiError } from '../../api/client';
+import { streamAIChat, type AIChatStep } from '../../api/aiChat';
 import { logError } from '../../state/logging';
 import { renderMarkdownToHtml } from '../../utils/markdown';
 import {
@@ -18,14 +19,8 @@ interface AIWorkflowModalProps {
   onApplyWorkflow: (wf: Workflow) => void;
 }
 
-interface ChatStep {
-  type: 'thinking' | 'tool_call' | 'tool_result' | 'propose_changes' | 'reply';
-  content: string;
-  name?: string;
-  arguments?: Record<string, unknown>;
-  result?: Record<string, unknown>;
+interface ChatStep extends Omit<AIChatStep, 'workflow'> {
   workflow?: Workflow;
-  description?: string;
 }
 
 interface ChatTurn {
@@ -37,6 +32,9 @@ interface ChatTurn {
   /** Backend/network failure marker: renders the muted error bubble instead of
    *  markdown. `content` carries the raw error message. */
   isError?: boolean;
+  streaming?: boolean;
+  startedAt?: number;
+  lastActivityAt?: number;
 }
 
 interface AttachedFile {
@@ -66,10 +64,15 @@ const QUICK_PROMPTS: { id: string; labelKey: string; promptKey: string }[] = [
   { id: 'nextStep', labelKey: 'aiWorkflow.quickPrompts.nextStep.label', promptKey: 'aiWorkflow.quickPrompts.nextStep.prompt' },
 ];
 
-function loadSessions(): ChatSession[] {
+function loadSessions(interruptedLabel: string): ChatSession[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return (JSON.parse(raw) as ChatSession[]).map(session => ({
+      ...session,
+      turns: session.turns.map(turn => turn.streaming
+        ? { ...turn, streaming: false, steps: [...(turn.steps || []), { type: 'status', content: interruptedLabel }] }
+        : turn),
+    }));
   } catch { /* ignore */ }
   return [];
 }
@@ -93,6 +96,31 @@ function loadDrawerWidth(): number {
 
 function makeId() {
   return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function appendChatStep(steps: ChatStep[], step: ChatStep): ChatStep[] {
+  if (step.type === 'reply_delta') {
+    const last = steps[steps.length - 1];
+    if (last?.type === 'reply_delta' && (!step.id || !last.id || step.id === last.id)) {
+      return [...steps.slice(0, -1), { ...last, content: last.content + step.content }];
+    }
+  }
+  if (step.type === 'reply') {
+    return [...steps.filter(previous => previous.type !== 'reply_delta' || (step.id && previous.id && previous.id !== step.id)), step];
+  }
+  if (step.type === 'commentary' && step.id) {
+    return [...steps.filter(previous => previous.type !== 'reply_delta' || previous.id !== step.id), step];
+  }
+  return [...steps, step];
+}
+
+function toolResultState(step: ChatStep): 'completed' | 'error' | 'cancelled' {
+  const inner = step.result?.result;
+  if (step.result?.status === 'cancelled' ||
+      (inner && typeof inner === 'object' && (inner as Record<string, unknown>).status === 'cancelled')) {
+    return 'cancelled';
+  }
+  return step.status === 'error' ? 'error' : 'completed';
 }
 
 function createSession(name: string, greeting: string): ChatSession {
@@ -134,13 +162,14 @@ function loadSkills(): Promise<SkillSummary[]> {
 export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: AIWorkflowModalProps) {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
-    const saved = loadSessions();
+    const saved = loadSessions(t('aiWorkflow.generation.interrupted'));
     return saved.length > 0 ? saved : [createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting'))];
   });
   const [activeSessionId, setActiveSessionId] = useState<string>(sessions[0]?.id || '');
   const [showMenu, setShowMenu] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -167,6 +196,19 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   // AbortController for the in-flight chat fetch — lets the user Stop a slow
   // tool-using turn instead of being forced to wait for it to finish.
   const inFlightRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+  const activeSessionIdRef = useRef(activeSessionId);
+
+  useEffect(() => { activeSessionIdRef.current = activeSessionId; }, [activeSessionId]);
+  useEffect(() => {
+    if (!sending) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [sending]);
+  useEffect(() => () => {
+    requestIdRef.current++;
+    inFlightRef.current?.abort();
+  }, []);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const turns = activeSession?.turns || [];
@@ -229,20 +271,42 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     setSkillIndex(i => Math.min(i, Math.max(skillMatches.length - 1, 0)));
   }, [skillMatches.length]);
 
+  const interruptCurrentTurn = useCallback(() => {
+    inFlightRef.current?.abort();
+    requestIdRef.current++;
+    setSending(false);
+    const sessionId = activeSessionIdRef.current;
+    setSessions(prev => prev.map(session => session.id === sessionId ? {
+      ...session,
+      turns: session.turns.map(turn => turn.streaming ? {
+        ...turn,
+        streaming: false,
+        steps: [...(turn.steps || []), { type: 'status', content: t('aiWorkflow.generation.stopped') } as ChatStep],
+      } : turn),
+    } : session));
+  }, [t]);
+
   const createNewSession = useCallback(() => {
+    if (inFlightRef.current) interruptCurrentTurn();
     const s = createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting'));
     setSessions(prev => [s, ...prev]);
     setActiveSessionId(s.id);
     setShowMenu(false);
-  }, [t]);
+  }, [t, interruptCurrentTurn]);
 
   const switchSession = useCallback((id: string) => {
+    if (id !== activeSessionIdRef.current) {
+      if (inFlightRef.current) interruptCurrentTurn();
+    }
     setActiveSessionId(id);
     setShowMenu(false);
-  }, []);
+  }, [interruptCurrentTurn]);
 
   const deleteSession = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (id === activeSessionIdRef.current) {
+      if (inFlightRef.current) interruptCurrentTurn();
+    }
     setSessions(prev => {
       const next = prev.filter(s => s.id !== id);
       if (next.length === 0) next.push(createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting')));
@@ -255,7 +319,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
       }
       return prev;
     });
-  }, [sessions, t]);
+  }, [sessions, t, interruptCurrentTurn]);
 
   const startRename = useCallback((s: ChatSession, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -362,77 +426,84 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     historyOverride?: ChatTurn[],
   ) => {
     const historyTurns = historyOverride ?? turns;
-    setSending(true);
+    const sessionId = activeSessionId;
+    const requestId = ++requestIdRef.current;
     const abortController = new AbortController();
     inFlightRef.current = abortController;
+    setSending(true);
+    const startedAt = Date.now();
+    setSessions(prev => prev.map(s => s.id === sessionId
+      ? { ...s, turns: [...s.turns, { role: 'assistant', steps: [], streaming: true, startedAt, lastActivityAt: startedAt }] }
+      : s));
 
-    // Surface backend/network failures as an honest, muted error bubble.
-    // (Previously this fell back to canned local responses, which masked a
-    // production outage behind plausible-looking nonsense.)
-    const appendErrorTurn = (message: string) => setSessions(prev =>
-      prev.map(s =>
-        s.id === activeSessionId
-          ? { ...s, turns: [...s.turns, { role: 'assistant', content: message, isError: true } as ChatTurn] }
-          : s
-      )
-    );
-
-    try {
-      const history = historyTurns.map(t => ({
-        role: t.role,
-        content: t.content || t.steps?.map(s => s.content).join('\n') || '',
+    const updateTurn = (update: (turn: ChatTurn) => ChatTurn) => {
+      if (requestIdRef.current !== requestId) return;
+      setSessions(prev => prev.map(s => {
+        if (s.id !== sessionId) return s;
+        const turns = [...s.turns];
+        const last = turns.length - 1;
+        if (last < 0 || turns[last].role !== 'assistant' || !turns[last].streaming) return s;
+        turns[last] = update(turns[last]);
+        return { ...s, turns };
       }));
+    };
 
-      try {
-        const data = await apiPost<{ steps?: ChatStep[]; model?: string }>('/ai/chat', {
-          message: userMsg,
-          workflow,
-          workflow_id: workflow.id || null,
-          history,
-          files: currentAttachments,
-        }, { signal: abortController.signal });
-        const steps: ChatStep[] = (data.steps || []).map((s: ChatStep) => ({
-          ...s,
-          workflow: s.workflow
-            ? sanitizeWorkflow(s.workflow as unknown as Record<string, unknown>, workflow, t('common.untitled'))
+    const history = historyTurns.map(turn => ({
+      role: turn.role,
+      content: turn.content || turn.steps?.filter(step => step.type === 'reply').map(step => step.content).join('\n') || '',
+    }));
+    try {
+      let terminalError = false;
+      await streamAIChat({
+        message: userMsg,
+        workflow,
+        workflow_id: workflow.id || null,
+        history,
+        files: currentAttachments,
+      }, event => {
+        if (event.type === 'error') terminalError = true;
+        const step: ChatStep = {
+          ...event,
+          workflow: event.workflow
+            ? sanitizeWorkflow(event.workflow, workflow, t('common.untitled'))
             : undefined,
-        }));
-        const assistantTurn: ChatTurn = {
-          role: 'assistant',
-          steps,
-          model: data.model || undefined,
         };
-        setSessions(prev =>
-          prev.map(s =>
-            s.id === activeSessionId
-              ? { ...s, turns: [...s.turns, assistantTurn] }
-              : s
-          )
-        );
-      } catch (err) {
-        // AbortError: user clicked Stop. Append a "stopped" note instead of
-        // falling back to canned local responses (which would feel wrong).
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          setSessions(prev =>
-            prev.map(s =>
-              s.id === activeSessionId
-                ? { ...s, turns: [...s.turns, { role: 'assistant', content: t('aiWorkflow.generation.stopped') }] }
-                : s
-            )
-          );
-        } else if (err instanceof ApiError || err instanceof Error) {
-          logError('aiWorkflow.chat', err);
-          appendErrorTurn(err.message);
-        } else {
-          throw err;
-        }
-      }
+        updateTurn(turn => ({
+          ...turn,
+          steps: appendChatStep(turn.steps || [], step),
+          lastActivityAt: Date.now(),
+        }));
+      }, abortController.signal);
+      updateTurn(turn => ({ ...turn, streaming: false, isError: terminalError }));
     } catch (err) {
-      logError('aiWorkflow.chat.fallback', err);
-      appendErrorTurn(err instanceof Error ? err.message : String(err));
+      if (requestIdRef.current !== requestId) return;
+      const stopped = abortController.signal.aborted || (err instanceof DOMException && err.name === 'AbortError');
+      if (!stopped) logError('aiWorkflow.chat', err);
+      let message = stopped ? t('aiWorkflow.generation.stopped') : err instanceof Error ? err.message : String(err);
+      if (err instanceof ApiError) {
+        const body = err.body;
+        const detail = typeof body === 'string' ? body
+          : body && typeof body === 'object'
+            ? (body as Record<string, unknown>).error || (body as Record<string, unknown>).detail || (body as Record<string, unknown>).message
+            : undefined;
+        message = typeof detail === 'string' && detail.trim() ? detail.slice(0, 500)
+          : err.status === 401 ? t('aiWorkflow.error.signIn')
+            : err.status === 429 ? t('aiWorkflow.error.quota') : message;
+      }
+      updateTurn(turn => ({
+        ...turn,
+        streaming: false,
+        isError: !stopped,
+        steps: turn.steps?.some(step => step.type === 'error')
+          ? turn.steps
+          : [...(turn.steps || []), { type: stopped ? 'status' : 'error', content: message, status: stopped ? 'completed' : 'error' }],
+      }));
+    } finally {
+      if (requestIdRef.current === requestId) {
+        inFlightRef.current = null;
+        setSending(false);
+      }
     }
-    inFlightRef.current = null;
-    setSending(false);
   }, [activeSessionId, turns, workflow, t]);
 
   const send = useCallback(async () => {
@@ -678,7 +749,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
               </div>
             ) : (
               <div className={`ai-msg assistant ${turn.isError ? 'ai-error' : ''}`}>
-                {turn.isError ? (
+                {turn.isError && !turn.steps?.length ? (
                   <>
                     <Icon name="warning" size={14} className="ai-error-icon" />
                     <div className="ai-error-text">
@@ -688,10 +759,31 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                   </>
                 ) : turn.steps ? (
                   <div className="ai-steps">
+                    {turn.streaming && (
+                      <div className="ai-activity-summary" role="status">
+                        <span className="ai-spinner" />
+                        <span>{turn.steps.length ? t('aiWorkflow.generation.active') : t('aiWorkflow.generation.queued')}</span>
+                        <span>{t('aiWorkflow.generation.elapsed', { seconds: Math.floor((now - (turn.startedAt || now)) / 1000) })}</span>
+                        <span>{t('aiWorkflow.generation.lastActivity', { seconds: Math.floor((now - (turn.lastActivityAt || now)) / 1000) })}</span>
+                        <button className="btn btn-sm btn-ghost" onClick={stop} title={t('aiWorkflow.generation.stopTitle')}>
+                          {t('aiWorkflow.generation.stop')}
+                        </button>
+                      </div>
+                    )}
                     {turn.steps.map((step, si) => (
-                      <StepRenderer key={si} step={step} onApply={handleApply} />
+                      <StepRenderer
+                        key={si}
+                        step={step}
+                        onApply={handleApply}
+                        toolOutcome={step.type === 'tool_call'
+                          ? (() => {
+                              const result = turn.steps?.find(later => later.type === 'tool_result' && later.id && later.id === step.id);
+                              return result ? toolResultState(result) : undefined;
+                            })()
+                          : undefined}
+                      />
                     ))}
-                    <div className="ai-model-badge">{turn.model || t('aiWorkflow.modelUnknown')}</div>
+                    {!turn.streaming && !turn.isError && <div className="ai-model-badge">{turn.model || t('aiWorkflow.modelUnknown')}</div>}
                   </div>
                 ) : (
                   <div
@@ -703,24 +795,6 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
             )}
           </div>
         ))}
-        {sending && (
-          <div className="ai-turn assistant">
-            <div className="ai-msg assistant">
-              <div className="ai-thinking-inline">
-                <span className="ai-spinner" />
-                {t('aiWorkflow.generation.thinking')}
-                <button
-                  className="btn btn-sm btn-ghost"
-                  style={{ marginLeft: 12 }}
-                  onClick={stop}
-                  title={t('aiWorkflow.generation.stopTitle')}
-                >
-                  <Icon name="close" size={10} /> {t('aiWorkflow.generation.stop')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
         <div ref={bottomRef} />
       </div>
     </div>
@@ -750,7 +824,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
       {!sending && turns.length > 1 && turns[turns.length - 1].role === 'assistant' && (
         <div className="ai-quick-prompts">
           <button className="ai-quick-prompt" onClick={regenerate} title={t('aiWorkflow.generation.regenerateTitle')}>
-            ↻ {t('aiWorkflow.generation.regenerate')}
+            ↻ {t(turns[turns.length - 1].isError ? 'aiWorkflow.generation.retry' : 'aiWorkflow.generation.regenerate')}
           </button>
         </div>
       )}
@@ -888,17 +962,32 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   );
 }
 
-function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflow) => void }) {
+function StepRenderer({ step, onApply, toolOutcome }: { step: ChatStep; onApply: (wf: Workflow) => void; toolOutcome?: string }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   switch (step.type) {
+    case 'status':
+      return <div className="ai-step-status"><Icon name="clock" size={12} /> {step.content}</div>;
+
+    case 'commentary':
+      return <div className="ai-step-commentary">
+        <strong>{t('aiWorkflow.steps.assistantUpdate')}</strong>
+        <div className="ai-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(step.content) }} />
+      </div>;
+
+    case 'error':
+      return <div className="ai-step-error" role="alert">
+        <Icon name="warning" size={12} /> {t('aiWorkflow.error.backend', { message: step.content })}
+        <div className="ai-error-hint">{t('aiWorkflow.error.hint')}</div>
+      </div>;
+
     case 'thinking':
       return (
         <div className="ai-step-thinking">
           <button className="ai-step-toggle" onClick={() => setExpanded(!expanded)}>
             <Icon name="lightbulb" size={12} />
-            {expanded ? t('aiWorkflow.steps.hideReasoning') : t('aiWorkflow.steps.showReasoning')}
+            {expanded ? t('aiWorkflow.steps.hideActivity') : t('aiWorkflow.steps.showActivity')}
           </button>
           {expanded && <pre className="ai-step-pre">{step.content}</pre>}
         </div>
@@ -907,22 +996,25 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
     case 'tool_call':
       return (
         <div className="ai-step-tool-call">
-          <div className="ai-step-header">
+          <button className="ai-step-header ai-step-expand" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
             <Icon name="terminal" size={12} />
             <span className="ai-step-name">{step.name}</span>
-          </div>
-          <pre className="ai-step-pre">{JSON.stringify(step.arguments, null, 2)}</pre>
+            <span className="ai-step-state">{t(toolOutcome === 'cancelled' ? 'aiWorkflow.steps.cancelled' : toolOutcome === 'error' ? 'aiWorkflow.steps.failed' : toolOutcome ? 'aiWorkflow.steps.completed' : 'aiWorkflow.steps.running')}</span>
+          </button>
+          {expanded && <pre className="ai-step-pre">{JSON.stringify(step.arguments, null, 2)}</pre>}
         </div>
       );
 
     case 'tool_result':
       return (
-        <div className="ai-step-tool-result">
-          <div className="ai-step-header">
-            <Icon name="check" size={12} />
+        <div className={`ai-step-tool-result ${step.status === 'error' ? 'failed' : ''}`}>
+          <button className="ai-step-header ai-step-expand" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
+            <Icon name={toolResultState(step) === 'completed' ? 'check' : 'warning'} size={12} />
             <span className="ai-step-name">{t('aiWorkflow.steps.toolResult', { name: step.name })}</span>
-          </div>
-          <pre className="ai-step-pre">{JSON.stringify(step.result, null, 2)}</pre>
+            <span className="ai-step-state">{t(toolResultState(step) === 'cancelled' ? 'aiWorkflow.steps.cancelled' : toolResultState(step) === 'error' ? 'aiWorkflow.steps.failed' : 'aiWorkflow.steps.completed')}</span>
+            {typeof step.duration_ms === 'number' && <span>{(step.duration_ms / 1000).toFixed(1)}s</span>}
+          </button>
+          {expanded && <pre className="ai-step-pre">{JSON.stringify(step.result, null, 2)}</pre>}
         </div>
       );
 
@@ -969,6 +1061,7 @@ function StepRenderer({ step, onApply }: { step: ChatStep; onApply: (wf: Workflo
       );
 
     case 'reply':
+    case 'reply_delta':
     default:
       return (
         <div

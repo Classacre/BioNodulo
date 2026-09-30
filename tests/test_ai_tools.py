@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from bionodulo.ai.assistant import chat_with_tools
+from bionodulo.ai.hosted import HOSTED_MODEL, HOSTED_PROVIDER, hosted_api_base
 from bionodulo.ai.tools import ToolContext, execute_tool
 
 
@@ -89,6 +90,7 @@ def test_ai_graph_tools_reject_unknown_slots():
 @pytest.mark.asyncio
 async def test_ai_chat_uses_litellm_native_tool_calls(monkeypatch):
     calls = []
+    live_steps = []
 
     async def fake_acompletion(**kwargs):
         calls.append(kwargs)
@@ -125,12 +127,72 @@ async def test_ai_chat_uses_litellm_native_tool_calls(monkeypatch):
         workflow_id="wf-local",
         registry=DummyRegistry(),
         api_key="sk-test",
+        on_step=live_steps.append,
     )
 
     assert calls[0]["tools"]
     assert "tool_choice" in calls[0]
     assert any(step.type == "tool_call" and step.name == "get_current_workflow" for step in response.steps)
     assert response.reply == "The workflow is empty."
+    assert [step.type for step in live_steps] == [step.type for step in response.steps]
+    tool_call = next(step for step in live_steps if step.type == "tool_call")
+    tool_result = next(step for step in live_steps if step.type == "tool_result")
+    assert tool_call.id == tool_result.id == "call_1"
+    assert tool_call.status == "running" and tool_result.status == "completed"
+    assert tool_result.duration_ms is not None
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_reports_malformed_tool_arguments_without_running_tool(monkeypatch):
+    calls = []
+
+    async def fake_acompletion(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+                content="", tool_calls=[SimpleNamespace(id="bad_args", type="function", function=SimpleNamespace(
+                    name="get_current_workflow", arguments="{bad json"
+                ))],
+            ))])
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Please retry.", tool_calls=[]))])
+
+    async def forbidden_tool(*args, **kwargs):
+        raise AssertionError("Malformed tool arguments must not execute")
+
+    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace(acompletion=fake_acompletion))
+    monkeypatch.setattr("bionodulo.ai.assistant.aexecute_tool", forbidden_tool)
+    response = await chat_with_tools("check", workflow=None, history=[], api_key="sk-test")
+
+    result = next(step for step in response.steps if step.type == "tool_result")
+    assert result.id == "bad_args"
+    assert result.status == "error"
+    assert "valid JSON" in result.result["error"]
+    assert response.reply == "Please retry."
+
+
+@pytest.mark.asyncio
+async def test_hosted_model_label_has_explicit_litellm_provider(monkeypatch):
+    import litellm
+
+    captured = {}
+
+    async def fake_acompletion(**kwargs):
+        captured.update(kwargs)
+        # Resolve the opaque model exactly as LiteLLM does before making any
+        # network request. Without the explicit provider, this raises.
+        assert litellm.get_llm_provider(
+            kwargs["model"], custom_llm_provider=kwargs.get("custom_llm_provider")
+        )[1] == "openai"
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="ready", tool_calls=[]))])
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    response = await chat_with_tools(
+        "hello", workflow=None, history=[], provider=HOSTED_PROVIDER,
+        model=HOSTED_MODEL, api_key="signed-in-user-token", api_base=hosted_api_base(),
+    )
+    assert response.reply == "ready"
+    assert captured["custom_llm_provider"] == "openai"
+    assert captured["api_base"] == hosted_api_base()
 
 
 # --- Autonomous-agent tool tests (no live LLM required) ---------------------

@@ -181,15 +181,18 @@ class AIReproducePaperRequest(BaseModel):
 
 
 class AIChatResponseStep(BaseModel):
-    """A single step in the AI reasoning chain."""
+    """An observable assistant activity event."""
 
-    type: str = Field(..., description="thinking, tool_call, tool_result, propose_changes, reply")
-    content: str = Field("", description="Text content for thinking/reply")
+    type: str = Field(..., description="status, commentary, reply_delta, tool_call, tool_result, propose_changes, reply, error")
+    content: str = Field("", description="Visible status, assistant text, or error")
     name: str = Field("", description="Tool name for tool_call/tool_result")
     arguments: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
     result: dict[str, Any] = Field(default_factory=dict, description="Tool execution result")
     workflow: dict[str, Any] | None = Field(None, description="Proposed workflow")
     description: str = Field("", description="Human-readable description of proposed changes")
+    id: str = Field("", description="Model attempt or tool call identifier")
+    status: str = Field("", description="running, completed, error, or cancelled")
+    duration_ms: int | None = Field(None, description="Tool duration in milliseconds")
 
 
 # ---------------------------------------------------------------------------

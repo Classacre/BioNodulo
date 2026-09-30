@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from bionodulo.ai.assistant import chat_with_tools
+from bionodulo.ai.assistant import ChatStep, chat_with_tools
 from bionodulo.ai.skills import list_skills
 from bionodulo.ai.hosted import (
     HOSTED_MODEL,
@@ -28,6 +28,29 @@ from bionodulo.api.rate_limits import limiter
 from bionodulo.api.schemas import AIChatRequest, AIReproducePaperRequest
 
 ai_router = APIRouter()
+
+
+def _step_payload(step: ChatStep) -> dict[str, Any]:
+    return {
+        "type": step.type,
+        "content": step.content,
+        "name": step.name,
+        "arguments": step.arguments,
+        "result": step.result,
+        "workflow": step.workflow,
+        "description": step.description,
+        "id": step.id,
+        "status": step.status,
+        "duration_ms": step.duration_ms,
+    }
+
+
+def _chat_error(exc: Exception, api_base: str | None) -> str:
+    if isinstance(exc, asyncio.TimeoutError):
+        return "The assistant timed out. Review its activity and try a smaller request."
+    if api_base == hosted_api_base():
+        return friendly_hosted_error(exc)
+    return f"AI error: {exc}"
 
 
 def _get_registry(request: Request) -> Any:
@@ -130,27 +153,18 @@ async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
     except Exception as exc:
         # Hosted mode: never leak the upstream provider or model — translate
         # quota exhaustion and outages into safe, actionable messages.
-        message = friendly_hosted_error(exc) if api_base == hosted_api_base() else f"AI error: {exc}"
+        message = _chat_error(exc, api_base)
         return {
-            "steps": [{"type": "reply", "content": message}],
-            "reply": message,
+            "steps": [_step_payload(ChatStep(type="error", content=message, status="error"))],
+            "reply": "",
+            "error": message,
             "model": model or provider,
         }
 
     return {
-        "steps": [
-            {
-                "type": step.type,
-                "content": step.content,
-                "name": step.name,
-                "arguments": step.arguments,
-                "result": step.result,
-                "workflow": step.workflow,
-                "description": step.description,
-            }
-            for step in response.steps
-        ],
+        "steps": [_step_payload(step) for step in response.steps],
         "reply": response.reply,
+        "error": next((step.content for step in response.steps if step.type == "error"), None),
         "proposed_workflow": response.proposed_workflow,
         "proposed_description": response.proposed_description,
         "model": model or provider,
@@ -158,14 +172,11 @@ async def ai_chat(request: Request, body: AIChatRequest) -> dict[str, Any]:
 
 
 @ai_router.post("/ai/chat/stream")
+@limiter.limit("20/minute")
 async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
     """Stream an AI assistant response as server-sent events.
 
-    Runs the full tool-aware chat (which is internally non-streaming because
-    the LangGraph loop is round-based) and replays each ChatStep as its own
-    SSE event. This gives the UI a progressive view without a graph rewrite:
-    `tool_call`/`tool_result` events arrive as their rounds finish, and a
-    final `reply` event closes the stream.
+    The turn driver delivers steps into a queue while the request is running.
     """
     state = app_state(request)
     settings = state.settings
@@ -175,45 +186,60 @@ async def ai_chat_stream(request: Request, body: AIChatRequest) -> Any:
     provider, model, api_key, api_base, temperature, max_tokens = _llm_runtime_settings(request, body)
 
     async def _stream() -> Any:
+        queue: asyncio.Queue[ChatStep | None] = asyncio.Queue()
+
+        async def _run_chat() -> None:
+            try:
+                await chat_with_tools(
+                    user_message=body.message,
+                    workflow=body.workflow,
+                    workflow_id=body.workflow_id,
+                    history=body.history,
+                    provider=provider,
+                    model=model,
+                    api_key=api_key,
+                    api_base=api_base,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    registry=registry,
+                    settings=settings,
+                    settings_manager=settings_manager,
+                    files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
+                    run_queue=_get_run_queue(request),
+                    on_step=queue.put_nowait,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                queue.put_nowait(ChatStep(type="error", content=_chat_error(exc, api_base), status="error"))
+            finally:
+                queue.put_nowait(None)
+
+        task = asyncio.create_task(_run_chat())
+        elapsed = 0
         try:
-            response = await chat_with_tools(
-                user_message=body.message,
-                workflow=body.workflow,
-                workflow_id=body.workflow_id,
-                history=body.history,
-                provider=provider,
-                model=model,
-                api_key=api_key,
-                api_base=api_base,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                registry=registry,
-                settings=settings,
-                settings_manager=settings_manager,
-                files=[{"name": f.name, "mime_type": f.mime_type, "content": f.content} for f in body.files],
-                run_queue=_get_run_queue(request),
-            )
-        except Exception as exc:
-            message = friendly_hosted_error(exc) if api_base == hosted_api_base() else f"AI error: {exc}"
-            yield f"data: {json.dumps({'type': 'reply', 'content': message})}\n\n"
-            yield "data: [DONE]\n\n"
-            return
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    step = await asyncio.wait_for(queue.get(), timeout=1)
+                except asyncio.TimeoutError:
+                    elapsed += 1
+                    if elapsed >= 10:
+                        yield ": heartbeat\n\n"
+                        elapsed = 0
+                    continue
+                elapsed = 0
+                if step is None:
+                    yield "data: [DONE]\n\n"
+                    break
+                yield f"data: {json.dumps(_step_payload(step), default=str)}\n\n"
+        finally:
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
-        for step in response.steps:
-            payload = {
-                "type": step.type,
-                "content": step.content,
-                "name": step.name,
-                "arguments": step.arguments,
-                "result": step.result,
-                "workflow": step.workflow,
-                "description": step.description,
-            }
-            yield f"data: {json.dumps(payload, default=str)}\n\n"
-            await asyncio.sleep(0)
-        yield "data: [DONE]\n\n"
-
-    return StreamingResponse(_stream(), media_type="text/event-stream")
+    return StreamingResponse(_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @ai_router.get("/ai/skills")

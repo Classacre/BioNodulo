@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
-from functools import lru_cache
-from typing import Any, TypedDict
+from typing import Any, Callable
+
+from bionodulo.ai.runtime import ChatResponse, ChatStep, ModelTurn as LLMResponse, run_turn
 
 from bionodulo.ai.tools import (
     ALL_TOOLS,
@@ -72,29 +72,6 @@ DEFAULT_MODELS = {
     "openai": "gpt-4.1-mini",
     "openrouter": "openai/gpt-4.1-mini",
 }
-
-
-@dataclass
-class ChatStep:
-    """A single step in the AI reasoning chain."""
-
-    type: str  # thinking, tool_call, tool_result, propose_changes, reply
-    content: str = ""
-    name: str = ""  # for tool_call: tool name
-    arguments: dict[str, Any] = field(default_factory=dict)
-    result: dict[str, Any] = field(default_factory=dict)
-    workflow: dict[str, Any] | None = None
-    description: str = ""
-
-
-@dataclass
-class ChatResponse:
-    """Full response from the AI assistant."""
-
-    steps: list[ChatStep]
-    reply: str = ""
-    proposed_workflow: dict[str, Any] | None = None
-    proposed_description: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -334,12 +311,6 @@ def _convert_message_for_anthropic(msg: dict[str, Any]) -> dict[str, Any]:
 # LLM backend
 # ---------------------------------------------------------------------------
 
-@dataclass
-class LLMResponse:
-    content: str
-    tool_calls: list[dict[str, Any]] = field(default_factory=list)
-
-
 def _obj_get(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(key, default)
@@ -376,20 +347,27 @@ def _parse_tool_call(call: Any) -> dict[str, Any] | None:
     if not name:
         return None
     raw_args = _obj_get(function, "arguments", "{}")
+    parse_error = ""
     if isinstance(raw_args, str):
         try:
             arguments = json.loads(raw_args or "{}")
         except json.JSONDecodeError:
             arguments = {}
+            parse_error = "Tool arguments were not valid JSON."
     elif isinstance(raw_args, dict):
         arguments = raw_args
     else:
         arguments = {}
+        parse_error = "Tool arguments must be a JSON object."
+    if not isinstance(arguments, dict):
+        arguments = {}
+        parse_error = "Tool arguments must be a JSON object."
     return {
         "id": str(_obj_get(call, "id", f"call_{name}")),
         "type": str(_obj_get(call, "type", "function")),
         "name": str(name),
-        "arguments": arguments if isinstance(arguments, dict) else {},
+        "arguments": arguments,
+        "parse_error": parse_error,
     }
 
 
@@ -411,6 +389,54 @@ def _assistant_tool_call_message(content: str, tool_calls: list[dict[str, Any]])
     }
 
 
+async def _collect_model_stream(stream: Any, on_text: Callable[[str], None] | None) -> dict[str, Any]:
+    """Assemble one model attempt, publishing only its visible answer text.
+
+    Tool argument fragments are never executed until the stream has settled.
+    An interrupted or truncated response therefore cannot execute partial JSON.
+    """
+    text: list[str] = []
+    calls: dict[int, dict[str, Any]] = {}
+    finish_reason = None
+    size = 0
+    try:
+        async for chunk in stream:
+            if _obj_get(chunk, "error"):
+                raise RuntimeError("The model stream reported an error.")
+            for choice in _obj_get(chunk, "choices", []) or []:
+                if _obj_get(choice, "index", 0) != 0:
+                    continue
+                finish_reason = _obj_get(choice, "finish_reason") or finish_reason
+                delta = _obj_get(choice, "delta", {})
+                content = _obj_get(delta, "content", "") or ""
+                if content:
+                    text.append(str(content))
+                    size += len(str(content))
+                    if on_text:
+                        on_text(str(content))
+                for fragment in _obj_get(delta, "tool_calls", []) or []:
+                    index = int(_obj_get(fragment, "index", 0))
+                    call = calls.setdefault(index, {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                    if _obj_get(fragment, "id"):
+                        call["id"] = _obj_get(fragment, "id")
+                    function = _obj_get(fragment, "function", {})
+                    for key in ("name", "arguments"):
+                        value = str(_obj_get(function, key, "") or "")
+                        call["function"][key] += value
+                        size += len(value)
+                if size > 1_000_000 or len(calls) > 64:
+                    raise RuntimeError("The model response exceeded the assistant's size limit.")
+        if not finish_reason:
+            raise RuntimeError("The model stream ended before completion. Please retry.")
+        return {"choices": [{"finish_reason": finish_reason, "message": {
+            "content": "".join(text), "tool_calls": [calls[index] for index in sorted(calls)],
+        }}]}
+    finally:
+        close = getattr(stream, "aclose", None)
+        if close:
+            await close()
+
+
 async def _call_llm(
     messages: list[dict[str, Any]],
     provider: str,
@@ -420,6 +446,7 @@ async def _call_llm(
     temperature: float,
     max_tokens: int,
     tools: list[dict[str, Any]] | None = None,
+    on_text: Callable[[str], None] | None = None,
 ) -> LLMResponse:
     if not api_key and provider not in {"custom", "litellm"}:
         raise ValueError(f"{provider} API key is required.")
@@ -430,12 +457,21 @@ async def _call_llm(
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
-        "stream": False,
+        "stream": on_text is not None,
+        "timeout": MODEL_TIMEOUT_SECONDS,
+        "num_retries": 0,
     }
     if api_key:
         kwargs["api_key"] = api_key
     if api_base:
         kwargs["api_base"] = api_base
+    if provider.lower() == "openai" and api_base:
+        # The hosted proxy accepts an opaque model label. LiteLLM cannot infer
+        # its provider from that label, even though the endpoint is OpenAI wire
+        # compatible, so make the protocol explicit.
+        kwargs["custom_llm_provider"] = "openai"
+        if not kwargs["model"].startswith("openai/"):
+            kwargs["model"] = f"openai/{kwargs['model']}"
     if tools:
         kwargs["tools"] = tools
         kwargs["tool_choice"] = "auto"
@@ -456,9 +492,14 @@ async def _call_llm(
         else:
             raise RuntimeError(f"LLM provider error: {exc}") from exc
 
+    if hasattr(response, "__aiter__"):
+        response = await _collect_model_stream(response, on_text)
     choices = _obj_get(response, "choices", [])
     if not choices:
-        return LLMResponse(content="")
+        raise RuntimeError("The model returned no response choices.")
+    finish_reason = _obj_get(choices[0], "finish_reason", "")
+    if finish_reason in {"length", "content_filter", "error"}:
+        raise RuntimeError("The model could not finish its response. Try a smaller request.")
     message = _obj_get(choices[0], "message", {})
     content = _obj_get(message, "content", "") or ""
     raw_tool_calls = _obj_get(message, "tool_calls", []) or []
@@ -485,6 +526,9 @@ async def _call_llm(
 #: graph. Callers that orchestrate multi-step builds raise it via
 #: ``max_tool_rounds``.
 MAX_TOOL_ROUNDS = 12
+MODEL_TIMEOUT_SECONDS = 90
+TOOL_TIMEOUT_SECONDS = 45
+REQUEST_TIMEOUT_SECONDS = 240
 
 # Token-efficiency knobs. The assistant loop sends the FULL message list on
 # every iteration, so trimming what we send is the single biggest cost lever.
@@ -515,163 +559,6 @@ def _truncate_tool_payload(payload: str, max_bytes: int = TOOL_RESULT_MAX_BYTES)
 
 
 
-class AssistantGraphState(TypedDict, total=False):
-    """Mutable state passed through the LangGraph assistant workflow."""
-
-    messages: list[dict[str, Any]]
-    steps: list[ChatStep]
-    ctx: ToolContext
-    tool_calls: list[dict[str, Any]]
-    last_content: str
-    mutated_workflow: bool
-    proposed_workflow: dict[str, Any] | None
-    proposed_description: str
-    reply: str
-    rounds: int
-    error: str
-    provider: str
-    model: str | None
-    api_key: str | None
-    api_base: str | None
-    temperature: float
-    max_tokens: int
-    tool_schemas: list[dict[str, Any]]
-
-
-async def _graph_call_model(state: AssistantGraphState) -> AssistantGraphState:
-    messages_state = list(state["messages"])
-    steps_state = list(state.get("steps", []))
-    try:
-        llm_response = await _call_llm(
-            messages=messages_state,
-            provider=state["provider"],
-            model=state.get("model"),
-            api_key=_provider_api_key(state["provider"], state.get("api_key")),
-            api_base=state.get("api_base"),
-            temperature=state["temperature"],
-            max_tokens=state["max_tokens"],
-            tools=state["tool_schemas"],
-        )
-    except Exception as exc:
-        reply = f"Sorry, I encountered an error: {exc}"
-        steps_state.append(ChatStep(type="reply", content=reply))
-        return {"steps": steps_state, "reply": reply, "error": reply}
-
-    content = llm_response.content
-    tool_calls = llm_response.tool_calls
-    updates: AssistantGraphState = {
-        "steps": steps_state,
-        "last_content": content,
-        "tool_calls": tool_calls,
-    }
-    if tool_calls:
-        return updates
-
-    proposed_workflow = state.get("proposed_workflow")
-    proposed_description = state.get("proposed_description", "")
-    if state.get("mutated_workflow"):
-        graph_ctx = state["ctx"]
-        proposed_workflow = graph_ctx.workflow
-        proposed_description = "Apply the workflow changes drafted by the assistant tools."
-        steps_state.append(
-            ChatStep(
-                type="propose_changes",
-                workflow=proposed_workflow,
-                description=proposed_description,
-            )
-        )
-    reply = content.strip()
-    if reply:
-        steps_state.append(ChatStep(type="reply", content=reply))
-    updates.update(
-        {
-            "steps": steps_state,
-            "reply": reply,
-            "proposed_workflow": proposed_workflow,
-            "proposed_description": proposed_description,
-        }
-    )
-    return updates
-
-
-async def _graph_run_tool(state: AssistantGraphState) -> AssistantGraphState:
-    tool_calls = state.get("tool_calls", [])
-    if not tool_calls:
-        return {}
-
-    steps_state = list(state.get("steps", []))
-    messages_state = list(state["messages"])
-    messages_state.append(_assistant_tool_call_message(state.get("last_content", ""), tool_calls))
-    graph_ctx = state["ctx"]
-    mutated = bool(state.get("mutated_workflow"))
-
-    for tool_call in tool_calls:
-        tool_name = str(tool_call.get("name", ""))
-        args = tool_call.get("arguments", {})
-        if not isinstance(args, dict):
-            args = {}
-
-        steps_state.append(ChatStep(type="tool_call", name=tool_name, arguments=args))
-
-        result = await aexecute_tool(tool_name, args, graph_ctx)
-
-        steps_state.append(
-            ChatStep(
-                type="tool_result",
-                name=tool_name,
-                result=result,
-            )
-        )
-
-        if isinstance(result, dict) and result.get("status") == "ok":
-            inner = result.get("result", {})
-            if isinstance(inner, dict) and "workflow" in inner:
-                graph_ctx.workflow = inner["workflow"]
-                mutated = True
-
-        messages_state.append(
-            {
-                "role": "tool",
-                "tool_call_id": str(tool_call.get("id", f"call_{tool_name}")),
-                "name": tool_name,
-                "content": _truncate_tool_payload(json.dumps(result, default=str)),
-            }
-        )
-
-    return {
-        "messages": messages_state,
-        "steps": steps_state,
-        "ctx": graph_ctx,
-        "mutated_workflow": mutated,
-        "rounds": int(state.get("rounds", 0)) + 1,
-        "tool_calls": [],
-    }
-
-
-def _route_after_model(state: AssistantGraphState) -> str:
-    if state.get("error"):
-        return "__end__"
-    if state.get("tool_calls") and int(state.get("rounds", 0)) < int(
-        state.get("max_tool_rounds") or MAX_TOOL_ROUNDS
-    ):
-        return "tool"
-    return "__end__"
-
-
-@lru_cache(maxsize=1)
-def _compiled_assistant_graph() -> Any:
-    """Compile the LangGraph assistant once per process."""
-    from langgraph.graph import END, StateGraph
-
-    graph = StateGraph(AssistantGraphState)
-    graph.add_node("model", _graph_call_model)
-    graph.add_node("tool", _graph_run_tool)
-    graph.set_entry_point("model")
-    graph.add_conditional_edges("model", _route_after_model, {"tool": "tool", "__end__": END})
-    graph.add_edge("tool", "model")
-    return graph.compile()
-
-
 async def chat_with_tools(
     user_message: str,
     workflow: dict[str, Any] | None,
@@ -691,6 +578,7 @@ async def chat_with_tools(
     system_prompt: str | None = None,
     tool_names: list[str] | None = None,
     max_tool_rounds: int | None = None,
+    on_step: Callable[[ChatStep], None] | None = None,
 ) -> ChatResponse:
     """Run the AI chat with a tool-use loop.
 
@@ -732,55 +620,21 @@ async def chat_with_tools(
 
     messages.append({"role": "user", "content": user_content})
 
-    compiled = _compiled_assistant_graph()
+    async def model_call(message_list: list[dict[str, Any]], on_text: Callable[[str], None]) -> LLMResponse:
+        return await _call_llm(
+            messages=message_list, provider=provider, model=model,
+            api_key=_provider_api_key(provider, api_key), api_base=api_base,
+            temperature=temperature, max_tokens=max_tokens, tools=tool_schemas,
+            on_text=on_text if on_step else None,
+        )
 
-    final_state = await compiled.ainvoke(
-        {
-            "messages": messages,
-            "steps": [],
-            "ctx": ctx,
-            "tool_calls": [],
-            "mutated_workflow": False,
-            "proposed_workflow": None,
-            "proposed_description": "",
-            "reply": "",
-            "rounds": 0,
-            "provider": provider,
-            "model": model,
-            "api_key": api_key,
-            "api_base": api_base,
-            "temperature": temperature,
-            "max_tool_rounds": int(max_tool_rounds or MAX_TOOL_ROUNDS),
-            "max_tokens": max_tokens,
-            "tool_schemas": tool_schemas,
-        }
-    )
+    async def execute(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        return await aexecute_tool(name, arguments, ctx)
 
-    steps = list(final_state.get("steps", []))
-    proposed_workflow = final_state.get("proposed_workflow")
-    proposed_description = final_state.get("proposed_description", "")
-    reply = final_state.get("reply", "")
-
-    if final_state.get("tool_calls") and int(final_state.get("rounds", 0)) >= int(
-        final_state.get("max_tool_rounds") or MAX_TOOL_ROUNDS
-    ):
-        if final_state.get("mutated_workflow"):
-            graph_ctx = final_state["ctx"]
-            proposed_workflow = graph_ctx.workflow
-            proposed_description = "Apply the workflow changes drafted by the assistant tools."
-            steps.append(
-                ChatStep(
-                    type="propose_changes",
-                    workflow=proposed_workflow,
-                    description=proposed_description,
-                )
-            )
-        reply = "I reached the maximum number of tool calls. Please simplify your request."
-        steps.append(ChatStep(type="reply", content=reply))
-
-    return ChatResponse(
-        steps=steps,
-        reply=reply,
-        proposed_workflow=proposed_workflow,
-        proposed_description=proposed_description,
+    return await run_turn(
+        messages=messages, model=model_call, execute=execute,
+        allowed_tools={tool.name for tool in active_tools}, truncate=_truncate_tool_payload,
+        on_step=on_step, max_rounds=max(1, min(int(max_tool_rounds or MAX_TOOL_ROUNDS), 40)),
+        model_timeout=MODEL_TIMEOUT_SECONDS, tool_timeout=TOOL_TIMEOUT_SECONDS,
+        request_timeout=REQUEST_TIMEOUT_SECONDS,
     )
