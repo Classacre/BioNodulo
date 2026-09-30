@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -283,44 +284,124 @@ def test_wrong_host_endpoint_is_rejected_with_required_endpoint_named() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_build_wes_request_compiles_cwl_for_two_node_workflow() -> None:
-    payload = build_wes_request(_two_node_workflow())
+def _editor_node(node_id: str, node_type: str, params: dict[str, Any]) -> dict[str, Any]:
+    catalog_path = Path(__file__).resolve().parents[2] / "bionodulo" / "nodes" / "node_metadata.json"
+    metadata = json.loads(catalog_path.read_text(encoding="utf-8"))[node_type]
+    input_types = {
+        section: {
+            name: {"type": spec[0], **spec[1]}
+            for name, spec in metadata["input"].get(section, {}).items()
+        }
+        for section in ("required", "optional", "hidden")
+    }
+    return {
+        "id": node_id,
+        "type": node_type,
+        "position": [100, 100],
+        "params": params,
+        "node_info": {
+            "id": node_type,
+            "input_types": input_types,
+            "return_names": metadata["output_name"],
+            "return_types": metadata["output"],
+        },
+    }
+
+
+def test_build_wes_request_compiles_cwl_for_two_node_workflow(wes_server: _MockWESServer) -> None:
+    workflow = {
+        "id": "table_workflow",
+        "nodes": [
+            _editor_node("extract", "extract_columns", {"columns": "sample,status", "delimiter": "tsv"}),
+            _editor_node("filter", "filter_rows", {"column": "status", "operator": "equals", "value": "case"}),
+        ],
+        "edges": [{"id": "e1", "from": {"node": "extract", "output": "extracted_table"},
+                   "to": {"node": "filter", "input": "table"}}],
+    }
+    payload = build_wes_request(workflow, input_bindings={"extract_table": "https://data.example/table.tsv"})
 
     assert payload["workflow_type"] == "CWL"
     assert payload["workflow_type_version"] == "v1.2"
     assert payload["workflow_url"] == "workflow.cwl"
     assert payload["tags"]["bionodulo:converter"] == "cwl"
 
-    # Only the unconnected input becomes a workflow param, keyed by node/port.
-    assert payload["workflow_params"] == {"view/alignment": "/data/patient1.bam"}
+    assert payload["workflow_params"] == {
+        "extract_table": {"class": "File", "location": "https://data.example/table.tsv"},
+    }
 
     attachments = dict(payload["workflow_attachment"])
-    assert set(attachments) == {"workflow.cwl", "tools/view.cwl", "tools/sort.cwl"}
+    assert set(attachments) == {"workflow.cwl", "tools/extract.cwl", "tools/filter.cwl", "bionodulo-roundtrip.json"}
 
     wf_doc = json.loads(attachments["workflow.cwl"])
     assert wf_doc["class"] == "Workflow"
     assert wf_doc["cwlVersion"] == "v1.2"
-    assert set(wf_doc["steps"]) == {"view", "sort"}
-    assert wf_doc["steps"]["sort"]["in"]["alignment"] == "view/bam"
+    assert set(wf_doc["inputs"]) == {"extract_table"}
+    assert set(wf_doc["steps"]) == {"extract", "filter"}
+    assert wf_doc["steps"]["filter"]["in"]["table"] == "extract/extracted_table"
 
-    view_tool = json.loads(attachments["tools/view.cwl"])
-    assert view_tool["class"] == "CommandLineTool"
-    assert view_tool["baseCommand"] == ["samtools", "view", "-b"]
+    extract_tool = json.loads(attachments["tools/extract.cwl"])
+    assert extract_tool["class"] == "CommandLineTool"
+    assert extract_tool["baseCommand"] == ["python", "-m", "bionodulo.converter.cwl_node_runner"]
+    assert extract_tool["inputs"]["columns"]["default"] == "sample,status"
+    assert extract_tool["inputs"]["delimiter"]["default"] == "tsv"
 
-    sort_tool = json.loads(attachments["tools/sort.cwl"])
-    assert sort_tool["class"] == "CommandLineTool"
-    assert sort_tool["baseCommand"] == ["samtools", "sort"]
+    # Verify the generated attachment and exact CWL job key survive WES multipart encoding.
+    assert WESClient(_base_url(wes_server)).run_workflow(**payload) == {"run_id": "run-1"}
+    body = wes_server.captured_requests[0][1]
+    assert b'"extract_table": {"class": "File", "location": "https://data.example/table.tsv"}' in body
+    assert b'tools/extract.cwl' in body
 
 
 def test_build_wes_request_supports_snakemake_single_document_export() -> None:
-    # samtools_sort is the node type both the CWL and SnakeMake exporters
-    # know; SnakeMake exports a single document instead of per-node files.
-    workflow = _two_node_workflow()
-    workflow["nodes"] = [workflow["nodes"][1]]
-    workflow["edges"] = []
-    payload = build_wes_request(workflow, converter="snakemake")
+    workflow = {"id": "qc_workflow", "nodes": [
+        _editor_node("qc", "fastqc", {"threads": 2}),
+        _editor_node("summary", "multiqc", {"title": "Tiny QC"}),
+    ], "edges": [{"id": "e1", "from": {"node": "qc", "output": "report_dir"},
+                  "to": {"node": "summary", "input": "reports"}}]}
+    payload = build_wes_request(workflow, converter="snakemake", input_bindings={"qc_input": "https://data.example/sample.fastq"})
     assert payload["workflow_type"] == "snakemake"
     assert payload["workflow_url"] == "Snakefile"
+    assert payload["workflow_params"] == {"qc_input": "https://data.example/sample.fastq"}
     assert [filename for filename, _ in payload["workflow_attachment"]] == ["Snakefile"]
-    assert payload["workflow_attachment"][0][1].startswith("# Auto-generated by BioNodulo")
+    document = payload["workflow_attachment"][0][1]
+    assert document.startswith("# Auto-generated by BioNodulo")
+    assert 'config["qc_input"]' in document
+    assert "rule qc:" in document and "rule summary:" in document
     assert payload["tags"]["bionodulo:converter"] == "snakemake"
+
+    nextflow = build_wes_request(workflow, converter="nextflow", input_bindings={"qc_input": "https://data.example/sample.fastq"})
+    assert nextflow["workflow_params"] == {"qc_input": "https://data.example/sample.fastq"}
+    assert "Channel.fromPath(params.qc_input)" in nextflow["workflow_attachment"][0][1]
+
+
+def test_build_wes_request_rejects_missing_unknown_and_unsupported_bindings() -> None:
+    workflow = {"id": "extract", "nodes": [_editor_node("extract", "extract_columns", {"columns": "sample"})], "edges": []}
+    with pytest.raises(ValueError, match="missing: extract_table"):
+        build_wes_request(workflow)
+    with pytest.raises(ValueError, match="unexpected: extract/table"):
+        build_wes_request(workflow, input_bindings={"extract/table": "https://data.example/table.tsv"})
+    with pytest.raises(ValueError, match="absolute URI"):
+        build_wes_request(workflow, input_bindings={"extract_table": "/local/table.tsv"})
+    with pytest.raises(ValueError, match="must be an object"):
+        build_wes_request(workflow, input_bindings=[])
+    with pytest.raises(ValueError, match="Unknown converter"):
+        build_wes_request(workflow, converter="galaxy")
+    with pytest.raises(ValueError, match="unsupported node type"):
+        build_wes_request(_two_node_workflow(), input_bindings={"view_alignment": "https://data.example/patient.bam"})
+
+
+def test_build_wes_request_rejects_overriding_embedded_nextflow_path() -> None:
+    workflow = {"id": "inline_qc", "nodes": [
+        _editor_node("qc", "fastqc", {"reads": "sample.fastq"}),
+    ], "edges": []}
+    with pytest.raises(ValueError, match="cannot override embedded input paths: qc_input"):
+        build_wes_request(workflow, converter="nextflow", input_bindings={"qc_input": "https://data.example/other.fastq"})
+
+
+def test_build_wes_request_accepts_explicit_service_version() -> None:
+    workflow = {"id": "qc", "nodes": [_editor_node("qc", "fastqc", {})], "edges": []}
+    payload = build_wes_request(
+        workflow, converter="snakemake", input_bindings={"qc_input": "https://data.example/sample.fastq"},
+        workflow_type_version="9.12.0",
+    )
+    assert payload["workflow_type_version"] == "9.12.0"

@@ -2609,8 +2609,8 @@ const en = {
       references: 'References',
     },
     formatHelp: {
-      snakemake: 'Supports the FastQC to MultiQC QC chain and simple file ports. Supply qc_input via --config and install the referenced tools before running.',
-      nextflow: 'Supports the FastQC to MultiQC QC chain and simple file ports. Supply qc_input via --qc_input and install the referenced tools before running.',
+      snakemake: 'Supports FastQC to MultiQC with one root input file. Supply the generated <node>_input key via --config and install the referenced tools before running.',
+      nextflow: 'Supports FastQC to MultiQC with one root input file. Supply the generated --<node>_input argument and install the referenced tools before running.',
       cwl: 'Downloads a JSON bundle of workflow and tool files. Unpack it before running. Only five built-in data transforms are supported; other tools are rejected.',
       galaxy: 'Exports a structural Galaxy workflow that requires matching ToolShed tools in your Galaxy installation.',
     },

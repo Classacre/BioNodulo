@@ -2615,8 +2615,8 @@ const es = {
       references: 'Referencias',
     },
     formatHelp: {
-      snakemake: 'Admite la cadena FastQC a MultiQC y puertos sencillos de archivos. Indica qc_input con --config e instala las herramientas antes de ejecutarla.',
-      nextflow: 'Admite la cadena FastQC a MultiQC y puertos sencillos de archivos. Indica qc_input con --qc_input e instala las herramientas antes de ejecutarla.',
+      snakemake: 'Admite FastQC a MultiQC con un archivo de entrada. Indica la clave generada <nodo>_input con --config e instala las herramientas antes de ejecutar.',
+      nextflow: 'Admite FastQC a MultiQC con un archivo de entrada. Indica el argumento generado --<nodo>_input e instala las herramientas antes de ejecutar.',
       cwl: 'Descarga un paquete JSON con archivos del flujo y de las herramientas. Extrae los archivos antes de ejecutarlo. Solo se admiten cinco transformaciones de datos integradas; se rechazan las demas herramientas.',
       galaxy: 'Exporta la estructura de un flujo de Galaxy que requiere herramientas ToolShed compatibles en tu instalación.',
     },

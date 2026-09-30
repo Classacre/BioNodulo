@@ -21,6 +21,7 @@ custodian's infrastructure. This module provides:
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 import uuid
@@ -353,13 +354,15 @@ _CONVERTER_SPECS: dict[str, tuple[str, str, str]] = {
     "cwl": ("CWL", "v1.2", "workflow.cwl"),
     "snakemake": ("snakemake", "7", "Snakefile"),
     "nextflow": ("nextflow", "22.10.0", "main.nf"),
-    "galaxy": ("galaxy", "21.09", "workflow.ga"),
 }
 
 
 def build_wes_request(
     workflow: dict[str, Any],
     converter: Literal["cwl", "snakemake", "nextflow", "galaxy"] = "cwl",
+    *,
+    input_bindings: dict[str, Any] | None = None,
+    workflow_type_version: str | None = None,
 ) -> dict[str, Any]:
     """Compile a BioNodulo workflow to a WES run request payload.
 
@@ -368,28 +371,37 @@ def build_wes_request(
 
     Args:
         workflow: BioNodulo workflow dict with ``nodes`` and ``edges``.
-        converter: Which exporter to use; CWL exports one file per node plus
-            the main ``workflow.cwl``, the others export a single document.
+        converter: Executable exporter to use. Galaxy's structural export is
+            not an executable WES workflow.
+        input_bindings: Values keyed by the generated document's root input
+            names. CWL File inputs accept an absolute URI or a CWL File object;
+            Snakemake/Nextflow inputs use the generated ``*_input`` key. The
+            target WES service must be able to access each URI and support
+            the submitted workflow type and version.
+        workflow_type_version: Override the historical default with a version
+            advertised by the target WES service.
 
     Returns:
         A payload matching :meth:`WESClient.run_workflow` keyword arguments:
         ``workflow_type``, ``workflow_type_version``, ``workflow_url``
         (relpath of the main document), ``workflow_params`` (unconnected
-        inputs keyed by ``node_id/port``), ``workflow_attachment`` and
+        inputs keyed by the exported document's root inputs), ``workflow_attachment`` and
         ``tags``.
     """
     # Lazy: bionodulo.converter pulls the node registry; keep this module light.
     from bionodulo.converter import (
         export_to_cwl,
-        export_to_galaxy,
         export_to_nextflow,
         export_to_snakemake,
     )
-    from bionodulo.converter.edge_utils import edge_target, edge_target_port
 
     if converter not in _CONVERTER_SPECS:
         raise ValueError(f"Unknown converter {converter!r}; expected one of {sorted(_CONVERTER_SPECS)}")
     workflow_type, type_version, main_name = _CONVERTER_SPECS[converter]
+    if workflow_type_version is not None:
+        if not isinstance(workflow_type_version, str) or not workflow_type_version:
+            raise ValueError("WES workflow_type_version must be a non-empty string")
+        type_version = workflow_type_version
 
     attachments: list[tuple[str, str]]
     if converter == "cwl":
@@ -399,23 +411,53 @@ def build_wes_request(
         string_exporters: dict[str, Callable[[dict[str, Any]], str]] = {
             "snakemake": export_to_snakemake,
             "nextflow": export_to_nextflow,
-            "galaxy": export_to_galaxy,
         }
         attachments = [(main_name, string_exporters[converter](workflow))]
     if not any(filename == main_name for filename, _ in attachments):
         raise ValueError(f"Converter {converter!r} did not produce the main document {main_name!r}")
 
-    connected = {(str(edge_target(edge)), edge_target_port(edge)) for edge in workflow.get("edges", [])}
-    workflow_params: dict[str, Any] = {}
-    for node in workflow.get("nodes", []):
-        node_id = str(node.get("id", ""))
-        inputs = node.get("inputs") or {}
+    main_document = dict(attachments)[main_name]
+    embedded: set[str] = set()
+    if converter == "cwl":
+        inputs = json.loads(main_document)["inputs"]
         if not isinstance(inputs, dict):
-            continue
-        for port, spec in inputs.items():
-            if (node_id, str(port)) in connected:
-                continue
-            workflow_params[f"{node_id}/{port}"] = _input_value(spec)
+            raise ValueError("CWL export has invalid root inputs")
+        required = set(inputs)
+    elif converter == "snakemake":
+        required = set(re.findall(r'config\["([A-Za-z_][A-Za-z0-9_]*_input)"\]', main_document))
+    else:
+        required = set(re.findall(r"Channel\.fromPath\(params\.([A-Za-z_][A-Za-z0-9_]*_input)\)", main_document))
+        embedded = set(re.findall(r"(?m)^\s*params\.([A-Za-z_][A-Za-z0-9_]*_input)\s*=", main_document))
+        required -= embedded
+
+    bindings = {} if input_bindings is None else input_bindings
+    if not isinstance(bindings, dict):
+        raise ValueError("WES input_bindings must be an object")
+    unexpected = set(bindings) - required
+    missing = required - set(bindings)
+    overridden = unexpected & embedded
+    if overridden:
+        raise ValueError(f"WES input bindings cannot override embedded input paths: {', '.join(sorted(overridden))}")
+    if unexpected or missing:
+        raise ValueError(
+            "WES input bindings do not match exported root inputs"
+            + (f"; missing: {', '.join(sorted(missing))}" if missing else "")
+            + (f"; unexpected: {', '.join(sorted(unexpected))}" if unexpected else "")
+        )
+    workflow_params: dict[str, Any] = {}
+    for name in sorted(required):
+        value = bindings[name]
+        if converter == "cwl":
+            if isinstance(value, str):
+                value = {"class": "File", "location": value}
+            if not isinstance(value, dict) or value.get("class") != "File":
+                raise ValueError(f"CWL input {name!r} requires a File object or absolute URI")
+            location = value.get("location")
+            if not isinstance(location, str) or not _wes_accessible_uri(location):
+                raise ValueError(f"CWL input {name!r} requires an absolute URI accessible to the WES endpoint")
+        elif not isinstance(value, str) or not _wes_accessible_uri(value):
+            raise ValueError(f"{converter} input {name!r} requires an absolute URI accessible to the WES endpoint")
+        workflow_params[name] = value
 
     return {
         "workflow_type": workflow_type,
@@ -428,3 +470,8 @@ def build_wes_request(
             "bionodulo:workflow_id": str(workflow.get("id", "")),
         },
     }
+
+
+def _wes_accessible_uri(value: str) -> bool:
+    parsed = urlparse(value)
+    return bool(parsed.scheme and parsed.netloc and parsed.scheme.lower() != "file")

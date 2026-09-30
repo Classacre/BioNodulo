@@ -24,7 +24,8 @@ rule custom_step:
 
     node = workflow["nodes"][0]
     assert node["type"] == "generic_command"
-    assert node["widgets"]["command"] == "custom_tool --flag {output}"
+    assert node["params"]["command"] == "custom_tool --flag {output}"
+    assert "position" in node and "node_info" in node
 
 
 def test_nextflow_import_maps_unknown_process_to_generic_command() -> None:
@@ -47,7 +48,8 @@ workflow {
 
     node = workflow["nodes"][0]
     assert node["type"] == "generic_command"
-    assert node["widgets"]["command"] == "custom_tool --flag out.txt"
+    assert node["params"]["command"] == "custom_tool --flag out.txt"
+    assert "position" in node and "node_info" in node
 
 
 def test_cwl_import_maps_unknown_tool_to_generic_command(tmp_path: Path) -> None:
@@ -89,7 +91,8 @@ def test_cwl_import_maps_unknown_tool_to_generic_command(tmp_path: Path) -> None
 
     node = workflow["nodes"][0]
     assert node["type"] == "generic_command"
-    assert node["widgets"]["command"] == "custom_tool --flag"
+    assert node["params"]["command"] == "custom_tool --flag"
+    assert "position" in node and "node_info" in node
 
 
 def test_cwl_import_rejects_missing_referenced_tool_file(tmp_path: Path) -> None:
@@ -139,4 +142,5 @@ def test_galaxy_import_maps_unknown_tool_to_generic_command() -> None:
 
     node = workflow["nodes"][0]
     assert node["type"] == "generic_command"
-    assert node["widgets"]["command"] == "custom_tool --flag"
+    assert node["params"]["command"] == "custom_tool --flag"
+    assert "position" in node and "node_info" in node
