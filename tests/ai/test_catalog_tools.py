@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from bionodulo.ai.tools import ToolContext, catalog_matches_for_paper, execute_tool
+from bionodulo.ai.tools import ToolContext, catalog_matches_for_paper, execute_tool, input_helpers_for_contracts
 from bionodulo.nodes.registry import NodeRegistry
 
 
@@ -27,6 +27,12 @@ def test_real_deseq2_contract_and_paper_lookup() -> None:
     assert node["required_r_packages"] == ["DESeq2", "ggplot2", "ashr"]
     matches = catalog_matches_for_paper(ctx, "10.1186/s13059-014-0550-8", "RNA-Seq with DESeq2")
     assert any(match["id"] == "deseq2" and match["match_reason"] == "paper DOI cited by node" for match in matches)
+    helpers = input_helpers_for_contracts(ctx, matches)
+    assert any(helper["id"] == "input_file" and helper["supplies_type"] == "FILE" for helper in helpers)
+    fasta_helpers = input_helpers_for_contracts(ctx, [{"inputs": {"required": {
+        "reference": ["FASTA", {}], "label": ["STRING", {}],
+    }}}])
+    assert any(helper["id"] == "input_fasta" and helper["supplies_type"] == "FASTA" for helper in fasta_helpers)
 
 
 def test_normalized_categories_query_and_unknown_category_hint() -> None:

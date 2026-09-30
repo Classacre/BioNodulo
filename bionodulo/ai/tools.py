@@ -453,6 +453,31 @@ def catalog_matches_for_paper(ctx: ToolContext, doi: str, title: str, limit: int
     return contracts
 
 
+def input_helpers_for_contracts(ctx: ToolContext, contracts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Find generic input nodes whose output types satisfy required method ports."""
+    needed: set[str] = set()
+    for contract in contracts:
+        for spec in (contract.get("inputs") or {}).get("required", {}).values():
+            kind = spec[0] if isinstance(spec, (list, tuple)) and spec else spec
+            if isinstance(kind, str) and kind not in {"STRING", "INT", "FLOAT", "BOOLEAN", "BOOL", "*"}:
+                needed.add(kind)
+    info = _object_info(ctx)
+    if not isinstance(info, dict):
+        return []
+    helpers: list[dict[str, Any]] = []
+    for kind in sorted(needed):
+        candidates = [(node_id, meta) for node_id, meta in info.items() if isinstance(meta, dict)
+                      and _category_key(str(meta.get("category", ""))) == "input"
+                      and kind in (meta.get("output") or meta.get("return_types") or [])]
+        if not candidates:
+            continue
+        candidates.sort(key=lambda item: (0 if item[0].startswith("input_") else 1, len(item[0]), item[0]))
+        helper = _get_node_info(ctx, candidates[0][0])
+        helper["supplies_type"] = kind
+        helpers.append(helper)
+    return helpers
+
+
 def _get_dependency_report(ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
     from bionodulo.manager.resolver import resolve_workflow
 

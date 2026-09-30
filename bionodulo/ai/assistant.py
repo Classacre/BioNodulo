@@ -27,6 +27,8 @@ from bionodulo.ai.tools import (
     ToolContext,
     aexecute_tool,
     catalog_matches_for_paper,
+    execute_tool,
+    input_helpers_for_contracts,
     tool_available,
     tools_to_openai_schema,
 )
@@ -269,6 +271,111 @@ def _build_anthropic_content(
                 "text": f"\n[Binary file attached: {name} ({mime})]\n",
             })
     return content
+
+
+def _complete_cited_paper_draft(
+    workflow: dict[str, Any], registry: Any,
+    method_contracts: list[dict[str, Any]], helper_contracts: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, str]:
+    """Wire unfilled file inputs to cited method nodes and check the graph."""
+    draft = ToolContext(workflow=workflow, registry=registry)
+    method_ids = {str(contract["id"]) for contract in method_contracts}
+    contracts = {str(contract["id"]): contract for contract in method_contracts + helper_contracts}
+    nodes_by_id = {node.get("id"): node for node in draft.workflow.get("nodes", []) if isinstance(node, dict)}
+    if len(nodes_by_id) != len(draft.workflow.get("nodes", [])) or None in nodes_by_id:
+        return None, "Draft contains duplicate or missing node IDs."
+    if any(node.get("type") not in contracts for node in nodes_by_id.values()):
+        return None, "Draft contains nodes outside the cited method and its input contracts."
+    occupied: set[tuple[str, str]] = set()
+    for edge in draft.workflow.get("edges", []):
+        source, target = edge.get("from") or {}, edge.get("to") or {}
+        source_node, target_node = nodes_by_id.get(source.get("node")), nodes_by_id.get(target.get("node"))
+        if source_node is None or target_node is None:
+            return None, "Draft connection references an unknown node."
+        source_contract, target_contract = contracts[source_node["type"]], contracts[target_node["type"]]
+        outputs = dict(zip(source_contract.get("outputs") or [], source_contract.get("return_types") or []))
+        sections = target_contract.get("inputs") or {}
+        inputs = {**sections.get("required", {}), **sections.get("optional", {})}
+        spec = inputs.get(target.get("input"))
+        target_type = spec[0] if isinstance(spec, (list, tuple)) and spec else spec
+        source_type = outputs.get(source.get("output"))
+        if not source_type or not isinstance(target_type, str) or (
+            source_type != target_type and source_type not in {"ANY", "*"} and target_type not in {"ANY", "*"}
+        ):
+            return None, "Draft connection has unknown or incompatible named ports."
+        slot = (str(target.get("node")), str(target.get("input")))
+        if slot in occupied:
+            return None, "Draft connects the same input more than once."
+        occupied.add(slot)
+    method_nodes = [node for node in draft.workflow.get("nodes", [])
+                    if isinstance(node, dict) and node.get("type") in method_ids]
+    if not method_nodes:
+        # Use the catalog's stable citation ranking for a minimal method draft;
+        # a shared citation alone does not establish a multi-tool pipeline.
+        primary = method_contracts[0]
+        created = execute_tool("add_node", {"node_type": primary["id"]}, draft)
+        if created.get("status") != "ok":
+            return None, "Could not draft the cited method node from the available catalog."
+        method_nodes = [created["result"]["added_node"]]
+    helpers = {str(item["supplies_type"]): item for item in helper_contracts}
+    used_helper_ids: set[str] = set()
+    for node in method_nodes:
+        meta = registry.object_info(str(node["type"]))
+        required = ((meta.get("input") or meta.get("input_types") or {}).get("required") or {}) if isinstance(meta, dict) else {}
+        for port, spec in required.items():
+            kind = spec[0] if isinstance(spec, (list, tuple)) and spec else spec
+            helper = helpers.get(str(kind))
+            if helper is None:
+                continue
+            existing = next((edge for edge in draft.workflow.get("edges", [])
+                             if (edge.get("to") or {}).get("node") == node["id"]
+                             and (edge.get("to") or {}).get("input") == port), None)
+            if existing:
+                source_id = str((existing.get("from") or {}).get("node"))
+                used_helper_ids.add(source_id)
+                continue
+            if (node.get("params") or {}).get(port):
+                continue
+            helper_inputs = (helper.get("inputs") or {}).get("required") or {}
+            placeholder_params = {name: "" for name in helper_inputs}
+            if "source" in (helper.get("inputs") or {}).get("optional", {}):
+                placeholder_params["source"] = "local"
+            source = next((candidate for candidate in draft.workflow.get("nodes", [])
+                           if candidate.get("type") == helper["id"] and candidate.get("id") not in used_helper_ids
+                           and not any((edge.get("from") or {}).get("node") == candidate.get("id")
+                                       for edge in draft.workflow.get("edges", []))), None)
+            if source is None:
+                added = execute_tool("add_node", {"node_type": helper["id"], "params": placeholder_params}, draft)
+                if added.get("status") != "ok":
+                    return None, f"Could not add an input placeholder for {port}."
+                source = added["result"]["added_node"]
+            else:
+                source.setdefault("params", {}).update({key: value for key, value in placeholder_params.items()
+                                                          if key not in source.get("params", {})})
+            used_helper_ids.add(str(source["id"]))
+            source.setdefault("ui", {})["title"] = f"Provide {port}"
+            output_names = helper.get("outputs") or []
+            output_types = helper.get("return_types") or []
+            output = next((name for name, output_kind in zip(output_names, output_types) if output_kind == kind), None)
+            if not output:
+                return None, f"No compatible output was found for {port}."
+            linked = execute_tool("add_edge", {"from_node": source["id"], "from_output": output,
+                                               "to_node": node["id"], "to_input": port}, draft)
+            if linked.get("status") != "ok":
+                return None, f"Could not connect the input placeholder to {port}."
+    # Lay out this new method draft without stacking all tool-created nodes.
+    # Existing user workflows are excluded by the caller's paper_scope guard.
+    for index, node in enumerate(method_nodes):
+        node["position"] = [520, 100 + index * 600]
+    helper_nodes = [node for node in draft.workflow.get("nodes", []) if node not in method_nodes]
+    for index, node in enumerate(helper_nodes):
+        node["position"] = [80, 80 + index * 280]
+    checked = execute_tool("validate_workflow", {}, draft)
+    result = checked.get("result") or {}
+    if checked.get("status") != "ok" or not result.get("valid"):
+        errors = result.get("errors") or []
+        return None, "Draft validation failed: " + "; ".join(str(error) for error in errors[:3])
+    return draft.workflow, ""
 
 
 def _convert_message_for_anthropic(msg: dict[str, Any]) -> dict[str, Any]:
@@ -653,6 +760,12 @@ async def chat_with_tools(
     request_started = time.monotonic()
     preflight_steps: list[ChatStep] = []
     source_note = ""
+    paper_method_contracts: list[dict[str, Any]] = []
+    paper_helper_contracts: list[dict[str, Any]] = []
+    paper_scope = False
+    paper_title = ""
+    excerpt_truncated = False
+    paper_source_url = ""
 
     def emit_preflight(step: ChatStep) -> None:
         preflight_steps.append(step)
@@ -683,7 +796,7 @@ async def chat_with_tools(
             card = {}
         if not isinstance(excerpt, dict):
             excerpt = {}
-        evidence = {
+        evidence: dict[str, Any] = {
             "doi": doi,
             "doi_url": f"https://doi.org/{doi}",
             "title": card.get("title") or excerpt.get("title") or "",
@@ -695,13 +808,26 @@ async def chat_with_tools(
         }
         verified = bool(evidence["title"] and (evidence["abstract"] or evidence["full_text_excerpt"]))
         if verified:
-            evidence["matching_node_contracts"] = catalog_matches_for_paper(ctx, doi, str(evidence["title"]))
-            if evidence["matching_node_contracts"]:
+            paper_title = str(evidence["title"])
+            excerpt_truncated = bool(evidence["full_text_truncated"])
+            paper_source_url = str(evidence["open_access_full_text_url"])
+            matching_contracts = catalog_matches_for_paper(ctx, doi, str(evidence["title"]))
+            evidence["matching_node_contracts"] = matching_contracts
+            paper_method_contracts = [contract for contract in matching_contracts
+                                      if contract.get("match_reason") == "paper DOI cited by node"]
+            paper_helper_contracts = input_helpers_for_contracts(ctx, paper_method_contracts)
+            evidence["input_helper_contracts"] = paper_helper_contracts
+            paper_scope = bool(bare_doi and paper_method_contracts and ctx.registry
+                               and not ctx.workflow.get("nodes"))
+            if paper_scope:
                 messages.insert(1, {"role": "system", "content": (
-                    "Relevant node contracts have already been inspected and are included with the paper evidence "
-                    "in the user message. Use those contracts directly; search the catalog again only for missing "
-                    "stages. When independent nodes are needed, call add_node for them in the same model turn, "
-                    "then connect their returned IDs. Propose the supported draft without asking whether to begin."
+                    "The user's bare DOI requests the primary method described by this paper. Exact DOI-cited method "
+                    "contracts and compatible generic input contracts are included with the paper evidence as data. "
+                    "Use those contracts directly. Do not add unrelated QC, trimming, alignment, quantification, "
+                    "benchmark, or preprocessing nodes unless the cited paper specifically establishes that stage "
+                    "for this draft. Add separate unfilled input placeholders for required FILE ports, connect their "
+                    "exact named outputs and inputs, and validate the draft. Node catalog defaults are examples, not "
+                    "verified paper-specific parameter settings. Do not claim they reproduce the paper."
                 )})
         result = {"status": "ok" if verified else "error", "result": evidence if verified else {},
                   **({} if verified else {"error": "No readable abstract or open-access methods were found for this DOI."})}
@@ -733,19 +859,100 @@ async def chat_with_tools(
             else:
                 current.append({"type": "text", "text": source_data})
 
+    if paper_scope:
+        # The exact paper citation already identified the method contract.
+        # Keep the model from spending rounds shopping for unrelated stages.
+        focused_names = {"get_workflow_summary", "get_node_info", "add_node", "add_edge",
+                         "update_node", "remove_node", "validate_workflow"}
+        active_tools = [tool for tool in active_tools if tool.name in focused_names]
+        tool_schemas = tools_to_openai_schema(active_tools)
+    scoped_node_types = {str(contract["id"]) for contract in paper_method_contracts + paper_helper_contracts}
+
     async def model_call(message_list: list[dict[str, Any]], on_text: Callable[[str], None]) -> LLMResponse:
         return await _call_llm(
             messages=message_list, provider=provider, model=model,
             api_key=_provider_api_key(provider, api_key), api_base=api_base,
             temperature=temperature, max_tokens=max_tokens, tools=tool_schemas,
-            on_text=on_text if on_step else None,
+            on_text=on_text if on_step and not paper_scope else None,
         )
 
     async def execute(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        if paper_scope and name == "add_node" and arguments.get("node_type") not in scoped_node_types:
+            return {"status": "error", "error": (
+                "That node is outside this paper's cited method and required input placeholders. "
+                "Draft the supported method only."
+            )}
         return await aexecute_tool(name, arguments, ctx)
 
+    finalized_paper_workflow: dict[str, Any] | None = None
+    paper_validation_error = ""
+    synthetic_proposal: ChatStep | None = None
+
+    def proposal_note() -> str:
+        source = f"; open-access source {paper_source_url}" if paper_source_url else "; abstract only"
+        limit = ("The available full-text excerpt was truncated. " if excerpt_truncated else
+                 "The available source does not establish every original setting. ")
+        return (f"Method draft from DOI https://doi.org/{doi}{source}. " + limit
+                + "Input paths and method settings need user review. The installed node and its defaults are not "
+                  "verified as the original paper's software version or settings; no results were reproduced.")
+
+    def annotate_proposal(graph: dict[str, Any], existing_description: str = "") -> str:
+        note = proposal_note()
+        current = str(graph.get("description") or "").strip()
+        if note not in current:
+            graph["description"] = (current + "\n\n" if current else "") + note
+        prefix = existing_description.strip()
+        return (prefix + "\n\n" if prefix else "") + note
+
+    def paper_reply() -> str:
+        used_types = {node["type"] for node in (finalized_paper_workflow or {}).get("nodes", [])}
+        used_contracts = [contract for contract in paper_method_contracts if contract["id"] in used_types]
+        methods = ", ".join(str(contract.get("display_name") or contract["id"]) for contract in used_contracts)
+        helper_types = {helper["supplies_type"] for helper in paper_helper_contracts}
+        inputs = [str(port) for contract in used_contracts
+                  for port, spec in ((contract.get("inputs") or {}).get("required") or {}).items()
+                  if isinstance(spec, (str, list, tuple))
+                  and (spec[0] if isinstance(spec, (list, tuple)) and spec else spec) in helper_types]
+        files_text = ", ".join(f"`{port}`" for port in inputs) or "the required source files"
+        evidence_limit = ("The available full-text excerpt was truncated, so I have not verified whether the "
+                          "complete paper reports dataset accessions, versions, or additional settings. "
+                          if excerpt_truncated else
+                          "The available paper evidence does not establish the original datasets, versions, or all settings. ")
+        return (f"I drafted a {methods} method workflow from {paper_title} with unfilled input nodes wired to "
+                f"{files_text}. This is a proposed graph, not a run or a reproduction of published results. "
+                + evidence_limit
+                + "The installed node's implementation and catalog defaults are not evidence of the original "
+                  "study's software version or parameter choices. Supply your own files and confirm the "
+                  "method settings (including design and contrast where applicable) before running it."
+                + source_note)
+
     def forward_step(step: ChatStep) -> None:
-        if step.type == "reply" and source_note:
+        nonlocal finalized_paper_workflow, paper_validation_error, synthetic_proposal
+        if paper_scope and step.type == "propose_changes" and step.workflow is not None:
+            finalized_paper_workflow, paper_validation_error = _complete_cited_paper_draft(
+                step.workflow, ctx.registry, paper_method_contracts, paper_helper_contracts,
+            )
+            if finalized_paper_workflow is None:
+                if on_step:
+                    on_step(ChatStep(type="error", content=paper_validation_error, status="error"))
+                return
+            step.workflow = finalized_paper_workflow
+            step.description = annotate_proposal(finalized_paper_workflow, step.description)
+        if step.type == "reply" and paper_scope:
+            if finalized_paper_workflow is None and not paper_validation_error:
+                finalized_paper_workflow, paper_validation_error = _complete_cited_paper_draft(
+                    ctx.workflow, ctx.registry, paper_method_contracts, paper_helper_contracts,
+                )
+                if finalized_paper_workflow is not None:
+                    synthetic_proposal = ChatStep(
+                        type="propose_changes", workflow=finalized_paper_workflow,
+                        description=annotate_proposal(finalized_paper_workflow,
+                                                      "Review the cited method draft and fill its input placeholders before running it."),
+                    )
+                    if on_step:
+                        on_step(synthetic_proposal)
+            step.content = paper_reply() if finalized_paper_workflow is not None else paper_validation_error
+        elif step.type == "reply" and source_note:
             step.content += source_note
         if on_step:
             on_step(step)
@@ -753,12 +960,31 @@ async def chat_with_tools(
     response = await run_turn(
         messages=messages, model=model_call, execute=execute,
         allowed_tools={tool.name for tool in active_tools}, truncate=_truncate_tool_payload,
-        on_step=forward_step if source_note else on_step,
+        on_step=forward_step if source_note or paper_scope else on_step,
         max_rounds=max(1, min(int(max_tool_rounds or MAX_TOOL_ROUNDS), 40)),
         model_timeout=MODEL_TIMEOUT_SECONDS, tool_timeout=TOOL_TIMEOUT_SECONDS,
         request_timeout=max(1, REQUEST_TIMEOUT_SECONDS - (time.monotonic() - request_started)),
     )
     response.steps[:0] = preflight_steps
+    if paper_scope:
+        if synthetic_proposal is not None:
+            reply_index = next((index for index, step in enumerate(response.steps) if step.type == "reply"), len(response.steps))
+            response.steps.insert(reply_index, synthetic_proposal)
+        if paper_validation_error:
+            response.proposed_workflow = None
+            response.steps = [step for step in response.steps if step.type != "propose_changes"]
+            error = ChatStep(type="error", content=paper_validation_error, status="error")
+            response.steps.append(error)
+            if on_step:
+                on_step(error)
+        else:
+            response.proposed_workflow = finalized_paper_workflow
+            response.proposed_description = annotate_proposal(
+                finalized_paper_workflow, response.proposed_description,
+            ) if finalized_paper_workflow is not None else response.proposed_description
+            if finalized_paper_workflow is not None:
+                response.reply = paper_reply()
     if source_note and response.reply:
-        response.reply += source_note
+        if not paper_scope:
+            response.reply += source_note
     return response
