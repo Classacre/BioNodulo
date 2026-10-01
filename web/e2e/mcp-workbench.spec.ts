@@ -5,9 +5,10 @@ import type { CloudWorkflow } from '../src/mcp/draft';
 const metadata = JSON.parse(readFileSync(new URL('../../bionodulo/nodes/node_metadata.json', import.meta.url), 'utf8'));
 const catalog = Object.fromEntries(['input_file', 'normalize_data', 'extract_columns', 'string_primitive', 'write_file'].map(id => [id, metadata[id]]));
 type Args = Record<string, any>;
-async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?: boolean; workflow?: CloudWorkflow } = {}) {
+async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?: boolean; workflow?: CloudWorkflow; allowForms?: boolean } = {}) {
   const calls: { name: string; args: Args }[] = [];
   const transport: string[] = [];
+  const protocol: { method: string; params: Args }[] = [];
   const network: string[] = [];
   let workflow: CloudWorkflow = {
     id: '11111111-1111-4111-8111-111111111111', name: 'Counts workflow', updatedAt: '2026-10-01T00:00:01.000Z',
@@ -48,7 +49,7 @@ async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?:
       default: throw new Error(`Unexpected tool ${name}`);
     }
   });
-  await page.exposeFunction('fixtureTransport', (method: string) => { transport.push(method); });
+  await page.exposeFunction('fixtureTransport', (method: string, params: Args) => { transport.push(method); protocol.push({ method, params }); });
   const index = await page.request.get('/');
   let resourceHtml = (await index.text()).replace('<html', '<html data-mcp-app="true"');
   if (options.assetOrigin) {
@@ -60,7 +61,7 @@ async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?:
       .replace(/((?:src|href)=")\.\/assets\//g, `$1${options.assetOrigin}/build/assets/`);
   }
   await page.route('**/__mcp_resource', route => route.fulfill({ contentType: 'text/html', body: resourceHtml }));
-  await page.route('**/__mcp_host', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body style="margin:0"><iframe title="BioNodulo MCP app" src="/__mcp_resource" style="border:0;width:100%;height:100vh"></iframe><script>
+  await page.route('**/__mcp_host', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body style="margin:0"><iframe title="BioNodulo MCP app" sandbox="allow-scripts allow-same-origin allow-downloads${options.allowForms ? ' allow-forms' : ''}" src="/__mcp_resource" style="border:0;width:100%;height:100vh"></iframe><script>
     addEventListener('message', async event => {
       const message = event.data;
       if (!message || message.jsonrpc !== '2.0' || event.source !== document.querySelector('iframe').contentWindow) return;
@@ -70,7 +71,7 @@ async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?:
       else if (message.method === 'tools/call') {
         try { const value = await window.fixtureMcpTool(message.params.name, message.params.arguments); reply({content:[{type:'text',text:JSON.stringify(value)}],structuredContent:value}); }
         catch(error) { reply({isError:true,content:[{type:'text',text:error.message}]}); }
-      } else if (message.id !== undefined) { await window.fixtureTransport(message.method); reply(message.method === 'ui/request-display-mode' ? {mode:message.params.mode} : {}); }
+      } else if (message.id !== undefined) { await window.fixtureTransport(message.method, message.params); reply(message.method === 'ui/request-display-mode' ? {mode:message.params.mode} : {}); }
     });
   </script></body></html>` }));
   await page.goto('/__mcp_host');
@@ -80,7 +81,40 @@ async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?:
     await expect(app.getByLabel('Workflow name')).toHaveValue(workflow.name);
     await expect(app.locator('.react-flow__node')).toHaveCount(2);
   }
-  return { app, calls, transport, network, resourceHtml, getWorkflow: () => workflow, externalEdit: (name: string, definition = workflow.definition) => { workflow = { ...workflow, name, definition, updatedAt: `2026-10-01T00:00:${String(++revision).padStart(2, '0')}.000Z` }; }, failSubmission: () => { failSubmit = true; } };
+  return { app, calls, transport, protocol, network, resourceHtml, getWorkflow: () => workflow, externalEdit: (name: string, definition = workflow.definition) => { workflow = { ...workflow, name, definition, updatedAt: `2026-10-01T00:00:${String(++revision).padStart(2, '0')}.000Z` }; }, failSubmission: () => { failSubmit = true; } };
+}
+
+for (const allowForms of [false, true]) {
+  test(`host assistant sends context and messages ${allowForms ? 'with' : 'without'} sandbox form permission`, async ({ page }) => {
+    const formErrors: string[] = [];
+    page.on('console', message => { if (message.type() === 'error') formErrors.push(message.text()); });
+    const f = await fixture(page, { allowForms });
+    expect((await page.locator('iframe').getAttribute('sandbox'))?.includes('allow-forms')).toBe(allowForms);
+    const prompt = f.app.getByLabel('Host assistant');
+    const send = f.app.getByRole('button', { name: 'Send', exact: true });
+    const expectedMessages: Args[] = [];
+    for (const action of ['input-enter', 'button-enter', 'button-click']) {
+      const text = `Explain this workflow via ${action}`;
+      await prompt.fill(`  ${text}  `);
+      await expect(send).toBeEnabled();
+      if (action === 'input-enter') await prompt.press('Enter');
+      else if (action === 'button-enter') { await send.focus(); await page.keyboard.press('Enter'); }
+      else await send.click();
+      expectedMessages.push({ role: 'user', content: [{ type: 'text', text }] });
+      await expect.poll(() => ({
+        messages: f.protocol.filter(item => item.method === 'ui/message').map(item => item.params),
+        formErrors,
+      })).toEqual({ messages: expectedMessages, formErrors: [] });
+      await expect(prompt).toHaveValue('');
+      await expect(f.app.getByText('Sent to your host assistant.', { exact: false })).toBeVisible();
+      const index = f.protocol.findLastIndex(item => item.method === 'ui/message');
+      expect(f.protocol[index - 1]).toMatchObject({
+        method: 'ui/update-model-context',
+        params: { structuredContent: { workflow_id: '11111111-1111-4111-8111-111111111111', team_id: 'team-fixture' } },
+      });
+    }
+    expect(f.network).toEqual([]);
+  });
 }
 
 test('connected scalar inputs render real edges without stored UI promotion flags', async ({ page }) => {

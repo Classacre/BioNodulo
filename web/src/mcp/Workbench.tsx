@@ -268,6 +268,18 @@ export default function Workbench({ host }: { host: WorkbenchHost }) {
             },
     };
   }, [runId, selectedId]);
+  const sendToHostAssistant = () => {
+    const request = prompt.trim();
+    if (!connected || busy || !request) return;
+    void operation('Sending to host assistant', async () => {
+      await host.context(modelContext()).catch(() => {});
+      await host.message(request);
+      setPrompt('');
+      setNotice(
+        'Sent to your host assistant. Saved workflow changes will appear here; unsaved drafts remain protected.',
+      );
+    });
+  };
   useEffect(() => {
     if (!connected) return;
     const timer = window.setTimeout(() => {
@@ -1048,32 +1060,30 @@ export default function Workbench({ host }: { host: WorkbenchHost }) {
           </div>
         </section>
       )}
-      <form
-        className="mcp-assistant"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const request = prompt.trim();
-          if (request)
-            void operation('Sending to host assistant', async () => {
-              await host.context(modelContext()).catch(() => {});
-              await host.message(request);
-              setPrompt('');
-              setNotice(
-                'Sent to your host assistant. Saved workflow changes will appear here; unsaved drafts remain protected.',
-              );
-            });
-        }}
-      >
+      {/* MCP hosts may omit allow-forms from the iframe sandbox. */}
+      <div className="mcp-assistant">
         <label htmlFor="mcp-prompt">Host assistant</label>
         <input
           id="mcp-prompt"
           placeholder="Describe a workflow, ask about a node, or diagnose a run…"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              sendToHostAssistant();
+            }
+          }}
           maxLength={10000}
         />
-        <button disabled={!connected || !!busy || !prompt.trim()}>Send</button>
-      </form>
+        <button
+          type="button"
+          onClick={sendToHostAssistant}
+          disabled={!connected || !!busy || !prompt.trim()}
+        >
+          Send
+        </button>
+      </div>
       {quote && (
         <Dialog title="Confirm compute credit use" onClose={() => setQuote(undefined)}>
           <div className="mcp-dialog-content">
