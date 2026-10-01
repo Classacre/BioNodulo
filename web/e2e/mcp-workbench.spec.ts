@@ -51,6 +51,10 @@ async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?:
   });
   await page.exposeFunction('fixtureTransport', (method: string, params: Args) => { transport.push(method); protocol.push({ method, params }); });
   const index = await page.request.get('/');
+  // Fulfilled host HTML has no network address-space classification. Permit
+  // only this fixture origin to reach loopback assets and Vite's dev HMR socket;
+  // normal CORS and the iframe's form restriction still apply.
+  await page.context().grantPermissions(['local-network-access'], { origin: new URL(index.url()).origin });
   let resourceHtml = (await index.text()).replace('<html', '<html data-mcp-app="true"');
   if (options.assetOrigin) {
     // Match the website resource's HTML-only rewriting. In particular, do NOT
@@ -183,9 +187,6 @@ test('production MCP resource loads dynamic canvas assets from a separate origin
   test.skip(testInfo.config.metadata.productionMcp !== true, 'Requires the dedicated production build/config and remote asset server.');
   const assetOrigin = 'http://127.0.0.1:5176';
   const hostOrigin = new URL(testInfo.project.use.baseURL!).origin;
-  // Fulfilled host HTML has no network address-space classification. Permit
-  // this fixture to reach its loopback asset server; normal CORS still applies.
-  await page.context().grantPermissions(['local-network-access'], { origin: hostOrigin });
   const hostAssets: string[] = [];
   const loadedStyles: string[] = [];
   const assetFailures: string[] = [];
