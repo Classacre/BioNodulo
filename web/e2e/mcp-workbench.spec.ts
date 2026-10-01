@@ -5,7 +5,7 @@ import type { CloudWorkflow } from '../src/mcp/draft';
 const metadata = JSON.parse(readFileSync(new URL('../../bionodulo/nodes/node_metadata.json', import.meta.url), 'utf8'));
 const catalog = Object.fromEntries(['input_file', 'normalize_data', 'extract_columns'].map(id => [id, metadata[id]]));
 type Args = Record<string, any>;
-async function fixture(page: Page) {
+async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?: boolean } = {}) {
   const calls: { name: string; args: Args }[] = [];
   const transport: string[] = [];
   const network: string[] = [];
@@ -20,7 +20,7 @@ async function fixture(page: Page) {
   let failSubmit = false;
   page.on('request', request => {
     const url = new URL(request.url());
-    if (url.pathname.startsWith('/api/') || /clerk\./.test(url.hostname) || url.pathname === '/src/App.tsx' || url.pathname.startsWith('/assets/App-')) network.push(request.url());
+    if (url.pathname.startsWith('/api/') || /clerk\./.test(url.hostname) || url.pathname === '/src/App.tsx' || /\/(?:build\/)?assets\/App-/.test(url.pathname)) network.push(request.url());
   });
   await page.exposeFunction('fixtureMcpTool', async (name: string, args: Args) => {
     calls.push({ name, args });
@@ -49,7 +49,15 @@ async function fixture(page: Page) {
   });
   await page.exposeFunction('fixtureTransport', (method: string) => { transport.push(method); });
   const index = await page.request.get('/');
-  const resourceHtml = (await index.text()).replace('<html', '<html data-mcp-app="true"');
+  let resourceHtml = (await index.text()).replace('<html', '<html data-mcp-app="true"');
+  if (options.assetOrigin) {
+    // Match the website resource's HTML-only rewriting. In particular, do NOT
+    // inject <base> or rewrite compiled JS: either would mask an absolute Vite
+    // preload base resolving dynamic CSS against the resource's host origin.
+    resourceHtml = resourceHtml
+      .replace(/((?:src|href)=")\/build\//g, `$1${options.assetOrigin}/build/`)
+      .replace(/((?:src|href)=")\.\/assets\//g, `$1${options.assetOrigin}/build/assets/`);
+  }
   await page.route('**/__mcp_resource', route => route.fulfill({ contentType: 'text/html', body: resourceHtml }));
   await page.route('**/__mcp_host', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body style="margin:0"><iframe title="BioNodulo MCP app" src="/__mcp_resource" style="border:0;width:100%;height:100vh"></iframe><script>
     addEventListener('message', async event => {
@@ -66,11 +74,66 @@ async function fixture(page: Page) {
   </script></body></html>` }));
   await page.goto('/__mcp_host');
   const app = page.frameLocator('iframe');
-  await expect(app.getByText('Host connected', { exact: true })).toBeVisible();
-  await expect(app.getByLabel('Workflow name')).toHaveValue('Counts workflow');
-  await expect(app.locator('.react-flow__node')).toHaveCount(2);
-  return { app, calls, transport, network, getWorkflow: () => workflow, externalEdit: (name: string) => { workflow = { ...workflow, name, updatedAt: `2026-10-01T00:00:${String(++revision).padStart(2, '0')}.000Z` }; }, failSubmission: () => { failSubmit = true; } };
+  if (options.awaitReady !== false) {
+    await expect(app.getByText('Host connected', { exact: true })).toBeVisible();
+    await expect(app.getByLabel('Workflow name')).toHaveValue('Counts workflow');
+    await expect(app.locator('.react-flow__node')).toHaveCount(2);
+  }
+  return { app, calls, transport, network, resourceHtml, getWorkflow: () => workflow, externalEdit: (name: string) => { workflow = { ...workflow, name, updatedAt: `2026-10-01T00:00:${String(++revision).padStart(2, '0')}.000Z` }; }, failSubmission: () => { failSubmit = true; } };
 }
+
+test('production MCP resource loads dynamic canvas assets from a separate origin', async ({ page }, testInfo) => {
+  test.skip(testInfo.config.metadata.productionMcp !== true, 'Requires the dedicated production build/config and remote asset server.');
+  const assetOrigin = 'http://127.0.0.1:5176';
+  const hostOrigin = new URL(testInfo.project.use.baseURL!).origin;
+  // Fulfilled host HTML has no network address-space classification. Permit
+  // this fixture to reach its loopback asset server; normal CORS still applies.
+  await page.context().grantPermissions(['local-network-access'], { origin: hostOrigin });
+  const hostAssets: string[] = [];
+  const loadedStyles: string[] = [];
+  const assetFailures: string[] = [];
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  const isAsset = (url: URL) => /\/(?:build\/)?assets\//.test(url.pathname);
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.origin === hostOrigin && isAsset(url)) hostAssets.push(url.href);
+  });
+  page.on('requestfailed', request => {
+    if (isAsset(new URL(request.url()))) assetFailures.push(`${request.url()}: ${request.failure()?.errorText}`);
+  });
+  page.on('response', response => {
+    const url = new URL(response.url());
+    if (isAsset(url) && !response.ok()) assetFailures.push(`${url.href}: HTTP ${response.status()}`);
+    if (isAsset(url) && url.pathname.endsWith('.css') && response.ok()) loadedStyles.push(url.href);
+  });
+  // The host has no copies of editor assets. A wrong-origin preload must fail,
+  // even if the local Vite preview would otherwise serve that path by accident.
+  await page.route(url => url.origin === hostOrigin && isAsset(url), route => route.fulfill({ status: 404, body: 'MCP host does not serve BioNodulo assets' }));
+  // Shared fonts are optional; keep this regression entirely on local servers.
+  await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ contentType: 'text/css', body: '' }));
+  const f = await fixture(page, { assetOrigin, awaitReady: false });
+  expect(f.resourceHtml).not.toMatch(/<base\b/i);
+  expect(f.resourceHtml).toContain(`${assetOrigin}/build/assets/`);
+  await expect(async () => {
+    expect({ pageErrors, hostAssets, assetFailures, consoleErrors }, 'All production preloads must load from the remote asset origin without errors').toEqual({ pageErrors: [], hostAssets: [], assetFailures: [], consoleErrors: [] });
+    await expect(f.app.locator('.react-flow__node')).toHaveCount(2, { timeout: 500 });
+  }).toPass({ timeout: 12_000 });
+  await expect(f.app.locator('.react-flow__edge')).toHaveCount(1);
+  await expect(f.app.getByText('Host connected', { exact: true })).toBeVisible();
+  // This rule comes from the dynamically imported native React Flow CSS.
+  await expect(f.app.locator('.react-flow__pane')).toHaveCSS('position', 'absolute');
+  const initialStyles = [...f.resourceHtml.matchAll(/href="([^"]+\.css)"/g)].map(match => match[1]);
+  expect(loadedStyles.filter(url => !initialStyles.includes(url)), 'Canvas CSS must actually load after the HTML stylesheet set').not.toEqual([]);
+  expect(loadedStyles.every(url => new URL(url).origin === assetOrigin)).toBe(true);
+  expect(assetFailures).toEqual([]);
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+  expect(hostAssets).toEqual([]);
+  expect(f.network).toEqual([]);
+});
 
 test('real canvas editing uses guarded MCP saves and host assistant without direct account APIs', async ({ page }) => {
   const f = await fixture(page);
