@@ -88,6 +88,87 @@ async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?:
   return { app, calls, transport, protocol, network, resourceHtml, getWorkflow: () => workflow, externalEdit: (name: string, definition = workflow.definition) => { workflow = { ...workflow, name, definition, updatedAt: `2026-10-01T00:00:${String(++revision).padStart(2, '0')}.000Z` }; }, failSubmission: () => { failSubmit = true; } };
 }
 
+for (const scenario of [
+  { id: 'plain string', value: 'unchanged', node: 'text', label: 'value', omit: '' },
+  { id: 'multiline trailing newline', value: 'MCP marker\n', node: 'text', label: 'value', omit: '' },
+  { id: 'omitted connected content', value: 'unchanged', node: 'output', label: 'content', omit: 'content' },
+  { id: 'omitted encoding default', value: 'unchanged', node: 'output', label: 'encoding', omit: 'encoding' },
+]) {
+  test(`keyboard navigation preserves saved params and validation: ${scenario.id}`, async ({ page }) => {
+    const outputParams: Args = { file_path: 'result.txt', content: '', format: 'text', encoding: 'utf-8' };
+    if (scenario.omit) delete outputParams[scenario.omit];
+    const definition = {
+      version: '1.0', app: 'BioNodulo', name: 'Text output', description: '', groups: [], outputs: {},
+      nodes: [
+        { id: 'text', type: 'string_primitive', position: [20, 50], params: { value: scenario.value } },
+        { id: 'output', type: 'write_file', position: [350, 50], params: outputParams },
+      ],
+      edges: [{ id: 'e1', from: { node: 'text', output: 'value' }, to: { node: 'output', input: 'content' } }],
+    };
+    const f = await fixture(page, { workflow: {
+      id: '11111111-1111-4111-8111-111111111111', name: 'Text output',
+      updatedAt: '2026-10-01T00:00:01.000Z', definition,
+    } });
+    await f.app.getByRole('button', { name: 'Validate', exact: true }).click();
+    const validation = f.app.getByText('Validation: passed', { exact: true });
+    await expect(validation).toBeVisible();
+    const widget = f.app.locator(`.react-flow__node[data-id="${scenario.node}"]`).getByRole('textbox', { name: scenario.label, exact: true });
+    if (scenario.node === 'text') {
+      await expect(widget).toHaveValue(scenario.value);
+      expect(await widget.evaluate(element => element.tagName)).toBe('TEXTAREA');
+    }
+    await widget.focus();
+    await page.keyboard.press('Tab');
+    await expect(validation).toBeVisible();
+    await expect(f.app.getByText('Saved', { exact: true })).toBeVisible();
+    await expect(f.app.getByRole('button', { name: 'Review run', exact: true })).toBeEnabled();
+    await f.app.getByRole('button', { name: 'Validate', exact: true }).click();
+    await expect.poll(() => f.calls.filter(call => call.name === 'validate_workflow').length).toBe(2);
+    expect(f.calls.filter(call => call.name === 'validate_workflow')[1].args.workflow.nodes).toEqual(definition.nodes);
+    // Reviewing is read-only. Keyboard navigation must not discard this quote
+    // or submit any compute request; explicit confirmation remains required.
+    await f.app.getByRole('button', { name: 'Review run', exact: true }).click();
+    const confirmation = f.app.getByRole('dialog', { name: 'Confirm compute credit use' });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Back', exact: true }).focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await expect(confirmation).toBeVisible();
+    expect(f.calls.filter(call => ['update_workflow', 'create_workflow', 'submit_run'].includes(call.name))).toEqual([]);
+    expect(f.network).toEqual([]);
+  });
+}
+
+test('same-value widget commits preserve validation while real multiline edits invalidate it', async ({ page }) => {
+  const f = await fixture(page, { workflow: {
+    id: '11111111-1111-4111-8111-111111111111', name: 'Text output', updatedAt: '2026-10-01T00:00:01.000Z',
+    definition: { nodes: [
+      { id: 'text', type: 'string_primitive', position: [20, 50], params: { value: 'saved\n' } },
+      { id: 'output', type: 'write_file', position: [350, 50], params: { file_path: 'result.txt' } },
+    ], edges: [{ id: 'e1', from: { node: 'text', output: 'value' }, to: { node: 'output', input: 'content' } }] },
+  } });
+  await f.app.getByRole('button', { name: 'Validate', exact: true }).click();
+  const validation = f.app.getByText('Validation: passed', { exact: true });
+  await expect(validation).toBeVisible();
+  const widget = f.app.locator('.react-flow__node[data-id="text"]').getByRole('textbox', { name: 'value', exact: true });
+  // A user can change their mind before committing. The canvas emits the
+  // original params again, and Workbench must treat that callback as a no-op.
+  await widget.fill('temporary');
+  await widget.fill('saved\n');
+  await page.keyboard.press('Tab');
+  await expect(validation).toBeVisible();
+  await expect(f.app.getByText('Saved', { exact: true })).toBeVisible();
+  await widget.fill('changed\nnext line\n');
+  await page.keyboard.press('Tab');
+  await expect(f.app.getByText('Unsaved draft', { exact: true })).toBeVisible();
+  await expect(validation).toHaveCount(0);
+  await expect(f.app.getByRole('button', { name: 'Review run', exact: true })).toBeDisabled();
+  await f.app.getByRole('button', { name: 'Validate', exact: true }).click();
+  await expect.poll(() => f.calls.filter(call => call.name === 'validate_workflow').length).toBe(2);
+  expect(f.calls.filter(call => call.name === 'validate_workflow')[1].args.workflow.nodes[0].params.value).toBe('changed\nnext line\n');
+  expect(f.calls.filter(call => ['update_workflow', 'create_workflow', 'submit_run'].includes(call.name))).toEqual([]);
+});
+
 for (const allowForms of [false, true]) {
   test(`host assistant sends context and messages ${allowForms ? 'with' : 'without'} sandbox form permission`, async ({ page }) => {
     const formErrors: string[] = [];

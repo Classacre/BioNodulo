@@ -39,7 +39,8 @@ describe('generated option defaults', () => {
       const count = screen.getByLabelText('count');
       expect(count).toHaveValue(null);
       fireEvent.blur(count);
-      expect(latest()).toEqual(['n', 'count', undefined]);
+      if (surface === 'canvas') expect(changed).not.toHaveBeenCalled();
+      else expect(latest()).toEqual(['n', 'count', undefined]);
       fireEvent.change(count, { target: { value: '0' } });
       fireEvent.blur(count);
       expect(latest()).toEqual(['n', 'count', 0]);
@@ -58,8 +59,10 @@ describe('generated option defaults', () => {
       fireEvent.blur(record);
       expect(latest()).toEqual(['n', 'record', undefined]);
       expect(record).toBeValid();
+      const callsBeforeFocus = changed.mock.calls.length;
       fireEvent.blur(screen.getByLabelText('text'));
-      expect(latest()).toEqual(['n', 'text', undefined]);
+      if (surface === 'canvas') expect(changed).toHaveBeenCalledTimes(callsBeforeFocus);
+      else expect(latest()).toEqual(['n', 'text', undefined]);
     });
   }
 
@@ -74,5 +77,125 @@ describe('generated option defaults', () => {
     expect(screen.getByLabelText('text')).toHaveValue('');
     fireEvent.blur(screen.getByLabelText('count'));
     expect(changed).toHaveBeenLastCalledWith('n', 'count', undefined);
+  });
+});
+
+describe('canvas widget edits', () => {
+  const widgets: NodeMetadata = {
+    id: 'widgets', display_name: 'Widgets', category: 'Utility',
+    input_types: { optional: {
+      text: { type: 'STRING' }, content: { type: 'STRING', default: '', multiline: true },
+      encoding: { type: 'STRING', default: 'utf-8' }, count: { type: 'INT', default: 4 },
+      record: { type: 'JSON', default: { keep: true } }, color: { type: 'STRING', default: '#ff0000' },
+      slider: { type: 'FLOAT', default: 0.5, display: 'slider', min: 0, max: 1, step: 0.1 },
+    } },
+  };
+  function setup(params: Record<string, unknown> = {}) {
+    const changed = vi.fn();
+    const actions = { setParam: changed } as unknown as BioNodeActions;
+    const view = (next: Record<string, unknown>) => <BioNodeActionsContext.Provider value={actions}>
+      <NodeWidgets nodeId="n" meta={widgets} params={next} />
+    </BioNodeActionsContext.Provider>;
+    const result = render(view(params));
+    return { changed, reset: (next: Record<string, unknown>) => result.rerender(view(next)) };
+  }
+
+  it('does not materialize omitted defaults on focus, blur or pointer up', () => {
+    const { changed } = setup();
+    for (const key of ['text', 'content', 'encoding', 'count', 'record', 'color', 'slider']) {
+      const control = screen.getByLabelText(key);
+      fireEvent.focus(control);
+      fireEvent.pointerUp(control);
+      fireEvent.blur(control);
+    }
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('preserves multiline bytes and commits real multiline edits once', () => {
+    const { changed } = setup({ content: 'first\nsecond\n' });
+    const content = screen.getByLabelText('content');
+    expect(content.tagName).toBe('TEXTAREA');
+    expect(content).toHaveValue('first\nsecond\n');
+    fireEvent.blur(content);
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.change(content, { target: { value: 'changed\nlast\n' } });
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.blur(content);
+    fireEvent.blur(content);
+    expect(changed).toHaveBeenCalledExactlyOnceWith('n', 'content', 'changed\nlast\n', true);
+  });
+
+  it('keeps explicit empty strings and clears optional strings after edits', () => {
+    const { changed } = setup({ text: 'old', content: 'old' });
+    for (const key of ['text', 'content']) {
+      fireEvent.change(screen.getByLabelText(key), { target: { value: '' } });
+      fireEvent.blur(screen.getByLabelText(key));
+    }
+    expect(changed.mock.calls).toEqual([['n', 'text', undefined, true], ['n', 'content', '', true]]);
+  });
+
+  it('retains numeric parsing and color commits after real edits', () => {
+    const { changed } = setup();
+    fireEvent.change(screen.getByLabelText('count'), { target: { value: '7' } });
+    fireEvent.blur(screen.getByLabelText('count'));
+    fireEvent.change(screen.getByLabelText('color'), { target: { value: '#00ff00' } });
+    fireEvent.blur(screen.getByLabelText('color'));
+    expect(changed.mock.calls).toEqual([['n', 'count', 7, true], ['n', 'color', '#00ff00', true]]);
+  });
+
+  it('does not replace existing values with normalized display values on blur', () => {
+    const { changed } = setup({ count: '004', color: 'red', record: { nested: [1, 2] } });
+    for (const key of ['count', 'color', 'record']) fireEvent.blur(screen.getByLabelText(key));
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid JSON and commits a subsequent correction', () => {
+    const { changed } = setup();
+    const record = screen.getByLabelText('record');
+    fireEvent.change(record, { target: { value: '{broken' } });
+    fireEvent.blur(record);
+    expect(record).toBeInvalid();
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.change(record, { target: { value: '{"correct":true}' } });
+    fireEvent.blur(record);
+    expect(record).toBeValid();
+    expect(changed).toHaveBeenCalledExactlyOnceWith('n', 'record', { correct: true }, true);
+  });
+
+  it('clears stale JSON validity after an external reset without committing', () => {
+    const { changed, reset } = setup({ record: { original: true } });
+    const record = screen.getByLabelText('record');
+    fireEvent.change(record, { target: { value: '{broken' } });
+    fireEvent.blur(record);
+    expect(record).toBeInvalid();
+    reset({ record: { remote: true } });
+    fireEvent.blur(record);
+    expect(record).toBeValid();
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('commits sliders once for pointer interaction and on blur for keyboard interaction', () => {
+    const { changed } = setup();
+    const slider = screen.getByLabelText('slider');
+    fireEvent.change(slider, { target: { value: '0.7' } });
+    fireEvent.pointerUp(slider);
+    fireEvent.blur(slider);
+    expect(changed).toHaveBeenCalledExactlyOnceWith('n', 'slider', 0.7, true);
+    fireEvent.change(slider, { target: { value: '0.8' } });
+    fireEvent.blur(slider);
+    expect(changed).toHaveBeenLastCalledWith('n', 'slider', 0.8, true);
+    expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  it('resynchronizes undo, redo and remote edits without committing stale local edits', () => {
+    const { changed, reset } = setup({ content: 'original\n' });
+    const content = screen.getByLabelText('content');
+    fireEvent.change(content, { target: { value: 'uncommitted' } });
+    for (const value of ['remote\n', 'original\n', 'remote\n']) {
+      reset({ content: value });
+      expect(content).toHaveValue(value);
+      fireEvent.blur(content);
+    }
+    expect(changed).not.toHaveBeenCalled();
   });
 });

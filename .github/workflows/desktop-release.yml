@@ -21,8 +21,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        # So an incomplete release can be repaired without a version bump.
-        # tauri-action uploads only what is missing from an existing release.
+        # Published installers are immutable. Only a draft with this exact
+        # source can be rebuilt; updater-only repairs do not rebuild binaries.
         description: "Release tag to build into, e.g. desktop-v0.1.0-alpha.16"
         required: false
         type: string
@@ -42,6 +42,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Verify release source before any installer upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: node desktop/scripts/publish-updater.mjs --check-source --tag "$RELEASE_TAG"
       - name: Build web SPA
         working-directory: web
         run: |
@@ -199,15 +204,24 @@ jobs:
           # named after the branch and overwrite it on every version.
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: "BioNodulo Desktop ${{ inputs.tag || github.ref_name }}"
-          # Both flags are load-bearing for the updater, which reads
-          # releases/latest/download/latest.json (see tauri.conf.json).
-          # GitHub's "latest" resolves to the most recent release that is
-          # NEITHER a draft NOR a prerelease. A draft release is invisible to
-          # the updater, and so is a prerelease -- verified against a live repo
-          # whose newest prerelease was 9 days newer than what /releases/latest
-          # returned. Alpha status is conveyed by the tag (desktop-v*-alpha.N),
-          # not by the prerelease flag. Do not set either to true without first
-          # moving the updater endpoint off GitHub's /releases/latest.
-          releaseDraft: false
+          # Keep the previous complete release active during platform builds.
+          # A single publisher below uploads latest.json and promotes the draft
+          # only after all installers and signatures have been verified.
+          releaseDraft: true
           prerelease: false
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
+
+  publish-updater:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Publish the complete signed updater manifest once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: node desktop/scripts/publish-updater.mjs --tag "$RELEASE_TAG"

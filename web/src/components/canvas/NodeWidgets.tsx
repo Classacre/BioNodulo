@@ -4,7 +4,7 @@
 // the canvas, and edits are written straight back to the node's params via the
 // BioNodeActions context. The node auto-sizes to fit these (React Flow measures
 // the DOM), so there's no height math here.
-import { memo, useContext, useEffect, useState } from 'react';
+import { memo, useContext, useEffect, useRef, useState } from 'react';
 import { Handle, Position, useNodeConnections } from '@xyflow/react';
 import type { InputSpec, NodeMetadata } from '../../types';
 import {
@@ -50,8 +50,16 @@ function WidgetRow({ nodeId, pKey, spec, value, optional, onSet }: WidgetRowProp
   const label = spec.label || pKey;
   const external = value ?? spec.default;
   const [local, setLocal] = useState<unknown>(external);
+  const edited = useRef(false);
   // Resync when the param changes from outside (undo/redo, collab, reset).
-  useEffect(() => { setLocal(external); }, [external]);
+  useEffect(() => { setLocal(external); edited.current = false; }, [external, value]);
+  const change = (next: unknown) => { setLocal(next); edited.current = true; };
+  const commit = (next: unknown) => {
+    // Focus/blur must not materialize omitted defaults or rewrite stored values.
+    if (!edited.current) return;
+    edited.current = false;
+    onSet(nodeId, pKey, next, true);
+  };
 
   // Boolean -> toggle checkbox (commit immediately).
   if (spec.type === 'BOOLEAN') {
@@ -114,8 +122,9 @@ function WidgetRow({ nodeId, pKey, spec, value, optional, onSet }: WidgetRowProp
             max={spec.max}
             step={step}
             value={shown}
-            onChange={(e) => setLocal(coerce(e.target.value))}
-            onPointerUp={(e) => onSet(nodeId, pKey, coerce((e.target as HTMLInputElement).value), true)}
+            onChange={(e) => change(coerce(e.target.value))}
+            onPointerUp={(e) => commit(coerce(e.currentTarget.value))}
+            onBlur={(e) => commit(coerce(e.target.value))}
           />
           <output className="bio-widget-value">{shown}</output>
         </label>
@@ -132,8 +141,8 @@ function WidgetRow({ nodeId, pKey, spec, value, optional, onSet }: WidgetRowProp
           step={step}
           value={Number.isFinite(num) ? num : ''}
           placeholder={optional ? 'Use tool default' : undefined}
-          onChange={(e) => setLocal(coerce(e.target.value))}
-          onBlur={(e) => onSet(nodeId, pKey, coerce(e.target.value), true)}
+          onChange={(e) => change(coerce(e.target.value))}
+          onBlur={(e) => commit(coerce(e.target.value))}
         />
       </label>
     );
@@ -147,10 +156,14 @@ function WidgetRow({ nodeId, pKey, spec, value, optional, onSet }: WidgetRowProp
         <textarea
           className="nodrag nopan"
           value={text}
-          onChange={(e) => setLocal(e.target.value)}
+          onChange={(e) => change(e.target.value)}
           onBlur={(e) => {
+            if (!edited.current) {
+              e.target.setCustomValidity('');
+              return;
+            }
             try {
-              onSet(nodeId, pKey, optional && !e.target.value.trim() ? undefined : parseJsonWidgetValue(e.target.value), true);
+              commit(optional && !e.target.value.trim() ? undefined : parseJsonWidgetValue(e.target.value));
               e.target.setCustomValidity('');
             } catch {
               e.target.setCustomValidity('Enter valid JSON.');
@@ -171,24 +184,26 @@ function WidgetRow({ nodeId, pKey, spec, value, optional, onSet }: WidgetRowProp
           type="color"
           className="nodrag nopan"
           value={toHexColor(local)}
-          onChange={(e) => setLocal(e.target.value)}
-          onBlur={(e) => onSet(nodeId, pKey, e.target.value, true)}
+          onChange={(e) => change(e.target.value)}
+          onBlur={(e) => commit(e.target.value)}
         />
       </label>
     );
   }
 
-  // String -> text input (commit on blur).
+  // Multiline strings need a textarea: text inputs strip line breaks even when
+  // the user only focuses the field. Both controls commit actual edits on blur.
+  const stringProps = {
+    className: 'nodrag nopan',
+    value: String(local ?? ''),
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => change(e.target.value),
+    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      commit(optional && spec.default !== '' && e.target.value === '' ? undefined : e.target.value),
+  };
   return (
     <label className="bio-widget nodrag nopan" title={spec.tooltip || spec.description || label}>
       <span className="bio-widget-label">{label}</span>
-      <input
-        type="text"
-        className="nodrag nopan"
-        value={String(local ?? '')}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={(e) => onSet(nodeId, pKey, optional && spec.default !== '' && e.target.value === '' ? undefined : e.target.value, true)}
-      />
+      {spec.multiline ? <textarea {...stringProps} rows={3} /> : <input type="text" {...stringProps} />}
     </label>
   );
 }

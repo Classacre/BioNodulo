@@ -352,6 +352,8 @@ export default function Workbench({ host }: { host: WorkbenchHost }) {
   }, [host, connected, runId, teamId, scope]);
 
   const edit = (patch: Partial<Workflow>) => {
+    const snapshot = current.current.state;
+    if (draftReducer(snapshot, { type: 'edit', patch }) === snapshot) return;
     dispatch({ type: 'edit', patch });
     setValidation(undefined);
     setQuote(undefined);

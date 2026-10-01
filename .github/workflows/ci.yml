@@ -141,6 +141,8 @@ jobs:
 
       - name: Check desktop backend packaging
         run: node --test ../desktop/scripts/backend-files.test.mjs
+      - name: Check signed updater publication
+        run: node --test ../desktop/scripts/publish-updater.test.mjs
 
       - name: Upload frontend build artifact
         uses: actions/upload-artifact@v4
