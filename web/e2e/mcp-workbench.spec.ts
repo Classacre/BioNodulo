@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import type { CloudWorkflow } from '../src/mcp/draft';
 
 const metadata = JSON.parse(readFileSync(new URL('../../bionodulo/nodes/node_metadata.json', import.meta.url), 'utf8'));
-const catalog = Object.fromEntries(['input_file', 'normalize_data', 'extract_columns'].map(id => [id, metadata[id]]));
+const catalog = Object.fromEntries(['input_file', 'normalize_data', 'extract_columns', 'string_primitive', 'write_file'].map(id => [id, metadata[id]]));
 type Args = Record<string, any>;
-async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?: boolean } = {}) {
+async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?: boolean; workflow?: CloudWorkflow } = {}) {
   const calls: { name: string; args: Args }[] = [];
   const transport: string[] = [];
   const network: string[] = [];
@@ -16,6 +16,7 @@ async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?:
       { id: 'normalize', type: 'normalize_data', position: [350, 50], params: { method: 'cpm', log_transform: false } },
     ], edges: [{ id: 'e1', from: { node: 'input', output: 'file' }, to: { node: 'normalize', input: 'table' } }] },
   };
+  if (options.workflow) workflow = structuredClone(options.workflow);
   let revision = 1;
   let failSubmit = false;
   page.on('request', request => {
@@ -76,11 +77,73 @@ async function fixture(page: Page, options: { assetOrigin?: string; awaitReady?:
   const app = page.frameLocator('iframe');
   if (options.awaitReady !== false) {
     await expect(app.getByText('Host connected', { exact: true })).toBeVisible();
-    await expect(app.getByLabel('Workflow name')).toHaveValue('Counts workflow');
+    await expect(app.getByLabel('Workflow name')).toHaveValue(workflow.name);
     await expect(app.locator('.react-flow__node')).toHaveCount(2);
   }
-  return { app, calls, transport, network, resourceHtml, getWorkflow: () => workflow, externalEdit: (name: string) => { workflow = { ...workflow, name, updatedAt: `2026-10-01T00:00:${String(++revision).padStart(2, '0')}.000Z` }; }, failSubmission: () => { failSubmit = true; } };
+  return { app, calls, transport, network, resourceHtml, getWorkflow: () => workflow, externalEdit: (name: string, definition = workflow.definition) => { workflow = { ...workflow, name, definition, updatedAt: `2026-10-01T00:00:${String(++revision).padStart(2, '0')}.000Z` }; }, failSubmission: () => { failSubmit = true; } };
 }
+
+test('connected scalar inputs render real edges without stored UI promotion flags', async ({ page }) => {
+  test.setTimeout(45_000);
+  const definition = {
+    version: '1.0', app: 'BioNodulo', name: 'Text output', description: '', groups: [], outputs: {},
+    nodes: [
+      { id: 'text', type: 'string_primitive', position: [20, 50], params: { value: 'MCP canvas regression' } },
+      { id: 'output', type: 'write_file', position: [350, 50], params: { file_path: 'result.txt', format: 'text', encoding: 'utf-8' } },
+    ],
+    edges: [{ id: 'text-to-content', from: { node: 'text', output: 'value' }, to: { node: 'output', input: 'content' } }],
+  };
+  const f = await fixture(page, { workflow: {
+    id: '11111111-1111-4111-8111-111111111111', name: 'Text output',
+    updatedAt: '2026-10-01T00:00:01.000Z', definition,
+  } });
+  const target = f.app.locator('.react-flow__node[data-id="output"] .react-flow__handle.target[data-handleid="content"]');
+  const assertConnected = async () => {
+    await expect(target).toHaveCount(1);
+    await expect(target).toBeVisible();
+    await expect(target).toHaveClass(/connected/);
+    const edge = f.app.locator('.react-flow__edge[data-id="text-to-content"] .react-flow__edge-path');
+    await expect(edge).toBeVisible();
+    // Counting an edge wrapper is insufficient: verify the SVG curve exists
+    // and its endpoints really meet the canonical value/content handle pair.
+    await expect.poll(() => edge.evaluate(element => {
+      const path = element as SVGPathElement;
+      const matrix = path.getScreenCTM()!;
+      const length = path.getTotalLength();
+      const endpoint = (distance: number) => {
+        const point = path.getPointAtLength(distance);
+        return new DOMPoint(point.x, point.y).matrixTransform(matrix);
+      };
+      const near = (point: DOMPoint, selector: string) => {
+        const rect = element.ownerDocument.querySelector(selector)!.getBoundingClientRect();
+        return Math.hypot(point.x - rect.x - rect.width / 2, point.y - rect.y - rect.height / 2) < 12;
+      };
+      const style = getComputedStyle(path);
+      return length > 40 && style.stroke !== 'none' && Number.parseFloat(style.strokeWidth) > 0
+        && near(endpoint(0), '.react-flow__node[data-id="text"] .react-flow__handle.source[data-handleid="value"]')
+        && near(endpoint(length), '.react-flow__node[data-id="output"] .react-flow__handle.target[data-handleid="content"]');
+    })).toBe(true);
+  };
+  await assertConnected();
+  // External edits can add a handle without changing node dimensions. React
+  // Flow must remeasure that handle when the edge returns after a remote poll.
+  f.externalEdit('Text output disconnected', { ...definition, edges: [] });
+  await expect(f.app.getByLabel('Workflow name')).toHaveValue('Text output disconnected', { timeout: 12000 });
+  await expect(target).toHaveCount(0);
+  await page.reload();
+  await expect(f.app.getByLabel('Workflow name')).toHaveValue('Text output disconnected');
+  await expect(target).toHaveCount(0);
+  f.externalEdit('Text output reconnected', definition);
+  await expect(f.app.getByLabel('Workflow name')).toHaveValue('Text output reconnected', { timeout: 12000 });
+  await assertConnected();
+  await f.app.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(f.app.getByText('Workflow saved.', { exact: true })).toBeVisible();
+  const saved = f.calls.find(call => call.name === 'update_workflow')!.args.definition;
+  expect(saved.nodes).toEqual(definition.nodes);
+  expect(saved.edges).toEqual(definition.edges);
+  expect(f.network).toEqual([]);
+  await page.screenshot({ path: 'test-results/mcp-workbench-scalar-edge.png', fullPage: true });
+});
 
 test('production MCP resource loads dynamic canvas assets from a separate origin', async ({ page }, testInfo) => {
   test.skip(testInfo.config.metadata.productionMcp !== true, 'Requires the dedicated production build/config and remote asset server.');

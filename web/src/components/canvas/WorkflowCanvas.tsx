@@ -246,11 +246,17 @@ function toGraphNode(
   else if (collapsed) nodeHeight = NODE_HEADER_H;
   else nodeHeight = wn.ui?.height ?? 0;
   const visibleInputs = getVisibleInputSpecs(meta, wn.params || {});
-  // Effective input dots: the "enable all by default" setting shows a dot on
-  // every widget param; otherwise only the per-node promoted keys.
+  // A saved/imported edge is authoritative even when its scalar input has no
+  // editor-only promotion flag (for example an AI-created String -> Write File).
+  // Derive its handle without mutating the workflow's persisted UI preferences.
+  const promotableInputs = getPromotableParamKeys(meta, wn.params || {});
+  const connectedWidgetInputs = promotableInputs.filter(key => connectedIn.has(`${wn.id}:${key}`));
+  const storedPromotedInputs = wn.ui?.promotedInputs ?? EMPTY_PROMOTED;
   const promotedInputs = allParamInputs
-    ? getPromotableParamKeys(meta, wn.params || {})
-    : (wn.ui?.promotedInputs ?? EMPTY_PROMOTED);
+    ? promotableInputs
+    : connectedWidgetInputs.length
+      ? [...new Set([...storedPromotedInputs, ...connectedWidgetInputs])]
+      : storedPromotedInputs;
   // Subgraph nodes: the visible handles are derived from params.input_ports /
   // params.output_ports (the engine contract), NOT from the stored node_info —
   // params stay authoritative as boundary edits add/remove ports.
