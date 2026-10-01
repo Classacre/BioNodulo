@@ -220,7 +220,7 @@ export default function TopBar({
       </div>
 
       <div className="topbar-spacer" />
-      {onHostFullscreen && <button className="btn btn-icon" title="Open full screen" aria-label="Open full screen" onClick={onHostFullscreen}><Icon name="expand" size={16} /></button>}
+      {onHostFullscreen && <button className="btn btn-icon" title="Open full screen" aria-label="Open full screen" onClick={onHostFullscreen}><Icon name="maximize" size={16} /></button>}
 
       {hpcEnabled && (
         <span className={hpcBadgeClass} title={hpcLabel}>
