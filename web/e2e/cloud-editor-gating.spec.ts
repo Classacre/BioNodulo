@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-// Cloud-editor gating: when /api/config reports editorMode, host-only features
-// that the stateless Lambda can't serve must be hidden, and the host-only boot
-// polls (queue/history/system_stats/host_status/ws) must not fire. This exercises
-// the runtime gating wired through cloudConfigAtom (LeftRail, overlay, console).
+// Cloud-editor gating: editorMode keeps cloud Workspace files available while
+// hiding machine-local panels and suppressing host-only boot polls.
 
 const editorConfig = {
   cloudMode: false,
@@ -32,11 +30,19 @@ test.beforeEach(async ({ context, page }) => {
     else if (path.endsWith('/api/me')) {
       payload = { id: 'u1', name: 'Cloud User', email: 'cloud@example.com', team: { id: 't1', name: 'Team' } };
     }
+    else if (path.endsWith('/api/files')) {
+      payload = { success: true, data: [{ key: 'uploads/t1/fixture.tsv', name: 'fixture.tsv', size: 24, updatedAt: '2026-10-01T00:00:00Z', url: 'https://example.org/fixture.tsv' }] };
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
   });
 });
 
-test('hides host-only rail panels in editor mode', async ({ page }) => {
+test('shows cloud Workspace while hiding machine-local rail panels in editor mode', async ({ page }) => {
+  const localWorkspaceCalls: string[] = [];
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith('/api/workspace/')) localWorkspaceCalls.push(path);
+  });
   const response = await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => null);
   if (!response || !response.ok()) {
     // Never skip in CI. A silent skip meant a green suite could prove nothing
@@ -45,11 +51,14 @@ test('hides host-only rail panels in editor mode', async ({ page }) => {
     test.skip(true, 'dev server unavailable');
     return;
   }
-  // Nodes + Templates stay; Workspace/Environment/Runtime artifacts/HPC go.
+  // Nodes, Templates and cloud Workspace stay; machine-local panels go.
   // Rail buttons carry a shortcut suffix in their accessible name, so match by
   // prefix rather than exact text.
   await expect(page.getByRole('button', { name: /^Nodes/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Workspace/ })).toHaveCount(0);
+  await page.getByRole('button', { name: /^Workspace/ }).click();
+  await expect(page.locator('.workspace-cloud')).toContainText('fixture.tsv');
+  await expect(page.locator('.workspace-tabs')).toHaveCount(0);
+  expect(localWorkspaceCalls).toEqual([]);
   await expect(page.getByRole('button', { name: /^Environment/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^Runtime artifacts/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^HPC/ })).toHaveCount(0);

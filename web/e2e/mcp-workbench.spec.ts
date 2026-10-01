@@ -15,6 +15,17 @@ const account = { id: userId, name: 'Fixture researcher', email: 'researcher@exa
 type Json = Record<string, any>;
 type CloudCall = { surface: string; path: string; method: string; body?: any; team_id?: string };
 
+function isExactViteDevHmrSocket(value: string, baseURL: string): boolean {
+  const socket = new URL(value);
+  const page = new URL(baseURL);
+  return socket.protocol === (page.protocol === 'https:' ? 'wss:' : 'ws:')
+    && socket.hostname === page.hostname
+    && socket.port === page.port
+    && socket.pathname === '/'
+    && socket.searchParams.size === 1
+    && Boolean(socket.searchParams.get('token'));
+}
+
 function initialRow() {
   return {
     id: workflowId, name: 'Counts workflow', description: '', updatedAt: '2026-10-01T00:00:01.000Z',
@@ -179,7 +190,8 @@ test('MCP loads the full App shell through the host bridge without direct APIs o
   expect(f.requests).toContainEqual(expect.objectContaining({ surface: 'editor', path: '/api/object_info', method: 'GET' }));
   expect(f.requests).toContainEqual(expect.objectContaining({ surface: 'website', path: '/api/workflows', method: 'GET' }));
   expect(f.browserApi).toEqual([]);
-  expect(f.browserSockets).toEqual([]);
+  if (testInfo.config.metadata.productionMcp === true) expect(f.browserSockets).toEqual([]);
+  else for (const socket of f.browserSockets) expect(isExactViteDevHmrSocket(socket, testInfo.project.use.baseURL!)).toBe(true);
   expect(f.unknown).toEqual([]);
   await expect(f.app.locator('#bn-boot')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('desktop-full-app.png') });
