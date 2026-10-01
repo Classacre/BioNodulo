@@ -1,44 +1,103 @@
 <p align="center">
-  <img src=".github/assets/logo.svg" alt="BioNodulo logo" width="120" />
+  <img src=".github/assets/logo.svg" alt="BioNodulo logo" width="96" />
 </p>
 
 <h1 align="center">BioNodulo</h1>
 
 <p align="center">
-  <strong>Visual bioinformatics pipelines, node by node.</strong>
+  <strong>Build, run and share bioinformatics workflows — node by node.</strong><br />
+  Desktop · Cloud · Your AI assistant
 </p>
 
 <p align="center">
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FClassacre%2FBioNodulo%2Fmain%2Fpyproject.toml&amp;query=%24.project.version&amp;label=version&amp;color=0d9488&amp;logo=github" alt="Version" /></a>
-  <a href="https://discord.gg/baNKVhZq6k"><img src="https://img.shields.io/badge/Discord-Join%20BioNodulo-5865F2?logo=discord&amp;logoColor=white" alt="Discord" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License" /></a>
-  <a href="https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" /></a>
-  <a href="mcp/"><img src="https://img.shields.io/badge/MCP-Server-6B5B95?logo=modelcontextprotocol&amp;logoColor=white" alt="MCP Server" /></a>
-  <a href="mcp/"><img src="https://img.shields.io/badge/Claude-D97757?logo=claude&amp;logoColor=fff" alt="Claude" /></a>
-  <a href="mcp/"><img src="https://img.shields.io/badge/Codex-412991?logo=openai&amp;logoColor=white" alt="Codex" /></a>
+  <a href="https://github.com/Classacre/BioNodulo/releases"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FClassacre%2FBioNodulo%2Fmain%2Fweb%2Fpackage.json&amp;query=%24.version&amp;label=version&amp;color=0d9488&amp;style=flat-square" alt="Current app version" /></a>
+  <a href="https://github.com/Classacre/BioNodulo/actions/workflows/ci.yml"><img src="https://github.com/Classacre/BioNodulo/actions/workflows/ci.yml/badge.svg?branch=main" alt="Main branch CI status" /></a>
+  <a href="https://github.com/Classacre/BioNodulo/actions/workflows/secret-scan.yml"><img src="https://github.com/Classacre/BioNodulo/actions/workflows/secret-scan.yml/badge.svg?branch=main" alt="Secret scanning status" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Classacre/BioNodulo?color=2563eb&amp;style=flat-square" alt="GPL-3.0 license" /></a>
+  <a href="desktop/README.md"><img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-475569?style=flat-square" alt="Desktop platforms: Windows, macOS and Linux" /></a>
 </p>
-
-Build, run and share bioinformatics workflows in a visual node editor. Use the desktop app, run from source, or use the hosted platform.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/screenshots/dark/app.png" />
-    <source media="(prefers-color-scheme: light)" srcset=".github/assets/screenshots/light/app.png" />
-    <img src=".github/assets/screenshots/light/app.png" alt="BioNodulo visual node editor" width="900" />
-  </picture>
+  <a href="https://cloud.bionodulo.com/build/"><img src="https://img.shields.io/badge/Open_Cloud_App-0d9488?style=for-the-badge" alt="Open the cloud app" /></a>
+  <a href="https://bionodulo.com/download"><img src="https://img.shields.io/badge/Download_Desktop-2563eb?style=for-the-badge" alt="Download the desktop app" /></a>
+  <a href="https://docs.bionodulo.com"><img src="https://img.shields.io/badge/Read_the_Docs-475569?style=for-the-badge" alt="Read the documentation" /></a>
+  <a href="https://docs.bionodulo.com/mcp/clients"><img src="https://img.shields.io/badge/Connect_Your_AI-7c3aed?style=for-the-badge" alt="Connect your AI assistant" /></a>
 </p>
+
+BioNodulo is an open-source visual workflow editor for bioinformatics. Connect
+tools on a canvas, explore their relationships, manage inputs and references,
+and follow execution through node status, logs and outputs. Work in the desktop
+app, the hosted cloud editor, or a supported AI client's embedded cloud app.
+
+<p align="center">
+  <img src=".github/assets/screenshots/cloud-app-mcp.png" alt="BioNodulo full cloud editor with a sample counts workflow, cloud account controls and console" width="900" /><br />
+  <em>The shared cloud editor, shown with sample data in an MCP test host.</em>
+</p>
+
+## What you can do
+
+| | Capability |
+| --- | --- |
+| **Build visually** | Connect typed inputs and outputs, organize workflow tabs, and start from bundled templates. |
+| **Explore tools** | Search the node library and use [Tool Atlas](docs/tool-atlas.md) to inspect related tools, format matches and recorded evidence. |
+| **Run where you work** | Use desktop/local and HPC integrations, or cloud compute with an account and team credit balance. |
+| **Work with your AI** | Let an authorized assistant inspect the catalog, edit workflows, manage cloud files and monitor runs through MCP. |
+| **Track results** | Follow node status and logs, then retrieve verified cloud outputs and reported run usage. |
+| **Share and reproduce** | Collaborate on workflows, export supported formats, and collect tool references with the reference manager/exporter. |
+
+The catalog distinguishes executable nodes from **reference-only bio.tools
+entries**. Tool Atlas relationships are discovery aids, not proof of scientific
+compatibility. See [tool integration profiles](docs/tool-integration.md) and
+the [template catalog](docs/templates.md) for coverage and execution requirements.
+
+## BioNodulo inside your AI client
+
+Connect your client to the remote MCP endpoint:
+
+```text
+https://bionodulo.com/api/mcp
+```
+
+Sign in to BioNodulo, authorize the account/team permissions you need, then ask
+your assistant: **“Open BioNodulo.”** In ChatGPT and Claude hosts that support
+MCP Apps, this opens the **same full cloud app**: canvas, workflow tabs, toolbox,
+templates, cloud Workspace, settings and run history. Its AI panel sends your
+request to the host assistant; saved workflow changes appear in the editor.
+
+<p align="center">
+  <a href="https://docs.bionodulo.com/mcp/clients#chatgpt"><img src="https://img.shields.io/badge/ChatGPT-Connect-0d9488?style=for-the-badge" alt="ChatGPT connection guide" /></a>
+  <a href="https://docs.bionodulo.com/mcp/clients#claude"><img src="https://img.shields.io/badge/Claude-Connect-D97757?style=for-the-badge&amp;logo=claude&amp;logoColor=white" alt="Claude connection guide" /></a>
+  <a href="https://docs.bionodulo.com/mcp/clients#codex"><img src="https://img.shields.io/badge/Codex-Connect-475569?style=for-the-badge" alt="Codex connection guide" /></a>
+  <a href="https://docs.bionodulo.com/mcp/clients#claude-code"><img src="https://img.shields.io/badge/Claude_Code-Connect-7c3aed?style=for-the-badge" alt="Claude Code connection guide" /></a>
+</p>
+
+Codex, Claude Code and other MCP clients can use the same cloud tools without
+embedded UI. Cloud files belong to the authorized account/team; the remote
+connector does not access your computer's filesystem. Read, write and run
+permissions are separate. Paid cloud runs require explicit credit authorization;
+the embedded app checks the current balance and compute estimate before each
+submission, then shows progress, logs and verified outputs.
+
+Use the [AI client setup guide](https://docs.bionodulo.com/mcp/clients) for
+host-specific installation and permissions. The [portable plugin and repository
+marketplaces](integrations/README.md) package the remote connection. A separate
+[Claude Desktop extension](mcp/README.md#local-desktop-connection) connects to a
+running local BioNodulo desktop app. Embedded UI availability depends on the
+host; native ChatGPT/Claude rendering has not yet been verified for this release.
 
 ## Get started
 
-- **Desktop and cloud:** [bionodulo.com](https://bionodulo.com)
-- **User documentation:** [docs.bionodulo.com](https://docs.bionodulo.com)
-- **Notebook trial:** [Open in Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb)
+| Choose your setup | Start here |
+| --- | --- |
+| **Cloud editor** | [Open BioNodulo](https://cloud.bionodulo.com/build/) and sign in to your account. |
+| **Desktop app** | [Download for Windows, macOS or Linux](https://bionodulo.com/download). See [desktop setup](desktop/README.md). |
+| **AI client** | [Connect ChatGPT, Claude, Codex or Claude Code](https://docs.bionodulo.com/mcp/clients). |
+| **Notebook trial** | [Open in Colab](https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb). |
+| **From source** | Follow the commands below and the [development guide](docs/development.md). |
 
-BioNodulo supports local and HPC execution, isolated tool environments,
-workflow import/export, collaborative editing and an AI assistant. The catalog
-includes executable bioinformatics nodes and explicitly labeled reference-only
-bio.tools entries. See the [template catalog](docs/templates.md) and
-[tool integration profiles](docs/tool-integration.md) for coverage and limits.
+Workflow import/export support varies by format and node. Native Nextflow and
+Snakemake conversion currently covers FastQC/MultiQC workflows; unsupported
+graphs are rejected explicitly.
 
 ### Run from source
 
@@ -89,8 +148,16 @@ in the separate `bionodulo-website` repository.
 - [Development and checks](docs/development.md)
 - [Maintenance scripts](scripts/README.md)
 - [Desktop app](desktop/README.md)
-- [MCP server](mcp/README.md)
+- [MCP connections](mcp/README.md), [native plugins](integrations/README.md) and [cloud app adapter](web/src/mcp/README.md)
 - [Custom nodes](docs/help/custom-nodes.md)
+
+## Community
+
+<p align="center">
+  <a href="https://discord.gg/baNKVhZq6k"><img src="https://img.shields.io/badge/Discord-Join_the_Community-5865F2?style=for-the-badge&amp;logo=discord&amp;logoColor=white" alt="Join the BioNodulo Discord community" /></a>
+  <a href="https://github.com/Classacre/BioNodulo/issues"><img src="https://img.shields.io/badge/GitHub-Report_an_Issue-181717?style=for-the-badge&amp;logo=github&amp;logoColor=white" alt="Report an issue on GitHub" /></a>
+  <a href="https://colab.research.google.com/github/Classacre/BioNodulo/blob/main/notebooks/BioNodulo_Colab.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open the BioNodulo notebook in Colab" /></a>
+</p>
 
 ## License
 
