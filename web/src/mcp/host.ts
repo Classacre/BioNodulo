@@ -75,7 +75,7 @@ export function assertUploadOrigin(value: string, allowedOrigins: readonly strin
 
 export function createWorkbenchHost(): WorkbenchHost {
   const app = new App(
-    { name: 'BioNodulo Workbench', version: __APP_VERSION__ },
+    { name: 'BioNodulo', version: __APP_VERSION__ },
     {},
     { autoResize: true },
   );

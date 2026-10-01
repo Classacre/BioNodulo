@@ -105,6 +105,26 @@ describe('useWorkflow cloud submission', () => {
     expect(websiteMocks.submitCloudRun).not.toHaveBeenCalled();
   });
 
+  it('rejects cloud dry-run previews before reaching a local run endpoint', async () => {
+    const { result } = renderHook(() => useWorkflow());
+    await expect(act(async () => {
+      await result.current.submitRun(workflow, { forceCloud: true, dry_run: true });
+    })).rejects.toThrow('Dry-run execution previews');
+    expect(websiteMocks.createCloudWorkflow).not.toHaveBeenCalled();
+    expect(websiteMocks.submitCloudRun).not.toHaveBeenCalled();
+  });
+
+  it('requires explicit provenance bindings for cloud upload keys', async () => {
+    const { result } = renderHook(() => useWorkflow());
+    await expect(act(async () => {
+      await result.current.submitRun(workflow, { forceCloud: true,
+        parameters: { tiny_sam: 'uploads/team-id/verified__tiny.sam' },
+      });
+    })).rejects.toThrow('uploads/team-id/verified__tiny.sam');
+    expect(websiteMocks.createCloudWorkflow).not.toHaveBeenCalled();
+    expect(websiteMocks.submitCloudRun).not.toHaveBeenCalled();
+  });
+
   it('fails closed when selected-node execution is requested in the cloud', async () => {
     const { result } = renderHook(() => useWorkflow());
 

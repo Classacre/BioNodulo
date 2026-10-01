@@ -16,6 +16,7 @@ export type QueueMode = 'manual' | 'change' | 'instant';
 const QUEUE_MODE_KEY = 'bionodulo.queueMode';
 
 export interface UseQueueModeArgs {
+  enabled?: boolean;
   dirty: boolean;
   isRunning: boolean;
   activeNodes: WorkflowNode[];
@@ -29,6 +30,7 @@ export interface UseQueueModeResult {
 }
 
 export function useQueueMode({
+  enabled = true,
   dirty,
   isRunning,
   activeNodes,
@@ -66,7 +68,7 @@ export function useQueueMode({
   // the workflow has no executable nodes — notes/reroutes alone shouldn't
   // trigger a backend run.
   useEffect(() => {
-    if (queueMode !== 'change') return;
+    if (!enabled || queueMode !== 'change') return;
     if (!dirty || isRunning) return;
     const realNodes = (activeNodes || []).filter(
       n => n.type !== 'note' && n.type !== 'reroute',
@@ -76,13 +78,13 @@ export function useQueueMode({
       void triggerRunRef.current();
     }, 1500);
     return () => clearTimeout(timer);
-  }, [queueMode, dirty, isRunning, activeNodes]);
+  }, [enabled, queueMode, dirty, isRunning, activeNodes]);
 
   // 'instant' mode: re-fire as soon as the most recent run finishes
   // successfully. Tracking the last run id ensures we don't double-fire.
   const lastInstantRunRef = useRef<string | null>(null);
   useEffect(() => {
-    if (queueMode !== 'instant') return;
+    if (!enabled || queueMode !== 'instant') return;
     if (isRunning) return;
     const latest = runs[0];
     if (!latest) return;
@@ -95,7 +97,7 @@ export function useQueueMode({
       void triggerRunRef.current();
     }, 250);
     return () => clearTimeout(timer);
-  }, [queueMode, isRunning, runs]);
+  }, [enabled, queueMode, isRunning, runs]);
 
-  return { queueMode, setQueueMode };
+  return { queueMode: enabled ? queueMode : 'manual', setQueueMode };
 }

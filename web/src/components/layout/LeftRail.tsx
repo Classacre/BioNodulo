@@ -73,7 +73,7 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
   };
   const registered = usePanelRegistry();
   const { getBinding } = useKeybindings();
-  // The cloud editor has no local host: workspace files, the conda/pixi
+  // The cloud editor has no local host: the conda/pixi
   // environment manager, runtime artifacts and the HPC/SLURM panel all depend
   // on machine-local state the Lambda doesn't have. Hide them in editor mode.
   const cloudConfig = useAtomValue(cloudConfigAtom);
@@ -86,9 +86,7 @@ export default function LeftRail({ active, onChange }: LeftRailProps) {
 
   return (
     <nav className="left-rail">
-      {!editorMode && (
-        <RailButton active={active === 'data'} icon="folder" label={t('panels.workspace')} shortcut={getBinding('rail.workspace') ?? undefined} onClick={() => toggle('data')} />
-      )}
+      <RailButton active={active === 'data'} icon="folder" label={t('panels.workspace')} shortcut={getBinding('rail.workspace') ?? undefined} onClick={() => toggle('data')} />
       <RailButton active={active === 'nodes'} icon="nodes" label={t('panels.nodes')} shortcut={getBinding('rail.nodes') ?? undefined} onClick={() => toggle('nodes')} />
       <RailButton active={active === 'templates'} icon="template" label={t('panels.templates')} shortcut={getBinding('rail.templates') ?? undefined} onClick={() => toggle('templates')} />
       {!editorMode && (

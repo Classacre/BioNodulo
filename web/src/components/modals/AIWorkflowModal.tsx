@@ -6,6 +6,7 @@ import { apiGet, ApiError } from '../../api/client';
 import { streamAIChat, type AIChatStep } from '../../api/aiChat';
 import { logError } from '../../state/logging';
 import { renderMarkdownToHtml } from '../../utils/markdown';
+import { getMcpRuntime } from '../../mcp/runtime';
 import {
   AI_DRAWER_DEFAULT_WIDTH,
   clampDrawerWidth,
@@ -166,7 +167,9 @@ function loadSkills(): Promise<SkillSummary[]> {
 
 export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: AIWorkflowModalProps) {
   const { t } = useTranslation();
+  const mcpRuntime = getMcpRuntime();
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    if (mcpRuntime) return [createSession('Host AI', 'Send a prompt to your MCP host. Replies appear in the host chat.')];
     const saved = loadSessions(t('aiWorkflow.generation.interrupted'));
     return saved.length > 0 ? saved : [createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting'))];
   });
@@ -226,8 +229,8 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   }, [turns, sending]);
 
   useEffect(() => {
-    saveSessions(sessions);
-  }, [sessions]);
+    if (!mcpRuntime) saveSessions(sessions);
+  }, [sessions, mcpRuntime]);
 
   // Persist the drawer width (clamped value, so a tiny viewport never stores a
   // width that would be off-screen on a larger display).
@@ -460,6 +463,19 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
       content: turn.content || turn.steps?.filter(step => step.type === 'reply').map(step => step.content).join('\n') || '',
     }));
     try {
+      if (mcpRuntime) {
+        updateTurn(turn => ({
+          ...turn,
+          steps: [{ type: 'status', content: 'Sending to host AI…', status: 'running' }],
+        }));
+        await mcpRuntime.sendMessage(userMsg, workflow);
+        updateTurn(turn => ({
+          ...turn,
+          streaming: false,
+          steps: [{ type: 'status', content: 'Sent to host AI. Continue in the host chat.', status: 'completed' }],
+        }));
+        return;
+      }
       let terminalError = false;
       await streamAIChat({
         message: userMsg,
@@ -511,10 +527,10 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         setSending(false);
       }
     }
-  }, [activeSessionId, turns, workflow, t]);
+  }, [activeSessionId, turns, workflow, t, mcpRuntime]);
 
   const send = useCallback(async () => {
-    if ((!input.trim() && attachments.length === 0) || sending) return;
+    if ((!input.trim() && (!attachments.length || mcpRuntime)) || sending) return;
     const userMsg = input.trim();
     setInput('');
     setSkillQuery(null);
@@ -534,7 +550,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     );
 
     await sendChat(userMsg, currentAttachments);
-  }, [input, attachments, sending, activeSessionId, sendChat]);
+  }, [input, attachments, sending, activeSessionId, sendChat, mcpRuntime]);
 
   const stop = useCallback(() => {
     inFlightRef.current?.abort();
@@ -589,6 +605,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
 
   const handleInputChange = useCallback((value: string) => {
     setInput(value);
+    if (mcpRuntime) return;
     if (value.startsWith('/')) {
       setSkillQuery(value.slice(1));
       setSkillIndex(0);
@@ -599,7 +616,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     } else if (skillQuery !== null) {
       setSkillQuery(null);
     }
-  }, [skillQuery]);
+  }, [skillQuery, mcpRuntime]);
 
   const selectSkill = useCallback((skill: SkillSummary) => {
     setInput(`/${skill.name} `);
@@ -711,7 +728,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   const renderHeader = (inPopout: boolean) => (
     <div className="ai-drawer-header">
       <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {!inPopout && (
+        {!inPopout && !mcpRuntime && (
           <button
             className="btn btn-icon btn-sm"
             onClick={() => setShowMenu(!showMenu)}
@@ -773,9 +790,9 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
                         <span>{turn.steps.length ? t('aiWorkflow.generation.active') : t('aiWorkflow.generation.queued')}</span>
                         <span>{t('aiWorkflow.generation.elapsed', { seconds: Math.max(0, Math.floor((now - (turn.startedAt || now)) / 1000)) })}</span>
                         <span>{t('aiWorkflow.generation.lastActivity', { seconds: Math.max(0, Math.floor((now - (turn.lastActivityAt || now)) / 1000)) })}</span>
-                        <button className="btn btn-sm btn-ghost" onClick={stop} title={t('aiWorkflow.generation.stopTitle')}>
+                        {!mcpRuntime && <button className="btn btn-sm btn-ghost" onClick={stop} title={t('aiWorkflow.generation.stopTitle')}>
                           {t('aiWorkflow.generation.stop')}
-                        </button>
+                        </button>}
                       </div>
                     )}
                     {turn.steps.map((step, si) => (
@@ -822,7 +839,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
       {/* Quick prompt chips: only show when the conversation is empty (one
           primer assistant turn) and we're not mid-send. They let the user
           kick off a useful tool-using turn with one click. */}
-      {turns.length <= 1 && !sending && (
+      {!mcpRuntime && turns.length <= 1 && !sending && (
         <div className="ai-quick-prompts">
           {QUICK_PROMPTS.map(qp => (
             <button
@@ -838,7 +855,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
       )}
       {/* Regenerate is offered after any assistant turn so the user can
           quickly retry without retyping the question. */}
-      {!sending && turns.length > 1 && turns[turns.length - 1].role === 'assistant' && (
+      {!mcpRuntime && !sending && turns.length > 1 && turns[turns.length - 1].role === 'assistant' && (
         <div className="ai-quick-prompts">
           <button className="ai-quick-prompt" onClick={regenerate} title={t('aiWorkflow.generation.regenerateTitle')}>
             ↻ {t(turns[turns.length - 1].isError ? 'aiWorkflow.generation.retry' : 'aiWorkflow.generation.regenerate')}
@@ -877,20 +894,20 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
         </div>
       )}
       <div className="ai-input-row">
-        <button
+        {!mcpRuntime && <button
           className="btn btn-icon btn-sm"
           onClick={() => fileInputRef.current?.click()}
           title={t('aiWorkflow.input.attachFileTitle')}
         >
           <Icon name="paperclip" size={14} />
-        </button>
-        <input
+        </button>}
+        {!mcpRuntime && <input
           ref={fileInputRef}
           type="file"
           style={{ display: 'none' }}
           multiple
           onChange={handleFileSelect}
-        />
+        />}
         <input
           type="text"
           className="text-input"
@@ -898,16 +915,16 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
           value={input}
           onChange={e => handleInputChange(e.target.value)}
           onKeyDown={handleInputKeyDown}
-          onPaste={handlePaste}
-          placeholder={t('aiWorkflow.input.placeholder')}
+          onPaste={mcpRuntime ? undefined : handlePaste}
+          placeholder={mcpRuntime ? 'Ask your host AI about this workflow...' : t('aiWorkflow.input.placeholder')}
           disabled={sending}
         />
-        {sending ? (
+        {sending && !mcpRuntime ? (
           <button className="btn btn-secondary" onClick={stop} title={t('aiWorkflow.generation.stopTitle')}>
             {t('aiWorkflow.generation.stop')}
           </button>
         ) : (
-          <button className="btn btn-primary" onClick={send}>
+          <button className="btn btn-primary" onClick={send} disabled={sending}>
             {t('aiWorkflow.input.send')}
           </button>
         )}

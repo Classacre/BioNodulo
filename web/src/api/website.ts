@@ -7,6 +7,7 @@
 // token plumbing. Base is configurable for cross-origin builds.
 import type { Workflow } from '../types';
 import { getToken } from '../collab/authStorage';
+import { getMcpRuntime } from '../mcp/runtime';
 
 const WEBSITE_API_BASE = (import.meta.env.VITE_WEBSITE_API_BASE || '/api').replace(/\/+$/, '');
 
@@ -47,20 +48,27 @@ interface ApiEnvelope<T> {
   error?: string;
 }
 
-interface WorkflowRow {
+export interface WorkflowRow {
   id: string;
   name: string;
   description: string | null;
   definition: { nodes?: unknown[]; edges?: unknown[] } & Record<string, unknown>;
+  updatedAt?: string;
 }
 
 export async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${apiBase()}${path}`, websiteInit(init));
+  const res = await websiteRequest(path, init);
   const body = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!res.ok || !body?.success) {
     throw new Error(body?.error || `Website API ${path} failed (${res.status})`);
   }
   return body.data as T;
+}
+
+/** The same cloud APIs, through the host bridge when embedded. */
+async function websiteRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  const mcp = getMcpRuntime();
+  return mcp ? mcp.request('website', path, init) : fetch(`${apiBase()}${path}`, websiteInit(init));
 }
 
 export interface CloudWorkflowSummary {
@@ -221,6 +229,7 @@ export function cancelCloudRun(runId: string): Promise<{ runId: string; status: 
 
 export interface CloudRunSnapshot {
   id: string;
+  workflowId?: string | null;
   status: string;
   logs: string;
   errorMessage: string | null;
@@ -238,7 +247,7 @@ export interface CloudRunSnapshot {
  */
 export async function getCloudRun(runId: string): Promise<CloudRunSnapshot | null> {
   try {
-    const res = await fetch(`${apiBase()}/runs/${runId}`, websiteInit());
+    const res = await websiteRequest(`/runs/${runId}`);
     if (!res.ok) return null;
     return (await res.json()) as CloudRunSnapshot;
   } catch {
@@ -301,7 +310,7 @@ export interface CloudCredits {
  */
 export async function getCloudCredits(): Promise<CloudCredits | null> {
   try {
-    const res = await fetch(`${apiBase()}/billing/credits`, websiteInit());
+    const res = await websiteRequest('/billing/credits');
     if (!res.ok) return null;
     const j = await res.json();
     if (typeof j?.remaining !== 'number') return null;
@@ -342,7 +351,7 @@ export function presignCloudUpload(
   });
 }
 
-function rowToWorkflow(row: WorkflowRow): Workflow {
+export function rowToWorkflow(row: WorkflowRow): Workflow {
   const def = row.definition || {};
   const {
     id: _id, name: _name, description: _description,

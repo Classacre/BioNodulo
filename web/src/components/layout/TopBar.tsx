@@ -44,6 +44,7 @@ interface TopBarProps {
    * execution concepts. Cloud runs go straight to AWS Batch.
    */
   editorMode?: boolean;
+  onHostFullscreen?: () => void;
   /**
    * When defined, rendered to the right of the validation badge — usually the
    * `<CollabBadge />`. When collab is disabled in settings the caller should
@@ -88,7 +89,7 @@ export default function TopBar({
   dryRunPreview = false, onDryRunPreviewChange,
   resumeCheckpointLabel = null, onOpenRuntimeArtifacts, onResumeCheckpointClear,
   onToggleQueue, onRunOnCloud, collabControls, cloudAccount = null,
-  editorMode = false,
+  editorMode = false, onHostFullscreen,
 }: TopBarProps) {
   const isRunning = useAtomValue(isRunningAtom);
   const [batchCount, setBatchCount] = useAtom(batchCountAtom);
@@ -219,6 +220,7 @@ export default function TopBar({
       </div>
 
       <div className="topbar-spacer" />
+      {onHostFullscreen && <button className="btn btn-icon" title="Open full screen" aria-label="Open full screen" onClick={onHostFullscreen}><Icon name="expand" size={16} /></button>}
 
       {hpcEnabled && (
         <span className={hpcBadgeClass} title={hpcLabel}>
@@ -343,6 +345,7 @@ export default function TopBar({
                   {t('topbar.batchRuns', { count: clampedCount })}
                 </span>
               </div>
+              {!editorMode && (<>
               <div className="run-split-menu-divider" />
               <div className="run-split-menu-header">{t('topbar.preview')}</div>
               <button
@@ -356,6 +359,7 @@ export default function TopBar({
                 <span className="run-split-menu-radio">{dryRunPreview ? '●' : '○'}</span>
                 {t('topbar.dryRunPreview')}
               </button>
+              </>)}
               {/* Host-only: the cloud run API rejects resume_checkpoint, so
                   offering it in the cloud editor would only ever fail. */}
               {!editorMode && (<>

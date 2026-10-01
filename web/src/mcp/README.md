@@ -1,104 +1,70 @@
-# Embedded BioNodulo workbench
+# BioNodulo cloud app MCP adapter
 
-This entry renders the existing `WorkflowCanvas`, `BioNode`, widgets, properties,
-edges, layout and selection behavior. Catalog metadata is normalized by the same
-pure `normalizeObjectInfo` function as the main app. Search and categories reuse
-the normal node-search and category helpers. No replacement graph is maintained.
+The MCP resource mounts the existing `App.tsx`: the same top bar, navigation,
+workflow tabs, canvas, toolbox, templates, settings, cloud workspace, assistant
+panel and run history. There is no separate workbench UI, reducer or stylesheet.
 
-## Host and resource contract
+## Bootstrap and transport
 
-- Pin `@modelcontextprotocol/ext-apps` **1.7.5** (the MCP SDK 1.x line).
-- The HTML resource sets `<html data-mcp-app="true">`. Local development also
-  accepts `?mcp_app=1`. `main.tsx` loads this branch dynamically without importing
-  the normal `App` entry or mounting its Clerk, Yjs, settings API or run sockets.
-- One `App` instance connects directly to the parent host. There is no inner
-  iframe and no access token, cookie or direct account API transport.
-- `open_bionodulo` sends `structuredContent` containing optional `workflow_id`,
-  `team_id`, `run_id`, and a full `workflow` record. An opening result arriving
-  before initialization completes is retained by the adapter.
-- `get_editor_catalog` returns `{ catalog: rawObjectInfo }`. List tools return
-  `{ items: [...] }`. Workflow records have `id`, `name`, `description`,
-  `definition`, and ISO `updatedAt`.
-- All account, workflow, catalog, file metadata, validation, conversion, billing
-  and run operations use `App.callServerTool`. The sole direct fetch is a
-  credential-free HTTPS PUT to a server-issued presigned upload URL. Its exact
-  origin must occur in `<meta name="bionodulo-upload-origins" content="...">`.
-  Redirects are rejected; `complete_upload` must succeed before an input is ready.
-- Uploaded inputs are bound explicitly through `inputs.artifacts` on submission.
-  Team ownership and byte verification remain server responsibilities.
-- Resource CSP must allow the deployed build assets; cross-origin module assets
-  need CORS headers. PUT origins need resource `connectDomains` and object-store
-  CORS that permits the host iframe's origin. No extra font origins are necessary:
-  the shared stylesheet's remote font import can fall back to system fonts.
+The resource sets `<html data-mcp-app="true">` (development also accepts
+`?mcp_app=1`). `index.tsx` connects the MCP Apps SDK 1.7.5 host, verifies the
+account and team, seeds cloud/editor mode, then imports the full App. This skips
+local backend sockets, Clerk browser authentication and local room bootstrap.
 
-## Editing, consent, and live updates
+The existing typed editor and website API clients use `cloud_editor_request`:
+`{surface, path, method, body?, team_id?}` returns `{status, body, content_type}`.
+The server allowlists cloud operations and enforces OAuth scopes and existing
+team/role checks. Browser tokens, cookies and arbitrary URL proxies are absent;
+`fetch` is not patched. The resource URI is `ui://bionodulo/cloud-app/v2` and its
+assets are pinned to the published editor release. Links and fullscreen use the
+host SDK when supported.
 
-Manual edits remain in a local draft until Save. Updates send
-`expected_updated_at`; creations retain an idempotency UUID until a confirmed
-response. An in-flight save cannot discard newer edits. An old poll cannot
-regress a newer saved revision. Visible-only workflow polling runs every eight
-seconds. A dirty draft encountering a remote edit displays a conflict with
-explicit discard/load-latest or save-copy choices. The host model receives a
-debounced draft/selection/run context, with secret fields and URL credentials or
-query signatures removed. Run output download URLs are not included in context.
-The assistant composer sends a user message to the host, not to a private model.
+## Files, workflows and the host assistant
 
-Run review requires a saved conflict-free draft, server validation, a positive
-credit balance and an allowed compute estimate. Default CPU compute is custom
-1 vCPU / 4 GB RAM; bounds and eligibility come from the server. The dialog shows
-the team, workflow, compute, balance and rate, and explains that duration controls
-the total. Only its confirmation button sends `confirm_credit_use: true` and
-`expected_workflow_updated_at`. One confirmation authorizes one attempt. An
-uncertain result is displayed and never automatically retried.
+Workspace shows cloud files. Browser uploads use credential-free HTTPS PUT to a
+presigned URL whose exact origin is enabled by the resource. `complete_upload`
+must verify the bytes before a key becomes ready. Dragging a verified upload to
+the canvas creates the usual input-file node. Cloud runs bind uploaded keys from
+the selected team's file listing; local filesystem staging is desktop-only.
 
-Active runs poll persisted status and paginated events every five seconds while
-visible. Terminal event pages are drained. Completed outputs are requested from
-`get_run_outputs`, which exposes only server-verified committed artifacts. Cancel
-has a separate confirmation. Fullscreen appears only when the host advertises it.
+The existing workflow hook owns tabs, autosave, undo/redo and creation retries.
+Writes carry the saved revision. Eight-second polling adopts host changes in a
+clean tab; a changed remote revision preserves a dirty draft and offers explicit
+Load latest recovery. A stale read cannot advance a dirty draft's baseline.
 
-## Verification, 2026-10-01
+The shared AI panel sends messages to the host assistant, together with redacted
+workflow context. Failed sends are visible and retryable. It does not create a
+second private AI conversation. The host's regular MCP tools can edit the same
+saved workflow, and those edits appear in the editor.
 
-From `web/` (Node 24.13.0 on the audit host):
+## Cloud execution
+
+Each paid submission reads the current credit balance and matching CPU/GPU cost
+estimate, then requires explicit confirmation of workflow, team, compute and
+rate. Cancellation or a changed team/revision sends no run. One confirmation
+allows one attempt; an uncertain response is never automatically retried.
+Automatic execution queues are disabled in cloud editor mode.
+
+The existing canvas, console and Runs drawer render cloud status and durable
+logs. Completed output manifests must be server-verified. Downloads request a
+fresh verified URL and open it through the host. The drawer also shows reported
+credits and duration. Local environments and HPC controls remain desktop-only.
+
+## Verification
+
+From `web/`:
 
 ```text
 npm run build
-node node_modules/vitest/vitest.mjs run src/mcp/draft.test.ts src/test/useObjectInfo.test.tsx
+node node_modules/vitest/vitest.mjs run
 node node_modules/@playwright/test/cli.js test --config=e2e/mcp-workbench.config.ts --reporter=line
 ```
 
-- Production build **0.1.1-alpha.6** passed: 675 modules. Vite reports the
-  existing large App/Clerk chunks; those are not mounted in the MCP branch.
-- **17 unit tests passed**: 13 new draft/adapter/privacy checks and four existing
-  object-info hook regressions.
-- **Five browser scenarios passed against production chunks**, with a real
-  postMessage MCP host fixture and actual canvas components: editing/layout/save,
-  host assistant/fullscreen, external updates and conflict preservation,
-  confirmed compute plus fast completion/output monitoring, no automatic retry
-  after uncertain submission, verified input selection, export and narrow layout.
-  The fixture uses the injected HTML marker without a query flag.
-- Desktop and narrow screenshots are generated under `web/test-results/` and were
-  visually inspected. Native dropdowns retain their original canvas styling.
-- Browser assertions verify no direct account/editor API request or normal App
-  entry load. These are transport/UI tests with mocked cloud responses, not a
-  real paid-cloud execution or an object-store upload test.
-- `git diff --check` passes for changed tracked app sources and dependency files.
-
-The parent host in the browser fixture is test infrastructure; it is not shipped
-as a second iframe inside the app. The production preview test server uses port
-5175 and stops when Playwright finishes.
-
-## Deliberate boundaries
-
-Local filesystem browsing, local/HPC execution, local environment management,
-Yjs invitations, embedded model credentials, GPU execution and account/billing
-administration are not presented as supported workbench controls. Cloud file or
-workflow deletion remains available through the host's separately authorized
-tools. Team selection is supplied by `open_bionodulo`; the selected team is shown
-in the UI. The catalog is discoverable metadata, not proof every node has run.
-
-Unsaved drafts are protected during refresh, switching and saves within the
-mounted app. They are not a durable cross-session store: save before closing the
-host conversation. Event display retains the latest 1,000 events; full persisted
-run logs remain visible. A host that cannot update model context can still accept
-explicit user messages. Live deployed host rendering, OAuth permissions, storage
-CORS and paid execution require the separate website/release verification.
+The browser suite mounts production chunks inside a postMessage MCP host fixture,
+exercises the actual App and verifies that no direct editor/account API requests
+or local WebSockets occur. It covers editing, guarded saves, catalog search,
+imports/exports, host assistant, cloud uploads, paid confirmation, run monitoring,
+verified outputs and narrow layouts. Mock host tests do not prove native ChatGPT
+or Claude rendering, OAuth deployment, or paid provider execution; report those
+separately in the release audit. The catalog remains discoverable metadata,
+not proof that every bioinformatics tool has executed.

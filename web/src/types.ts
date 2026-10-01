@@ -231,6 +231,19 @@ export interface RunRecord {
   end_time?: string;
   options?: Record<string, unknown>;
   error?: string;
+  /** Committed cloud outputs returned by the verified run-output endpoint. */
+  cloud_outputs?: CloudRunOutput[];
+  credits_used?: number;
+  duration_ms?: number;
+}
+
+export interface CloudRunOutput {
+  key: string;
+  name: string;
+  size: number;
+  sha256: string;
+  contentType?: string;
+  url: string;
 }
 
 export interface QueueState {

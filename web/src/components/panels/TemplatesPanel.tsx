@@ -67,6 +67,9 @@ function normalizeTags(input: string): string[] {
 }
 
 function templateThumbnailUrl(template: TemplateCardInfo): string | undefined {
+  // The shared app can render thumbnails from workflow JSON without a second
+  // authenticated image transport inside the host sandbox.
+  if (document.documentElement.dataset.mcpApp === 'true') return undefined;
   return template.thumbnail_url || template.thumbnail || template.preview_url;
 }
 

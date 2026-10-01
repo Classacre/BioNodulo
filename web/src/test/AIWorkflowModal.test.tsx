@@ -6,6 +6,9 @@ import { apiGet, apiPost, ApiError } from '../api/client';
 import { streamAIChat } from '../api/aiChat';
 import type { Workflow } from '../types';
 
+const runtimeMock = vi.hoisted(() => ({ current: undefined as unknown }));
+vi.mock('../mcp/runtime', () => ({ getMcpRuntime: () => runtimeMock.current }));
+
 vi.mock('../api/client', () => {
   class ApiError extends Error {
     constructor(message: string, public status: number, _statusText: string, public body: unknown) {
@@ -79,6 +82,7 @@ function workflow(partial: Partial<Workflow> = {}): Workflow {
 
 describe('AIWorkflowModal i18n', () => {
   beforeEach(() => {
+    runtimeMock.current = undefined;
     storage.clear();
     loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
@@ -87,6 +91,7 @@ describe('AIWorkflowModal i18n', () => {
   });
 
   afterEach(async () => {
+    runtimeMock.current = undefined;
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
     storage.clear();
@@ -122,6 +127,32 @@ describe('AIWorkflowModal i18n', () => {
     expect(screen.getByText('1 mensaje')).toBeInTheDocument();
     expect(screen.getByTitle('Cambiar nombre')).toBeInTheDocument();
     expect(screen.getByTitle('Eliminar')).toBeInTheDocument();
+  });
+
+  it('sends MCP prompts with workflow context to host chat and skips private AI endpoints', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    runtimeMock.current = { sendMessage };
+    const current = workflow({ name: 'Cloud draft' });
+    render(<AIWorkflowModal workflow={current} onClose={() => undefined} onApplyWorkflow={() => undefined} />);
+    expect(screen.getByText('Send a prompt to your MCP host. Replies appear in the host chat.')).toBeInTheDocument();
+    expect(screen.queryByTitle('Attach file')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('Ask your host AI about this workflow...'), { target: { value: 'Review this workflow' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await screen.findByText('Sent to host AI. Continue in the host chat.');
+    expect(sendMessage).toHaveBeenCalledWith('Review this workflow', current);
+    expect(streamAIChat).not.toHaveBeenCalled();
+    expect(apiGet).not.toHaveBeenCalled();
+  });
+
+  it('shows an MCP host send failure in the existing assistant drawer', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    runtimeMock.current = { sendMessage: vi.fn().mockRejectedValue(new Error('Host disconnected')) };
+    render(<AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} />);
+    fireEvent.change(screen.getByPlaceholderText('Ask your host AI about this workflow...'), { target: { value: 'Review this workflow' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Host disconnected');
+    expect(streamAIChat).not.toHaveBeenCalled();
   });
 
   it('keeps the replacement session active after deleting the last chat', async () => {

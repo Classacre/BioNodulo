@@ -3,6 +3,10 @@ import { Provider } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunRecord } from '../types';
 
+const cloudMocks = vi.hoisted(() => ({ call: vi.fn(), runtime: undefined as unknown }));
+vi.mock('../api/website', () => ({ call: cloudMocks.call }));
+vi.mock('../mcp/runtime', () => ({ getMcpRuntime: () => cloudMocks.runtime }));
+
 const storage = new Map<string, string>();
 const localStorageStub: Storage = {
   get length() {
@@ -33,11 +37,14 @@ function runRecord(partial: Partial<RunRecord> & Pick<RunRecord, 'run_id' | 'sta
 
 describe('RunsDrawer', () => {
   beforeEach(() => {
+    cloudMocks.call.mockReset();
+    cloudMocks.runtime = undefined;
     storage.clear();
     vi.stubGlobal('localStorage', localStorageStub);
   });
 
   afterEach(async () => {
+    cloudMocks.runtime = undefined;
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
     storage.clear();
@@ -103,6 +110,42 @@ describe('RunsDrawer', () => {
 
     fireEvent.click(within(drawer).getByTitle('Cerrar ejecuciones'));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows committed cloud outputs and obtains a fresh verified link through the MCP host', async () => {
+    const { default: RunsDrawer } = await import('../components/layout/RunsDrawer');
+    const openLink = vi.fn().mockResolvedValue(undefined);
+    cloudMocks.runtime = { openLink };
+    cloudMocks.call.mockResolvedValue({ outputs: [{
+      key: 'team/run/result.bam', name: 'result.bam', size: 1024,
+      sha256: 'abc', url: 'https://files.example/fresh',
+    }] });
+    render(<Provider><RunsDrawer open queue={[]} history={[runRecord({
+      run_id: 'run-1', status: 'completed', workflow_name: 'Cloud run',
+      cloud_outputs: [{ key: 'team/run/result.bam', name: 'result.bam', size: 1024, sha256: 'abc', url: 'https://files.example/expired' }],
+      credits_used: 1.5, duration_ms: 2500,
+    })]} onClose={() => undefined} /></Provider>);
+    expect(screen.getByText('Verified outputs (1)')).toBeInTheDocument();
+    expect(screen.getByText('1.5 credits used')).toBeInTheDocument();
+    expect(screen.getByText('2.5 s')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Download result.bam' }));
+    await vi.waitFor(() => expect(openLink).toHaveBeenCalledWith('https://files.example/fresh'));
+    expect(cloudMocks.call).toHaveBeenCalledWith('/runs/run-1/outputs');
+  });
+
+  it('shows download verification failures without opening an output link', async () => {
+    const { default: RunsDrawer } = await import('../components/layout/RunsDrawer');
+    const openLink = vi.fn();
+    cloudMocks.runtime = { openLink };
+    cloudMocks.call.mockRejectedValue(new Error('Committed outputs are temporarily unavailable.'));
+    render(<Provider><RunsDrawer open queue={[]} history={[runRecord({
+      run_id: 'run-2', status: 'completed', cloud_outputs: [
+        { key: 'team/run/result.bam', name: 'result.bam', size: 1, sha256: 'abc', url: 'https://files.example/expired' },
+      ],
+    })]} onClose={() => undefined} /></Provider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Download result.bam' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Committed outputs are temporarily unavailable.');
+    expect(openLink).not.toHaveBeenCalled();
   });
 
   it('renders moved queue and history controls from the active locale', async () => {

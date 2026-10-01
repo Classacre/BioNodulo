@@ -51,13 +51,13 @@ function isFileType(value: string | undefined): boolean {
   });
 }
 
-function localPath(value: unknown, allowBare = false): string | null {
+function localPath(value: unknown, allowBare = false, includeCloudUploads = false): string | null {
   if (typeof value !== 'string') return null;
   const path = value.trim();
   if (!path || path.length > 4096 || /\r|\n/.test(path)) return null;
   if (/\{\{\s*[A-Za-z_][A-Za-z0-9_.-]*\s*\}\}/.test(path)) return null;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) return null;
-  if (/^uploads\//i.test(path)) return null;
+  if (/^uploads\//i.test(path) && !includeCloudUploads) return null;
   if (!allowBare && !/[./\\]/.test(path)) return null;
   return path;
 }
@@ -74,8 +74,9 @@ function collectArtifactValues(
   out: Map<string, LocalInputArtifactKind>,
   kind: LocalInputArtifactKind,
   allowBare = false,
+  includeCloudUploads = false,
 ): void {
-  const path = localPath(value, allowBare);
+  const path = localPath(value, allowBare, includeCloudUploads);
   if (path) {
     const existing = out.get(path);
     if (existing && existing !== kind) {
@@ -85,7 +86,7 @@ function collectArtifactValues(
     return;
   }
   if (Array.isArray(value)) {
-    for (const item of value) collectArtifactValues(item, out, kind, allowBare);
+    for (const item of value) collectArtifactValues(item, out, kind, allowBare, includeCloudUploads);
   }
 }
 
@@ -108,11 +109,13 @@ function isInputNode(node: WorkflowNode, meta: NodeMetadata | undefined): boolea
   return node.type.startsWith('input_') || String(meta?.category || '').toLowerCase() === 'input';
 }
 
-/** Distinct local files and directories referenced by node inputs or run parameters. */
+/** Distinct input artifacts. Cloud editor callers also collect uploaded keys
+ * so every selected file is bound to server-verified upload provenance. */
 export function collectLocalInputArtifacts(
   workflow: Workflow,
   runtimeParameters: Record<string, unknown> = {},
   objectInfo: ObjectInfo = {},
+  options: { includeCloudUploads?: boolean } = {},
 ): LocalInputArtifact[] {
   const out = new Map<string, LocalInputArtifactKind>();
   for (const node of workflow.nodes || []) {
@@ -124,13 +127,13 @@ export function collectLocalInputArtifacts(
       const directory = isDirectoryType(type)
         || (canonicalInputNode && (key === 'directory' || key === 'dir_path'));
       if (directory) {
-        collectArtifactValues(value, out, 'directory', true);
+        collectArtifactValues(value, out, 'directory', true, options.includeCloudUploads);
         continue;
       }
       if (!isFileType(type) && !(canonicalInputNode && INPUT_SOURCE_KEYS.has(key) && !hidden.has(key))) continue;
       // Input-node source values and declared artifact ports are paths even when
       // an extension is absent; URLs and existing cloud keys remain untouched.
-      collectArtifactValues(value, out, 'file', true);
+      collectArtifactValues(value, out, 'file', true, options.includeCloudUploads);
     }
   }
 
@@ -144,10 +147,10 @@ export function collectLocalInputArtifacts(
     const type = definitions.get(name);
     if (!type) continue;
     if (isDirectoryType(type)) {
-      collectArtifactValues(value, out, 'directory', true);
+      collectArtifactValues(value, out, 'directory', true, options.includeCloudUploads);
       continue;
     }
-    if (isFileType(type)) collectArtifactValues(value, out, 'file', true);
+    if (isFileType(type)) collectArtifactValues(value, out, 'file', true, options.includeCloudUploads);
   }
   return [...out].map(([path, kind]) => ({ path, kind }));
 }

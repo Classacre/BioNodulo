@@ -2,10 +2,13 @@ import { useMemo, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import type { RunRecord, NodeStatus } from '../../types';
+import type { RunRecord, NodeStatus, CloudRunOutput } from '../../types';
 import { batchCountAtom } from '../../state/runAtoms';
 import { showOutputDiffAtom } from '../../state/uiAtoms';
 import Icon from '../ui/Icon';
+import { call } from '../../api/website';
+import { getMcpRuntime } from '../../mcp/runtime';
+import { safeHttpsUrl } from '../../mcp/host';
 
 type RunStatusFilter = 'all' | 'active' | 'completed' | 'error' | 'cancelled';
 type HistoryBucketId = 'today' | 'yesterday' | 'pastWeek' | 'earlier' | `month:${number}` | `year:${number}`;
@@ -226,6 +229,33 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
 }) {
   const progress = progressForRun(run);
   const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
+  const [downloadError, setDownloadError] = useState('');
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
+  const downloadOutput = async (output: CloudRunOutput) => {
+    setDownloadError('');
+    setDownloadingKey(output.key);
+    try {
+      // Signed links expire. Recheck the committed manifest and get a fresh link
+      // at the moment of download rather than trusting a saved run record URL.
+      const { outputs } = await call<{ outputs: CloudRunOutput[] }>(`/runs/${encodeURIComponent(run.run_id)}/outputs`);
+      const current = outputs.find(item => item.key === output.key);
+      if (!current?.url) throw new Error('This verified output is no longer available for download.');
+      const url = safeHttpsUrl(current.url);
+      const runtime = getMcpRuntime();
+      if (runtime) await runtime.openLink(url);
+      else {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = current.name;
+        link.rel = 'noopener noreferrer';
+        link.click();
+      }
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : 'Could not download this output.');
+    } finally {
+      setDownloadingKey(null);
+    }
+  };
   return (
     <div className={`queue-run-card history-run-card is-${run.status}`}>
       <div className="queue-run-main">
@@ -238,7 +268,26 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
         <div className="queue-run-meta">
           <span>{run.end_time ? new Date(run.end_time).toLocaleString(locale) : t('console.inProgress')}</span>
           <span>{progress.total > 0 ? t('console.nodeProgress', { completed: progress.completed, total: progress.total }) : t('console.noNodePlan')}</span>
+          {typeof run.credits_used === 'number' && Number.isFinite(run.credits_used) && <span>{run.credits_used.toLocaleString(locale)} credits used</span>}
+          {typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) && <span>{(run.duration_ms / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s</span>}
         </div>
+        {run.cloud_outputs && (
+          <div className="cloud-run-outputs" aria-label="Verified cloud outputs">
+            <strong>Verified outputs ({run.cloud_outputs.length})</strong>
+            {run.cloud_outputs.length === 0 && <span>No committed output files.</span>}
+            {run.cloud_outputs.map(output => (
+              <div className="cloud-run-output" key={output.key}>
+                <span title={output.key}>{output.name}</span>
+                <span>{new Intl.NumberFormat(locale).format(output.size)} B</span>
+                <button type="button" className="btn btn-sm" disabled={downloadingKey !== null}
+                  aria-label={`Download ${output.name}`} onClick={() => { void downloadOutput(output); }}>
+                  {downloadingKey === output.key ? 'Opening…' : 'Download'}
+                </button>
+              </div>
+            ))}
+            {downloadError && <div className="queue-run-error" role="alert">{downloadError}</div>}
+          </div>
+        )}
       </div>
       <div className="queue-run-actions">
         {onLoadRunWorkflow && (

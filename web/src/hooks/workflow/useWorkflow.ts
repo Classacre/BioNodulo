@@ -11,12 +11,16 @@ import {
   submitCloudRun,
   type CloudRunInputs,
   type CloudWriteContext,
+  rowToWorkflow,
+  type WorkflowRow,
 } from '../../api/website';
 import { cloudConfigAtom } from '../../state/appAtoms';
 import { readOpenWorkflows, writeOpenWorkflows } from '../../state/openWorkflows';
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
 import { collectLocalInputArtifacts } from '../../utils/workflowFiles';
+import { getMcpRuntime } from '../../mcp/runtime';
+import { toast } from '../../components/ui';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -114,7 +118,7 @@ function cloudScopeId(userId?: string, teamId?: string): string | null {
   const encode = (id: string) => encodeURIComponent(id).replace(/\./g, '%2E');
   return `${encode(userId)}.${encode(teamId)}`;
 }
-type CloudSaveState = { key: string; phase: 'pending' | 'saving' | 'error' | 'creating' };
+type CloudSaveState = { key: string; phase: 'pending' | 'saving' | 'error' | 'creating'; conflict?: boolean };
 
 function createRequestId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -219,7 +223,7 @@ function saveLocalWorkflows(workflows: Workflow[], activeIndex: number) {
 }
 
 export function useWorkflow() {
-  const initial = useState(loadLocalWorkflows)[0];
+  const initial = useState(() => getMcpRuntime() ? { workflows: [emptyWorkflow()], activeIndex: 0 } : loadLocalWorkflows())[0];
   const initialLocalKeys = useRef(new Map(initial.workflows.map(wf => [wf.id, workflowSaveKey(wf)])));
   const [workflows, setWorkflows] = useState<Workflow[]>(initial.workflows);
   const [activeIndex, setActiveIndex] = useState(initial.activeIndex);
@@ -357,10 +361,10 @@ export function useWorkflow() {
     const savedDrafts = readCloudDrafts(cloudDraftKey);
     (async () => {
       try {
-        const requested =
-          typeof window !== 'undefined'
+        const requested = getMcpRuntime()?.initialContext?.workflow_id ||
+          (typeof window !== 'undefined'
             ? new URLSearchParams(window.location.search).get('workflow')
-            : null;
+            : null);
 
         const list = await listCloudWorkflows();
         if (cloudScopeRef.current !== cloudDraftKey) return;
@@ -687,6 +691,70 @@ export function useWorkflow() {
   }, []);
 
   const activeWorkflow = workflows[activeIndex] || emptyWorkflow();
+  const currentWorkflows = useRef(workflows);
+  currentWorkflows.current = workflows;
+
+  // Host edits use the same persisted cloud workflow. Adopt newer revisions
+  // only when this tab is clean; protect an edited draft and its save baseline.
+  useEffect(() => {
+    const runtime = getMcpRuntime();
+    const id = activeWorkflow.id;
+    if (!runtime || !cloudRestored || !id || !cloudServerIdsRef.current.has(id)) return;
+    const teamId = runtime.teamId;
+    let stopped = false, pending = false;
+    const adopt = (row: WorkflowRow) => {
+      if (stopped || runtime.teamId !== teamId) return;
+      if (!row.updatedAt || row.id !== id) throw new Error('Invalid cloud workflow revision');
+      const remote = normalizeWorkflow(rowToWorkflow(row));
+      const key = workflowSaveKey(remote);
+      const timer = cloudSaveTimers.current.get(id);
+      if (timer) clearTimeout(timer);
+      cloudSaveTimers.current.delete(id);
+      cloudScheduledKeys.current.delete(id);
+      cloudLatestKeys.current.set(id, key);
+      cloudPristineRef.current.set(id, key);
+      cloudSavedKeys.current.set(id, key);
+      runtime.acceptRevision(id, row.updatedAt);
+      setWorkflows(previous => previous.map(wf => wf.id === id ? remote : wf));
+      setCloudSaveStates(previous => { const next = { ...previous }; delete next[id]; return next; });
+      toast.dismiss(`cloud-save-${id}`);
+    };
+    const poll = async () => {
+      if (stopped || pending || document.visibilityState === 'hidden') return;
+      const baseline = runtime.revisions.get(id);
+      if (!baseline) return;
+      pending = true;
+      try {
+        const row = await runtime.host.tool<WorkflowRow>('get_workflow', { workflow_id: id, team_id: teamId });
+        if (stopped || runtime.teamId !== teamId || runtime.revisions.get(id) !== baseline || row.updatedAt === baseline
+          || Date.parse(row.updatedAt || '') < Date.parse(baseline)) return;
+        const current = currentWorkflows.current.find(wf => wf.id === id);
+        if (!current) return;
+        const key = workflowSaveKey(current);
+        const dirty = (cloudPristineRef.current.get(id) !== key && cloudSavedKeys.current.get(id) !== key)
+          || cloudQueuedKeys.current.has(id);
+        if (!dirty) { adopt(row); return; }
+        const timer = cloudSaveTimers.current.get(id);
+        if (timer) clearTimeout(timer);
+        cloudSaveTimers.current.delete(id);
+        cloudScheduledKeys.current.delete(id);
+        setCloudSaveStates(previous => previous[id]?.conflict && previous[id]?.key === key ? previous : { ...previous, [id]: { key, phase: 'error', conflict: true } });
+        toast.show({ id: `cloud-save-${id}`, title: 'Cloud workflow changed',
+          message: 'The host or another editor saved a newer revision. Your draft is preserved. Export it or load the latest version before continuing.',
+          tone: 'warning', duration: 0, actions: [{ label: 'Load latest', onClick: () => {
+            void runtime.host.tool<WorkflowRow>('get_workflow', { workflow_id: id, team_id: teamId }).then(adopt).catch(error => {
+              logError('mcp.workflow.reload', error);
+              toast.error('Could not load the latest cloud workflow', { message: error instanceof Error ? error.message : 'Try again. Your draft is preserved.' });
+            });
+          } }],
+        });
+      } catch (error) { logError('mcp.workflow.poll', error); }
+      finally { pending = false; }
+    };
+    const timer = window.setInterval(() => { void poll(); }, 8_000);
+    document.addEventListener('visibilitychange', poll);
+    return () => { stopped = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', poll); };
+  }, [activeWorkflow.id, cloudRestored]);
 
   const setWorkflow = useCallback((index: number, updater: (w: Workflow) => Workflow) => {
     setWorkflows(prev => prev.map((w, i) => i === index ? normalizeWorkflow(updater(w)) : w));
@@ -741,6 +809,7 @@ export function useWorkflow() {
     }
     try {
       const wf = normalizeWorkflow(await getCloudWorkflow(id));
+      cloudPristineRef.current.set(id, workflowSaveKey(wf));
       cloudServerIdsRef.current.add(id);
       cloudLoadedRef.current = true;
       setCloudLoadError(false);
@@ -823,7 +892,13 @@ export function useWorkflow() {
       const data = await apiPost<{ valid: boolean; errors: string[] }>('/workflow/validate', { workflow: wf });
       setValidation(data);
       return data;
-    } catch { /* offline */ }
+    } catch (error) {
+      if (getMcpRuntime()) {
+        const failed = { valid: false, errors: [error instanceof Error ? error.message : 'Cloud validation failed.'] };
+        setValidation(failed);
+        return failed;
+      }
+    }
     setValidation({ valid: true, errors: [] });
     return { valid: true, errors: [] };
   }, []);
@@ -862,6 +937,9 @@ export function useWorkflow() {
     /** Cloud run inputs (e.g. uploaded-file key map from the pre-flight). */
     inputs?: CloudRunInputs;
   }) => {
+    if ((editorMode || options?.forceCloud) && options?.dry_run) {
+      throw new Error('Dry-run execution previews are available in the desktop app. Use cloud validation before submitting a cloud run.');
+    }
     // Cloud editor OR local "Run on Cloud": persist the current definition, then
     // submit to the cloud Batch runner. Dry-run previews still use the local
     // editing backend.
@@ -882,7 +960,7 @@ export function useWorkflow() {
         ...Object.keys(options?.inputs?.artifacts ?? {}),
         ...Object.keys(options?.inputs?.files ?? {}),
       ]);
-      const unstagedPaths = collectLocalInputArtifacts(wf, options?.parameters ?? {})
+      const unstagedPaths = collectLocalInputArtifacts(wf, options?.parameters ?? {}, {}, { includeCloudUploads: true })
         .map(artifact => artifact.path)
         .filter(path => !stagedPaths.has(path));
       if (unstagedPaths.length > 0) {

@@ -7,7 +7,9 @@
 // -> hand the URL + local path to the backend -> it streams the file to S3.
 // Downloads: hand the presigned GET URL to the backend -> it saves under
 // workspace/cloud-downloads/. Both feed the transfers store / minimizable window.
-import { presignCloudUpload, type CloudFile } from './website';
+import { call, presignCloudUpload, type CloudFile } from './website';
+import { assertUploadOrigin } from '../mcp/host';
+import { getMcpRuntime } from '../mcp/runtime';
 import { apiGet, apiPost, apiRequest } from './client';
 import {
   addTransfer, updateTransfer, newTransferId, type Transfer,
@@ -32,6 +34,30 @@ interface BackendTransferStart {
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
+}
+
+/** Upload browser-selected bytes directly, then verify them before exposing the key. */
+export async function uploadBrowserFileToCloud(file: File): Promise<string> {
+  const runtime = getMcpRuntime();
+  const contentType = file.type || 'application/octet-stream';
+  const allowed = (document.querySelector<HTMLMetaElement>('meta[name="bionodulo-upload-origins"]')?.content ?? '')
+    .split(/\s+/).filter(Boolean);
+  if (runtime && !allowed.length) throw new Error('Uploads are not enabled by this MCP host.');
+  const scope = runtime?.teamId ? { team_id: runtime.teamId } : {};
+  const presign = runtime
+    ? await runtime.host.tool<{ url: string; key: string }>('get_upload_url', {
+        ...scope, filename: file.name, content_type: contentType, size_bytes: file.size,
+      })
+    : await presignCloudUpload(file.name, contentType, file.size);
+  const url = runtime ? assertUploadOrigin(presign.url, allowed) : presign.url;
+  const response = await fetch(url, {
+    method: 'PUT', headers: { 'Content-Type': contentType }, body: file,
+    credentials: 'omit', redirect: 'error',
+  });
+  if (!response.ok) throw new Error(`Upload failed (${response.status}). The file has not been marked ready.`);
+  if (runtime) await runtime.host.tool('complete_upload', { ...scope, key: presign.key });
+  else await call('/files/complete', { method: 'POST', body: JSON.stringify({ key: presign.key }) });
+  return presign.key;
 }
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 

@@ -2,6 +2,8 @@
  * External site links. Centralised so product copy and deep links stay in
  * sync with the docs site structure.
  */
+import { getMcpRuntime } from '../mcp/runtime';
+import { toast } from '../components/ui';
 export const DOCS_URL = 'https://docs.bionodulo.com';
 
 /**
@@ -23,5 +25,7 @@ const HELP_PAGE_DOC_PATHS: Record<string, string> = {
 /** Open docs.bionodulo.com in a new tab; `helpPage` is an old in-app page id. */
 export function openDocs(helpPage?: string | null): void {
   const path = (helpPage && HELP_PAGE_DOC_PATHS[helpPage]) || '/';
-  window.open(`${DOCS_URL}${path}`, '_blank', 'noopener,noreferrer');
+  const runtime = getMcpRuntime();
+  if (runtime) void runtime.openLink(`${DOCS_URL}${path}`).catch(error => toast.error('Could not open documentation', { message: String(error) }));
+  else window.open(`${DOCS_URL}${path}`, '_blank', 'noopener,noreferrer');
 }

@@ -143,6 +143,17 @@ describe('collectLocalFilePaths', () => {
 });
 
 describe('baseName', () => {
+  it('collects canonical cloud keys in typed nodes and parameters only for cloud staging', () => {
+    const workflow = wf([{ id: 'input', type: 'input_file', position: [0, 0],
+      params: { file: 'uploads/team/file__counts.tsv' } }]);
+    workflow.parameters = [{ name: 'reads', type: 'FASTQ_LIST' }];
+    const parameters = { reads: ['uploads/team/read1__R1.fastq', 'https://example.org/R2.fastq'] };
+    expect(collectLocalInputArtifacts(workflow, parameters)).toEqual([]);
+    expect(collectLocalInputArtifacts(workflow, parameters, {}, { includeCloudUploads: true })).toEqual([
+      { path: 'uploads/team/file__counts.tsv', kind: 'file' },
+      { path: 'uploads/team/read1__R1.fastq', kind: 'file' },
+    ]);
+  });
   it('handles / and \\ separators', () => {
     expect(baseName('a/b/c.txt')).toBe('c.txt');
     expect(baseName('a\\b\\c.txt')).toBe('c.txt');

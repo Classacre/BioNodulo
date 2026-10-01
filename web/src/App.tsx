@@ -19,7 +19,7 @@ const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
 // Cloud editor live collaboration (Yjs over the Cloudflare Durable-Objects
 // Worker). When set, collab "rooms" are implicit (team + workflow) — there is no
 // local FastAPI room/share backend to call.
-const CLOUD_COLLAB = (import.meta.env.VITE_COLLAB_PROVIDER || '').trim() === 'durable-objects';
+const CLOUD_COLLAB = !getMcpRuntime() && (import.meta.env.VITE_COLLAB_PROVIDER || '').trim() === 'durable-objects';
 
 const SettingsPanel = lazy(() => import('./components/panels/SettingsPanel'));
 const TemplatesPanel = lazy(() => import('./components/panels/TemplatesPanel'));
@@ -139,6 +139,7 @@ import {
   requestedWorkflowIdAtom,
   computeSpecAtom,
   authUserAtom,
+  cloudConfigAtom,
 } from './state/appAtoms';
 import { specToRunBody } from './utils/computeSpec';
 import { openDocs } from './utils/links';
@@ -166,6 +167,10 @@ import {
   nodeRunProgressAtom,
 } from './state/runAtoms';
 import { Modals } from './components/modals/Modals';
+import { getMcpRuntime } from './mcp/runtime';
+import { contextDraft } from './mcp/context';
+import { record } from './mcp/host';
+import { listCloudFiles, call as callWebsite } from './api/website';
 import type { Workflow, WorkflowNode, HPCConfig, TemplateInfo, LogEntry, ResolveReport, HostStatus, RunRecord, NodeStatus } from './types';
 import type { Comment, LivePresenceUser } from './collab';
 
@@ -382,7 +387,7 @@ export default function App() {
   const appCollabCopy = useMemo(() => makeAppCollabCopy(t), [t]);
 
   // Authentication state — extracted to useAuth.
-  const collabEnabled = getBool('bionodulo.collab.enabled');
+  const collabEnabled = !getMcpRuntime() && getBool('bionodulo.collab.enabled');
   // Off by default: someone assembling a pipeline usually adds several nodes in
   // a row, and reopening the library each time is worse than the space it uses.
   // Offered because the panel does crowd a small screen.
@@ -433,6 +438,7 @@ export default function App() {
   const computeSpec = useAtomValue(computeSpecAtom);
   // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
   const { cloudConfig, cloudMode, editorMode } = useCloudConfig();
+  const setCloudRuntimeConfig = useSetAtom(cloudConfigAtom);
   useEffect(() => {
     if (!editorMode || !cloudLoadError) {
       toast.dismiss('cloud-workflow-load-error');
@@ -456,6 +462,12 @@ export default function App() {
       }
     }
     for (const id of failed) {
+      // The workflow hook provides revision conflicts with recovery actions;
+      // keep that notice instead of replacing it with a generic save failure.
+      if (cloudSaveStates[id]?.conflict) {
+        shownCloudSaveErrorsRef.current.add(id);
+        continue;
+      }
       if (shownCloudSaveErrorsRef.current.has(id)) continue;
       shownCloudSaveErrorsRef.current.add(id);
       toast.show({
@@ -2027,10 +2039,21 @@ export default function App() {
           ),
           error: snap.errorMessage || undefined,
           ...(isTerminalCloudStatus(snap.status) ? { end_time: snap.completedAt || new Date().toISOString() } : {}),
+          ...(snap.creditsUsed !== null ? { credits_used: snap.creditsUsed } : {}),
+          ...(snap.durationMs !== null ? { duration_ms: snap.durationMs } : {}),
         });
         if (isTerminalCloudStatus(snap.status)) {
           stopped = true;
           stopPolling?.();
+          if (snap.status === 'completed') {
+            try {
+              const result = await callWebsite<{ outputs: import('./types').CloudRunOutput[] }>(`/runs/${encodeURIComponent(runId)}/outputs`);
+              updateRun(runId, { cloud_outputs: result.outputs });
+            } catch (error) {
+              addLog({ run_id: runId, node_id: 'cloud', level: 'warn', message: 'Run completed, but output verification is not available yet. Refresh the cloud files view to retry.',
+                detail: error instanceof Error ? error.message : String(error), timestamp: new Date().toISOString() });
+            }
+          }
           // Put the failure reason IN the message line. A bare "Cloud run
           // failed." with the cause tucked into the collapsible detail read
           // as informationless ("Cloud run Failed, theres not much info"),
@@ -2064,6 +2087,63 @@ export default function App() {
     );
   }, [addLog, updateRun, activeWorkflow, t]);
 
+  // The host opens the real cloud tabs and receives a redacted view of the
+  // active graph. The conversation owns AI inference; the editor owns edits.
+  const mcp = getMcpRuntime();
+  const [hostRun, setHostRun] = useState<{ id: string; workflowId?: string }>();
+  const monitoredHostRuns = useRef(new Set<string>());
+  const handledHostOpen = useRef<unknown>(undefined);
+  const hostSaveStates = useRef(cloudSaveStates);
+  hostSaveStates.current = cloudSaveStates;
+  useEffect(() => {
+    if (!mcp || !cloudRestored) return;
+    return mcp.onOpen(context => {
+      if (context === handledHostOpen.current) return;
+      handledHostOpen.current = context;
+      void (async () => {
+        if (context.team_id && context.team_id !== mcp.teamId) {
+          if (Object.keys(hostSaveStates.current).length) throw new Error('Save your pending cloud edits before switching teams. Your draft was preserved.');
+          setCloudRuntimeConfig(await mcp.selectTeam(context.team_id));
+          setRequestedWorkflowId(context.workflow_id || null);
+          if (context.run_id) setHostRun({ id: context.run_id, workflowId: context.workflow_id });
+          return;
+        }
+        if (context.workflow_id) await openCloudWorkflow(context.workflow_id);
+        if (context.run_id) setHostRun({ id: context.run_id, workflowId: context.workflow_id });
+      })().catch(error => toast.error('Could not open the host request', { message: error instanceof Error ? error.message : String(error) }));
+    });
+  }, [mcp, cloudRestored, openCloudWorkflow, setCloudRuntimeConfig, setRequestedWorkflowId]);
+  useEffect(() => {
+    if (!mcp) return;
+    const timer = window.setTimeout(() => {
+      void mcp.host.context(record(contextDraft({ workflow: activeWorkflow, team_id: mcp.teamId,
+        run_id: hostRun?.id, save_pending: Boolean(cloudSaveStates[activeWorkflow.id || '']) }))).catch(error => {
+        logError('mcp.context', error);
+      });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [mcp, activeWorkflow, hostRun?.id, cloudSaveStates]);
+  useEffect(() => {
+    if (!hostRun || (hostRun.workflowId && activeWorkflow.id !== hostRun.workflowId) || monitoredHostRuns.current.has(hostRun.id)) return;
+    monitoredHostRuns.current.add(hostRun.id);
+    void getCloudRun(hostRun.id).then(snapshot => {
+      if (!snapshot) { monitoredHostRuns.current.delete(hostRun.id); toast.error('Could not load cloud run'); return; }
+      if (snapshot.workflowId && snapshot.workflowId !== activeWorkflow.id) {
+        monitoredHostRuns.current.delete(hostRun.id);
+        void openCloudWorkflow(snapshot.workflowId).then(() => setHostRun({ id: hostRun.id, workflowId: snapshot.workflowId! }))
+          .catch(error => toast.error('Could not open the run workflow', { message: String(error) }));
+        return;
+      }
+      addRun({ run_id: hostRun.id, status: mapCloudRunStatus(snapshot.status), workflow_id: activeWorkflow.id,
+        workflow_name: activeWorkflow.name, name: activeWorkflow.name, start_time: snapshot.createdAt || new Date().toISOString(),
+        execution_plan: workflowExecutionPlan(activeWorkflow), node_statuses: [], node_outputs: {}, previews: {}, artifacts: {},
+      } as RunRecord);
+      setConsoleVisible(true);
+      setRunsDrawerOpen(true);
+      pollCloudRun(hostRun.id);
+    });
+  }, [hostRun, activeWorkflow, addRun, pollCloudRun, setConsoleVisible, openCloudWorkflow]);
+
   const stageCloudRunInputs = useCallback(async (
     workflow: Workflow,
     parameterOverrides: Record<string, unknown>,
@@ -2072,8 +2152,21 @@ export default function App() {
       workflow,
       parameterOverrides,
       objectInfo,
+      { includeCloudUploads: editorMode },
     );
     if (localArtifacts.length === 0) return undefined;
+
+    if (editorMode) {
+      const cloudFiles = await listCloudFiles();
+      const available = new Set(cloudFiles.filter(file => !record(file).verificationPending
+        && file.key.startsWith('uploads/')).map(file => file.key));
+      const artifacts: NonNullable<CloudRunInputs['artifacts']> = {};
+      for (const artifact of localArtifacts) {
+        if (!available.has(artifact.path)) throw new Error(`Cloud input ${baseName(artifact.path)} is not a verified upload. Upload it in Workspace and drag it onto the canvas before running.`);
+        artifacts[artifact.path] = { uploadKey: artifact.path, kind: artifact.kind };
+      }
+      return { artifacts };
+    }
 
     const sizes = await Promise.all(localArtifacts.map(async artifact => ({
       ...artifact,
@@ -2100,7 +2193,7 @@ export default function App() {
       artifactKeys[path] = { uploadKey: key, kind };
     }
     return { artifacts: artifactKeys };
-  }, [objectInfo, t]);
+  }, [objectInfo, t, editorMode]);
 
   const handleRun = useCallback(async () => {
     setIsRunning(true);
@@ -3448,6 +3541,7 @@ export default function App() {
   }, [workflowResolveKey, validate, resolve, clearResolveReport]);
 
   const { queueMode, setQueueMode } = useQueueMode({
+    enabled: !editorMode,
     dirty: activeDirty,
     isRunning,
     activeNodes: activeWorkflow.nodes,
@@ -3733,6 +3827,7 @@ export default function App() {
         dryRunPreview={dryRunPreview}
         onDryRunPreviewChange={setDryRunPreview}
         editorMode={editorMode}
+        onHostFullscreen={mcp?.host.canFullscreen?.() ? () => { void mcp.host.fullscreen?.().catch(error => toast.error('Could not open full screen', { message: String(error) })); } : undefined}
         resumeCheckpointLabel={resumeCheckpoint?.label ?? null}
         onOpenRuntimeArtifacts={() => setRailTab('runtimeArtifacts')}
         onResumeCheckpointClear={() => setResumeCheckpoint(null)}

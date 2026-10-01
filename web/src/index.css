@@ -2850,6 +2850,35 @@ kbd {
   flex-wrap: wrap;
 }
 
+.cloud-run-outputs {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+
+.cloud-run-output {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cloud-run-output > span:first-child {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-run-output > span:nth-child(2) {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* Shift floating canvas chrome away from side and bottom drawers. */
 /* Keep the native MiniMap / Controls clear of the AI / comments drawers (right)
    and the console drawer (bottom). */

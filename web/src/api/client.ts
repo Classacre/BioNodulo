@@ -14,6 +14,7 @@
 import { getToken, refreshToken } from '../collab/authStorage';
 import { appPath } from '../utils/appBase';
 import { resolveCollabUrl } from '../collab/remoteBase';
+import { getMcpRuntime } from '../mcp/runtime';
 
 export interface ApiRequestInit extends Omit<RequestInit, 'body' | 'headers'> {
   /** Plain JSON body — automatically stringified and Content-Type'd. */
@@ -112,6 +113,15 @@ function buildUrl(path: string, basePath = DEFAULT_BASE): string {
 
 /** Low-level: returns the raw Response after an HTTP-status check. */
 export async function apiRequest(path: string, init: ApiRequestInit = {}): Promise<Response> {
+  const mcp = getMcpRuntime();
+  if (mcp) {
+    const { json, body, basePath: _base, anonymous: _anonymous, ...rest } = init;
+    const response = await mcp.request('editor', path.startsWith('/') ? path : `/${path}`, {
+      ...rest, body: json !== undefined ? JSON.stringify(json) : body,
+    });
+    if (!response.ok) throw new ApiError('Cloud editor request failed', response.status, response.statusText, await readErrorBody(response));
+    return response;
+  }
   const url = buildUrl(path, init.basePath);
   const { json, body, anonymous, basePath: _b, ...rest } = init;
   const send = () => fetch(url, {

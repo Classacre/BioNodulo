@@ -1,5 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getDefaultStore } from 'jotai';
+import { cloudConfigAtom } from '../state/appAtoms';
+
+const runtimeMock = vi.hoisted(() => ({ current: undefined as unknown }));
+vi.mock('../mcp/runtime', () => ({ getMcpRuntime: () => runtimeMock.current }));
 
 const dialogMocks = vi.hoisted(() => ({
   alertDialog: vi.fn(),
@@ -33,6 +38,8 @@ describe('WorkspacePanel', () => {
   let originalLocalStorage: Storage;
 
   beforeEach(() => {
+    runtimeMock.current = undefined;
+    getDefaultStore().set(cloudConfigAtom, null);
     storage.clear();
     originalLocalStorage = window.localStorage;
     vi.stubGlobal('localStorage', localStorageStub);
@@ -76,6 +83,8 @@ describe('WorkspacePanel', () => {
   });
 
   afterEach(async () => {
+    runtimeMock.current = undefined;
+    getDefaultStore().set(cloudConfigAtom, null);
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
     storage.clear();
@@ -158,6 +167,71 @@ describe('WorkspacePanel', () => {
     expect(loggingMock.logError).toHaveBeenCalledWith('workspace.files.load', filesError);
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not list workspace files.');
     expect(screen.queryByText('No files in this directory')).not.toBeInTheDocument();
+  });
+
+  it('uses cloud files only in editor mode without requesting local workspace endpoints', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    getDefaultStore().set(cloudConfigAtom, {
+      cloudMode: true, editorMode: true, user: null, team: null, plan: null,
+      credits: null, accountUrl: null, clerkPublishableKey: null, oauth: null,
+    });
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ success: true, data: [] }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }));
+    render(<WorkspacePanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('No cloud files yet.')).toBeInTheDocument());
+    expect(screen.queryByText('Local')).not.toBeInTheDocument();
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/workspace/'))).toBe(false);
+  });
+
+  it('uses MCP host file tools, verifies browser uploads, and exposes upload keys for canvas drag', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    const tool = vi.fn(async (name: string) => {
+      if (name === 'get_upload_url') return { key: 'uploads/team-a/new.fastq', url: 'https://uploads.example/new' };
+      return {};
+    });
+    const openLink = vi.fn().mockResolvedValue(undefined);
+    const request = vi.fn(async () => Response.json({ success: true, data: [
+      { key: 'uploads/team-a/reads.fastq', name: 'reads.fastq', size: 3, source: 'upload', url: 'https://files.example/reads' },
+      { key: 'uploads/team-a/pending.fastq', name: 'pending.fastq', size: 3, source: 'upload', verificationPending: true, url: '' },
+    ] }));
+    runtimeMock.current = { teamId: 'team-a', host: { tool }, request, openLink };
+    const meta = document.createElement('meta');
+    meta.name = 'bionodulo-upload-origins';
+    meta.content = 'https://uploads.example';
+    document.head.append(meta);
+    fetchSpy.mockResolvedValue(new Response('', { status: 200 }));
+    try {
+      render(<WorkspacePanel onClose={() => undefined} />);
+      const row = (await screen.findByText('reads.fastq')).closest('.workspace-file-row')!;
+      const data = new Map<string, string>();
+      fireEvent.dragStart(row, { dataTransfer: { setData: (type: string, value: string) => data.set(type, value), effectAllowed: '' } });
+      expect(data.get('application/bionodulo-workspace-file')).toBe('uploads/team-a/reads.fastq');
+      fireEvent.doubleClick(row);
+      await waitFor(() => expect(openLink).toHaveBeenCalledWith('https://files.example/reads'));
+      const pending = screen.getByText('pending.fastq').closest('.workspace-file-row')!;
+      expect(pending).toHaveAttribute('draggable', 'false');
+      fireEvent.doubleClick(pending);
+      await waitFor(() => expect(tool).toHaveBeenCalledWith('complete_upload', { team_id: 'team-a', key: 'uploads/team-a/pending.fastq' }));
+      const input = screen.getByLabelText('Choose cloud files');
+      fireEvent.change(input, { target: { files: [new File(['abc'], 'new.fastq', { type: 'application/octet-stream' })] } });
+      await waitFor(() => expect(tool).toHaveBeenCalledWith('complete_upload', { team_id: 'team-a', key: 'uploads/team-a/new.fastq' }));
+      expect(request).toHaveBeenCalledWith('website', '/files', {});
+      expect(fetchSpy).toHaveBeenCalledWith('https://uploads.example/new', expect.objectContaining({ method: 'PUT', credentials: 'omit', redirect: 'error' }));
+      expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/workspace/'))).toBe(false);
+    } finally { meta.remove(); }
+  });
+
+  it('reports MCP cloud listing failures without falling back to local workspace calls', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    const request = vi.fn().mockRejectedValue(new Error('Host disconnected'));
+    runtimeMock.current = { teamId: 'team-a', request, host: { tool: vi.fn() }, openLink: vi.fn() };
+    render(<WorkspacePanel onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByText('Could not list cloud files. Reconnect the MCP host and retry.')).toBeInTheDocument());
+    expect(screen.queryByText('Local')).not.toBeInTheDocument();
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).includes('/workspace/'))).toBe(false);
+    fireEvent.click(screen.getByTitle('Refresh'));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
   });
 
   it('logs workspace root change and preview failures with stable scopes', async () => {
