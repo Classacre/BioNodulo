@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
-import { assetFingerprint, buildManifest, checkSignature, payloads } from './publish-updater.mjs';
+import { assertReleaseSource, assetFingerprint, buildManifest, checkSignature, payloads } from './publish-updater.mjs';
 
 const repository = 'Classacre/BioNodulo';
 const version = '0.1.1-alpha.8';
@@ -83,4 +83,43 @@ test('fingerprints preserve installers while allowing manifest-only repair', () 
   assert.equal(assetFingerprint(after), before);
   after[0] = { ...after[0], id: 999 };
   assert.notEqual(assetFingerprint(after), before);
+});
+
+test('binds unpublished drafts without requiring a tag and rejects mismatched sources', () => {
+  const source = 'a'.repeat(40);
+  const draft = { draft: true, target_commitish: source };
+  assert.doesNotThrow(() => assertReleaseSource(draft, undefined, source));
+  assert.throws(() => assertReleaseSource({ ...draft, target_commitish: 'main' }, undefined, source), /Draft release source differs/);
+  assert.throws(() => assertReleaseSource(draft, 'b'.repeat(40), source), /Release tag source differs/);
+});
+
+test('requires a resolved published tag for read-only verification and forbids published rebuilding', () => {
+  const source = 'a'.repeat(40);
+  const release = { draft: false, target_commitish: source };
+  assert.throws(() => assertReleaseSource(release, source, source), /immutable/);
+  assert.throws(() => assertReleaseSource(release, undefined, source, true), /immutable/);
+  assert.doesNotThrow(() => assertReleaseSource(release, source, source, true));
+});
+
+test('uses canonical final URLs for verified draft assets with temporary GitHub URLs', () => {
+  const { release, verified } = fixture();
+  release.draft = true;
+  for (const asset of release.assets) asset.browser_download_url = asset.browser_download_url.replace(`desktop-v${version}`, 'untagged-abcdef012345');
+  const manifest = buildManifest(release, repository, version, verified);
+  assert.ok(Object.values(manifest.platforms).every(entry => entry.url.includes(`/desktop-v${version}/`)));
+  release.draft = false;
+  assert.throws(() => buildManifest(release, repository, version, verified), /Unexpected payload URL/);
+});
+
+test('rejects draft URLs outside the exact repository or signed asset identity', () => {
+  for (const wrongUrl of [
+    `https://github.com/other/project/releases/download/untagged-abcdef/${payloads(version)[0].name}`,
+    `https://github.com/${repository}/releases/download/untagged-abcdef/wrong-file`,
+    `https://github.com/${repository}/releases/download/untagged-abcdef/${payloads(version)[0].name}?redirect=external`,
+  ]) {
+    const { release, verified } = fixture();
+    release.draft = true;
+    release.assets[0].browser_download_url = wrongUrl;
+    assert.throws(() => buildManifest(release, repository, version, verified), /Unexpected payload URL/);
+  }
 });

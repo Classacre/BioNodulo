@@ -50,6 +50,16 @@ export function assetFingerprint(assets) {
     .map(({ id, name, size, digest }) => ({ id, name, size, digest })).sort((a, b) => a.name.localeCompare(b.name)));
 }
 
+export function assertReleaseSource(release, tagSource, expectedSource, allowPublished = false) {
+  if (tagSource && tagSource !== expectedSource) throw new Error('Release tag source differs from this build');
+  // GitHub creates the tag when publishing a draft, not when saving it. Bind
+  // unpublished assets to the exact commit recorded by the platform builder.
+  if (release?.draft && release.target_commitish !== expectedSource) throw new Error('Draft release source differs from this build');
+  if (release && !release.draft && (!allowPublished || !tagSource)) {
+    throw new Error('Published installers are immutable; do not rebuild an existing published release');
+  }
+}
+
 export function buildManifest(release, repository, version, verified) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repository) || release.tag_name !== `desktop-v${version}`) throw new Error('Release identity mismatch');
   const assets = new Map(release.assets.map((asset) => [asset.name, asset]));
@@ -66,7 +76,11 @@ export function buildManifest(release, repository, version, verified) {
     const asset = assets.get(name);
     if (!proof?.verified || `sha256:${proof.sha256}` !== asset.digest || proof.bytes !== asset.size) throw new Error(`Unverified payload: ${name}`);
     const url = `https://github.com/${repository}/releases/download/${release.tag_name}/${encodeURIComponent(name)}`;
-    if (asset.browser_download_url !== url) throw new Error(`Unexpected payload URL: ${name}`);
+    const prefix = `https://github.com/${repository}/releases/download/`;
+    const draftPath = asset.browser_download_url?.startsWith(prefix) ? asset.browser_download_url.slice(prefix.length).split('/') : [];
+    const safeDraftUrl = release.draft && draftPath.length === 2
+      && /^untagged-[0-9a-f]+$/.test(draftPath[0]) && draftPath[1] === encodeURIComponent(name);
+    if (asset.browser_download_url !== url && !safeDraftUrl) throw new Error(`Unexpected payload URL: ${name}`);
     for (const alias of aliases) platforms[alias] = { signature: proof.signature, url };
   }
   if (!Number.isFinite(Date.parse(release.published_at ?? release.created_at))) throw new Error('Invalid release date');
@@ -74,7 +88,7 @@ export function buildManifest(release, repository, version, verified) {
 }
 
 function gh(args, options = {}) {
-  return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options });
+  return execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], ...options });
 }
 function api(path) { return JSON.parse(gh(['api', path])); }
 function optionalApi(path) {
@@ -82,6 +96,20 @@ function optionalApi(path) {
     if (/HTTP 404/.test(String(error.stderr))) return null;
     throw error;
   }
+}
+function findRelease(repository, tag) {
+  const published = optionalApi(`repos/${repository}/releases/tags/${encodeURIComponent(tag)}`);
+  if (published) return published;
+  // The by-tag endpoint returns published releases. Authenticated pagination
+  // also includes drafts; reject duplicates rather than choosing arbitrarily.
+  const pages = JSON.parse(gh(['api', '--paginate', '--slurp', `repos/${repository}/releases?per_page=100`]));
+  const matches = pages.flat().filter(release => release.tag_name === tag);
+  if (matches.length > 1) throw new Error('Ambiguous draft release identity');
+  if (!matches.length) return null;
+  if (!Number.isSafeInteger(matches[0].id) || matches[0].id <= 0) throw new Error('Invalid draft release identity');
+  const draft = api(`repos/${repository}/releases/${matches[0].id}`);
+  if (draft.tag_name !== tag || !draft.draft) throw new Error('Draft release identity changed during lookup');
+  return draft;
 }
 function resolveTag(repository, tag) {
   let object = optionalApi(`repos/${repository}/git/ref/tags/${encodeURIComponent(tag)}`)?.object;
@@ -116,13 +144,13 @@ async function main() {
   const source = args.includes('--source') ? option('--source') : (process.env.GITHUB_SHA ?? execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }));
   const expectedSource = source.trim();
   if (!/^[0-9a-f]{40}$/.test(expectedSource) || tag !== `desktop-v${version}` || !/^[\w.-]+\/[\w.-]+$/.test(repository)) throw new Error('Invalid release inputs');
+  payloads(version);
   const tagSource = resolveTag(repository, tag);
-  if (tagSource && tagSource !== expectedSource) throw new Error('Release tag source differs from this build');
-  const release = optionalApi(`repos/${repository}/releases/tags/${encodeURIComponent(tag)}`);
+  const release = findRelease(repository, tag);
   const verifyOnly = args.includes('--verify-only');
-  if (!verifyOnly && release && !release.draft) throw new Error('Published installers are immutable; do not rebuild an existing published release');
+  assertReleaseSource(release, tagSource, expectedSource, verifyOnly);
   if (args.includes('--check-source')) { console.log('Release source and publication state are safe for platform builds.'); return; }
-  if (!release || !tagSource || release.prerelease) throw new Error('Expected completed draft release is unavailable');
+  if (!release || release.prerelease) throw new Error('Expected completed draft release is unavailable');
   const fingerprint = assetFingerprint(release.assets);
   const verified = new Map();
   for (const { name } of payloads(version)) {
@@ -142,15 +170,22 @@ async function main() {
   try {
     writeFileSync(path, bytes);
     gh(['release', 'upload', tag, path, '--repo', repository, '--clobber']);
-    const after = api(`repos/${repository}/releases/tags/${encodeURIComponent(tag)}`);
+    const after = api(`repos/${repository}/releases/${release.id}`);
+    assertReleaseSource(after, resolveTag(repository, tag), expectedSource);
     if (assetFingerprint(after.assets) !== fingerprint) throw new Error('Installer assets changed during manifest publication');
     const latest = after.assets.find((asset) => asset.name === 'latest.json');
     if (!latest || gh(['api', `repos/${repository}/releases/assets/${latest.id}`, '-H', 'Accept: application/octet-stream']) !== bytes) throw new Error('Uploaded manifest differs from the reviewed manifest');
     gh(['release', 'edit', tag, '--repo', repository, '--draft=false', '--latest']);
-    const published = api(`repos/${repository}/releases/tags/${encodeURIComponent(tag)}`);
+    const published = api(`repos/${repository}/releases/${release.id}`);
     if (published.draft || published.prerelease || assetFingerprint(published.assets) !== fingerprint
         || resolveTag(repository, tag) !== expectedSource) throw new Error('Final release publication verification failed');
-    console.log(JSON.stringify({ tag, source: expectedSource, verifiedPayloads: verified.size, platforms: Object.keys(manifest.platforms).length, published: true }));
+    for (const asset of published.assets) {
+      if (asset.browser_download_url !== `https://github.com/${repository}/releases/download/${tag}/${encodeURIComponent(asset.name)}`) {
+        throw new Error('Published download URLs do not match the verified tag');
+      }
+    }
+    console.log(JSON.stringify({ tag, source: expectedSource, releaseId: release.id, verifiedPayloads: verified.size,
+      platforms: Object.keys(manifest.platforms).length, published: true, installersUnchanged: true }));
   } finally { if (existsSync(path)) unlinkSync(path); rmdirSync(staging); }
 }
 
