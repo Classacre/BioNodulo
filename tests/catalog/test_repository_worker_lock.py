@@ -19,6 +19,7 @@ from bionodulo.nodes.environment_compiler import pixi_lock_v7
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BOTO3_SPEC = ">=1.43.50,<1.44"
+PYDANTIC_SPEC = ">=2.6.0"
 INCOMPATIBLE_BOTOCORE_VERSION = "999.0.0"
 BOTO3_STACK = frozenset(
     {"boto3", "botocore", "jmespath", "python-dateutil", "s3transfer", "six", "urllib3"}
@@ -159,20 +160,21 @@ def _requirement_is_active(requirement: Requirement, marker_environment: dict[st
     return requirement.marker.evaluate(environment=marker_environment)
 
 
-def _active_boto3_dependency_closure(
+def _active_pypi_dependency_closure(
     selected_pypi: dict[str, pixi_lock_v7._NativePackage],
     *,
     marker_environment: dict[str, str],
     python_version: Version,
+    root: str = "boto3",
 ) -> frozenset[str]:
-    pending = ["boto3"]
+    pending = [root]
     active: set[str] = set()
     while pending:
         name = pending.pop()
         if name in active:
             continue
         package = selected_pypi.get(name)
-        assert package is not None, f"active boto3 dependency {name!r} is missing from selected lock"
+        assert package is not None, f"active {root} dependency {name!r} is missing from selected lock"
         active.add(name)
         if package.requires_python is not None:
             requires_python = SpecifierSet(package.requires_python)
@@ -185,11 +187,11 @@ def _active_boto3_dependency_closure(
             if not _requirement_is_active(requirement, marker_environment):
                 continue
             assert requirement.url is None, "active direct-URL requirement cannot be validated without fetching"
-            assert not requirement.extras, "active boto3 dependency extras require solver semantics"
+            assert not requirement.extras, f"active {root} dependency extras require solver semantics"
             dependency_name = canonicalize_name(requirement.name)
             dependency = selected_pypi.get(dependency_name)
             assert dependency is not None, (
-                f"active boto3 dependency {dependency_name!r} is missing from selected lock"
+                f"active {root} dependency {dependency_name!r} is missing from selected lock"
             )
             dependency_version = Version(dependency.version)
             assert not dependency_version.is_prerelease, (
@@ -213,7 +215,7 @@ def _assert_universal_boto3_stack(lock_content: bytes) -> None:
         )
         selected_pypi = _selected_pypi_by_name(selected)
         python_version = _selected_python_version(selected, resolver_platform=resolver_platform)
-        closure = _active_boto3_dependency_closure(
+        closure = _active_pypi_dependency_closure(
             selected_pypi,
             marker_environment=_marker_environment(
                 python_version,
@@ -414,6 +416,64 @@ def test_worker_manifest_declares_bounded_boto3_runtime() -> None:
     manifest = tomllib.loads((REPOSITORY_ROOT / "pixi.toml").read_text(encoding="utf-8"))
 
     assert manifest["pypi-dependencies"]["boto3"] == BOTO3_SPEC
+
+
+def test_worker_manifest_declares_pydantic_for_executor_semantic_checks() -> None:
+    manifest = tomllib.loads((REPOSITORY_ROOT / "pixi.toml").read_text(encoding="utf-8"))
+    assert manifest["pypi-dependencies"]["pydantic"] == PYDANTIC_SPEC
+
+
+def _assert_worker_semantic_runtime(lock_content: bytes, resolver_platform: str) -> None:
+    selected = pixi_lock_v7._validate_pixi_lock(
+        lock_content, environment_name="worker", resolver_platform=resolver_platform,
+    )
+    selected_pypi = _selected_pypi_by_name(selected)
+    python_version = _selected_python_version(selected, resolver_platform=resolver_platform)
+    closure = _active_pypi_dependency_closure(
+        selected_pypi,
+        marker_environment=_marker_environment(python_version, resolver_platform=resolver_platform),
+        python_version=python_version,
+        root="pydantic",
+    )
+    assert {"pydantic", "pydantic-core"} <= closure
+    assert Version(selected_pypi["pydantic"].version) in SpecifierSet(PYDANTIC_SPEC)
+
+
+@pytest.mark.parametrize("resolver_platform", RESOLVER_PLATFORMS)
+def test_worker_lock_contains_semantic_validation_runtime(resolver_platform: str) -> None:
+    # Do not import an ambient Pydantic from the test/server environment: check
+    # the exact worker selection and all active transitive version constraints.
+    _assert_worker_semantic_runtime((REPOSITORY_ROOT / "pixi.lock").read_bytes(), resolver_platform)
+
+
+@pytest.mark.parametrize("resolver_platform", RESOLVER_PLATFORMS)
+@pytest.mark.parametrize("missing_package", ("pydantic", "pydantic-core"))
+def test_worker_semantic_runtime_guard_rejects_missing_dependency(
+    resolver_platform: str, missing_package: str,
+) -> None:
+    document = yaml.safe_load((REPOSITORY_ROOT / "pixi.lock").read_bytes())
+    missing_urls = {
+        package["pypi"] for package in document["packages"]
+        if package.get("name") == missing_package and "pypi" in package
+    }
+    references = document["environments"]["worker"]["packages"][resolver_platform]
+    document["environments"]["worker"]["packages"][resolver_platform] = [
+        reference for reference in references if reference.get("pypi") not in missing_urls
+    ]
+    # A platform-specific wheel may be unique to this worker selection. Remove
+    # orphan records so the mutation tests dependency closure, not YAML shape.
+    retained_identities = {
+        _package_identity(reference)
+        for environment in document["environments"].values()
+        for platform_references in environment["packages"].values()
+        for reference in platform_references
+    }
+    document["packages"] = [
+        package for package in document["packages"]
+        if _package_identity(package) in retained_identities
+    ]
+    with pytest.raises(AssertionError, match="active pydantic dependency.*missing"):
+        _assert_worker_semantic_runtime(_encode_mutated_lock(document), resolver_platform)
 
 
 def test_boto3_stack_guard_uses_packaging_floor_marker_signature(
