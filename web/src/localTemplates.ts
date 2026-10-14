@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { TemplateInfo, Workflow } from './types';
+import { collectLocalInputArtifacts, type LocalInputArtifact } from './utils/workflowFiles';
 
 type TemplateModule = { default: Workflow } | Workflow;
 
@@ -80,4 +81,19 @@ export function getLocalTemplateWorkflow(filename: string): Workflow | null {
   const match = Object.entries(modules).find(([path]) => filenameFromPath(path) === filename);
   if (!match) return null;
   return templateData(match[1]);
+}
+
+// These inputs are supplied by the worker's packaged template fixtures or its
+// public example-data manifest. Trust exact paths from shipped definitions,
+// never a caller's prefix alone: arbitrary local paths still require uploads.
+const curatedInputArtifacts = new Set(
+  Object.values(modules).flatMap(module => collectLocalInputArtifacts(templateData(module)))
+    .filter(({ path }) => /^(?:templates|examples)\/data\//.test(path)
+      && !path.includes('\\')
+      && !path.split('/').some(segment => !segment || segment === '.' || segment === '..'))
+    .map(({ path, kind }) => `${kind}:${path}`),
+);
+
+export function isCuratedTemplateInputArtifact(artifact: LocalInputArtifact): boolean {
+  return curatedInputArtifacts.has(`${artifact.kind}:${artifact.path}`);
 }

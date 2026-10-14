@@ -2,7 +2,7 @@
   "version": "2.0",
   "app": "bionodulo",
   "name": "Single Cell RNA-Seq",
-  "description": "10x Genomics single cell RNA sequencing analysis with Cell Ranger",
+  "description": "10x Genomics single cell RNA sequencing analysis with STARsolo and Scanpy",
   "nodes": [
     {
       "id": "note_single_cell_pipeline",

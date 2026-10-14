@@ -21,11 +21,14 @@ function tally(nodes: WorkflowNode[]): { tools: Map<string, number>; categories:
   for (const node of nodes) {
     if (node.type === 'reroute' || node.type === 'note') continue;
     const meta = node.node_info;
-    for (const tool of meta?.requires_external_tools || []) {
-      tools.set(tool, (tools.get(tool) ?? 0) + 1);
+    // Node metadata historically used this field as a boolean. Persisted and
+    // imported workflows can still carry that shape, so only arrays name tools.
+    const externalTools = meta?.requires_external_tools;
+    for (const tool of Array.isArray(externalTools) ? externalTools : []) {
+      if (typeof tool === 'string' && tool) tools.set(tool, (tools.get(tool) ?? 0) + 1);
     }
     const category = meta?.category;
-    if (category) categories.set(category, (categories.get(category) ?? 0) + 1);
+    if (typeof category === 'string' && category) categories.set(category, (categories.get(category) ?? 0) + 1);
   }
   return { tools, categories };
 }

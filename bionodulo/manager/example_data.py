@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import gzip
 import logging
+import os
 import shutil
+import tempfile
+import threading
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -27,6 +30,7 @@ from collections.abc import Mapping
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
+_DOWNLOAD_PROMOTION_LOCK = threading.Lock()
 
 
 @dataclass
@@ -157,7 +161,7 @@ def _apply_header_renames(path: Path, renames: Mapping[str, str]) -> None:
     rows[0] = [renames.get(column, column) for column in rows[0]]
     buffer = io.StringIO()
     csv.writer(buffer, lineterminator="\n").writerows(rows)
-    path.write_text(buffer.getvalue(), encoding="utf-8")
+    path.write_text(buffer.getvalue(), encoding="utf-8", newline="")
 
 
 def _download_url(
@@ -167,7 +171,12 @@ def _download_url(
     archive_member: str | None = None,
     rename_columns: Mapping[str, str] | None = None,
 ) -> None:
-    """Download a single URL to *dest*, optionally decompressing gz."""
+    """Download and transform one example before atomically publishing it.
+
+    Concurrent workers use separate temporary files. A failed transfer,
+    decompression, archive extraction, or header rewrite must never leave a
+    partial destination that the input-node cache can mistake for complete.
+    """
     headers = {
         "User-Agent": (
             "BioNodulo/2.0 (https://github.com/Classacre/BioNodulo; example-data downloader)"
@@ -176,29 +185,36 @@ def _download_url(
     req = urllib.request.Request(url, headers=headers)
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    tmp_path = dest.with_suffix(dest.suffix + ".tmp")
-    with urllib.request.urlopen(req, timeout=300) as response:
-        with open(tmp_path, "wb") as fh:
+    descriptor, name = tempfile.mkstemp(prefix=f".{dest.name}.download-", suffix=".part", dir=dest.parent)
+    os.close(descriptor)
+    downloaded = Path(name)
+    converted: Path | None = None
+    try:
+        with urllib.request.urlopen(req, timeout=300) as response, downloaded.open("wb") as fh:
             shutil.copyfileobj(response, fh)
 
-    if archive_member:
-        try:
-            _extract_member(tmp_path, archive_member, dest)
-        finally:
-            tmp_path.unlink(missing_ok=True)
+        candidate = downloaded
+        if archive_member or gunzip:
+            descriptor, name = tempfile.mkstemp(prefix=f".{dest.name}.decoded-", suffix=".part", dir=dest.parent)
+            os.close(descriptor)
+            converted = Path(name)
+            if archive_member:
+                _extract_member(downloaded, archive_member, converted)
+            else:
+                with gzip.open(downloaded, "rb") as gz_fh, converted.open("wb") as out_fh:
+                    shutil.copyfileobj(gz_fh, out_fh)
+            candidate = converted
         if rename_columns:
-            _apply_header_renames(dest, rename_columns)
-        return
-    elif gunzip:
-        with gzip.open(tmp_path, "rb") as gz_fh:
-            with open(dest, "wb") as out_fh:
-                shutil.copyfileobj(gz_fh, out_fh)
-        tmp_path.unlink()
-    else:
-        tmp_path.replace(dest)
-
-    if rename_columns:
-        _apply_header_renames(dest, rename_columns)
+            _apply_header_renames(candidate, rename_columns)
+        # On Windows two simultaneous replace calls for the same destination
+        # can fail with a sharing violation even though their source handles
+        # are closed. Serialize only this final, very short publication step.
+        with _DOWNLOAD_PROMOTION_LOCK:
+            os.replace(candidate, dest)
+    finally:
+        downloaded.unlink(missing_ok=True)
+        if converted is not None:
+            converted.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +228,10 @@ _NFCORE = "https://raw.githubusercontent.com/nf-core/test-datasets"
 _AIRWAY = "https://raw.githubusercontent.com/bioconnector/workshops/master/data"
 _AIRWAY_COUNTS = f"{_AIRWAY}/airway_scaledcounts.csv"
 _AIRWAY_META = f"{_AIRWAY}/airway_metadata.csv"
-_MSDATA = "https://bioconductor.org/packages/release/data/experiment/src/contrib/msdata_0.52.0.tar.gz"
+# Version the release as well as the package. The main download host's TLS
+# certificate expired during the template audit; Posit is an official HTTPS
+# Bioconductor mirror and serves this same archive with a valid certificate.
+_MSDATA = "https://bioconductor.posit.co/packages/3.23/data/experiment/src/contrib/msdata_0.52.0.tar.gz"
 _MAGECK = "https://raw.githubusercontent.com/davidliwei/mageck/8ac6eea1d4bdb0d6e12b6124f8ab77254eaf6efe/demo/demo2"
 # 10x tinygex (cellranger-tiny-fastq) — Git-LFS, must use the media host.
 _TINYGEX = "https://media.githubusercontent.com/media/minoda-lab/universc/master/test/shared/cellranger-tiny-fastq/3.0.0"

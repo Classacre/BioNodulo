@@ -19,6 +19,7 @@ import { readOpenWorkflows, writeOpenWorkflows } from '../../state/openWorkflows
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
 import { collectLocalInputArtifacts } from '../../utils/workflowFiles';
+import { isCuratedTemplateInputArtifact } from '../../localTemplates';
 import { getMcpRuntime } from '../../mcp/runtime';
 import { toast } from '../../components/ui';
 
@@ -961,6 +962,7 @@ export function useWorkflow() {
         ...Object.keys(options?.inputs?.files ?? {}),
       ]);
       const unstagedPaths = collectLocalInputArtifacts(wf, options?.parameters ?? {}, {}, { includeCloudUploads: true })
+        .filter(artifact => !isCuratedTemplateInputArtifact(artifact))
         .map(artifact => artifact.path)
         .filter(path => !stagedPaths.has(path));
       if (unstagedPaths.length > 0) {

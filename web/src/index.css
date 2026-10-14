@@ -170,6 +170,7 @@ body {
   align-items: stretch;
   gap: 6px;
   transform-origin: bottom center;
+  max-width: calc(100% - 24px);
 }
 .island-pill {
   display: flex;
@@ -218,12 +219,12 @@ body {
 }
 
 /* Peek: a compact card riding directly above the pill. */
-.island-peek {
+.island > .island-peek {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  width: min(360px, calc(100vw - 48px));
+  width: min(360px, calc(100vw - 80px));
   padding: 8px 12px;
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
@@ -873,8 +874,8 @@ body {
   top: 0;
   bottom: 0;
   z-index: 42;
-  min-width: 280px;
-  max-width: 620px;
+  min-width: min(280px, 100%);
+  max-width: min(620px, 100%);
   container-type: inline-size;
 }
 .rail-panel-wrap.floating {
@@ -1405,9 +1406,9 @@ body.is-dragging-panel {
 .bio-node-outputs { text-align: right; margin-left: auto; }
 .bio-node-port { display: flex; align-items: center; position: relative; min-width: 0; }
 .bio-node-port-out { justify-content: flex-end; }
-/* Port labels wrap onto new lines and break anywhere — never paint outside the
-   node (the node body is overflow:visible for the handles). */
-.bio-node-port-label { padding: 0 8px; color: var(--muted); font-size: 11px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; line-height: 1.25; }
+/* Ports have fixed-height rows so their labels must stay on one line. The full
+   identifier remains available on hover; handles stay outside the node. */
+.bio-node-port-label { min-width: 0; padding: 0 8px; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
 /* Handles straddle the node's left/right edge. React Flow's default rule sets
    top:50% (centered in this port row); we only override the horizontal edge so
    the anchor sits on the node border and stays visible (node is overflow:visible). */
@@ -2226,12 +2227,16 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: var(--shadow-lg); max-height: 85vh;
   display: flex; flex-direction: column;
   animation: modalIn 0.15s ease;
+  max-width: calc(100vw - 24px);
+  min-width: 0;
 }
 @keyframes modalIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.modal-header > span { min-width: 0; overflow-wrap: anywhere; }
+.modal-header > button { flex: none; }
 .modal-subheader { padding: 8px 20px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
-.modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 
 /* Output diff modal */
 .output-diff-controls { display: flex; gap: 16px; margin-bottom: 16px; }
@@ -2445,7 +2450,7 @@ kbd {
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   max-width: 720px;
-  width: 90vw;
+  width: calc(100% - 16px);
   font-size: 12px;
 }
 .dep-banner-row {
@@ -2460,6 +2465,8 @@ kbd {
 }
 .dep-banner-text {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--text);
 }
 .dep-banner-actions {

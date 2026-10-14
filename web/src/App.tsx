@@ -134,7 +134,7 @@ import InviteDialog from './collab/InviteDialog';
 const OpenWorkflowModal = lazy(() => import('./components/modals/OpenWorkflowModal'));
 import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { instantiateBlueprint } from './state/subgraphLibrary';
-import { getLocalTemplateWorkflow } from './localTemplates';
+import { getLocalTemplateWorkflow, isCuratedTemplateInputArtifact } from './localTemplates';
 import {
   requestedWorkflowIdAtom,
   computeSpecAtom,
@@ -2157,11 +2157,13 @@ export default function App() {
     if (localArtifacts.length === 0) return undefined;
 
     if (editorMode) {
+      const uploadArtifacts = localArtifacts.filter(artifact => !isCuratedTemplateInputArtifact(artifact));
+      if (uploadArtifacts.length === 0) return undefined;
       const cloudFiles = await listCloudFiles();
       const available = new Set(cloudFiles.filter(file => !record(file).verificationPending
         && file.key.startsWith('uploads/')).map(file => file.key));
       const artifacts: NonNullable<CloudRunInputs['artifacts']> = {};
-      for (const artifact of localArtifacts) {
+      for (const artifact of uploadArtifacts) {
         if (!available.has(artifact.path)) throw new Error(`Cloud input ${baseName(artifact.path)} is not a verified upload. Upload it in Workspace and drag it onto the canvas before running.`);
         artifacts[artifact.path] = { uploadKey: artifact.path, kind: artifact.kind };
       }

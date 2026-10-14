@@ -92,6 +92,12 @@ describe('workflow naming i18n', () => {
     expect(isUntitledWorkflowName('RNA-seq QC')).toBe(false);
   });
 
+  it.each([true, false, 'samtools', { samtools: true }])('opens untitled workflows with historical external-tool metadata: %s', requiresTools => {
+    const imported = node('imported', 'Alignment');
+    imported.node_info = { ...imported.node_info, requires_external_tools: requiresTools } as unknown as WorkflowNode['node_info'];
+    expect(resolveWorkflowName(workflow({ name: 'Untitled', nodes: [imported] }))).toBe('alignment workflow');
+  });
+
   it('keeps workflow naming fragments behind i18n keys', () => {
     const source = readFileSync(resolve(__dirname, '../utils/workflowNaming.ts'), 'utf8');
 

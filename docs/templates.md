@@ -23,7 +23,7 @@ environment. Small smoke-test inputs do not establish scientific validation.
 | [R Visualization Pipeline](../templates/r_visualization_pipeline.json) | Plot workflow results with R and ggplot2 |
 | [RNA-Seq Pipeline](../templates/rna_seq_pipeline.json) | RNA sequencing analysis from reads to counts |
 | [ROBUST Designer](../templates/robust_designer.json) | Multi-target mRNA design campaign |
-| [Single Cell RNA-Seq](../templates/single_cell_pipeline.json) | 10x single-cell analysis with Cell Ranger |
+| [Single Cell RNA-Seq](../templates/single_cell_pipeline.json) | 10x single-cell analysis with STARsolo and Scanpy |
 | [Spatial Transcriptomics QC and Clustering](../templates/spatial_transcriptomics_qc_clustering.json) | Quality control and clustering of spatial data |
 | [Synthetic Biology Design and Simulation](../templates/synthetic_biology_design_simulation.json) | SBOL design import and COPASI simulation |
 | [Variant Calling Pipeline](../templates/variant_calling_pipeline.json) | Germline variant calling with GATK |

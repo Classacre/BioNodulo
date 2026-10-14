@@ -125,6 +125,28 @@ describe('useWorkflow cloud submission', () => {
     expect(websiteMocks.submitCloudRun).not.toHaveBeenCalled();
   });
 
+  it('submits exact bundled template inputs for the worker to resolve', async () => {
+    const { result } = renderHook(() => useWorkflow());
+    await act(async () => {
+      await result.current.submitRun(workflow, { forceCloud: true,
+        parameters: { tiny_sam: 'templates/data/smoke/coding_sequences.fasta' },
+      });
+    });
+    expect(websiteMocks.submitCloudRun).toHaveBeenCalled();
+  });
+
+  it.each([
+    'templates/data/../../private.sam',
+    'templates/data/not-a-curated-file.sam',
+    'examples/data/not-a-curated-file.sam',
+  ])('rejects an untrusted path even inside a template namespace: %s', async path => {
+    const { result } = renderHook(() => useWorkflow());
+    await expect(act(async () => {
+      await result.current.submitRun(workflow, { forceCloud: true, parameters: { tiny_sam: path } });
+    })).rejects.toThrow('unstaged local input');
+    expect(websiteMocks.submitCloudRun).not.toHaveBeenCalled();
+  });
+
   it('fails closed when selected-node execution is requested in the cloud', async () => {
     const { result } = renderHook(() => useWorkflow());
 

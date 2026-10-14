@@ -149,14 +149,14 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
                   id={input.name}
                   className={`bio-handle bio-handle-in ${input.connected ? 'connected' : ''}`}
                 />
-                <span className="bio-node-port-label">{input.name}</span>
+                <span className="bio-node-port-label" title={input.name}>{input.name}</span>
               </div>
             ))}
           </div>
           <div className="bio-node-outputs">
             {g.outputs.map(output => (
               <div className="bio-node-port bio-node-port-out" key={`out-${output.name}`} style={{ height: NODE_PIN_H }}>
-                <span className="bio-node-port-label">{output.name}</span>
+                <span className="bio-node-port-label" title={output.name}>{output.name}</span>
                 <Handle
                   type="source"
                   position={Position.Right}

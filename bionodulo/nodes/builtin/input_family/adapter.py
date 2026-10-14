@@ -530,7 +530,7 @@ def _resolve_example_data_fallback(source: Any, context: Any) -> Path | None:
     if idx + 2 >= len(parts) or parts[idx + 1] != "data":
         return None
     category = parts[idx + 2]
-    filename = parts[-1] if len(parts) > idx + 3 else None
+    filename = "/".join(parts[idx + 3:]) if len(parts) > idx + 3 else None
     try:
         from bionodulo.manager.example_data import EXAMPLE_DATA_MANIFEST
     except Exception:
@@ -542,12 +542,12 @@ def _resolve_example_data_fallback(source: Any, context: Any) -> Path | None:
         entries = [df for df in EXAMPLE_DATA_MANIFEST if df.category == category]
         if not entries:
             return None
-        ok_any = False
+        complete = True
         for entry in entries:
             dest = cache_dir / entry.filename
-            if _materialise_example_entry(entry, dest, context):
-                ok_any = True
-        return cache_dir if ok_any else None
+            if not _materialise_example_entry(entry, dest, context):
+                complete = False
+        return cache_dir if complete else None
 
     entry = next(
         (df for df in EXAMPLE_DATA_MANIFEST if df.category == category and df.filename == filename),
@@ -567,13 +567,13 @@ def _resolve_example_data_fallback(source: Any, context: Any) -> Path | None:
     ]
     if not sub_entries:
         return None
-    ok_any = False
+    complete = True
     for df in sub_entries:
         dest = cache_dir / df.filename
         dest.parent.mkdir(parents=True, exist_ok=True)
-        if _materialise_example_entry(df, dest, context):
-            ok_any = True
-    return (cache_dir / filename) if ok_any else None
+        if not _materialise_example_entry(df, dest, context):
+            complete = False
+    return (cache_dir / filename) if complete else None
 
 
 class CopyInputNode(CommandNode):
