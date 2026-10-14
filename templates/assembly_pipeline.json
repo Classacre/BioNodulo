@@ -8,11 +8,11 @@
       "id": "note_assembly_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "Genome assembly pipeline: assembles reads into contigs using SPAdes/MEGAHIT and evaluates with Quast.\n\nReads: shovill test data (https://github.com/tseemann/shovill/tree/master/test). Paired-end bacterial Illumina reads (~50,000 reads each).\nReference: E. coli K-12 substr. MG1655 (NCBI GCF_000005845.2_ASM584v2, https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/)."
+        "text": "Genome assembly example: trim paired reads, assemble with SPAdes or MEGAHIT, assess against a matched reference with Quast, and annotate bacterial contigs with Prokka.\n\nDefaults are Shovill's small paired-read assembly test and its matching Deinococcus radiodurans R1 plasmid MP1 reference (NC_000958.1; 177,466 bp). All three files are pinned to the same upstream revision. The 50,000 read pairs have matching accession-bearing headers; full-file sequence checks confirmed the reference pairing.\n\nThis is a bacterial plasmid tool-test fixture, not whole-genome or experimental validation. Replace reads and reference together for a study."
       },
       "ui": {
         "title": "Notes",
@@ -24,13 +24,13 @@
       "type": "input_fastq",
       "position": [
         80,
-        80
+        414
       ],
       "params": {
         "sample_name": "genome1",
         "reads": [
-          "https://raw.githubusercontent.com/nf-core/test-datasets/7c1ee97aed3cd4f2630ff536fa2591c3613984fa/illumina/enterovirus/SRR13266665_1.fastq.gz",
-          "https://raw.githubusercontent.com/nf-core/test-datasets/7c1ee97aed3cd4f2630ff536fa2591c3613984fa/illumina/enterovirus/SRR13266665_2.fastq.gz"
+          "https://raw.githubusercontent.com/tseemann/shovill/9f0e6c72227309f2c95bc7ce22f804b587e84a0e/test/R1.fq.gz",
+          "https://raw.githubusercontent.com/tseemann/shovill/9f0e6c72227309f2c95bc7ce22f804b587e84a0e/test/R2.fq.gz"
         ]
       },
       "ui": {
@@ -52,7 +52,7 @@
       "type": "fastp",
       "position": [
         440,
-        80
+        449
       ],
       "params": {
         "threads": 4
@@ -66,7 +66,7 @@
       "type": "spades",
       "position": [
         1520,
-        80
+        445
       ],
       "params": {
         "threads": 8
@@ -80,7 +80,7 @@
       "type": "switch",
       "position": [
         800,
-        80
+        406
       ],
       "params": {
         "value": "spades",
@@ -97,7 +97,7 @@
       "type": "retry",
       "position": [
         1160,
-        80
+        362
       ],
       "params": {
         "max_retries": 2,
@@ -116,7 +116,7 @@
       "type": "megahit",
       "position": [
         1160,
-        261
+        635
       ],
       "params": {
         "threads": 8,
@@ -130,8 +130,8 @@
       "id": "select_assembly_001",
       "type": "merge",
       "position": [
-        1700,
-        261
+        1880,
+        369
       ],
       "params": {
         "num_inputs": 2,
@@ -148,10 +148,10 @@
       "type": "input_fasta",
       "position": [
         80,
-        270
+        604
       ],
       "params": {
-        "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz"
+        "reference": "https://raw.githubusercontent.com/tseemann/shovill/9f0e6c72227309f2c95bc7ce22f804b587e84a0e/test/test.fna"
       },
       "ui": {
         "title": "Reference (optional)",
@@ -171,7 +171,7 @@
       "id": "quast_001",
       "type": "quast",
       "position": [
-        2600,
+        2960,
         80
       ],
       "params": {
@@ -194,8 +194,8 @@
       "id": "validate_assembly_001",
       "type": "data_validator",
       "position": [
-        1880,
-        80
+        2240,
+        414
       ],
       "params": {
         "expected_format": "fasta",
@@ -211,8 +211,8 @@
       "id": "gate_assembly_001",
       "type": "gate",
       "position": [
-        2240,
-        80
+        2600,
+        477
       ],
       "params": {
         "condition_mode": "file_exists",
@@ -227,8 +227,8 @@
       "id": "prokka_001",
       "type": "prokka",
       "position": [
-        2600,
-        314
+        2960,
+        380
       ],
       "params": {
         "kingdom": "Bacteria"
@@ -250,8 +250,8 @@
       "id": "assembly_stats_001",
       "type": "bp_seq_stats",
       "position": [
-        2600,
-        780
+        2960,
+        894
       ],
       "params": {
         "format": "fasta"
@@ -264,8 +264,8 @@
       "id": "assembly_stats_chart_001",
       "type": "bar_chart",
       "position": [
-        2960,
-        80
+        3320,
+        113
       ],
       "params": {
         "x_column": "id",
@@ -282,8 +282,8 @@
       "id": "assembly_contig_summary_001",
       "type": "aggregate",
       "position": [
-        2960,
-        776
+        3320,
+        487
       ],
       "params": {
         "group_columns": "id",
@@ -301,8 +301,8 @@
       "id": "render_prokka_tab_0",
       "type": "table_preview",
       "position": [
-        3680,
-        80
+        3320,
+        738
       ],
       "params": {},
       "ui": {
@@ -313,8 +313,8 @@
       "id": "render_assembly_stats_tab_1",
       "type": "table_preview",
       "position": [
-        3680,
-        300
+        3320,
+        905
       ],
       "params": {},
       "ui": {
@@ -326,7 +326,7 @@
       "type": "table_preview",
       "position": [
         3680,
-        520
+        509
       ],
       "params": {},
       "ui": {

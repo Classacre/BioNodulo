@@ -29,7 +29,7 @@
       "id": "note_wgbs_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
@@ -71,7 +71,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        231
+        270
       ],
       "params": {
         "reads": [
@@ -97,7 +97,7 @@
       "type": "input_directory",
       "position": [
         80,
-        382
+        460
       ],
       "params": {
         "directory": "examples/data/epigenomics/bismark_genome"
@@ -120,7 +120,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        533
+        578
       ],
       "params": {
         "reference": "https://raw.githubusercontent.com/nf-core/test-datasets/e7e1fb8940fc14e2336101147a31ce8e0eda6264/reference/genome.fa"
@@ -143,8 +143,8 @@
       "id": "bismark_align_001",
       "type": "bismark_align",
       "position": [
-        440,
-        80
+        800,
+        308
       ],
       "params": {
         "parallel_instances": 4,
@@ -158,8 +158,8 @@
       "id": "gate_bismark_bam_001",
       "type": "gate",
       "position": [
-        800,
-        80
+        1160,
+        297
       ],
       "params": {
         "condition_mode": "file_exists",
@@ -174,8 +174,8 @@
       "id": "bismark_methylation_001",
       "type": "bismark_methylation_extractor",
       "position": [
-        1160,
-        80
+        1520,
+        207
       ],
       "params": {
         "multicore": 4,
@@ -200,8 +200,8 @@
       "id": "samtools_sort_methyldackel_001",
       "type": "samtools_sort",
       "position": [
-        920,
-        430
+        1520,
+        451
       ],
       "params": {
         "threads": 4,
@@ -215,8 +215,8 @@
       "id": "samtools_index_methyldackel_001",
       "type": "samtools_index",
       "position": [
-        1160,
-        430
+        1880,
+        245
       ],
       "params": {
         "threads": 2
@@ -229,8 +229,8 @@
       "id": "samtools_faidx_methyldackel_001",
       "type": "samtools_faidx",
       "position": [
-        800,
-        600
+        440,
+        244
       ],
       "params": {
         "threads": 1
@@ -243,8 +243,8 @@
       "id": "methyldackel_001",
       "type": "methyldackel",
       "position": [
-        1520,
-        430
+        2240,
+        276
       ],
       "params": {
         "output_prefix": "wgbs_methyldackel",
@@ -270,7 +270,7 @@
       "type": "table_preview",
       "position": [
         1880,
-        80
+        413
       ],
       "params": {},
       "ui": {
@@ -281,8 +281,8 @@
       "id": "render_methyldackel_tab_1",
       "type": "table_preview",
       "position": [
-        1880,
-        300
+        2600,
+        329
       ],
       "params": {},
       "ui": {
@@ -293,8 +293,8 @@
       "id": "bismark_prep_001",
       "type": "bismark_genome_preparation",
       "position": [
-        300,
-        382
+        440,
+        434
       ],
       "params": {},
       "ui": {

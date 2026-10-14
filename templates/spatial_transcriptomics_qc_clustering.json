@@ -26,11 +26,11 @@
       "id": "note_spatial_transcriptomics_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "Spatial transcriptomics QC and clustering workflow: validate a precomputed Space Ranger outs directory, run Squidpy QC and spatial visualization, pass the resulting H5AD artifact into Scanpy clustering, and preview the generated images.\n\nInputs are placeholders. Provide a complete Space Ranger outs directory containing the feature matrix, tissue positions, scalefactors, and both hires and lowres tissue images."
+        "text": "Spatial transcriptomics example: load a complete Space Ranger-style outs directory, run Squidpy QC/spatial visualization, cluster with Scanpy, and preview the resulting images.\n\nDefaults materialize the nf-core spatialvi human brain cancer Visium test example, including the feature matrix, tissue positions, scalefactors, and both hires and lowres tissue images. Its nonzero raw matrix is staged under the conventional filtered-matrix filename expected by readers. The data are downsampled and use permissive demonstration QC thresholds; choose suitable thresholds for a study."
       },
       "ui": {
         "title": "Notes",
@@ -42,7 +42,7 @@
       "type": "input_directory",
       "position": [
         80,
-        80
+        216
       ],
       "params": {
         "directory": "examples/data/spatial_transcriptomics/visium_outs"
@@ -65,7 +65,7 @@
       "type": "squidpy_qc",
       "position": [
         440,
-        80
+        128
       ],
       "params": {
         "min_counts": 3,
@@ -104,8 +104,8 @@
       "id": "scanpy_spatial_001",
       "type": "scanpy_spatial",
       "position": [
-        440,
-        500
+        800,
+        198
       ],
       "params": {
         "sample_name": "visium_sample",
@@ -132,8 +132,8 @@
       "id": "scanpy_umap_preview_001",
       "type": "image_preview",
       "position": [
-        800,
-        354
+        1160,
+        216
       ],
       "params": {},
       "ui": {

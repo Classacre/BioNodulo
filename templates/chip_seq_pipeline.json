@@ -8,11 +8,11 @@
       "id": "note_chip_seq_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "ChIP-Seq pipeline: aligns paired-end reads, calls peaks with MACS2, and generates enrichment profiles.\n\nThe default smoke inputs are a deterministic 2 kb synthetic reference with distinct treatment and control fragments. Treatment fragments overlap one annotated locus while control fragments are distributed across the reference, providing a small but meaningful paired-end cloud canary. Replace these fixtures with experimental FASTQ, reference, and annotation files for real analyses."
+        "text": "ChIP-Seq example: trim paired-end reads, align with Bowtie2, call peaks with MACS2, and preview coverage and peak annotations.\n\nDefaults are the nf-core chipseq S. cerevisiae Spt5 ChIP IP sample SRR5204807 and matched input control SRR5204809, with the yeast genome and gene BED from the same pinned test-dataset revision. These are small upstream test subsets, not a synthetic 2 kb genome. Replace reads, reference, and annotations together for a study."
       },
       "ui": {
         "title": "Notes",
@@ -24,7 +24,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        80
+        164
       ],
       "params": {
         "sample_name": "treatment",
@@ -52,7 +52,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        270
+        354
       ],
       "params": {
         "sample_name": "control",
@@ -80,7 +80,7 @@
       "type": "input_file",
       "position": [
         80,
-        611
+        544
       ],
       "params": {
         "file": "https://raw.githubusercontent.com/nf-core/test-datasets/dc342f94ec86799d7bd635e7192b1cbb3654b559/reference/genes.bed"
@@ -103,7 +103,7 @@
       "type": "bedtools_sortbed",
       "position": [
         2600,
-        80
+        510
       ],
       "params": {
         "sort_by": ""
@@ -116,8 +116,8 @@
       "id": "sort_peak_annotations_bed_001",
       "type": "bedtools_sortbed",
       "position": [
-        2600,
-        300
+        440,
+        366
       ],
       "params": {
         "sort_by": ""
@@ -131,7 +131,7 @@
       "type": "samtools_view",
       "position": [
         1520,
-        80
+        214
       ],
       "params": {
         "threads": 4
@@ -145,7 +145,7 @@
       "type": "bowtie2_align",
       "position": [
         1160,
-        80
+        141
       ],
       "params": {
         "threads": 8
@@ -173,7 +173,7 @@
       "type": "gate",
       "position": [
         800,
-        80
+        301
       ],
       "params": {
         "condition_mode": "is_not_empty",
@@ -189,7 +189,7 @@
       "type": "fastp",
       "position": [
         440,
-        454
+        552
       ],
       "params": {
         "threads": 4
@@ -203,7 +203,7 @@
       "type": "gate",
       "position": [
         800,
-        430
+        532
       ],
       "params": {
         "condition_mode": "is_not_empty",
@@ -219,7 +219,7 @@
       "type": "bowtie2_align",
       "position": [
         1160,
-        1056
+        677
       ],
       "params": {
         "threads": 8
@@ -233,7 +233,7 @@
       "type": "samtools_view",
       "position": [
         1520,
-        714
+        661
       ],
       "params": {
         "threads": 4
@@ -247,7 +247,7 @@
       "type": "samtools_sort",
       "position": [
         1880,
-        650
+        532
       ],
       "params": {
         "threads": 4
@@ -261,7 +261,7 @@
       "type": "samtools_sort",
       "position": [
         1880,
-        80
+        365
       ],
       "params": {
         "threads": 4
@@ -275,7 +275,7 @@
       "type": "macs2_callpeak",
       "position": [
         2240,
-        80
+        278
       ],
       "params": {
         "name": "chip_smoke",
@@ -301,7 +301,7 @@
       "type": "samtools_index",
       "position": [
         2240,
-        300
+        618
       ],
       "params": {},
       "ui": {
@@ -312,8 +312,8 @@
       "id": "coverage_001",
       "type": "deeptools_bamcoverage",
       "position": [
-        2240,
-        522
+        2600,
+        200
       ],
       "params": {
         "threads": 4,
@@ -330,7 +330,7 @@
       "type": "bedtools_closest",
       "position": [
         2960,
-        80
+        249
       ],
       "params": {
         "distance": true,
@@ -345,7 +345,7 @@
       "type": "coverage_plot",
       "position": [
         2960,
-        430
+        456
       ],
       "params": {
         "region": "XVI:920000-940000",
@@ -362,7 +362,7 @@
       "type": "fastqc",
       "position": [
         1160,
-        544
+        387
       ],
       "params": {
         "threads": 4
@@ -376,7 +376,7 @@
       "type": "multiqc",
       "position": [
         1520,
-        362
+        402
       ],
       "params": {
         "title": "ChIP-Seq QC"
@@ -398,8 +398,8 @@
       "id": "render_macs2_tab_0",
       "type": "table_preview",
       "position": [
-        3320,
-        80
+        2600,
+        696
       ],
       "params": {},
       "ui": {
@@ -411,7 +411,7 @@
       "type": "table_preview",
       "position": [
         3320,
-        300
+        448
       ],
       "params": {},
       "ui": {
@@ -423,7 +423,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        340
+        732
       ],
       "params": {
         "file": "https://raw.githubusercontent.com/nf-core/test-datasets/dc342f94ec86799d7bd635e7192b1cbb3654b559/reference/genome.fa",
@@ -437,8 +437,8 @@
       "id": "bt2build_001",
       "type": "bowtie2_build",
       "position": [
-        80,
-        460
+        440,
+        838
       ],
       "params": {
         "threads": 8

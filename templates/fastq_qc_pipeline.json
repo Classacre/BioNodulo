@@ -8,11 +8,11 @@
       "id": "note_fastq_qc_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "FASTQ quality control: trims reads with fastp, runs FastQC, and aggregates reports with MultiQC.\n\nIncludes a sample sheet input and validator to demonstrate batch metadata capture alongside the single-sample FASTQ path.\n\nData source: OpenGene fastp test data (https://github.com/OpenGene/fastp/tree/master/testdata). Small paired-end Illumina reads for demonstration.\nFiles: R1.fq (3,041 bytes), R2.fq (3,343 bytes)."
+        "text": "FASTQ quality control: trim paired reads with fastp, run FastQC, and aggregate the reports with MultiQC. Quality gates and preview nodes expose the resulting artifacts.\n\nThe default reads are the small Illumina test_1/test_2 FASTQs from the nf-core SARS-CoV-2 test-data collection, pinned to a repository revision. Replace both read inputs together for your own sample."
       },
       "ui": {
         "title": "Notes",
@@ -24,7 +24,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        80
+        278
       ],
       "params": {
         "sample_name": "sample1",
@@ -52,7 +52,7 @@
       "type": "fastqc",
       "position": [
         800,
-        80
+        228
       ],
       "params": {
         "threads": 4
@@ -66,7 +66,7 @@
       "type": "fastp",
       "position": [
         440,
-        80
+        230
       ],
       "params": {
         "threads": 4
@@ -106,7 +106,7 @@
       "type": "data_validator",
       "position": [
         1520,
-        80
+        136
       ],
       "params": {
         "expected_format": "text",
@@ -122,7 +122,7 @@
       "type": "gate",
       "position": [
         1880,
-        80
+        199
       ],
       "params": {
         "condition_mode": "boolean_is_true",
@@ -138,7 +138,7 @@
       "type": "qc_dashboard",
       "position": [
         1160,
-        432
+        339
       ],
       "params": {
         "run_name": "FastQ QC",
@@ -154,7 +154,7 @@
       "type": "html_preview",
       "position": [
         1520,
-        261
+        493
       ],
       "params": {},
       "ui": {

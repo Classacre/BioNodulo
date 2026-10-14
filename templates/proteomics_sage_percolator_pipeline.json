@@ -23,11 +23,11 @@
       "id": "note_proteomics_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "Proteomics DDA search workflow: validate spectra and a target-decoy FASTA, run Sage with PIN output enabled, then stage Sage 0.14.7's full-digest PIN dialect for Percolator PSM and picked-protein FDR estimates. The staging step adds the flanking syntax required by Percolator protein inference and expands Sage's semicolon-joined protein identifiers.\n\nInputs are placeholders. Provide mzML, gzipped mzML, or MGF spectra and a target-decoy protein FASTA with DECOY_-prefixed decoy accessions before execution."
+        "text": "Proteomics DDA search example: search centroided spectra with Sage, then stage its full-digest PIN dialect for Percolator PSM and picked-protein FDR estimation. The staging step adds flanking syntax and expands semicolon-joined protein identifiers.\n\nDefaults are the real nf-core quantms BSA1_F1.mzML acquisition and its matching BSA protein FASTA. The FASTA is target-only despite its local target_decoy name; Sage generates rev_-prefixed decoys and Percolator uses the same prefix. Replace spectra and database together for another experiment."
       },
       "ui": {
         "title": "Notes",
@@ -39,7 +39,7 @@
       "type": "input_file",
       "position": [
         80,
-        80
+        131
       ],
       "params": {
         "file": "examples/data/proteomics/sample.mzML"
@@ -62,7 +62,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        231
+        319
       ],
       "params": {
         "reference": "examples/data/proteomics/target_decoy.fasta"
@@ -86,7 +86,7 @@
       "type": "sage_search",
       "position": [
         440,
-        80
+        89
       ],
       "params": {
         "batch_size": 1,
@@ -144,8 +144,8 @@
       "id": "render_percolator_tab_0",
       "type": "table_preview",
       "position": [
-        1520,
-        80
+        1160,
+        142
       ],
       "params": {},
       "ui": {
@@ -156,8 +156,8 @@
       "id": "render_percolator_tab_1",
       "type": "table_preview",
       "position": [
-        1520,
-        300
+        1160,
+        309
       ],
       "params": {},
       "ui": {
@@ -168,8 +168,8 @@
       "id": "render_sage_search_tab_2",
       "type": "table_preview",
       "position": [
-        1520,
-        520
+        800,
+        371
       ],
       "params": {},
       "ui": {

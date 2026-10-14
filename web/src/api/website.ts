@@ -240,6 +240,25 @@ export interface CloudRunSnapshot {
   completedAt: string | null;
 }
 
+export interface CloudRunSummary {
+  id: string;
+  workflowId: string | null;
+  workflowName: string | null;
+  status: string;
+  createdAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMs: number | null;
+  creditsUsed: number | null;
+}
+
+/** Bounded, team-scoped metadata for restoring the editor's cloud run drawer. */
+export async function listCloudRunSummaries(): Promise<CloudRunSummary[]> {
+  const summaries = await call<CloudRunSummary[]>('/runs?view=summary');
+  if (!Array.isArray(summaries)) throw new Error('Could not restore cloud run history');
+  return summaries.filter(run => typeof run?.id === 'string' && typeof run.status === 'string').slice(0, 50);
+}
+
 /**
  * Poll a single run's snapshot (status + accumulated logs). Returns null on a
  * transient error so the poller can keep trying. The endpoint returns a plain

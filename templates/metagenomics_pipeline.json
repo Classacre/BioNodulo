@@ -8,11 +8,11 @@
       "id": "note_metagenomics_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "Metagenomics pipeline: classifies taxa with Kraken2/Bracken and MetaPhlAn, profiles functions with HUMAnN, and renders Krona taxonomy.\n\nData source: Zenodo record 17661262 (Galaxy Training Network).\nreads_forward.fastq (3.0M), reads_reverse.fastq (3.0M).\nCoffee fermentation metagenome subset for assembly tutorial.\nURL: https://zenodo.org/records/17661262\nAll database, taxonomy, and HUMAnN single-file inputs are explicit placeholders and must be staged before execution."
+        "text": "Metagenomics examples: Kraken2/Bracken classification, MetaPhlAn profiling, HUMAnN functional profiling, and Krona visualization.\n\nThe main read branch uses the pinned nf-core SARS-CoV-2 Illumina test pair and a Kraken viral database. MetaPhlAn uses its small vJan21 TOY database. HUMAnN independently uses its own published demo reads, compatible taxonomic profile, and DEMO ChocoPhlAn/UniRef collections. Krona builds taxonomy from the NCBI taxdump.\n\nThe branches use different demonstration inputs; outputs do not represent a matched taxonomic/functional study. Supply consistent study reads and databases before biological interpretation."
       },
       "ui": {
         "title": "Notes",
@@ -24,7 +24,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        80
+        83
       ],
       "params": {
         "sample_name": "sample1",
@@ -52,7 +52,7 @@
       "type": "input_directory",
       "position": [
         80,
-        270
+        273
       ],
       "params": {
         "directory": "https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20240112.tar.gz",
@@ -76,7 +76,7 @@
       "type": "input_directory",
       "position": [
         80,
-        430
+        391
       ],
       "params": {
         "directory": "http://cmprod1.cibio.unitn.it/biobakery4/metaphlan_databases/mpa_vJan21_TOY_CHOCOPhlAnSGB_202103.tar",
@@ -90,8 +90,8 @@
       "id": "metaphlan_build_index_001",
       "type": "metaphlan_build_index",
       "position": [
-        260,
-        430
+        440,
+        978
       ],
       "params": {
         "index": "mpa_vJan21_TOY_CHOCOPhlAnSGB_202103",
@@ -115,7 +115,7 @@
       "type": "input_file",
       "position": [
         80,
-        590
+        509
       ],
       "params": {
         "file": "https://raw.githubusercontent.com/biobakery/humann/9c6dfef873837c0ed281e1093718769d1aea98c9/examples/demo.fastq.gz",
@@ -130,7 +130,7 @@
       "type": "input_directory",
       "position": [
         80,
-        750
+        697
       ],
       "params": {
         "directory": "http://huttenhower.sph.harvard.edu/humann_data/chocophlan/DEMO_chocophlan.v201901_v31.tar.gz",
@@ -145,7 +145,7 @@
       "type": "input_directory",
       "position": [
         80,
-        910
+        815
       ],
       "params": {
         "directory": "http://huttenhower.sph.harvard.edu/humann_data/uniprot/uniref_annotated/uniref90_DEMO_diamond_v201901b.tar.gz",
@@ -160,7 +160,7 @@
       "type": "input_file",
       "position": [
         80,
-        1070
+        933
       ],
       "params": {
         "file": "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz",
@@ -183,8 +183,8 @@
       "id": "krona_build_taxonomy_001",
       "type": "krona_build_taxonomy",
       "position": [
-        260,
-        1070
+        440,
+        1145
       ],
       "params": {},
       "ui": {
@@ -205,7 +205,7 @@
       "type": "fastp",
       "position": [
         440,
-        80
+        129
       ],
       "params": {
         "threads": 4
@@ -235,7 +235,7 @@
       "type": "kraken2",
       "position": [
         1520,
-        80
+        597
       ],
       "params": {
         "threads": 8
@@ -249,7 +249,7 @@
       "type": "retry",
       "position": [
         1160,
-        80
+        88
       ],
       "params": {
         "max_retries": 2,
@@ -268,7 +268,7 @@
       "type": "bracken",
       "position": [
         1880,
-        80
+        496
       ],
       "params": {
         "level": "S"
@@ -291,7 +291,7 @@
       "type": "bar_chart",
       "position": [
         2240,
-        568
+        425
       ],
       "params": {
         "title": "Bracken Taxonomic Composition",
@@ -309,7 +309,7 @@
       "type": "metaphlan",
       "position": [
         1160,
-        261
+        361
       ],
       "params": {
         "threads": 8,
@@ -333,7 +333,7 @@
       "type": "bar_chart",
       "position": [
         1520,
-        474
+        921
       ],
       "params": {
         "title": "MetaPhlAn Relative Abundance",
@@ -350,8 +350,8 @@
       "id": "humann_001",
       "type": "humann",
       "position": [
-        1520,
-        1170
+        800,
+        311
       ],
       "params": {
         "threads": 8
@@ -378,8 +378,8 @@
       "id": "humann_retry_001",
       "type": "retry",
       "position": [
-        1160,
-        703
+        440,
+        415
       ],
       "params": {
         "max_retries": 2,
@@ -397,8 +397,8 @@
       "id": "humann_pathcoverage_bar_001",
       "type": "bar_chart",
       "position": [
-        1880,
-        362
+        1160,
+        811
       ],
       "params": {
         "title": "HUMAnN Pathway Coverage",
@@ -416,7 +416,7 @@
       "type": "fastqc",
       "position": [
         440,
-        454
+        688
       ],
       "params": {
         "threads": 4
@@ -430,7 +430,7 @@
       "type": "multiqc",
       "position": [
         800,
-        430
+        725
       ],
       "params": {
         "title": "Metagenomics QC"
@@ -453,7 +453,7 @@
       "type": "qc_dashboard",
       "position": [
         800,
-        782
+        984
       ],
       "params": {
         "run_name": "Metagenomics QC",
@@ -469,7 +469,7 @@
       "type": "html_preview",
       "position": [
         1160,
-        1218
+        1185
       ],
       "params": {},
       "ui": {
@@ -480,8 +480,8 @@
       "id": "render_bracken_tab_0",
       "type": "table_preview",
       "position": [
-        2960,
-        80
+        2240,
+        799
       ],
       "params": {},
       "ui": {
@@ -492,8 +492,8 @@
       "id": "render_humann_tab_0",
       "type": "table_preview",
       "position": [
-        2600,
-        80
+        1520,
+        96
       ],
       "params": {},
       "ui": {
@@ -504,8 +504,8 @@
       "id": "render_humann_tab_1",
       "type": "table_preview",
       "position": [
-        2600,
-        300
+        1520,
+        263
       ],
       "params": {},
       "ui": {
@@ -516,8 +516,8 @@
       "id": "render_humann_tab_2",
       "type": "table_preview",
       "position": [
-        2600,
-        520
+        1520,
+        430
       ],
       "params": {},
       "ui": {
@@ -529,7 +529,7 @@
       "type": "krona",
       "position": [
         1880,
-        340
+        706
       ],
       "params": {
         "query_column": 2,
@@ -546,10 +546,10 @@
         "file": "https://raw.githubusercontent.com/biobakery/humann/9c6dfef873837c0ed281e1093718769d1aea98c9/humann/tests/data/demo_metaphlan_bugs_list.tsv",
         "source": "url"
       },
-      "position": {
-        "x": -560,
-        "y": 1180
-      }
+      "position": [
+        80,
+        1121
+      ]
     }
   ],
   "edges": [

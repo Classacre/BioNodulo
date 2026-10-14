@@ -27,11 +27,11 @@
       "id": "note_protein_structure_database_workflow",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "Protein structure database workflow: search UniProtKB for reviewed human TP53 entries, retrieve the P04637 FASTA sequence, fetch the AlphaFold DB predicted mmCIF model and PAE metadata, download an RCSB PDB mmCIF structure, validate each file artifact, and preview the resulting TSV, FASTA, and JSON text.\n\nThe UniProt summary uses the delimited-table preview. FASTA and JSON artifacts use bounded text previews because they are not tabular inputs."
+        "text": "Protein structure database examples: search UniProtKB for reviewed human TP53 entries, retrieve the P04637 sequence, and download its AlphaFold predicted mmCIF model and PAE metadata.\n\nThe independent RCSB download branch uses structure 4HHB, a hemoglobin structure, to demonstrate PDB retrieval. It is not experimental validation of the TP53 prediction.\n\nThe UniProt summary uses a table preview. FASTA and JSON use bounded text previews; downloaded structure files remain available as artifacts."
       },
       "ui": {
         "title": "Notes",
@@ -43,7 +43,7 @@
       "type": "uniprot_search",
       "position": [
         80,
-        80
+        115
       ],
       "params": {
         "query": "gene:TP53 AND organism_id:9606",
@@ -70,7 +70,7 @@
       "type": "uniprot_retrieve",
       "position": [
         80,
-        261
+        467
       ],
       "params": {
         "uniprot_ids": "P04637",
@@ -94,8 +94,8 @@
       "id": "alphafold_db_001",
       "type": "alphafold_db",
       "position": [
-        80,
-        442
+        440,
+        124
       ],
       "params": {
         "uniprot_ids": "P04637",
@@ -135,8 +135,8 @@
       "id": "pdb_download_001",
       "type": "pdb_download",
       "position": [
-        80,
-        623
+        440,
+        436
       ],
       "params": {
         "pdb_ids": "4HHB",
@@ -184,7 +184,7 @@
       "type": "text_preview",
       "position": [
         800,
-        261
+        247
       ],
       "params": {},
       "ui": {
@@ -196,7 +196,7 @@
       "type": "text_preview",
       "position": [
         800,
-        442
+        414
       ],
       "params": {},
       "ui": {
@@ -208,7 +208,7 @@
       "type": "text_preview",
       "position": [
         800,
-        623
+        581
       ],
       "params": {},
       "ui": {

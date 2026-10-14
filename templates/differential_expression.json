@@ -8,11 +8,11 @@
       "id": "note_differential_expression",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "Transcript quantification pipeline: indexes a transcriptome and estimates transcript abundance with Salmon and Kallisto.\nData: S. cerevisiae RNA-seq reads SRR6357071 (subsampled) from nf-core/test-datasets GSE110004. Transcriptome from Ensembl Saccharomyces_cerevisiae.R64-1-1.cdna.all.\nSources: https://github.com/nf-core/test-datasets | https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/"
+        "text": "Transcript quantification pipeline: index a transcriptome and estimate abundance independently with Salmon and Kallisto.\n\nDefaults use the paired S. cerevisiae RNA-seq subset SRR6357072 from the pinned nf-core/test-datasets GSE110004 fixture and the Ensembl S. cerevisiae R64-1-1 cDNA reference. This is a single-sample quantification example, not a differential-expression comparison."
       },
       "ui": {
         "title": "Notes",
@@ -24,7 +24,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        80
+        300
       ],
       "params": {
         "sample_name": "ctrl_rep1",
@@ -52,7 +52,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        270
+        490
       ],
       "params": {
         "reference": "https://ftp.ensembl.org/pub/current_fasta/saccharomyces_cerevisiae/cdna/Saccharomyces_cerevisiae.R64-1-1.cdna.all.fa.gz"
@@ -76,7 +76,7 @@
       "type": "salmon_index",
       "position": [
         440,
-        80
+        311
       ],
       "params": {},
       "ui": {
@@ -88,7 +88,7 @@
       "type": "salmon_quant",
       "position": [
         800,
-        80
+        179
       ],
       "params": {
         "threads": 8
@@ -102,7 +102,7 @@
       "type": "kallisto_index",
       "position": [
         440,
-        316
+        478
       ],
       "params": {},
       "ui": {
@@ -114,7 +114,7 @@
       "type": "kallisto_quant",
       "position": [
         800,
-        498
+        466
       ],
       "params": {
         "threads": 8
@@ -128,7 +128,7 @@
       "type": "extract_columns",
       "position": [
         1160,
-        432
+        339
       ],
       "params": {
         "columns": "Name,TPM,NumReads",
@@ -144,7 +144,7 @@
       "type": "extract_columns",
       "position": [
         1160,
-        898
+        608
       ],
       "params": {
         "columns": "target_id,tpm,est_counts",
@@ -160,7 +160,7 @@
       "type": "join_tables",
       "position": [
         1520,
-        80
+        519
       ],
       "params": {
         "join_keys": "target_id",
@@ -200,8 +200,8 @@
       "id": "render_salmon_quant_tab_0",
       "type": "table_preview",
       "position": [
-        2240,
-        80
+        1520,
+        185
       ],
       "params": {},
       "ui": {
@@ -212,8 +212,8 @@
       "id": "render_kallisto_quant_tab_1",
       "type": "table_preview",
       "position": [
-        2240,
-        300
+        1520,
+        352
       ],
       "params": {},
       "ui": {
@@ -224,8 +224,8 @@
       "id": "render_quant_comparison_tab_2",
       "type": "table_preview",
       "position": [
-        2240,
-        520
+        1880,
+        395
       ],
       "params": {},
       "ui": {

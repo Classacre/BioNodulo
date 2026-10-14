@@ -32,7 +32,7 @@
       "id": "note_long_read_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
@@ -48,7 +48,7 @@
       "type": "input_directory",
       "position": [
         80,
-        80
+        229
       ],
       "params": {
         "directory": "https://raw.githubusercontent.com/nf-core/test-datasets/e89cc625a41689dc9d0abf50289ec90aa9284b19/data/genomics/sarscov2/nanopore/pod5/test.pod5",
@@ -72,7 +72,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        231
+        347
       ],
       "params": {
         "reference": "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr22.fa.gz",
@@ -97,7 +97,7 @@
       "type": "input_directory",
       "position": [
         80,
-        382
+        514
       ],
       "params": {
         "directory": "https://cdn.oxfordnanoportal.com/software/analysis/dorado/dna_r9.4.1_e8_fast@v3.4.zip",
@@ -121,7 +121,7 @@
       "type": "input_directory",
       "position": [
         80,
-        533
+        632
       ],
       "params": {
         "directory": "https://cdn.oxfordnanoportal.com/software/analysis/dorado/dna_r9.4.1_e8_fast@v3.4_5mCG@v0.1.zip",
@@ -145,7 +145,7 @@
       "type": "samtools_faidx",
       "position": [
         440,
-        231
+        395
       ],
       "params": {
         "threads": 1
@@ -159,7 +159,7 @@
       "type": "dorado_basecaller",
       "position": [
         800,
-        80
+        343
       ],
       "params": {
         "trim": "all",
@@ -175,7 +175,7 @@
       "type": "gate",
       "position": [
         1160,
-        80
+        190
       ],
       "params": {
         "condition_mode": "file_exists",
@@ -190,8 +190,8 @@
       "id": "samtools_fastx_001",
       "type": "samtools_fastx",
       "position": [
-        1880,
-        382
+        1520,
+        247
       ],
       "params": {
         "threads": 8,
@@ -208,8 +208,8 @@
       "id": "validate_selected_fastq_001",
       "type": "data_validator",
       "position": [
-        2240,
-        382
+        1880,
+        311
       ],
       "params": {
         "expected_format": "fastq",
@@ -225,8 +225,8 @@
       "id": "chopper_001",
       "type": "chopper_filter",
       "position": [
-        2600,
-        382
+        2240,
+        313
       ],
       "params": {
         "min_quality": 7,
@@ -253,8 +253,8 @@
       "id": "gate_filtered_reads_001",
       "type": "gate",
       "position": [
-        2960,
-        382
+        2600,
+        374
       ],
       "params": {
         "condition_mode": "is_not_empty",
@@ -269,8 +269,8 @@
       "id": "nanoplot_001",
       "type": "nanoplot",
       "position": [
-        3320,
-        382
+        2960,
+        303
       ],
       "params": {
         "threads": 8,
@@ -296,8 +296,8 @@
       "id": "modkit_001",
       "type": "modkit_pileup",
       "position": [
-        1520,
-        650
+        1160,
+        421
       ],
       "params": {
         "threads": 8,
@@ -314,8 +314,8 @@
       "id": "render_nanoplot_tab_0",
       "type": "table_preview",
       "position": [
-        4040,
-        160
+        3320,
+        406
       ],
       "params": {},
       "ui": {
@@ -326,8 +326,8 @@
       "id": "render_modkit_tab_1",
       "type": "table_preview",
       "position": [
-        4040,
-        380
+        1520,
+        80
       ],
       "params": {},
       "ui": {

@@ -8,11 +8,11 @@
       "id": "note_rna_seq_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "RNA-Seq pipeline: aligns reads with HISAT2, sorts BAM, and counts features with featureCounts.\nData: S. cerevisiae RNA-seq reads SRR6357070 (subsampled) from nf-core/test-datasets GSE110004. Reference genome + GFF from NCBI RefSeq GCF_000146045.2 (R64).\nSources: https://github.com/nf-core/test-datasets | https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000146045.2/"
+        "text": "RNA-Seq example: trim and align reads with HISAT2, sort/index BAM, count annotated features with featureCounts, and preview quality-control and expression outputs.\n\nDefaults use the paired S. cerevisiae RNA-seq subset SRR6357072 from the pinned nf-core/test-datasets GSE110004 fixture. Genome and GFF annotation are the matching S288C R64 RefSeq assembly GCF_000146045.2. This single-sample fixture demonstrates execution and reporting, not a differential-expression comparison."
       },
       "ui": {
         "title": "Notes",
@@ -24,7 +24,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        80
+        390
       ],
       "params": {
         "sample_name": "sample1",
@@ -52,7 +52,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        270
+        580
       ],
       "params": {
         "reference": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.fna.gz"
@@ -76,7 +76,7 @@
       "type": "hisat2_build",
       "position": [
         440,
-        454
+        552
       ],
       "params": {
         "threads": 4
@@ -90,7 +90,7 @@
       "type": "fastp",
       "position": [
         440,
-        80
+        266
       ],
       "params": {
         "threads": 4
@@ -104,7 +104,7 @@
       "type": "gate",
       "position": [
         800,
-        80
+        512
       ],
       "params": {
         "condition_mode": "is_not_empty",
@@ -120,7 +120,7 @@
       "type": "hisat2_align",
       "position": [
         1160,
-        80
+        504
       ],
       "params": {
         "threads": 8
@@ -134,7 +134,7 @@
       "type": "samtools_view",
       "position": [
         1520,
-        80
+        533
       ],
       "params": {
         "threads": 4
@@ -148,7 +148,7 @@
       "type": "samtools_sort",
       "position": [
         1880,
-        80
+        544
       ],
       "params": {
         "threads": 4
@@ -162,7 +162,7 @@
       "type": "input_gff",
       "position": [
         80,
-        421
+        747
       ],
       "params": {
         "annotation": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/146/045/GCF_000146045.2_R64/GCF_000146045.2_R64_genomic.gff.gz"
@@ -201,7 +201,7 @@
       "type": "normalize_data",
       "position": [
         2600,
-        80
+        596
       ],
       "params": {
         "method": "cpm",
@@ -218,7 +218,7 @@
       "type": "r_pheatmap",
       "position": [
         2960,
-        80
+        807
       ],
       "params": {
         "scale": "none",
@@ -236,7 +236,7 @@
       "type": "fastqc",
       "position": [
         440,
-        644
+        698
       ],
       "params": {
         "threads": 4
@@ -250,7 +250,7 @@
       "type": "multiqc",
       "position": [
         2600,
-        500
+        847
       ],
       "params": {
         "title": "RNA-Seq QC"
@@ -272,8 +272,8 @@
       "id": "qualimap_001",
       "type": "qualimap",
       "position": [
-        2240,
-        522
+        2600,
+        149
       ],
       "params": {
         "threads": 4,
@@ -302,7 +302,7 @@
       "type": "samtools_flagstat",
       "position": [
         2240,
-        826
+        1029
       ],
       "params": {},
       "ui": {
@@ -313,8 +313,8 @@
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
-        2600,
-        852
+        2960,
+        145
       ],
       "params": {
         "run_name": "RNA-Seq QC",
@@ -329,8 +329,8 @@
       "id": "qc_dashboard_preview_001",
       "type": "html_preview",
       "position": [
-        2960,
-        868
+        3320,
+        485
       ],
       "params": {},
       "ui": {
@@ -341,8 +341,8 @@
       "id": "render_counts_tab_0",
       "type": "table_preview",
       "position": [
-        3680,
-        80
+        2960,
+        473
       ],
       "params": {},
       "ui": {
@@ -353,8 +353,8 @@
       "id": "render_normalize_counts_tab_1",
       "type": "table_preview",
       "position": [
-        3680,
-        300
+        3320,
+        603
       ],
       "params": {},
       "ui": {
@@ -366,7 +366,7 @@
       "type": "table_preview",
       "position": [
         2960,
-        1512
+        640
       ],
       "params": {},
       "ui": {

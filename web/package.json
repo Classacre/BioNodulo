@@ -20,7 +20,7 @@
     "test:e2e:firefox": "playwright test --config playwright.firefox.config.ts"
   },
   "dependencies": {
-    "@clerk/clerk-js": "^6.18.1",
+    "@clerk/clerk-js": "^6.39.0",
     "@dagrejs/dagre": "^3.0.0",
     "@modelcontextprotocol/ext-apps": "1.7.5",
     "@xyflow/react": "^12.11.1",
@@ -35,14 +35,6 @@
     "y-protocols": "^1.0.6",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.24"
-  },
-  "overrides": {
-    "@solana/web3.js": {
-      "jayson": "5.0.0"
-    },
-    "metro": {
-      "image-size": "2.0.3"
-    }
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

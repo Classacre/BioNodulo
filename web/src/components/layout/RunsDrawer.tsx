@@ -31,6 +31,7 @@ interface RunsDrawerProps {
   onMoveRun?: (run: RunRecord, direction: QueueMoveDirection) => void;
   onClearQueue?: () => void;
   onClearHistory?: () => void;
+  allowCompare?: boolean;
 }
 
 function runStatusLabel(t: TFunction, status: RunRecord['status'] | 'failed'): string {
@@ -202,14 +203,14 @@ function QueueRunCard({
         </div>
       </div>
       <div className="queue-run-actions">
-        {onMoveRun && (
+        {onMoveRun && run.options?.cloud !== true && (
           <>
             <RunActionButton title={t('console.moveEarlier')} icon="chevronUp" onClick={() => onMoveRun(run, 'up')} disabled={!canMove || index === 0} />
             <RunActionButton title={t('console.moveLater')} icon="chevronDown" onClick={() => onMoveRun(run, 'down')} disabled={!canMove || index === totalRuns - 1} />
           </>
         )}
         {onRetryRun && canRetry && (
-          <RunActionButton title={t('console.retryRun')} icon="play" onClick={() => onRetryRun(run)} />
+          <RunActionButton title={run.options?.cloud === true ? t('console.openToRetry', { defaultValue: 'Open to retry' }) : t('console.retryRun')} icon="play" onClick={() => onRetryRun(run)} />
         )}
         {onCancelRun && canCancel && (
           <RunActionButton title={t('console.cancelRun')} icon="stop" onClick={() => onCancelRun(run)} />
@@ -298,9 +299,9 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
           />
         )}
         {onRetryRun && canRetry && (
-          <RunActionButton title={t('console.retryRun')} icon="play" onClick={() => onRetryRun(run)} />
+          <RunActionButton title={run.options?.cloud === true ? t('console.openToRetry', { defaultValue: 'Open to retry' }) : t('console.retryRun')} icon="play" onClick={() => onRetryRun(run)} />
         )}
-        {onDeleteHistoryEntry && (
+        {onDeleteHistoryEntry && run.options?.cloud !== true && (
           <RunActionButton
             title={t('console.deleteHistoryRun')}
             icon="close"
@@ -328,6 +329,7 @@ export default function RunsDrawer({
   onMoveRun,
   onClearQueue,
   onClearHistory,
+  allowCompare = true,
 }: RunsDrawerProps) {
   const { t, i18n } = useTranslation();
   const batchCount = useAtomValue(batchCountAtom);
@@ -436,21 +438,21 @@ export default function RunsDrawer({
       </div>
 
       <div className="runs-drawer-actions">
-        {onClearQueue && queue.length > 0 && (
+        {onClearQueue && queue.length > 0 && queue.every(run => run.options?.cloud !== true) && (
           <button className="btn btn-sm btn-ghost" onClick={onClearQueue} type="button" title={t('console.clearQueuedRuns')}>
             <Icon name="trash" size={12} /> {t('console.clearQueue')}
           </button>
         )}
-        <button
+        {allowCompare && <button
           type="button"
           className="btn btn-sm btn-ghost"
           onClick={() => setShowOutputDiff(true)}
-          disabled={historicalRuns.length < 1}
+          disabled={!historicalRuns.some(run => run.options?.cloud !== true)}
           title={t('console.compareRunsTitle')}
         >
           <Icon name="layers" size={12} /> {t('console.compareRuns')}
-        </button>
-        {onClearHistory && historicalRuns.length > 0 && (
+        </button>}
+        {onClearHistory && historicalRuns.length > 0 && historicalRuns.every(run => run.options?.cloud !== true) && (
           <button className="btn btn-sm btn-ghost" onClick={onClearHistory} type="button" title={t('console.clearHistoryTitle')}>
             <Icon name="trash" size={12} /> {t('console.clearHistory')}
           </button>

@@ -205,7 +205,23 @@ def _cwl_runner_command(tool: dict, replacements: dict[str, str]) -> list[str]:
         if argument.startswith("$(String(inputs.") and argument.endswith("))"):
             argument = "$(inputs." + argument[len("$(String(inputs."):-2] + ")"
         return replacements.get(argument, argument)
-    return [*tool["baseCommand"], *(replace(argument) for argument in tool["arguments"])]
+    command = [*tool["baseCommand"], *(replace(argument) for argument in tool["arguments"])]
+    # Execute the portable export inside this test's installed environment.
+    # Windows can otherwise resolve bare "python" to the venv's base runtime.
+    if command[0] in {"python", "python3"}:
+        command[0] = sys.executable
+    return command
+
+
+@pytest.mark.parametrize("executable", ["python", "python3", "custom-runner"])
+def test_cwl_test_runner_preserves_argv_and_only_selects_the_active_python(executable: str) -> None:
+    tool = {"baseCommand": [executable, "-m", "example.module"], "arguments": ["--value", "$(inputs.value)"]}
+    command = _cwl_runner_command(tool, {"$(inputs.value)": "a path with spaces"})
+    assert command == [
+        sys.executable if executable in {"python", "python3"} else executable,
+        "-m", "example.module", "--value", "a path with spaces",
+    ]
+    assert tool["baseCommand"][0] == executable
 
 
 def test_export_workflow_delegates_to_pipeline_converters() -> None:
@@ -546,7 +562,7 @@ def test_cwl_exported_normalize_data_command_executes(tmp_path: Path) -> None:
         "$(inputs.table.path)": str(table),
         **{f"$(inputs.{name})": str(value) for name, value in defaults.items() if value is not None},
     }
-    command = [*tool["baseCommand"], *(replacements.get(argument, argument) for argument in tool["arguments"])]
+    command = _cwl_runner_command(tool, replacements)
     completed = subprocess.run(command, cwd=tmp_path, check=False, capture_output=True, text=True)
 
     assert completed.returncode == 0, completed.stderr

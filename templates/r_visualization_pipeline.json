@@ -25,7 +25,7 @@
       "id": "note_r_viz",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
@@ -41,7 +41,7 @@
       "type": "r_dataframe_builder",
       "position": [
         80,
-        80
+        91
       ],
       "params": {
         "x_column": "Sample",
@@ -60,7 +60,7 @@
       "type": "r_plot",
       "position": [
         440,
-        80
+        612
       ],
       "params": {
         "data_csv": "",
@@ -83,7 +83,7 @@
       "type": "r_dataframe_builder",
       "position": [
         80,
-        478
+        435
       ],
       "params": {
         "x_column": "Mean_Expression",
@@ -101,8 +101,8 @@
       "id": "expr_plot_001",
       "type": "r_plot",
       "position": [
-        440,
-        684
+        800,
+        194
       ],
       "params": {
         "data_csv": "",
@@ -125,7 +125,7 @@
       "type": "input_file",
       "position": [
         80,
-        876
+        779
       ],
       "params": {
         "file": "templates/data/smoke/heatmap_data.csv"
@@ -149,8 +149,8 @@
       "id": "heatmap_annotation_001",
       "type": "input_file",
       "position": [
-        80,
-        1288
+        440,
+        80
       ],
       "params": {
         "file": "templates/data/smoke/heatmap_annotation.csv"
@@ -173,8 +173,8 @@
       "id": "de_results_df_001",
       "type": "r_dataframe_builder",
       "position": [
-        80,
-        1027
+        440,
+        268
       ],
       "params": {
         "x_column": "baseMean",
@@ -192,8 +192,8 @@
       "id": "pheatmap_001",
       "type": "r_pheatmap",
       "position": [
-        440,
-        1288
+        800,
+        560
       ],
       "params": {
         "data_csv": "",
@@ -214,8 +214,8 @@
       "id": "volcano_001",
       "type": "volcano_plot",
       "position": [
-        440,
-        1822
+        1160,
+        89
       ],
       "params": {
         "title": "Differential Expression Volcano Plot",
@@ -231,8 +231,8 @@
       "id": "ma_plot_001",
       "type": "ma_plot",
       "position": [
-        440,
-        2656
+        1160,
+        529
       ],
       "params": {
         "title": "Differential Expression MA Plot",

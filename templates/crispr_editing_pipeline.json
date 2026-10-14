@@ -29,11 +29,11 @@
       "id": "note_crispr_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "CRISPR workflow: import genome, amplicon FASTQ, pooled-screen FASTQ, and sgRNA library inputs with inline validation; design guides from a target interval; run Cas-OFFinder for candidate off-targets; quantify amplicon editing with CRISPResso2; count and rank pooled-screen sgRNAs with MAGeCK; then collect the core outputs into an HTML report.\n\nInputs are placeholders. Set the genome FASTA, edited amplicon FASTQs, pooled-screen FASTQs, and sgRNA library before execution. Edit guide_seq and amplicon_seq on the CRISPResso2/Cas-OFFinder nodes for the target locus. Validation rules are bundled on the producing nodes instead of drawn as standalone validator nodes."
+        "text": "CRISPR examples: design guides and search candidate off-targets with Cas-OFFinder, quantify an edited amplicon with CRISPResso2, and count/rank pooled-screen guides with MAGeCK.\n\nRunnable defaults use three independent upstream fixtures: the CRISPResso2 smallGenome reference, nf-core crisprseq hCas9-TRAC amplicon reads, and MAGeCK demo2 screen reads/library. Each source is pinned to its repository revision. These branches are demonstrations from different examples; provide matched study inputs and update guide and amplicon sequences for biological interpretation."
       },
       "ui": {
         "title": "Notes",
@@ -45,7 +45,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        80
+        131
       ],
       "params": {
         "reference": "https://raw.githubusercontent.com/pinellolab/CRISPResso2/2b4430da9d14adb1a2d1205f7cb6c1ba6ce8f5d9/tests/smallGenome/smallGenome.fa"
@@ -69,7 +69,7 @@
       "type": "guide_rna_design",
       "position": [
         440,
-        80
+        363
       ],
       "params": {
         "target": "chr9:1-1000",
@@ -102,7 +102,7 @@
       "type": "cas_offinder",
       "position": [
         440,
-        454
+        615
       ],
       "params": {
         "guide_seq": "AGGCGGATCACCTGAGGTCA",
@@ -126,8 +126,8 @@
       "id": "crispresso2_001",
       "type": "crispresso2",
       "position": [
-        440,
-        782
+        800,
+        80
       ],
       "params": {
         "amplicon_seq": "GGGCAAAGAGGGAAATGAGATCATGTCCTAACCCTGATCCTCTTGTCCCACAGATATCCAGAACCCTGACCCTGCCGTGTACCAGCTGAGAGACTCTAAATCCAGTGACAAGTCTGTCTGCCTATTCACCGATTTTGATTCTCAAACAAATGTGTCACAAAGTAAGGATTCTGATGTGTATATCACAGACAAAACTGTGCTAGACATGAGGTCTATGGACTTCAAGAGCAACAGTGCTGTGGCCTGGAGCAACAAATCTGACTTTGCATGTGCAAACGCCTTCAAC",
@@ -144,8 +144,8 @@
       "id": "mageck_count_001",
       "type": "mageck_count",
       "position": [
-        440,
-        1178
+        800,
+        354
       ],
       "params": {
         "output_prefix": "screen_counts",
@@ -170,8 +170,8 @@
       "id": "mageck_test_001",
       "type": "mageck_test",
       "position": [
-        800,
-        430
+        1160,
+        384
       ],
       "params": {
         "treatment_labels": "treated",
@@ -200,7 +200,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        231
+        298
       ],
       "params": {
         "reads": [
@@ -226,7 +226,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        382
+        488
       ],
       "params": {
         "reads": [
@@ -252,7 +252,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        533
+        678
       ],
       "params": {
         "reads": [
@@ -279,8 +279,8 @@
       "id": "library_001",
       "type": "input_file",
       "position": [
-        80,
-        723
+        440,
+        175
       ],
       "params": {
         "file": "https://raw.githubusercontent.com/davidliwei/mageck/8ac6eea1d4bdb0d6e12b6124f8ab77254eaf6efe/demo/demo2/library.txt",
@@ -304,8 +304,8 @@
       "id": "gate_crispresso_report_001",
       "type": "gate",
       "position": [
-        800,
-        80
+        1160,
+        153
       ],
       "params": {
         "condition_mode": "file_exists",
@@ -320,8 +320,8 @@
       "id": "render_guide_design_tab_0",
       "type": "table_preview",
       "position": [
-        1520,
-        80
+        800,
+        586
       ],
       "params": {},
       "ui": {
@@ -332,8 +332,8 @@
       "id": "render_guide_design_tab_1",
       "type": "table_preview",
       "position": [
-        1520,
-        300
+        800,
+        753
       ],
       "params": {},
       "ui": {
@@ -344,8 +344,8 @@
       "id": "render_cas_offinder_tab_2",
       "type": "table_preview",
       "position": [
-        1520,
-        520
+        1160,
+        679
       ],
       "params": {},
       "ui": {
@@ -357,7 +357,7 @@
       "type": "html_preview",
       "position": [
         1520,
-        740
+        357
       ],
       "params": {},
       "ui": {
@@ -369,7 +369,7 @@
       "type": "table_preview",
       "position": [
         1520,
-        960
+        475
       ],
       "params": {},
       "ui": {

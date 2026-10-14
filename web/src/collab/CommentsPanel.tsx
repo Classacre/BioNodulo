@@ -125,8 +125,8 @@ export default function CommentsPanel({ comments, currentUser, isOpen, onClose, 
   };
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, right: 0, width: 320, height: '100vh',
+    <div className="comments-drawer" style={{
+      position: 'fixed', top: 'var(--editor-content-top, 76px)', right: 0, bottom: 0, width: 320, maxWidth: '100vw',
       background: 'var(--surface)', borderLeft: '1px solid var(--border)',
       zIndex: 260, display: 'flex', flexDirection: 'column', transition: 'transform 0.2s ease',
       boxShadow: '-4px 0 12px rgba(0,0,0,0.15)',

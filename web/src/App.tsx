@@ -63,6 +63,8 @@ import { useObjectInfo } from './hooks/data';
 import { useRegistryNodeHydration } from './hooks/data/useRegistryNodeHydration';
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
+import { useResponsiveEditorLayout } from './hooks/useResponsiveEditorLayout';
+import { fitDockedPanels } from './utils/panelLayout';
 import { useHPC } from './hooks/useHPC';
 import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages } from './hooks/workflow';
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
@@ -121,7 +123,7 @@ import { setCollabRemoteBase } from './collab/remoteBase';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { cancelCloudRun, getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';
-import { createCloudWorkflow, saveCloudWorkflow } from './api/website';
+import { createCloudWorkflow, saveCloudWorkflow, getCloudWorkflow, listCloudRunSummaries } from './api/website';
 import {
   mapCloudRunStatus,
   isTerminalCloudStatus,
@@ -847,6 +849,7 @@ export default function App() {
   // Phase 3 collaboration panels — App reads showAI / showComments for shell
   // class toggling.
   const showComments = useAtomValue(showCommentsAtom);
+  const setShowComments = useSetAtom(showCommentsAtom);
   const [followingUserId, setFollowingUserId] = useState<string | null>(null);
   const [livePresenceUsers, setLivePresenceUsers] = useState<LivePresenceUser[]>([]);
   // Cross-workflow display names came from the (removed) comments REST feed; in
@@ -1594,6 +1597,18 @@ export default function App() {
   // App reads showAI for shell class; setter is passed to TopBar.
   const showAI = useAtomValue(showAIAtom);
   const setShowAI = useSetAtom(showAIAtom);
+  const editorLayout = useResponsiveEditorLayout(
+    { ai: showAI, runs: runsDrawerOpen, comments: showComments },
+    { ai: setShowAI, runs: setRunsDrawerOpen, comments: setShowComments },
+  );
+  const reservedDrawerWidth = Math.min(editorLayout.width,
+    (runsDrawerOpen ? 380 : 0) + (showAI ? editorLayout.aiWidth : 0) + (showComments ? 320 : 0));
+  const fittedDockedPanels = fitDockedPanels(
+    openPanelTabs.filter(tab => !isCenterMenuTab(tab) && !floatingPanels[tab]).map(tab => ({
+      id: tab, width: panelWidths[tab] ?? 340, side: rightDockedPanels[tab] ? 'right' : 'left',
+    })),
+    editorLayout.width, reservedDrawerWidth,
+  );
   const setShowBatchSheet = useSetAtom(showBatchSheetAtom);
   const setShowGettingStarted = useSetAtom(showGettingStartedAtom);
   const [showShortcuts, setShowShortcuts] = useAtom(showShortcutsAtom);
@@ -1728,7 +1743,7 @@ export default function App() {
         setOpenPanelTabs(current => {
           const tab = resolved as OpenPanelTab;
           const withoutCenterMenus = current.filter(item => !isCenterMenuTab(item));
-          return withoutCenterMenus.includes(tab) ? withoutCenterMenus : [...withoutCenterMenus, tab];
+          return [...withoutCenterMenus.filter(item => item !== tab), tab];
         });
       } else if (resolved === null && prev && prev !== 'console') {
         setOpenPanelTabs(current => current.filter(tab => tab !== prev));
@@ -1955,8 +1970,28 @@ export default function App() {
   // into the editor console so the user sees dependency install + node progress
   // without leaving the editor. (SSE can't bridge the worker callbacks to the
   // browser without Redis, so we poll the persisted snapshot.)
-  const pollCloudRun = useCallback((runId: string) => {
-    if (!runId) return;
+  const cloudRunPollers = useRef(new Map<string, () => void>());
+  const cloudRunPollGeneration = useRef(0);
+  const restoredCloudRunScope = useRef<string | null>(null);
+  useEffect(() => {
+    if (editorMode && (!cloudConfig?.user?.id || !cloudConfig.team?.id) && restoredCloudRunScope.current) {
+      restoredCloudRunScope.current = null;
+      setRuns(previous => previous.filter(run => run.options?.cloud !== true));
+      setLogs([]);
+    }
+    return () => {
+      cloudRunPollGeneration.current += 1;
+      for (const stop of cloudRunPollers.current.values()) stop();
+      cloudRunPollers.current.clear();
+    };
+  }, [cloudConfig?.user?.id, cloudConfig?.team?.id, editorMode, setRuns, setLogs]);
+
+  const pollCloudRun = useCallback((runId: string, context: Partial<Pick<RunRecord, 'workflow_id' | 'workflow_name' | 'execution_plan' | 'start_time'>> = {}) => {
+    if (!runId || cloudRunPollers.current.has(runId)) return;
+    setLogs(previous => previous.filter(entry => entry.run_id !== runId));
+    const generation = cloudRunPollGeneration.current;
+    let executionPlan = context.execution_plan ? [...context.execution_plan] : undefined;
+    let workflowId = context.workflow_id;
     const lineRe = /^\[.*?\]\s+(\w+):\s+([\s\S]*)$/;
     let lastLen = 0;
     let stopped = false;
@@ -1965,7 +2000,7 @@ export default function App() {
     // until the worker boots and its first progress callback lands — one to
     // three minutes of silence that read as "stuck". Narrate that phase and
     // keep a 30s cadence until the first real log line arrives.
-    const submittedAt = Date.now();
+    const submittedAt = context.start_time ? Date.parse(context.start_time) || Date.now() : Date.now();
     let announcedProvisioning = false;
     let lastHeartbeatAt = 0;
     const formatElapsed = () => {
@@ -1984,7 +2019,18 @@ export default function App() {
     const tick = async () => {
       if (stopped) return;
       const snap = await getCloudRun(runId);
+      if (stopped || generation !== cloudRunPollGeneration.current) return;
       if (snap) {
+        workflowId ||= snap.workflowId || undefined;
+        if (!executionPlan && workflowId) {
+          try {
+            const workflow = await getCloudWorkflow(workflowId);
+            if (stopped || generation !== cloudRunPollGeneration.current) return;
+            executionPlan = workflowExecutionPlan(workflow);
+          } catch (error) {
+            logError('cloud.run.restoreWorkflow', error);
+          }
+        }
         const hasLogs = typeof snap.logs === 'string' && snap.logs.length > 0;
         if (!hasLogs && !isTerminalCloudStatus(snap.status)) {
           if (!announcedProvisioning) {
@@ -2032,12 +2078,14 @@ export default function App() {
         updateRun(runId, {
           status: mappedStatus,
           node_statuses: buildCloudNodeStatuses(
-            workflowExecutionPlan(activeWorkflow),
+            executionPlan ?? [...derived.keys()],
             derived,
             mappedStatus,
             snap.errorMessage,
           ),
           error: snap.errorMessage || undefined,
+          ...(workflowId ? { workflow_id: workflowId } : {}),
+          ...(context.workflow_name ? { workflow_name: context.workflow_name } : {}),
           ...(isTerminalCloudStatus(snap.status) ? { end_time: snap.completedAt || new Date().toISOString() } : {}),
           ...(snap.creditsUsed !== null ? { credits_used: snap.creditsUsed } : {}),
           ...(snap.durationMs !== null ? { duration_ms: snap.durationMs } : {}),
@@ -2045,9 +2093,11 @@ export default function App() {
         if (isTerminalCloudStatus(snap.status)) {
           stopped = true;
           stopPolling?.();
+          cloudRunPollers.current.delete(runId);
           if (snap.status === 'completed') {
             try {
               const result = await callWebsite<{ outputs: import('./types').CloudRunOutput[] }>(`/runs/${encodeURIComponent(runId)}/outputs`);
+              if (generation !== cloudRunPollGeneration.current) return;
               updateRun(runId, { cloud_outputs: result.outputs });
             } catch (error) {
               addLog({ run_id: runId, node_id: 'cloud', level: 'warn', message: 'Run completed, but output verification is not available yet. Refresh the cloud files view to retry.',
@@ -2080,12 +2130,49 @@ export default function App() {
         }
       }
     };
+    cloudRunPollers.current.set(runId, () => { stopped = true; stopPolling?.(); });
     stopPolling = startVisibilityAwarePolling(
       tick,
       CLOUD_RUN_POLL_VISIBLE_MS,
       CLOUD_RUN_POLL_HIDDEN_MS,
     );
-  }, [addLog, updateRun, activeWorkflow, t]);
+  }, [addLog, updateRun, setLogs, t]);
+
+  useEffect(() => {
+    if (getMcpRuntime() || !editorMode || !cloudConfig?.user?.id || !cloudConfig.team?.id
+      || (cloudInviteSession && !cloudInviteSession.member)) return;
+    const scope = `${cloudConfig.user.id}:${cloudConfig.team.id}`;
+    if (restoredCloudRunScope.current && restoredCloudRunScope.current !== scope) {
+      setRuns(previous => previous.filter(run => run.options?.cloud !== true));
+      setLogs([]);
+    }
+    restoredCloudRunScope.current = scope;
+    let cancelled = false;
+    void listCloudRunSummaries().then(summaries => {
+      if (cancelled) return;
+      for (const summary of summaries) {
+        const restored: RunRecord = {
+          run_id: summary.id, workflow_id: summary.workflowId || undefined,
+          workflow_name: summary.workflowName || t('common.untitled'),
+          status: mapCloudRunStatus(summary.status), execution_plan: [], node_statuses: [],
+          node_outputs: {}, previews: {}, artifacts: {}, options: { cloud: true },
+          start_time: summary.startedAt || summary.createdAt || undefined,
+          end_time: summary.completedAt || undefined,
+          credits_used: summary.creditsUsed ?? undefined, duration_ms: summary.durationMs ?? undefined,
+        };
+        addRun(restored);
+        if (!isTerminalCloudStatus(summary.status)) {
+          // The run owns its source graph; a different focused tab must never
+          // supply its execution plan or node coloring after restoration.
+          pollCloudRun(summary.id, {
+            workflow_id: restored.workflow_id, workflow_name: restored.workflow_name,
+            start_time: restored.start_time,
+          });
+        }
+      }
+    }).catch(error => { if (!cancelled) logError('cloud.runs.restore', error); });
+    return () => { cancelled = true; };
+  }, [editorMode, cloudConfig?.user?.id, cloudConfig?.team?.id, cloudInviteSession, addRun, pollCloudRun, setRuns, setLogs, t]);
 
   // The host opens the real cloud tabs and receives a redacted view of the
   // active graph. The conversation owns AI inference; the editor owns edits.
@@ -2140,7 +2227,7 @@ export default function App() {
       } as RunRecord);
       setConsoleVisible(true);
       setRunsDrawerOpen(true);
-      pollCloudRun(hostRun.id);
+      pollCloudRun(hostRun.id, { workflow_id: activeWorkflow.id, workflow_name: activeWorkflow.name, execution_plan: workflowExecutionPlan(activeWorkflow) });
     });
   }, [hostRun, activeWorkflow, addRun, pollCloudRun, setConsoleVisible, openCloudWorkflow]);
 
@@ -2362,7 +2449,7 @@ export default function App() {
               start_time: new Date().toISOString(),
               options: { cloud: true, dashboard_url: cloudResult.dashboard_url },
             });
-            pollCloudRun(result.run_id);
+            pollCloudRun(result.run_id, { workflow_id: activeWorkflow.id, workflow_name: activeWorkflow.name, execution_plan: workflowExecutionPlan(activeWorkflow) });
           }
           continue;
         }
@@ -2390,6 +2477,13 @@ export default function App() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (runSubmitted) {
+        toast.warning(t('console.actions.runQueued'), {
+          message: t('console.actions.runSubmittedButFollowUpFailed', { message: msg }),
+        });
+      } else {
+        toast.error(t('console.actions.runFailedTitle'), { message: msg });
+      }
       addLog({
         run_id: 'workflow',
         node_id: 'engine',
@@ -2508,7 +2602,7 @@ export default function App() {
           previews: {}, artifacts: {}, start_time: new Date().toISOString(),
           options: { cloud: true, dashboard_url: result.dashboard_url },
         });
-        pollCloudRun(result.run_id);
+        pollCloudRun(result.run_id, { workflow_id: activeWorkflow.id, workflow_name: activeWorkflow.name, execution_plan: workflowExecutionPlan(activeWorkflow) });
         setRunsDrawerOpen(true);
       }
     } catch (err) {
@@ -2707,6 +2801,13 @@ export default function App() {
 
   const handleLoadRunWorkflow = useCallback(async (run: RunRecord) => {
     try {
+      if (run.options?.cloud === true) {
+        if (!run.workflow_id) throw new Error(consoleActionCopy.error.noRunWorkflowSnapshot);
+        await openCloudWorkflow(run.workflow_id);
+        pollCloudRun(run.run_id, { workflow_id: run.workflow_id, workflow_name: run.workflow_name });
+        toast.success(consoleActionCopy.toast.workflowLoadedFromRun, { message: run.workflow_name });
+        return;
+      }
       const data = await apiGet<{ workflow?: Workflow; workflow_name?: string }>(
         `/api/runs/${encodeURIComponent(run.run_id)}`,
       );
@@ -2727,10 +2828,18 @@ export default function App() {
       logError('app.run.loadWorkflow', err);
       toast.error(consoleActionCopy.error.couldNotLoadWorkflow, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [addWorkflow, consoleActionCopy, editorMode]);
+  }, [addWorkflow, consoleActionCopy, editorMode, openCloudWorkflow, pollCloudRun]);
 
   const handleRetryRun = useCallback(async (run: RunRecord) => {
     try {
+      if (run.options?.cloud === true) {
+        if (!run.workflow_id) throw new Error(consoleActionCopy.error.noRunWorkflowSnapshot);
+        await openCloudWorkflow(run.workflow_id);
+        toast.info(t('console.actions.reviewCloudRetry', {
+          defaultValue: 'Workflow opened for review. Check its inputs and compute settings, then select Run to retry.',
+        }));
+        return;
+      }
       const data = await apiPost<{ run_id: string; status?: string }>(
         `/api/runs/${encodeURIComponent(run.run_id)}/retry`,
       );
@@ -2751,7 +2860,7 @@ export default function App() {
       logError('app.run.retry', err);
       toast.error(consoleActionCopy.error.couldNotRetryRun, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [addRun, consoleActionCopy]);
+  }, [addRun, consoleActionCopy, openCloudWorkflow, t]);
 
   const handleMoveRun = useCallback(async (run: RunRecord, direction: 'up' | 'down') => {
     const pending = queuedRuns.filter(candidate => candidate.status === 'pending');
@@ -3636,15 +3745,11 @@ export default function App() {
   // Total pixel width of all panels currently docked to the RIGHT edge —
   // exposed as `--right-panel-inset` so .minimap / .canvas-controls slide
   // left to stay visible instead of being clipped by the panel.
-  const rightPanelInset = useMemo(() => {
-    let total = runsDrawerOpen ? 380 : 0;
-    for (const tab of openPanelTabs) {
-      if (isCenterMenuTab(tab)) continue;
-      if (!rightDockedPanels[tab] || floatingPanels[tab]) continue;
-      total += (panelWidths[tab] ?? 340);
-    }
-    return total;
-  }, [openPanelTabs, rightDockedPanels, floatingPanels, panelWidths, runsDrawerOpen]);
+  const rightPanelInset = reservedDrawerWidth + fittedDockedPanels.filter(panel => panel.side === 'right')
+    .reduce((total, panel) => total + panel.width + 32, 0);
+  const leftPanelInset = fittedDockedPanels.filter(panel => panel.side === 'left')
+    .reduce((total, panel) => total + panel.width + 32, 0);
+  const canvasChromeWidth = Math.max(0, editorLayout.width - leftPanelInset - rightPanelInset);
   // NOTE: The "Unsaved changes / Autosave" pill that used to live in the top
   // bar was removed in Wave L. The amber dot on each workflow tab now carries
   // the dirty signal, and pre-flight save state is still surfaced inline when
@@ -3792,8 +3897,15 @@ export default function App() {
 
   return (
     <div
-      className={appShellClassName}
-      style={{ '--right-panel-inset': `${rightPanelInset}px` } as Record<string, string>}
+      className={`${appShellClassName}${canvasChromeWidth < 300 ? ' canvas-crowded' : ''}`}
+      style={{
+        '--right-panel-inset': `${rightPanelInset}px`,
+        '--editor-content-top': `${editorLayout.top}px`,
+        '--ai-panel-width': `${editorLayout.aiWidth}px`,
+        '--left-panel-inset': `${leftPanelInset}px`,
+        '--canvas-chrome-center': `${leftPanelInset + canvasChromeWidth / 2}px`,
+        '--canvas-chrome-width': `${canvasChromeWidth}px`,
+      } as Record<string, string>}
     >
       <ConfirmDialogHost />
       <CommandPaletteHost />
@@ -3935,10 +4047,11 @@ export default function App() {
         onCancelRun={handleCancelRun}
         onRetryRun={handleRetryRun}
         onLoadRunWorkflow={handleLoadRunWorkflow}
-        onDeleteHistoryEntry={handleDeleteHistoryEntry}
-        onMoveRun={handleMoveRun}
-        onClearQueue={handleClearQueue}
-        onClearHistory={handleClearHistory}
+        onDeleteHistoryEntry={editorMode ? undefined : handleDeleteHistoryEntry}
+        onMoveRun={editorMode ? undefined : handleMoveRun}
+        onClearQueue={editorMode ? undefined : handleClearQueue}
+        onClearHistory={editorMode ? undefined : handleClearHistory}
+        allowCompare={!editorMode}
       />
 
       <div
@@ -4073,17 +4186,15 @@ export default function App() {
             related panels (e.g. node library + node info) can sit side by
             side without the user having to float either of them. */}
         {(() => {
-          const leftPanels = openPanelTabs.filter(tab => !isCenterMenuTab(tab) && !rightDockedPanels[tab] && !floatingPanels[tab]);
-          const rightPanels = openPanelTabs.filter(tab => !isCenterMenuTab(tab) && rightDockedPanels[tab] && !floatingPanels[tab]);
           const floatingTabs = openPanelTabs.filter(tab => !isCenterMenuTab(tab) && floatingPanels[tab]);
-          const renderPanel = (tab: OpenPanelTab, side: 'left' | 'right' | 'float', offset: number) => {
+          const renderPanel = (tab: OpenPanelTab, side: 'left' | 'right' | 'float', offset: number, fittedWidth?: number) => {
             const index = openPanelTabs.indexOf(tab);
-            const width = panelWidths[tab] ?? 340;
+            const width = fittedWidth ?? Math.min(panelWidths[tab] ?? 340, Math.max(0, editorLayout.width - reservedDrawerWidth));
             const floating = floatingPanels[tab];
             const isRight = side === 'right';
             const panelLabel = getPanelLabel(tab);
             const style = floating
-              ? { left: floating.x, top: floating.y, width }
+              ? { left: Math.max(0, Math.min(floating.x, editorLayout.width - reservedDrawerWidth - width)), top: Math.max(0, Math.min(floating.y, editorLayout.height - 180)), width }
               : isRight
                 ? { right: offset, width }
                 : { left: offset, width };
@@ -4147,16 +4258,10 @@ export default function App() {
               </div>
             );
           };
-          const leftRendered = leftPanels.map((tab, idx) => {
-            const offset = leftPanels.slice(0, idx).reduce((total, item) => total + (panelWidths[item] ?? 340), 0);
-            return renderPanel(tab, 'left', offset);
-          });
-          const rightRendered = rightPanels.map((tab, idx) => {
-            const offset = rightPanels.slice(0, idx).reduce((total, item) => total + (panelWidths[item] ?? 340), 0);
-            return renderPanel(tab, 'right', offset);
-          });
-          const floatingRendered = floatingTabs.map(tab => renderPanel(tab, 'float', 0));
-          return [...leftRendered, ...rightRendered, ...floatingRendered];
+          const dockedRendered = fittedDockedPanels.map(panel => renderPanel(panel.id, panel.side, panel.offset, panel.width));
+          const floatingRendered = editorLayout.width - reservedDrawerWidth >= Math.min(280, editorLayout.width)
+            ? floatingTabs.map(tab => renderPanel(tab, 'float', 0)) : [];
+          return [...dockedRendered, ...floatingRendered];
         })()}
 
         {openPanelTabs.filter(isCenterMenuTab).map(tab => (

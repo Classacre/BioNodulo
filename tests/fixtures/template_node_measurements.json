@@ -1,0 +1,1394 @@
+{
+  "assembly_pipeline.json": {
+    "note_assembly_pipeline": {
+      "width": 260,
+      "height": 406
+    },
+    "reads_001": {
+      "width": 220,
+      "height": 130
+    },
+    "fastp_001": {
+      "width": 220,
+      "height": 226
+    },
+    "spades_001": {
+      "width": 220,
+      "height": 235
+    },
+    "switch_assembler_001": {
+      "width": 220,
+      "height": 312
+    },
+    "spades_retry_001": {
+      "width": 220,
+      "height": 213
+    },
+    "megahit_001": {
+      "width": 220,
+      "height": 128
+    },
+    "select_assembly_001": {
+      "width": 220,
+      "height": 386
+    },
+    "ref_001": {
+      "width": 220,
+      "height": 107
+    },
+    "quast_001": {
+      "width": 220,
+      "height": 240
+    },
+    "validate_assembly_001": {
+      "width": 220,
+      "height": 297
+    },
+    "gate_assembly_001": {
+      "width": 220,
+      "height": 171
+    },
+    "prokka_001": {
+      "width": 220,
+      "height": 454
+    },
+    "assembly_stats_001": {
+      "width": 220,
+      "height": 151
+    },
+    "assembly_stats_chart_001": {
+      "width": 220,
+      "height": 314
+    },
+    "assembly_contig_summary_001": {
+      "width": 220,
+      "height": 191
+    },
+    "render_prokka_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_assembly_stats_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "render_assembly_contig_summary_tab_2": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "biopython_analysis_pipeline.json": {
+    "note_biopython": {
+      "width": 260,
+      "height": 424
+    },
+    "ncbi_efetch_001": {
+      "width": 220,
+      "height": 255
+    },
+    "seqio_read_001": {
+      "width": 220,
+      "height": 129
+    },
+    "seq_stats_001": {
+      "width": 220,
+      "height": 151
+    },
+    "blast_001": {
+      "width": 220,
+      "height": 171
+    },
+    "seqio_write_001": {
+      "width": 220,
+      "height": 165
+    },
+    "coding_001": {
+      "width": 220,
+      "height": 107
+    },
+    "translate_001": {
+      "width": 220,
+      "height": 104
+    },
+    "biostrings_001": {
+      "width": 220,
+      "height": 151
+    },
+    "table_preview_001": {
+      "width": 220,
+      "height": 107
+    },
+    "seq_length_chart_001": {
+      "width": 220,
+      "height": 306
+    },
+    "view_blast_hits_001": {
+      "width": 220,
+      "height": 107
+    },
+    "view_protein_001": {
+      "width": 220,
+      "height": 107
+    },
+    "view_orf_table_001": {
+      "width": 220,
+      "height": 107
+    },
+    "view_genbank_001": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "chip_seq_pipeline.json": {
+    "note_chip_seq_pipeline": {
+      "width": 260,
+      "height": 298
+    },
+    "treat_001": {
+      "width": 220,
+      "height": 130
+    },
+    "control_001": {
+      "width": 220,
+      "height": 130
+    },
+    "peak_annotation_bed_001": {
+      "width": 220,
+      "height": 128
+    },
+    "sort_peaks_bed_001": {
+      "width": 220,
+      "height": 126
+    },
+    "sort_peak_annotations_bed_001": {
+      "width": 220,
+      "height": 126
+    },
+    "view_001": {
+      "width": 220,
+      "height": 128
+    },
+    "bt2_001": {
+      "width": 220,
+      "height": 186
+    },
+    "fastp_001": {
+      "width": 220,
+      "height": 226
+    },
+    "gate_trimmed_reads_001": {
+      "width": 220,
+      "height": 171
+    },
+    "fastp_control_001": {
+      "width": 220,
+      "height": 226
+    },
+    "gate_control_reads_001": {
+      "width": 220,
+      "height": 171
+    },
+    "bt2_control_001": {
+      "width": 220,
+      "height": 186
+    },
+    "view_control_001": {
+      "width": 220,
+      "height": 128
+    },
+    "sort_control_001": {
+      "width": 220,
+      "height": 107
+    },
+    "sort_001": {
+      "width": 220,
+      "height": 107
+    },
+    "macs2_001": {
+      "width": 220,
+      "height": 280
+    },
+    "index_001": {
+      "width": 220,
+      "height": 108
+    },
+    "coverage_001": {
+      "width": 220,
+      "height": 250
+    },
+    "peak_annotation_001": {
+      "width": 220,
+      "height": 147
+    },
+    "chip_signal_plot_001": {
+      "width": 220,
+      "height": 299
+    },
+    "qc_001": {
+      "width": 220,
+      "height": 230
+    },
+    "mqc_001": {
+      "width": 220,
+      "height": 199
+    },
+    "render_macs2_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_peak_annotation_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "genome_001": {
+      "width": 220,
+      "height": 107
+    },
+    "bt2build_001": {
+      "width": 220,
+      "height": 86
+    }
+  },
+  "crispr_editing_pipeline.json": {
+    "note_crispr_pipeline": {
+      "width": 260,
+      "height": 352
+    },
+    "genome_001": {
+      "width": 220,
+      "height": 107
+    },
+    "guide_design_001": {
+      "width": 220,
+      "height": 192
+    },
+    "cas_offinder_001": {
+      "width": 220,
+      "height": 149
+    },
+    "crispresso2_001": {
+      "width": 220,
+      "height": 214
+    },
+    "mageck_count_001": {
+      "width": 220,
+      "height": 172
+    },
+    "mageck_test_001": {
+      "width": 220,
+      "height": 235
+    },
+    "amplicon_r1_001": {
+      "width": 220,
+      "height": 130
+    },
+    "amplicon_r2_001": {
+      "width": 220,
+      "height": 130
+    },
+    "screen_reads_001": {
+      "width": 220,
+      "height": 130
+    },
+    "library_001": {
+      "width": 220,
+      "height": 128
+    },
+    "gate_crispresso_report_001": {
+      "width": 220,
+      "height": 171
+    },
+    "render_guide_design_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_guide_design_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "render_cas_offinder_tab_2": {
+      "width": 220,
+      "height": 107
+    },
+    "render_gate_crispresso_report_tab_3": {
+      "width": 220,
+      "height": 58
+    },
+    "render_mageck_test_tab_4": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "deseq2_differential_expression.json": {
+    "note_deseq2": {
+      "width": 260,
+      "height": 370
+    },
+    "counts_001": {
+      "width": 220,
+      "height": 128
+    },
+    "samples_001": {
+      "width": 220,
+      "height": 128
+    },
+    "heatmap_annotation_001": {
+      "width": 220,
+      "height": 128
+    },
+    "deseq2_001": {
+      "width": 220,
+      "height": 236
+    },
+    "heatmap_001": {
+      "width": 220,
+      "height": 243
+    },
+    "volcano_001": {
+      "width": 220,
+      "height": 380
+    },
+    "ma_plot_001": {
+      "width": 220,
+      "height": 380
+    },
+    "pca_plot_001": {
+      "width": 220,
+      "height": 398
+    },
+    "significant_genes_001": {
+      "width": 220,
+      "height": 290
+    },
+    "pathway_gene_sets_001": {
+      "width": 220,
+      "height": 128
+    },
+    "normalized_counts_transpose_001": {
+      "width": 220,
+      "height": 149
+    },
+    "pathway_enrichment_001": {
+      "width": 220,
+      "height": 147
+    },
+    "string_enrichment_001": {
+      "width": 220,
+      "height": 255
+    },
+    "render_deseq2_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_deseq2_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "render_normalized_counts_transpose_tab_2": {
+      "width": 220,
+      "height": 107
+    },
+    "render_significant_genes_tab_3": {
+      "width": 220,
+      "height": 107
+    },
+    "render_pathway_enrichment_tab_4": {
+      "width": 220,
+      "height": 107
+    },
+    "render_string_enrichment_tab_5": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "differential_expression.json": {
+    "note_differential_expression": {
+      "width": 260,
+      "height": 244
+    },
+    "reads_001": {
+      "width": 220,
+      "height": 130
+    },
+    "tx_001": {
+      "width": 220,
+      "height": 107
+    },
+    "salmon_idx_001": {
+      "width": 220,
+      "height": 107
+    },
+    "salmon_quant_001": {
+      "width": 220,
+      "height": 227
+    },
+    "kallisto_idx_001": {
+      "width": 220,
+      "height": 107
+    },
+    "kallisto_quant_001": {
+      "width": 220,
+      "height": 251
+    },
+    "salmon_quant_columns_001": {
+      "width": 220,
+      "height": 209
+    },
+    "kallisto_quant_columns_001": {
+      "width": 220,
+      "height": 209
+    },
+    "quant_comparison_001": {
+      "width": 220,
+      "height": 192
+    },
+    "mqc_001": {
+      "width": 220,
+      "height": 199
+    },
+    "render_salmon_quant_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_kallisto_quant_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "render_quant_comparison_tab_2": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "fastq_qc_pipeline.json": {
+    "note_fastq_qc_pipeline": {
+      "width": 260,
+      "height": 244
+    },
+    "input_fastq_001": {
+      "width": 220,
+      "height": 130
+    },
+    "fastqc_001": {
+      "width": 220,
+      "height": 230
+    },
+    "fastp_001": {
+      "width": 220,
+      "height": 226
+    },
+    "multiqc_001": {
+      "width": 220,
+      "height": 199
+    },
+    "html_preview_001": {
+      "width": 220,
+      "height": 58
+    },
+    "validate_multiqc_001": {
+      "width": 220,
+      "height": 297
+    },
+    "gate_multiqc_001": {
+      "width": 220,
+      "height": 171
+    },
+    "qc_dashboard_001": {
+      "width": 220,
+      "height": 268
+    },
+    "qc_dashboard_preview_001": {
+      "width": 220,
+      "height": 58
+    }
+  },
+  "long_read_ont_pipeline.json": {
+    "note_long_read_pipeline": {
+      "width": 260,
+      "height": 388
+    },
+    "pod5_001": {
+      "width": 220,
+      "height": 58
+    },
+    "reference_001": {
+      "width": 220,
+      "height": 107
+    },
+    "basecaller_model_001": {
+      "width": 220,
+      "height": 58
+    },
+    "modified_model_001": {
+      "width": 220,
+      "height": 58
+    },
+    "ref_sidecars_001": {
+      "width": 220,
+      "height": 130
+    },
+    "dorado_basecaller_001": {
+      "width": 220,
+      "height": 233
+    },
+    "gate_basecalled_bam_001": {
+      "width": 220,
+      "height": 171
+    },
+    "samtools_fastx_001": {
+      "width": 220,
+      "height": 593
+    },
+    "validate_selected_fastq_001": {
+      "width": 220,
+      "height": 297
+    },
+    "chopper_001": {
+      "width": 220,
+      "height": 294
+    },
+    "gate_filtered_reads_001": {
+      "width": 220,
+      "height": 171
+    },
+    "nanoplot_001": {
+      "width": 220,
+      "height": 313
+    },
+    "modkit_001": {
+      "width": 220,
+      "height": 308
+    },
+    "render_nanoplot_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_modkit_tab_1": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "metabolomics_lcms_pipeline.json": {
+    "note_metabolomics_pipeline": {
+      "width": 260,
+      "height": 370
+    },
+    "mzml_001": {
+      "width": 220,
+      "height": 128
+    },
+    "mzml_002": {
+      "width": 220,
+      "height": 128
+    },
+    "xcms_peak_detection_001": {
+      "width": 220,
+      "height": 298
+    },
+    "xcms_retention_correction_001": {
+      "width": 220,
+      "height": 256
+    },
+    "camera_annotation_001": {
+      "width": 220,
+      "height": 520
+    }
+  },
+  "metagenomics_pipeline.json": {
+    "note_metagenomics_pipeline": {
+      "width": 260,
+      "height": 406
+    },
+    "reads_001": {
+      "width": 220,
+      "height": 130
+    },
+    "db_001": {
+      "width": 220,
+      "height": 58
+    },
+    "metaphlan_db_001": {
+      "width": 220,
+      "height": 58
+    },
+    "metaphlan_build_index_001": {
+      "width": 220,
+      "height": 107
+    },
+    "humann_reads_001": {
+      "width": 220,
+      "height": 128
+    },
+    "humann_nucleotide_db_001": {
+      "width": 220,
+      "height": 58
+    },
+    "humann_protein_db_001": {
+      "width": 220,
+      "height": 58
+    },
+    "krona_taxdump_001": {
+      "width": 220,
+      "height": 128
+    },
+    "krona_build_taxonomy_001": {
+      "width": 220,
+      "height": 58
+    },
+    "fastp_001": {
+      "width": 220,
+      "height": 226
+    },
+    "gate_trimmed_reads_001": {
+      "width": 220,
+      "height": 171
+    },
+    "kraken2_001": {
+      "width": 220,
+      "height": 264
+    },
+    "kraken2_retry_001": {
+      "width": 220,
+      "height": 213
+    },
+    "bracken_001": {
+      "width": 220,
+      "height": 150
+    },
+    "bracken_bar_001": {
+      "width": 220,
+      "height": 314
+    },
+    "metaphlan_001": {
+      "width": 220,
+      "height": 390
+    },
+    "metaphlan_bar_001": {
+      "width": 220,
+      "height": 314
+    },
+    "humann_001": {
+      "width": 220,
+      "height": 354
+    },
+    "humann_retry_001": {
+      "width": 220,
+      "height": 213
+    },
+    "humann_pathcoverage_bar_001": {
+      "width": 220,
+      "height": 314
+    },
+    "qc_001": {
+      "width": 220,
+      "height": 230
+    },
+    "mqc_001": {
+      "width": 220,
+      "height": 199
+    },
+    "qc_dashboard_001": {
+      "width": 220,
+      "height": 268
+    },
+    "qc_dashboard_preview_001": {
+      "width": 220,
+      "height": 58
+    },
+    "render_bracken_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_humann_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_humann_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "render_humann_tab_2": {
+      "width": 220,
+      "height": 107
+    },
+    "krona_001": {
+      "width": 220,
+      "height": 129
+    },
+    "humann_profile_001": {
+      "width": 220,
+      "height": 128
+    }
+  },
+  "pangenomics_graph_pipeline.json": {
+    "note_pangenomics_pipeline": {
+      "width": 260,
+      "height": 316
+    },
+    "haplotypes_001": {
+      "width": 220,
+      "height": 107
+    },
+    "pggb_001": {
+      "width": 220,
+      "height": 249
+    },
+    "odgi_build_001": {
+      "width": 220,
+      "height": 165
+    },
+    "odgi_viz_001": {
+      "width": 220,
+      "height": 167
+    },
+    "odgi_stats_001": {
+      "width": 220,
+      "height": 86
+    },
+    "graph_image_preview_001": {
+      "width": 220,
+      "height": 58
+    }
+  },
+  "phylogenetics_pipeline.json": {
+    "note_phylogenetics_pipeline": {
+      "width": 260,
+      "height": 316
+    },
+    "ncbi_efetch_001": {
+      "width": 220,
+      "height": 255
+    },
+    "mafft_001": {
+      "width": 220,
+      "height": 107
+    },
+    "validate_fasta_001": {
+      "width": 220,
+      "height": 297
+    },
+    "gate_fasta_001": {
+      "width": 220,
+      "height": 171
+    },
+    "iqtree_001": {
+      "width": 220,
+      "height": 170
+    },
+    "msa_view_001": {
+      "width": 220,
+      "height": 130
+    },
+    "image_preview_001": {
+      "width": 220,
+      "height": 58
+    },
+    "tree_viewer_001": {
+      "width": 220,
+      "height": 290
+    }
+  },
+  "protein_structure_database_workflow.json": {
+    "note_protein_structure_database_workflow": {
+      "width": 260,
+      "height": 352
+    },
+    "uniprot_search_001": {
+      "width": 220,
+      "height": 292
+    },
+    "uniprot_retrieve_001": {
+      "width": 220,
+      "height": 186
+    },
+    "alphafold_db_001": {
+      "width": 220,
+      "height": 252
+    },
+    "pdb_download_001": {
+      "width": 220,
+      "height": 208
+    },
+    "render_uniprot_search_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_uniprot_seq_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_alphafold_meta_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_pdb_meta_0": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "proteomics_sage_percolator_pipeline.json": {
+    "note_proteomics_pipeline": {
+      "width": 260,
+      "height": 334
+    },
+    "spectra_001": {
+      "width": 220,
+      "height": 128
+    },
+    "fasta_001": {
+      "width": 220,
+      "height": 107
+    },
+    "sage_search_001": {
+      "width": 220,
+      "height": 380
+    },
+    "percolator_001": {
+      "width": 220,
+      "height": 231
+    },
+    "render_percolator_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_percolator_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "render_sage_search_tab_2": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "r_visualization_pipeline.json": {
+    "note_r_viz": {
+      "width": 260,
+      "height": 316
+    },
+    "qc_df_001": {
+      "width": 220,
+      "height": 284
+    },
+    "qc_plot_001": {
+      "width": 220,
+      "height": 306
+    },
+    "expr_df_001": {
+      "width": 220,
+      "height": 284
+    },
+    "expr_plot_001": {
+      "width": 220,
+      "height": 306
+    },
+    "heatmap_data_001": {
+      "width": 220,
+      "height": 128
+    },
+    "heatmap_annotation_001": {
+      "width": 220,
+      "height": 128
+    },
+    "de_results_df_001": {
+      "width": 220,
+      "height": 284
+    },
+    "pheatmap_001": {
+      "width": 220,
+      "height": 243
+    },
+    "volcano_001": {
+      "width": 220,
+      "height": 380
+    },
+    "ma_plot_001": {
+      "width": 220,
+      "height": 380
+    }
+  },
+  "rna_seq_pipeline.json": {
+    "note_rna_seq_pipeline": {
+      "width": 260,
+      "height": 316
+    },
+    "reads_001": {
+      "width": 220,
+      "height": 130
+    },
+    "ref_001": {
+      "width": 220,
+      "height": 107
+    },
+    "hisat2_build_001": {
+      "width": 220,
+      "height": 86
+    },
+    "fastp_001": {
+      "width": 220,
+      "height": 226
+    },
+    "gate_trimmed_reads_001": {
+      "width": 220,
+      "height": 171
+    },
+    "hisat2_001": {
+      "width": 220,
+      "height": 186
+    },
+    "view_001": {
+      "width": 220,
+      "height": 128
+    },
+    "sort_001": {
+      "width": 220,
+      "height": 107
+    },
+    "annot_001": {
+      "width": 220,
+      "height": 58
+    },
+    "counts_001": {
+      "width": 220,
+      "height": 889
+    },
+    "normalize_counts_001": {
+      "width": 220,
+      "height": 191
+    },
+    "counts_heatmap_001": {
+      "width": 220,
+      "height": 243
+    },
+    "qc_001": {
+      "width": 220,
+      "height": 230
+    },
+    "mqc_001": {
+      "width": 220,
+      "height": 199
+    },
+    "qualimap_001": {
+      "width": 220,
+      "height": 387
+    },
+    "flagstat_001": {
+      "width": 220,
+      "height": 86
+    },
+    "qc_dashboard_001": {
+      "width": 220,
+      "height": 268
+    },
+    "qc_dashboard_preview_001": {
+      "width": 220,
+      "height": 58
+    },
+    "render_counts_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_normalize_counts_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "render_flagstat_tab_1": {
+      "width": 220,
+      "height": 107
+    }
+  },
+  "single_cell_pipeline.json": {
+    "note_single_cell_pipeline": {
+      "width": 260,
+      "height": 442
+    },
+    "genome_fasta_001": {
+      "width": 220,
+      "height": 107
+    },
+    "genes_gtf_001": {
+      "width": 220,
+      "height": 58
+    },
+    "star_index_001": {
+      "width": 220,
+      "height": 147
+    },
+    "r1_001": {
+      "width": 220,
+      "height": 130
+    },
+    "r2_001": {
+      "width": 220,
+      "height": 130
+    },
+    "starsolo_001": {
+      "width": 220,
+      "height": 257
+    },
+    "qc_dashboard_001": {
+      "width": 220,
+      "height": 268
+    },
+    "qc_dashboard_preview_001": {
+      "width": 220,
+      "height": 58
+    },
+    "scanpy_umap_001": {
+      "width": 220,
+      "height": 192
+    },
+    "render_umap_ima_1": {
+      "width": 220,
+      "height": 58
+    },
+    "render_qc_violin_ima_2": {
+      "width": 220,
+      "height": 58
+    }
+  },
+  "spatial_transcriptomics_qc_clustering.json": {
+    "note_spatial_transcriptomics_pipeline": {
+      "width": 260,
+      "height": 352
+    },
+    "visium_outs_001": {
+      "width": 220,
+      "height": 58
+    },
+    "squidpy_qc_001": {
+      "width": 220,
+      "height": 234
+    },
+    "spatial_plot_preview_001": {
+      "width": 220,
+      "height": 58
+    },
+    "scanpy_spatial_001": {
+      "width": 220,
+      "height": 213
+    },
+    "scanpy_umap_preview_001": {
+      "width": 220,
+      "height": 58
+    }
+  },
+  "synthetic_biology_design_simulation.json": {
+    "note_synthetic_biology_pipeline": {
+      "width": 260,
+      "height": 568
+    },
+    "sbol_design_001": {
+      "width": 220,
+      "height": 128
+    },
+    "sbol_import_001": {
+      "width": 220,
+      "height": 147
+    },
+    "copasi_model_001": {
+      "width": 220,
+      "height": 128
+    },
+    "copasi_simulation_001": {
+      "width": 220,
+      "height": 211
+    }
+  },
+  "variant_calling_pipeline.json": {
+    "note_variant_calling_pipeline": {
+      "width": 260,
+      "height": 514
+    },
+    "reads_001": {
+      "width": 220,
+      "height": 130
+    },
+    "ref_001": {
+      "width": 220,
+      "height": 107
+    },
+    "ref_sidecars_001": {
+      "width": 220,
+      "height": 130
+    },
+    "bwa_idx_001": {
+      "width": 220,
+      "height": 86
+    },
+    "view_001": {
+      "width": 220,
+      "height": 128
+    },
+    "collate_001": {
+      "width": 220,
+      "height": 86
+    },
+    "fixmate_001": {
+      "width": 220,
+      "height": 122
+    },
+    "bwa_001": {
+      "width": 220,
+      "height": 168
+    },
+    "sort_001": {
+      "width": 220,
+      "height": 107
+    },
+    "markdup_001": {
+      "width": 220,
+      "height": 204
+    },
+    "index_001": {
+      "width": 220,
+      "height": 108
+    },
+    "flagstat_001": {
+      "width": 220,
+      "height": 86
+    },
+    "gatk_001": {
+      "width": 220,
+      "height": 323
+    },
+    "gatk_genotype_001": {
+      "width": 220,
+      "height": 261
+    },
+    "gatk_retry_001": {
+      "width": 220,
+      "height": 213
+    },
+    "filter_001": {
+      "width": 220,
+      "height": 508
+    },
+    "snpeff_gff_001": {
+      "width": 220,
+      "height": 128
+    },
+    "snpeff_build_001": {
+      "width": 220,
+      "height": 172
+    },
+    "snpeff_001": {
+      "width": 220,
+      "height": 223
+    },
+    "prioritize_vcf_001": {
+      "width": 220,
+      "height": 369
+    },
+    "vcf_stats_001": {
+      "width": 220,
+      "height": 255
+    },
+    "coverage_plot_001": {
+      "width": 220,
+      "height": 299
+    },
+    "manta_sv_001": {
+      "width": 220,
+      "height": 232
+    },
+    "delly_sv_001": {
+      "width": 220,
+      "height": 260
+    },
+    "gate_prioritized_vcf_001": {
+      "width": 220,
+      "height": 171
+    },
+    "qc_001": {
+      "width": 220,
+      "height": 230
+    },
+    "mqc_001": {
+      "width": 220,
+      "height": 199
+    },
+    "render_gate_prioritized_vcf_tab_0": {
+      "width": 220,
+      "height": 255
+    }
+  },
+  "wgbs_methylation_pipeline.json": {
+    "note_wgbs_pipeline": {
+      "width": 260,
+      "height": 352
+    },
+    "r1_001": {
+      "width": 220,
+      "height": 130
+    },
+    "r2_001": {
+      "width": 220,
+      "height": 130
+    },
+    "genome_001": {
+      "width": 220,
+      "height": 58
+    },
+    "reference_001": {
+      "width": 220,
+      "height": 107
+    },
+    "bismark_align_001": {
+      "width": 220,
+      "height": 148
+    },
+    "gate_bismark_bam_001": {
+      "width": 220,
+      "height": 171
+    },
+    "bismark_methylation_001": {
+      "width": 220,
+      "height": 184
+    },
+    "samtools_sort_methyldackel_001": {
+      "width": 220,
+      "height": 107
+    },
+    "samtools_index_methyldackel_001": {
+      "width": 220,
+      "height": 108
+    },
+    "samtools_faidx_methyldackel_001": {
+      "width": 220,
+      "height": 130
+    },
+    "methyldackel_001": {
+      "width": 220,
+      "height": 212
+    },
+    "render_bismark_methylation_tab_0": {
+      "width": 220,
+      "height": 107
+    },
+    "render_methyldackel_tab_1": {
+      "width": 220,
+      "height": 107
+    },
+    "bismark_prep_001": {
+      "width": 220,
+      "height": 86
+    }
+  },
+  "wgs_variant_pipeline.json": {
+    "note_wgs_variant_pipeline": {
+      "width": 260,
+      "height": 460
+    },
+    "reads_001": {
+      "width": 220,
+      "height": 130
+    },
+    "ref_001": {
+      "width": 220,
+      "height": 107
+    },
+    "ref_sidecars_001": {
+      "width": 220,
+      "height": 130
+    },
+    "bwa_idx_001": {
+      "width": 220,
+      "height": 86
+    },
+    "fastp_001": {
+      "width": 220,
+      "height": 226
+    },
+    "view_001": {
+      "width": 220,
+      "height": 128
+    },
+    "collate_001": {
+      "width": 220,
+      "height": 86
+    },
+    "fixmate_001": {
+      "width": 220,
+      "height": 122
+    },
+    "bwa_001": {
+      "width": 220,
+      "height": 168
+    },
+    "sort_001": {
+      "width": 220,
+      "height": 107
+    },
+    "markdup_001": {
+      "width": 220,
+      "height": 204
+    },
+    "idx_001": {
+      "width": 220,
+      "height": 108
+    },
+    "fb_001": {
+      "width": 220,
+      "height": 233
+    },
+    "filter_001": {
+      "width": 220,
+      "height": 508
+    },
+    "snpeff_gff_001": {
+      "width": 220,
+      "height": 128
+    },
+    "snpeff_build_001": {
+      "width": 220,
+      "height": 172
+    },
+    "snpeff_001": {
+      "width": 220,
+      "height": 223
+    },
+    "prioritize_vcf_001": {
+      "width": 220,
+      "height": 369
+    },
+    "vcf_stats_001": {
+      "width": 220,
+      "height": 255
+    },
+    "coverage_plot_001": {
+      "width": 220,
+      "height": 299
+    },
+    "manta_sv_001": {
+      "width": 220,
+      "height": 232
+    },
+    "delly_sv_001": {
+      "width": 220,
+      "height": 260
+    },
+    "gate_prioritized_vcf_001": {
+      "width": 220,
+      "height": 171
+    },
+    "qc_001": {
+      "width": 220,
+      "height": 230
+    },
+    "mqc_001": {
+      "width": 220,
+      "height": 199
+    },
+    "render_gate_prioritized_vcf_tab_0": {
+      "width": 220,
+      "height": 255
+    },
+    "render_manta_sv_tab_0": {
+      "width": 220,
+      "height": 255
+    },
+    "render_delly_sv_tab_1": {
+      "width": 220,
+      "height": 255
+    }
+  }
+}

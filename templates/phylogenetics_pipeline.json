@@ -8,7 +8,7 @@
       "id": "note_phylogenetics_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
@@ -24,7 +24,7 @@
       "type": "ncbi_efetch",
       "position": [
         80,
-        231
+        156
       ],
       "params": {
         "accessions": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
@@ -42,7 +42,7 @@
       "type": "mafft",
       "position": [
         800,
-        80
+        115
       ],
       "params": {
         "threads": 0,
@@ -57,7 +57,7 @@
       "type": "data_validator",
       "position": [
         440,
-        80
+        135
       ],
       "params": {
         "expected_format": "fasta",
@@ -74,7 +74,7 @@
       "type": "gate",
       "position": [
         800,
-        246
+        282
       ],
       "params": {
         "condition_mode": "boolean_is_true",
@@ -90,7 +90,7 @@
       "type": "iqtree",
       "position": [
         1160,
-        80
+        104
       ],
       "params": {
         "threads": 4,
@@ -108,7 +108,7 @@
       "type": "bp_msa_view",
       "position": [
         1160,
-        261
+        334
       ],
       "params": {
         "format": "fasta"
@@ -134,7 +134,7 @@
       "type": "phylo_tree_viewer",
       "position": [
         1520,
-        354
+        198
       ],
       "params": {
         "layout": "rectangular",

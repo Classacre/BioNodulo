@@ -17,7 +17,7 @@
       "id": "note_wgs_variant_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
@@ -33,7 +33,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        80
+        439
       ],
       "params": {
         "sample_name": "mutant",
@@ -61,7 +61,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        270
+        629
       ],
       "params": {
         "reference": "https://zenodo.org/record/582600/files/wildtype.fna"
@@ -85,7 +85,7 @@
       "type": "samtools_faidx",
       "position": [
         440,
-        270
+        499
       ],
       "params": {
         "threads": 1
@@ -98,8 +98,8 @@
       "id": "bwa_idx_001",
       "type": "bwa_index",
       "position": [
-        440,
-        454
+        800,
+        509
       ],
       "params": {},
       "ui": {
@@ -111,7 +111,7 @@
       "type": "fastp",
       "position": [
         440,
-        80
+        213
       ],
       "params": {
         "threads": 4
@@ -124,8 +124,8 @@
       "id": "view_001",
       "type": "samtools_view",
       "position": [
-        1160,
-        80
+        1520,
+        618
       ],
       "params": {
         "threads": 4
@@ -138,8 +138,8 @@
       "id": "collate_001",
       "type": "samtools_collate",
       "position": [
-        1520,
-        80
+        1880,
+        639
       ],
       "params": {
         "threads": 4
@@ -152,8 +152,8 @@
       "id": "fixmate_001",
       "type": "samtools_fixmate",
       "position": [
-        1880,
-        80
+        2240,
+        621
       ],
       "params": {
         "threads": 4,
@@ -167,8 +167,8 @@
       "id": "bwa_001",
       "type": "bwa_mem",
       "position": [
-        800,
-        80
+        1160,
+        598
       ],
       "params": {
         "threads": 16,
@@ -183,8 +183,8 @@
       "id": "sort_001",
       "type": "samtools_sort",
       "position": [
-        2240,
-        80
+        2600,
+        628
       ],
       "params": {
         "threads": 4
@@ -197,8 +197,8 @@
       "id": "markdup_001",
       "type": "samtools_markdup",
       "position": [
-        2600,
-        80
+        2960,
+        580
       ],
       "params": {
         "threads": 4,
@@ -212,8 +212,8 @@
       "id": "idx_001",
       "type": "samtools_index",
       "position": [
-        2960,
-        80
+        3320,
+        628
       ],
       "params": {},
       "ui": {
@@ -224,8 +224,8 @@
       "id": "fb_001",
       "type": "freebayes",
       "position": [
-        2960,
-        362
+        3680,
+        80
       ],
       "params": {
         "ploidy": 2
@@ -238,8 +238,8 @@
       "id": "filter_001",
       "type": "bcftools_filter",
       "position": [
-        3320,
-        80
+        4040,
+        113
       ],
       "params": {
         "expr": "QUAL>20 && INFO/DP>5"
@@ -252,8 +252,8 @@
       "id": "snpeff_gff_001",
       "type": "input_file",
       "position": [
-        3320,
-        700
+        80,
+        796
       ],
       "params": {
         "file": "https://zenodo.org/record/582600/files/wildtype.gff",
@@ -276,8 +276,8 @@
       "id": "snpeff_build_001",
       "type": "snpeff_build",
       "position": [
-        3500,
-        700
+        440,
+        979
       ],
       "params": {
         "genome": "{{snpeff_genome}}",
@@ -301,8 +301,8 @@
       "id": "snpeff_001",
       "type": "snpeff",
       "position": [
-        3680,
-        80
+        4400,
+        413
       ],
       "params": {
         "genome": "{{snpeff_genome}}",
@@ -316,8 +316,8 @@
       "id": "prioritize_vcf_001",
       "type": "filter_vcf",
       "position": [
-        4040,
-        80
+        4760,
+        497
       ],
       "params": {
         "custom_filter": "INFO/ANN ~ 'HIGH|MODERATE'",
@@ -331,8 +331,8 @@
       "id": "vcf_stats_001",
       "type": "vcf_stats_chart",
       "position": [
-        3680,
-        1102
+        4400,
+        696
       ],
       "params": {
         "title": "Filtered WGS Variant Statistics",
@@ -346,8 +346,8 @@
       "id": "coverage_plot_001",
       "type": "coverage_plot",
       "position": [
-        2960,
-        758
+        3680,
+        373
       ],
       "params": {
         "region": "Wildtype:1-50000",
@@ -363,8 +363,8 @@
       "id": "manta_sv_001",
       "type": "manta_call",
       "position": [
-        2960,
-        1270
+        3680,
+        732
       ],
       "params": {
         "threads": 4,
@@ -379,8 +379,8 @@
       "id": "delly_sv_001",
       "type": "delly_call",
       "position": [
-        2960,
-        1596
+        3680,
+        1024
       ],
       "params": {
         "mode": "call",
@@ -394,8 +394,8 @@
       "id": "gate_prioritized_vcf_001",
       "type": "gate",
       "position": [
-        4400,
-        80
+        5120,
+        596
       ],
       "params": {
         "condition_mode": "file_exists",
@@ -411,7 +411,7 @@
       "type": "fastqc",
       "position": [
         440,
-        644
+        689
       ],
       "params": {
         "threads": 4
@@ -425,7 +425,7 @@
       "type": "multiqc",
       "position": [
         800,
-        522
+        655
       ],
       "params": {
         "title": "WGS QC"
@@ -447,8 +447,8 @@
       "id": "render_gate_prioritized_vcf_tab_0",
       "type": "vcf_stats_chart",
       "position": [
-        5120,
-        80
+        5480,
+        554
       ],
       "params": {
         "title": "Prioritized Variant Statistics",
@@ -462,8 +462,8 @@
       "id": "render_manta_sv_tab_0",
       "type": "vcf_stats_chart",
       "position": [
-        3680,
-        316
+        4040,
+        681
       ],
       "params": {
         "title": "Manta Structural Variant Statistics",
@@ -477,8 +477,8 @@
       "id": "render_delly_sv_tab_1",
       "type": "vcf_stats_chart",
       "position": [
-        3680,
-        661
+        4040,
+        996
       ],
       "params": {
         "title": "DELLY Structural Variant Statistics",

@@ -25,7 +25,7 @@
       "id": "note_synthetic_biology_pipeline",
       "type": "note",
       "position": [
-        -260,
+        -300,
         80
       ],
       "params": {
@@ -41,7 +41,7 @@
       "type": "input_file",
       "position": [
         80,
-        80
+        131
       ],
       "params": {
         "file": "https://raw.githubusercontent.com/SynBioDex/SBOLTestSuite/0044284331b2f915a6e4b9d50e1cbf3ea2f62dcd/SBOL3/toggle_switch/toggle_switch.rdf",
@@ -64,7 +64,7 @@
       "id": "sbol_import_001",
       "type": "sbol_design_import",
       "position": [
-        460,
+        440,
         80
       ],
       "params": {
@@ -95,7 +95,7 @@
       "type": "input_file",
       "position": [
         80,
-        250
+        319
       ],
       "params": {
         "file": "https://www.ebi.ac.uk/biomodels/model/download/BIOMD0000000012?filename=BIOMD0000000012_url.xml",
@@ -118,8 +118,8 @@
       "id": "copasi_simulation_001",
       "type": "copasi_simulation",
       "position": [
-        460,
-        250
+        440,
+        287
       ],
       "params": {
         "input_format": "sbml",

@@ -8,11 +8,11 @@
       "id": "note_deseq2",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "DESeq2 Differential Expression Pipeline\n\nDemonstrates BioNodulo's Bioconductor integration.\n\n1. Input: Count matrix (genes x samples) + sample metadata\n2. DESeq2: Normalization, dispersion estimation, Wald test\n3. Output: Results table, MA plot, normalized counts\n\nData: Simulated yeast RNA-seq count data (60 genes, 6 samples: 3 control + 3 treated).\nRequires: R + DESeq2 + ggplot2 + readr"
+        "text": "DESeq2 Differential Expression Pipeline\n\nLoad a gene count matrix and sample metadata, fit the design and contrast with DESeq2, and preview differential-expression tables, plots, normalized counts, and illustrative enrichment results.\n\nDefault counts and metadata come from the real human airway RNA-seq example in bioconnector/workshops. The downloader relabels gene/sample/condition headers to match the template; it does not simulate measurements. The bundled gene sets are an illustrative enrichment fixture. Requires the configured R/Bioconductor environment."
       },
       "ui": {
         "title": "Notes",
@@ -24,7 +24,7 @@
       "type": "input_file",
       "position": [
         80,
-        80
+        236
       ],
       "params": {
         "file": "examples/data/deseq2/counts.csv"
@@ -48,7 +48,7 @@
       "type": "input_file",
       "position": [
         80,
-        231
+        424
       ],
       "params": {
         "file": "examples/data/deseq2/sample_info.csv"
@@ -73,7 +73,7 @@
       "type": "input_file",
       "position": [
         80,
-        533
+        612
       ],
       "params": {
         "file": "examples/data/deseq2/sample_info.csv"
@@ -97,7 +97,7 @@
       "type": "deseq2_analysis",
       "position": [
         440,
-        80
+        464
       ],
       "params": {
         "design_formula": "~ condition",
@@ -115,7 +115,7 @@
       "type": "r_pheatmap",
       "position": [
         800,
-        80
+        136
       ],
       "params": {
         "scale": "row",
@@ -136,7 +136,7 @@
       "type": "volcano_plot",
       "position": [
         800,
-        614
+        439
       ],
       "params": {
         "title": "DESeq2 Volcano Plot",
@@ -152,8 +152,8 @@
       "id": "ma_plot_001",
       "type": "ma_plot",
       "position": [
-        800,
-        1448
+        1160,
+        80
       ],
       "params": {
         "title": "DESeq2 MA Plot",
@@ -170,8 +170,8 @@
       "id": "pca_plot_001",
       "type": "scatter_plot",
       "position": [
-        800,
-        2282
+        1160,
+        520
       ],
       "params": {
         "title": "DESeq2 PCA Plot",
@@ -190,8 +190,8 @@
       "id": "significant_genes_001",
       "type": "filter_rows",
       "position": [
-        800,
-        3490
+        1520,
+        270
       ],
       "params": {
         "column": "padj",
@@ -211,7 +211,7 @@
       "type": "input_file",
       "position": [
         80,
-        382
+        800
       ],
       "params": {
         "file": "templates/data/deseq2_gene_sets.json"
@@ -225,7 +225,7 @@
       "type": "transpose_table",
       "position": [
         800,
-        3162
+        879
       ],
       "params": {
         "id_column": "gene",
@@ -240,8 +240,8 @@
       "id": "pathway_enrichment_001",
       "type": "intersect_genes",
       "position": [
-        1160,
-        80
+        1880,
+        268
       ],
       "params": {
         "input_column": "gene",
@@ -256,8 +256,8 @@
       "id": "string_enrichment_001",
       "type": "string_db",
       "position": [
-        1160,
-        384
+        1880,
+        475
       ],
       "params": {
         "protein_ids": "",
@@ -273,8 +273,8 @@
       "id": "render_deseq2_tab_0",
       "type": "table_preview",
       "position": [
-        1880,
-        80
+        1160,
+        978
       ],
       "params": {},
       "ui": {
@@ -285,8 +285,8 @@
       "id": "render_deseq2_tab_1",
       "type": "table_preview",
       "position": [
-        1880,
-        300
+        1520,
+        620
       ],
       "params": {},
       "ui": {
@@ -297,8 +297,8 @@
       "id": "render_normalized_counts_transpose_tab_2",
       "type": "table_preview",
       "position": [
-        1880,
-        520
+        1520,
+        787
       ],
       "params": {},
       "ui": {
@@ -310,7 +310,7 @@
       "type": "table_preview",
       "position": [
         1880,
-        740
+        790
       ],
       "params": {},
       "ui": {
@@ -321,8 +321,8 @@
       "id": "render_pathway_enrichment_tab_4",
       "type": "table_preview",
       "position": [
-        1880,
-        960
+        2240,
+        445
       ],
       "params": {},
       "ui": {
@@ -333,8 +333,8 @@
       "id": "render_string_enrichment_tab_5",
       "type": "table_preview",
       "position": [
-        1880,
-        1180
+        2240,
+        612
       ],
       "params": {},
       "ui": {

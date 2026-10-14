@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections import defaultdict, deque
 from pathlib import Path
@@ -188,7 +189,14 @@ def topological_layers(nodes: list[dict[str, Any]], edges: list[dict[str, Any]])
     return layer
 
 
-def relayout(workflow: dict[str, Any]) -> dict[str, Any]:
+def _node_dimensions(node: dict[str, Any], measurements: dict[str, Any]) -> tuple[int, int]:
+    measured = measurements.get(node["id"], {})
+    width = int(measured.get("width") or (260 if is_note(node) else 40 if is_reroute(node) else NODE_WIDTH))
+    height = int(measured.get("height") or estimate_node_height(node))
+    return width, height
+
+
+def relayout(workflow: dict[str, Any], measurements: dict[str, Any] | None = None) -> dict[str, Any]:
     nodes = list(workflow.get("nodes") or [])
     edges = list(workflow.get("edges") or [])
     layer = topological_layers(nodes, edges)
@@ -209,28 +217,54 @@ def relayout(workflow: dict[str, Any]) -> dict[str, Any]:
         if target and target not in incoming_index:
             incoming_index[target] = index
 
-    new_nodes = []
+    measurements = measurements or {}
+    parents: dict[str, list[str]] = defaultdict(list)
+    for edge in edges:
+        parents[edge.get("to", {}).get("node")].append(edge.get("from", {}).get("node"))
+    working = [node for node in nodes if not is_note(node)]
+    total_height = sum(_node_dimensions(node, measurements)[1] + ROW_GAP for node in working)
+    tallest = max((_node_dimensions(node, measurements)[1] for node in working), default=0)
+    target_height = max(tallest + ROW_GAP, min(1400, math.ceil(math.sqrt(total_height * COL_GAP / 1.7))))
+    assigned: dict[str, tuple[int, int]] = {}
+    column_heights: dict[int, int] = defaultdict(int)
+    column_widths: dict[int, int] = defaultdict(int)
+
+    # A wide set of independent plots or source nodes must not become one
+    # several-thousand-pixel tower. Spill full columns to the right, while
+    # keeping every target strictly to the right of all its own parents.
     for col_index in sorted(columns):
         column_nodes = sorted(
             columns[col_index],
             key=lambda n: (incoming_index.get(n["id"], 10_000 + nodes.index(n)), n.get("id") or ""),
         )
-        x = ORIGIN_X + col_index * COL_GAP
-        y = ORIGIN_Y
         for node in column_nodes:
-            height = estimate_node_height(node)
-            new_node = dict(node)
-            new_node["position"] = [x, y]
-            new_nodes.append(new_node)
-            y += height + ROW_GAP
+            width, height = _node_dimensions(node, measurements)
+            column = max((assigned[parent][0] + 1 for parent in parents[node["id"]] if parent in assigned), default=0)
+            while column_heights[column] and column_heights[column] + height > target_height:
+                column += 1
+            assigned[node["id"]] = (column, column_heights[column])
+            column_heights[column] += height + ROW_GAP
+            column_widths[column] = max(column_widths[column], width)
+
+    column_x = {}
+    next_x = ORIGIN_X
+    for column in sorted(column_heights):
+        column_x[column] = next_x
+        next_x += column_widths[column] + COL_GAP - NODE_WIDTH
+    full_height = max(column_heights.values(), default=0)
+    new_nodes = []
+    for node in working:
+        column, y = assigned[node["id"]]
+        new_nodes.append({**node, "position": [column_x[column], ORIGIN_Y + y + (full_height - column_heights[column]) // 2]})
 
     # Stack notes vertically on the left at negative X so they stay out of the main flow.
     note_y = ORIGIN_Y
     for note in notes:
         new_note = dict(note)
-        new_note["position"] = [ORIGIN_X - 320, note_y]
+        width, height = _node_dimensions(note, measurements)
+        new_note["position"] = [ORIGIN_X - width - ROW_GAP * 2, note_y]
         new_nodes.append(new_note)
-        note_y += estimate_node_height(note) + ROW_GAP
+        note_y += height + ROW_GAP
 
     # Preserve original ordering so JSON diffs are smaller.
     by_id = {node["id"]: node for node in new_nodes}
@@ -241,17 +275,29 @@ def relayout(workflow: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def render_thumbnail(workflow: dict[str, Any], width: int = 640, height: int = 400) -> Image.Image:
-    nodes = workflow.get("nodes") or []
+def render_thumbnail(
+    workflow: dict[str, Any], width: int = 640, height: int = 400,
+    measurements: dict[str, Any] | None = None,
+) -> Image.Image:
+    # Native saves accept both editor {x, y} positions and legacy [x, y]
+    # positions. Normalize a local copy so thumbnail rendering neither fails
+    # for newer templates nor rewrites their embedded source graph.
+    nodes = []
+    for node in workflow.get("nodes") or []:
+        position = node.get("position", [0, 0])
+        if isinstance(position, dict):
+            position = [position.get("x", 0), position.get("y", 0)]
+        nodes.append({**node, "position": position})
     edges = workflow.get("edges") or []
+    measurements = measurements or {}
     if not nodes:
         img = Image.new("RGB", (width, height), color=(15, 23, 42))
         return img
 
     min_x = min(node["position"][0] for node in nodes)
     min_y = min(node["position"][1] for node in nodes)
-    max_x = max(node["position"][0] + (40 if is_reroute(node) else NODE_WIDTH) for node in nodes)
-    max_y = max(node["position"][1] + estimate_node_height(node) for node in nodes)
+    max_x = max(node["position"][0] + _node_dimensions(node, measurements)[0] for node in nodes)
+    max_y = max(node["position"][1] + _node_dimensions(node, measurements)[1] for node in nodes)
 
     pad = 24
     bbox_w = max_x - min_x + pad * 2
@@ -278,9 +324,8 @@ def render_thumbnail(workflow: dict[str, Any], width: int = 640, height: int = 4
         b = by_id.get(edge.get("to", {}).get("node"))
         if not a or not b:
             continue
-        a_w = 40 if is_reroute(a) else NODE_WIDTH
-        a_h = estimate_node_height(a)
-        b_h = estimate_node_height(b)
+        a_w, a_h = _node_dimensions(a, measurements)
+        _, b_h = _node_dimensions(b, measurements)
         ax, ay = to_screen(a["position"][0] + a_w, a["position"][1] + a_h / 2)
         bx, by = to_screen(b["position"][0], b["position"][1] + b_h / 2)
         # Cheap cubic-ish curve via two segments.
@@ -289,8 +334,7 @@ def render_thumbnail(workflow: dict[str, Any], width: int = 640, height: int = 4
 
     for node in nodes:
         nx, ny = node["position"]
-        nw = 40 if is_reroute(node) else NODE_WIDTH
-        nh = estimate_node_height(node)
+        nw, nh = _node_dimensions(node, measurements)
         x0, y0 = to_screen(nx, ny)
         x1, y1 = to_screen(nx + nw, ny + nh)
         ui = node.get("ui") or {}
@@ -311,12 +355,21 @@ def render_thumbnail(workflow: dict[str, Any], width: int = 640, height: int = 4
         # Header band in the node color.
         header_h = max(6, int(NODE_HEADER_H * scale))
         draw.rounded_rectangle([x0, y0, x1, y0 + header_h], radius=max(2, int(8 * scale)), fill=_hex_to_rgba(color))
-        # Title (truncate to fit).
+        # Fit by actual pixel bounds. At overview scale a minimum character
+        # count can be wider/taller than the entire node, spilling labels onto
+        # neighboring nodes. Tiny headers remain a clean colored overview.
         label = ui.get("title") or node.get("type", "node")
-        max_chars = max(6, int((nw - 12) * scale / 6))
-        if len(label) > max_chars:
-            label = label[: max_chars - 1] + "..."
-        draw.text((x0 + 4, y0 + 2), label, fill=(255, 255, 255), font=font)
+        available_width = max(0, x1 - x0 - 8)
+        available_height = max(0, min(header_h, y1 - y0) - 4)
+        if draw.textlength(label, font=font) > available_width:
+            while label and draw.textlength(label + "...", font=font) > available_width:
+                label = label[:-1]
+            label = label + "..." if label else ""
+        bounds = draw.textbbox((0, 0), label, font=font)
+        text_height = bounds[3] - bounds[1]
+        if label and text_height <= available_height:
+            title_y = y0 + (header_h - text_height) / 2 - bounds[1]
+            draw.text((x0 + 4, title_y), label, fill=(255, 255, 255), font=font)
 
     # Subtle frame so the thumbnail reads as a single asset on light/dark UIs.
     draw.rounded_rectangle([0, 0, width - 1, height - 1], radius=8, outline=(45, 212, 191, 90), width=1)
@@ -439,29 +492,33 @@ def _color_for_type(node_type: str) -> str:
     return "#64748b"
 
 
-def write_thumbnail_with_workflow(workflow: dict[str, Any], out_path: Path) -> None:
-    img = render_thumbnail(workflow)
+def write_thumbnail_with_workflow(
+    workflow: dict[str, Any], out_path: Path, measurements: dict[str, Any] | None = None,
+) -> None:
+    img = render_thumbnail(workflow, measurements=measurements)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     img.save(out_path, format="PNG")
     _embed_in_png(out_path, {"workflow": workflow, "bionodulo_version": "2.0"})
 
 
-def process_one(path: Path, *, dry_run: bool) -> str:
+def process_one(path: Path, *, dry_run: bool, measurements: dict[str, Any] | None = None) -> str:
     workflow = json.loads(path.read_text(encoding="utf-8"))
-    repositioned = relayout(workflow)
+    repositioned = relayout(workflow, measurements)
     if dry_run:
         return f"  dry-run: would update {path.name}"
     path.write_text(json.dumps(repositioned, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     thumbnail_path = path.with_suffix(".png")
-    write_thumbnail_with_workflow(repositioned, thumbnail_path)
+    write_thumbnail_with_workflow(repositioned, thumbnail_path, measurements)
     return f"  ok: {path.name} -> {thumbnail_path.name}"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="Report what would change without writing.")
+    parser.add_argument("--measurements", type=Path, help="JSON mapping of template filenames to measured node dimensions.")
     parser.add_argument("templates", nargs="*", help="Specific template JSON files (default: all).")
     args = parser.parse_args()
+    measurements = json.loads(args.measurements.read_text(encoding="utf-8")) if args.measurements else {}
 
     targets: list[Path]
     if args.templates:
@@ -475,7 +532,7 @@ def main() -> None:
             print(f"  skip (missing): {target}")
             continue
         try:
-            print(process_one(target, dry_run=args.dry_run))
+            print(process_one(target, dry_run=args.dry_run, measurements=measurements.get(target.name)))
         except Exception as exc:  # noqa: BLE001 - dev tool, report per-file
             print(f"  fail: {target.name}: {exc}")
 

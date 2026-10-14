@@ -160,7 +160,7 @@ body {
 .island {
   position: absolute;
   bottom: 14px;
-  left: 50%;
+  left: var(--canvas-chrome-center, 50%);
   transform: translateX(-50%);
   z-index: 35;
   color: var(--text);
@@ -170,7 +170,7 @@ body {
   align-items: stretch;
   gap: 6px;
   transform-origin: bottom center;
-  max-width: calc(100% - 24px);
+  max-width: calc(var(--canvas-chrome-width, 100%) - 24px);
 }
 .island-pill {
   display: flex;
@@ -219,12 +219,13 @@ body {
 }
 
 /* Peek: a compact card riding directly above the pill. */
+.island.island-peek { width: min(360px, calc(var(--canvas-chrome-width, 100vw) - 24px)); }
 .island > .island-peek {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  width: min(360px, calc(100vw - 80px));
+  width: 100%;
   padding: 8px 12px;
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
@@ -874,7 +875,7 @@ body {
   top: 0;
   bottom: 0;
   z-index: 42;
-  min-width: min(280px, 100%);
+  min-width: 0;
   max-width: min(620px, 100%);
   container-type: inline-size;
 }
@@ -1745,6 +1746,8 @@ body.is-dragging-panel {
   right: calc(15px + var(--right-panel-inset, 0px));
   transition: right 0.2s ease, bottom 0.2s ease;
 }
+.workflow-canvas-host .react-flow__controls { left: var(--left-panel-inset, 0px); }
+.app-shell.canvas-crowded .react-flow__minimap { display: none; }
 
 /* Context Menus */
 .context-menu {
@@ -2744,7 +2747,7 @@ kbd {
 /* AI Drawer (right-side panel) */
 .ai-drawer {
   position: fixed;
-  top: 44px;
+  top: var(--editor-content-top, 76px);
   right: 0;
   bottom: 0;
   width: 380px;
@@ -2763,10 +2766,10 @@ kbd {
 
 .runs-drawer {
   position: fixed;
-  top: 44px;
+  top: var(--editor-content-top, 76px);
   right: 0;
   bottom: 0;
-  width: 380px;
+  width: min(380px, 100vw);
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: -4px 0 20px rgba(0,0,0,0.08);
@@ -2775,6 +2778,10 @@ kbd {
   flex-direction: column;
   animation: slideInRight 0.2s ease both;
 }
+.app-shell.runs-drawer-open .ai-drawer { right: 380px; }
+.app-shell.runs-drawer-open .comments-drawer { right: 380px !important; }
+.app-shell.ai-open .comments-drawer { right: var(--ai-panel-width, 380px) !important; }
+.app-shell.ai-open.runs-drawer-open .comments-drawer { right: calc(var(--ai-panel-width, 380px) + 380px) !important; }
 
 .runs-drawer-header {
   display: flex;
@@ -2890,10 +2897,10 @@ kbd {
 /* Keep the native MiniMap / Controls clear of the AI / comments drawers (right)
    and the console drawer (bottom). */
 .app-shell.ai-open .react-flow__minimap {
-  right: 388px;
+  right: calc(var(--right-panel-inset, 380px) + 8px);
 }
 .app-shell.comments-open:not(.ai-open) .react-flow__minimap {
-  right: 328px;
+  right: calc(var(--right-panel-inset, 320px) + 8px);
 }
 .app-shell.console-open .react-flow__controls {
   bottom: 208px;

@@ -233,6 +233,7 @@ _AIRWAY_META = f"{_AIRWAY}/airway_metadata.csv"
 # Bioconductor mirror and serves this same archive with a valid certificate.
 _MSDATA = "https://bioconductor.posit.co/packages/3.23/data/experiment/src/contrib/msdata_0.52.0.tar.gz"
 _MAGECK = "https://raw.githubusercontent.com/davidliwei/mageck/8ac6eea1d4bdb0d6e12b6124f8ab77254eaf6efe/demo/demo2"
+_SHOVILL = "https://raw.githubusercontent.com/tseemann/shovill/9f0e6c72227309f2c95bc7ce22f804b587e84a0e/test"
 # 10x tinygex (cellranger-tiny-fastq) — Git-LFS, must use the media host.
 _TINYGEX = "https://media.githubusercontent.com/media/minoda-lab/universc/master/test/shared/cellranger-tiny-fastq/3.0.0"
 _TINYREF_PATH = "minoda-lab/universc/7cbd039613b45c64f4b6d8219906aafda28dd5f9/test/cellranger_reference/cellranger-tiny-ref/1.2.0"
@@ -245,9 +246,11 @@ EXAMPLE_DATA_MANIFEST: list[DataFile] = [
     DataFile("fastq_qc", "R1.fq", "https://github.com/OpenGene/fastp/raw/master/testdata/R1.fq", description="fastp testdata R1"),
     DataFile("fastq_qc", "R2.fq", "https://github.com/OpenGene/fastp/raw/master/testdata/R2.fq", description="fastp testdata R2"),
 
-    # assembly — shovill test data + NCBI RefSeq
-    DataFile("assembly", "R1.fq", "https://github.com/tseemann/shovill/raw/master/test/R1.fq", description="shovill test R1"),
-    DataFile("assembly", "R2.fq", "https://github.com/tseemann/shovill/raw/master/test/R2.fq", description="shovill test R2"),
+    # assembly — matched Shovill plasmid test fixture; keep the separately named
+    # legacy E. coli reference available for saved workflows that request it.
+    DataFile("assembly", "R1.fq", f"{_SHOVILL}/R1.fq.gz", gunzip=True, description="Shovill NC_000958.1 test R1"),
+    DataFile("assembly", "R2.fq", f"{_SHOVILL}/R2.fq.gz", gunzip=True, description="Shovill NC_000958.1 test R2"),
+    DataFile("assembly", "reference.fna", f"{_SHOVILL}/test.fna", description="D. radiodurans R1 plasmid MP1 NC_000958.1"),
     DataFile("assembly", "ecoli_reference.fna", "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/005/845/GCF_000005845.2_ASM584v2/GCF_000005845.2_ASM584v2_genomic.fna.gz", gunzip=True, description="E. coli K-12 MG1655 RefSeq"),
 
     # rna_seq — EBI ENA FASTQ + NCBI RefSeq

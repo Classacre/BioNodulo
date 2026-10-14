@@ -81,7 +81,7 @@ function DiffRow({ label, left, right }: DiffRowProps) {
 export default function OutputDiffModal({ runs, initialLeftRunId, initialRightRunId, onClose }: OutputDiffModalProps) {
   const { t, i18n } = useTranslation();
   const eligible = useMemo(
-    () => runs.filter(r => r.status === 'completed' || r.status === 'error').slice(0, 30),
+    () => runs.filter(r => r.options?.cloud !== true && (r.status === 'completed' || r.status === 'error')).slice(0, 30),
     [runs],
   );
 

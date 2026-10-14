@@ -24,11 +24,11 @@
       "id": "note_metabolomics_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
-        "text": "Metabolomics LC-MS workflow: stage two or more ordered centroided raw files, detect chromatographic peaks with XCMS centWave, rebind the same raw files before obiwarp alignment and gap filling, then rebind them again for CAMERA correlation and isotope/adduct annotation.\n\nInputs are placeholders. Replace both mzML paths with samples from the same acquisition and keep their edge order identical at all three analysis nodes. Add further Input File nodes for larger cohorts and provide one sample_groups value per file."
+        "text": "Metabolomics raw-data example: detect chromatographic peaks with XCMS centWave, align retention times and fill peaks with obiwarp, then annotate isotope/adduct groups with CAMERA. The same ordered raw files feed all three analysis stages.\n\nDefaults are two real CE-MS runs from Bioconductor msdata 0.52.0: CEMS_10ppm.mzML and CEMS_25ppm.mzML, each containing 982 spectra. These acquisition fixtures demonstrate the tools; they are not a biological comparison cohort. For a study, supply matched runs in consistent edge order and one sample_groups value per file."
       },
       "ui": {
         "title": "Notes",
@@ -40,7 +40,7 @@
       "type": "input_file",
       "position": [
         80,
-        80
+        182
       ],
       "params": {
         "file": "examples/data/metabolomics/sample.mzML"
@@ -63,7 +63,7 @@
       "type": "input_file",
       "position": [
         80,
-        240
+        370
       ],
       "params": {
         "file": "examples/data/metabolomics/sample_2.mzML"
@@ -86,7 +86,7 @@
       "type": "xcms_peak_detection",
       "position": [
         440,
-        80
+        191
       ],
       "params": {
         "ppm": 25.0,
@@ -118,7 +118,7 @@
       "type": "xcms_retention_correction",
       "position": [
         800,
-        80
+        212
       ],
       "params": {
         "method": "obiwarp",

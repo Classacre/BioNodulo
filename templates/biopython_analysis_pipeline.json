@@ -8,7 +8,7 @@
       "id": "note_biopython",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
@@ -24,7 +24,7 @@
       "type": "ncbi_efetch",
       "position": [
         80,
-        246
+        236
       ],
       "params": {
         "accessions": "NR_024570.1,NR_027552.1,NR_036781.1,NR_026078.1,NR_028747.1",
@@ -67,7 +67,7 @@
       "type": "bp_seq_stats",
       "position": [
         440,
-        316
+        269
       ],
       "params": {
         "input_file": "",
@@ -82,7 +82,7 @@
       "type": "bp_blast",
       "position": [
         440,
-        506
+        480
       ],
       "params": {
         "query": "",
@@ -101,7 +101,7 @@
       "type": "bp_seqio_write",
       "position": [
         800,
-        80
+        303
       ],
       "params": {
         "sequences_json": "",
@@ -117,7 +117,7 @@
       "type": "input_fasta",
       "position": [
         80,
-        427
+        551
       ],
       "params": {
         "file_path": "templates/data/smoke/coding_sequences.fasta",
@@ -142,7 +142,7 @@
       "type": "bp_translate",
       "position": [
         440,
-        856
+        711
       ],
       "params": {
         "input_file": "",
@@ -157,8 +157,8 @@
       "id": "biostrings_001",
       "type": "r_biostrings_stats",
       "position": [
-        440,
-        1092
+        800,
+        92
       ],
       "params": {
         "input_fasta": "",
@@ -174,7 +174,7 @@
       "type": "table_preview",
       "position": [
         800,
-        316
+        528
       ],
       "params": {
         "rows": 25,
@@ -188,8 +188,8 @@
       "id": "seq_length_chart_001",
       "type": "r_plot",
       "position": [
-        800,
-        552
+        1160,
+        127
       ],
       "params": {
         "plot_type": "bar",
@@ -208,7 +208,7 @@
       "type": "text_preview",
       "position": [
         800,
-        740
+        695
       ],
       "params": {
         "max_lines": 120
@@ -221,8 +221,8 @@
       "id": "view_protein_001",
       "type": "text_preview",
       "position": [
-        800,
-        856
+        1160,
+        493
       ],
       "params": {
         "max_lines": 120
@@ -235,8 +235,8 @@
       "id": "view_orf_table_001",
       "type": "table_preview",
       "position": [
-        800,
-        1092
+        1160,
+        660
       ],
       "params": {
         "rows": 25,
@@ -250,8 +250,8 @@
       "id": "view_genbank_001",
       "type": "text_preview",
       "position": [
-        1160,
-        80
+        1520,
+        394
       ],
       "params": {
         "max_lines": 120

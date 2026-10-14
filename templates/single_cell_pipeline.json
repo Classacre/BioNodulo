@@ -8,7 +8,7 @@
       "id": "note_single_cell_pipeline",
       "type": "note",
       "position": [
-        -240,
+        -300,
         80
       ],
       "params": {
@@ -39,7 +39,7 @@
       "type": "input_gff",
       "position": [
         80,
-        220
+        247
       ],
       "params": {
         "annotation": "https://raw.githubusercontent.com/minoda-lab/universc/7cbd039613b45c64f4b6d8219906aafda28dd5f9/test/cellranger_reference/cellranger-tiny-ref/1.2.0/genes/genes.gtf",
@@ -53,8 +53,8 @@
       "id": "star_index_001",
       "type": "star_index",
       "position": [
-        380,
-        150
+        440,
+        473
       ],
       "params": {
         "threads": 4,
@@ -70,7 +70,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        380
+        365
       ],
       "params": {
         "reads": [
@@ -87,7 +87,7 @@
       "type": "input_fastq",
       "position": [
         80,
-        500
+        555
       ],
       "params": {
         "reads": [
@@ -103,8 +103,8 @@
       "id": "starsolo_001",
       "type": "starsolo_count",
       "position": [
-        680,
-        300
+        800,
+        313
       ],
       "params": {
         "solo_type": "CB_UMI_Simple",
@@ -122,8 +122,8 @@
       "id": "qc_dashboard_001",
       "type": "qc_dashboard",
       "position": [
-        80,
-        382
+        440,
+        145
       ],
       "params": {
         "run_name": "Single Cell QC",
@@ -139,8 +139,8 @@
       "id": "qc_dashboard_preview_001",
       "type": "html_preview",
       "position": [
-        440,
-        261
+        800,
+        195
       ],
       "params": {},
       "ui": {
@@ -152,7 +152,7 @@
       "type": "scanpy_umap",
       "position": [
         1160,
-        300
+        286
       ],
       "params": {
         "min_genes": 10,
@@ -170,7 +170,7 @@
       "type": "image_preview",
       "position": [
         1520,
-        220
+        294
       ],
       "params": {},
       "ui": {
@@ -182,7 +182,7 @@
       "type": "image_preview",
       "position": [
         1520,
-        440
+        412
       ],
       "params": {},
       "ui": {

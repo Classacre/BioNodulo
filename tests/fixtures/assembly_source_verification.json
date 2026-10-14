@@ -1,0 +1,41 @@
+{
+  "source_repository": "https://github.com/tseemann/shovill",
+  "commit": "9f0e6c72227309f2c95bc7ce22f804b587e84a0e",
+  "documentation": "https://github.com/tseemann/shovill/blob/9f0e6c72227309f2c95bc7ce22f804b587e84a0e/README.md#quick-start",
+  "paired_headers_match": true,
+  "files": [
+    {
+      "file": "R1.fq.gz",
+      "url": "https://raw.githubusercontent.com/tseemann/shovill/9f0e6c72227309f2c95bc7ce22f804b587e84a0e/test/R1.fq.gz",
+      "bytes": 3081592,
+      "sha256": "e1dfe159e9bfaef56cbe1b9cc47a1894087dd74ec968c825bddb85577e9841db",
+      "decoded_sha256": "04e7af498f0d8860e832129660d7fa0c684ead92ffc1c491a30c62d2ae246028",
+      "records": 50000,
+      "min_read_length": 150,
+      "max_read_length": 150,
+      "reads_with_exact_reference_31mer": 49527,
+      "first_header": "gi|10957398|ref|NC_000958.1|_96980_97414_4:0:0_1:0:0_0"
+    },
+    {
+      "file": "R2.fq.gz",
+      "url": "https://raw.githubusercontent.com/tseemann/shovill/9f0e6c72227309f2c95bc7ce22f804b587e84a0e/test/R2.fq.gz",
+      "bytes": 3081833,
+      "sha256": "7b9dc64479eae420beabf4cd86331dfc9a1c0b1ea79e316d48bec93cdc2c2707",
+      "decoded_sha256": "c82573720a2a31b559e6a0c519c8d1809c3e50ec214c552c09fa89869d7a148d",
+      "records": 50000,
+      "min_read_length": 150,
+      "max_read_length": 150,
+      "reads_with_exact_reference_31mer": 49556,
+      "first_header": "gi|10957398|ref|NC_000958.1|_96980_97414_4:0:0_1:0:0_0"
+    },
+    {
+      "file": "test.fna",
+      "url": "https://raw.githubusercontent.com/tseemann/shovill/9f0e6c72227309f2c95bc7ce22f804b587e84a0e/test/test.fna",
+      "bytes": 180073,
+      "sha256": "fbacab8376274834b13d8f5b74b001a5749caedfa7afe537f798a22ce8ac98a4",
+      "records": 1,
+      "header": "NC_000958.1 Deinococcus radiodurans R1 plasmid MP1, complete sequence",
+      "length": 177466
+    }
+  ]
+}
