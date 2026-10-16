@@ -4091,8 +4091,7 @@ export default function App() {
               node_info: inputMeta,
               ui: { title: fileName },
             };
-            const next: Workflow = { ...activeWorkflow, nodes: [...activeWorkflow.nodes, newNode] };
-            updateWorkflow(activeIndex, next);
+            if (!commitHistoryPatch({ nodes: [...activeWorkflowRef.current.nodes, newNode] })) return;
             toast.success(appFileActionCopy.toast.fileDropped, { message: fileName });
           }
         }}
