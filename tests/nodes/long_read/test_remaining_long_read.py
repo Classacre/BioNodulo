@@ -323,24 +323,21 @@ async def test_medaka_consensus_checks_the_documented_consensus_fasta(tmp_path: 
     assert result == (str(expected),)
 
 
-def test_modkit_pileup_declares_modified_base_codes() -> None:
+def test_modkit_pileup_rejects_unsupported_legacy_modified_base_selection() -> None:
     registry = NodeRegistry.create_isolated()
     registry.load_builtin_nodes()
     node = registry.get("modkit_pileup")
     assert node is not None
-    argv = node.render_command(
-        {
-            "bam": "/inputs/sample.bam",
-            "bam_index": "/inputs/sample.bam.bai",
-            "threads": 4,
-            "modified_bases": "6mA",
-            "with_header": True,
-        }
-    )
-    assert argv[argv.index("--modified-bases") + 1] == "6mA"
-    assert "--high-depth" in argv
-    argv_default = node.render_command(
-        {"bam": "/inputs/sample.bam", "bam_index": "/inputs/sample.bam.bai"}
-    )
+    with pytest.raises(ValueError, match="unsupported by pinned Modkit 0.4.3"):
+        node.render_command(
+            {
+                "bam": "/inputs/sample.bam",
+                "bam_index": "/inputs/sample.bam.bai",
+                "threads": 4,
+                "modified_bases": "6mA",
+                "with_header": True,
+            }
+        )
+    argv_default = node.render_command({"bam": "/inputs/sample.bam", "bam_index": "/inputs/sample.bam.bai"})
     assert "--modified-bases" not in argv_default
-    assert "--high-depth" in argv_default
+    assert "--high-depth" not in argv_default

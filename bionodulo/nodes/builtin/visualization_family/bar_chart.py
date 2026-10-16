@@ -7,4 +7,5 @@ class BarChartNode(_BarChartContract):
     """Render categorical values as a native static or Plotly HTML chart."""
 
     NODE_ID = "bar_chart"
+    VERSION = "1.0.1"
     UPSTREAM_SYMBOL = "BarChartNode"

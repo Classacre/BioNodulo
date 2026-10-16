@@ -1,0 +1,151 @@
+{
+  "upstream_version": "0.4.3",
+  "source_tag": "v0.4.3",
+  "git_commit": "d13b97db2d221afc4a1db3616a7eccdc6858a313",
+  "source_url": "https://raw.githubusercontent.com/nanoporetech/modkit/d13b97db2d221afc4a1db3616a7eccdc6858a313/src/pileup/subcommand.rs",
+  "source_sha256": "9435eb0f7e2699a17b8602156be375dc5628bf62ebc90fb3cfc68e527134f135",
+  "parser": "ModBamPileup",
+  "extraction": "Rust long/alias attributes on fields in the exact upstream ModBamPileup struct. Help is Clap automatic.",
+  "options": {
+    "--bedgraph": {
+      "takes_value": false
+    },
+    "--chunk-size": {
+      "takes_value": true
+    },
+    "--combine-mods": {
+      "takes_value": false
+    },
+    "--combine-strands": {
+      "takes_value": false
+    },
+    "--cpg": {
+      "takes_value": false
+    },
+    "--edge-filter": {
+      "takes_value": true
+    },
+    "--filter-percentile": {
+      "takes_value": true
+    },
+    "--filter-threshold": {
+      "takes_value": true
+    },
+    "--force-allow-implicit": {
+      "takes_value": false
+    },
+    "--header": {
+      "takes_value": false
+    },
+    "--ignore": {
+      "takes_value": true
+    },
+    "--include-bed": {
+      "takes_value": true
+    },
+    "--include-positions": {
+      "takes_value": true
+    },
+    "--include-unmapped": {
+      "takes_value": false
+    },
+    "--include_header": {
+      "takes_value": false
+    },
+    "--interval-size": {
+      "takes_value": true
+    },
+    "--invert-edge-filter": {
+      "takes_value": false
+    },
+    "--log": {
+      "takes_value": true
+    },
+    "--log-filepath": {
+      "takes_value": true
+    },
+    "--mask": {
+      "takes_value": false
+    },
+    "--max-depth": {
+      "takes_value": true
+    },
+    "--mixed-delim": {
+      "takes_value": false
+    },
+    "--mixed-delimiters": {
+      "takes_value": false
+    },
+    "--mod-threshold": {
+      "takes_value": true
+    },
+    "--mod-thresholds": {
+      "takes_value": true
+    },
+    "--motif": {
+      "takes_value": true
+    },
+    "--no-filtering": {
+      "takes_value": false
+    },
+    "--num-reads": {
+      "takes_value": true
+    },
+    "--only-tabs": {
+      "takes_value": false
+    },
+    "--partition-tag": {
+      "takes_value": true
+    },
+    "--pass_threshold": {
+      "takes_value": true
+    },
+    "--prefix": {
+      "takes_value": true
+    },
+    "--preset": {
+      "takes_value": true
+    },
+    "--queue-size": {
+      "takes_value": true
+    },
+    "--ref": {
+      "takes_value": true
+    },
+    "--reference": {
+      "takes_value": true
+    },
+    "--region": {
+      "takes_value": true
+    },
+    "--sample-region": {
+      "takes_value": true
+    },
+    "--sampling-frac": {
+      "takes_value": true
+    },
+    "--sampling-interval-size": {
+      "takes_value": true
+    },
+    "--seed": {
+      "takes_value": true
+    },
+    "--suppress-progress": {
+      "takes_value": false
+    },
+    "--threads": {
+      "takes_value": true
+    },
+    "--with-header": {
+      "takes_value": false
+    }
+  },
+  "defaults": {
+    "max_depth": 8000,
+    "filter_percentile": 0.1
+  },
+  "linux_package": {
+    "filename": "ont-modkit-0.4.3-hcdda2d0_0.tar.bz2",
+    "sha256": "ba2291c2e94dd54b3c74f0cfa2d9277dca89869700c08c79f1c3d85279b4cf61"
+  }
+}

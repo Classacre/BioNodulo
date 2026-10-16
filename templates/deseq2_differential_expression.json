@@ -121,7 +121,7 @@
         "scale": "row",
         "cluster_rows": true,
         "cluster_cols": true,
-        "show_rownames": true,
+        "show_rownames": false,
         "show_colnames": true,
         "fontsize": 10,
         "width": 900,

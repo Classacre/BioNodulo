@@ -847,7 +847,7 @@ class WorkflowExecutor:
                         params=self.cache.normalize_paths(resolved_params, hash_mode),
                         inputs=self.cache.normalize_paths(resolved_inputs, hash_mode),
                         upstream_keys=upstream_keys,
-                        tool_version=getattr(_node_class, "VERSION", None),
+                        tool_version=self._node_cache_version(_node_class),
                         input_fingerprints=input_fingerprints,
                     )
                 node_cache_keys[node_id] = cache_key
@@ -1434,6 +1434,7 @@ class WorkflowExecutor:
                     params=self.cache.normalize_paths(resolved_params, hash_mode),
                     inputs=self.cache.normalize_paths(resolved_inputs, hash_mode),
                     upstream_keys=upstream_keys,
+                    tool_version=self._node_cache_version(node_class),
                     input_fingerprints={
                         **{f"in:{k}": v for k, v in self.cache.fingerprint_inputs(resolved_inputs, hash_mode).items()},
                         **{f"param:{k}": v for k, v in self.cache.fingerprint_inputs(resolved_params, hash_mode).items()},
@@ -1599,6 +1600,15 @@ class WorkflowExecutor:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _node_cache_version(node_class: Any) -> str | None:
+        """Retain the tool version while allowing an adapter-only cache revision."""
+        version = getattr(node_class, "VERSION", None)
+        revision = getattr(node_class, "CACHE_VERSION", None)
+        if revision is None:
+            return version
+        return json.dumps([version, revision], separators=(",", ":"))
 
     @staticmethod
     def _executor_cache_policy(node_class: Any) -> str:

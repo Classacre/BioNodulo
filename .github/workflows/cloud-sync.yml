@@ -239,6 +239,12 @@ jobs:
           set -euo pipefail
           [ "$(git -C BioNodulo rev-parse HEAD)" = "$APP_SHA" ] || exit 1
           [ "$(git -C bionodulo-website rev-parse HEAD)" = "$WEBSITE_SHA" ] || exit 1
+          # Authenticate the official public registry before pulling Lambda's
+          # adapter/base images. Anonymous shared-runner pulls can hit 429.
+          # The password stays on stdin; remove only this login on any exit.
+          trap 'docker logout public.ecr.aws >/dev/null 2>&1 || true' EXIT
+          aws ecr-public get-login-password --region us-east-1 | \
+            docker login --username AWS --password-stdin public.ecr.aws >/dev/null
           cd bionodulo-website/infrastructure
           ./deploy-backend.sh editor
           worker_out="$(./deploy-backend.sh worker)"

@@ -11,7 +11,7 @@ import json
 import math
 import struct
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -6425,6 +6425,48 @@ def _render_manhattan_png(
     _write_png(path, layout.width, layout.height, pixels)
 
 
+def _bar_label_width(text: str, font_size: int) -> float:
+    """Arial-compatible advance estimates; SVG textLength fixes fallback bounds."""
+    narrow = {" ": 0.28, "i": 0.23, "l": 0.23, "I": 0.28, "j": 0.23,
+              "f": 0.28, "t": 0.28, "r": 0.34, ".": 0.28, ",": 0.28,
+              ":": 0.28, ";": 0.28, "|": 0.27, "!": 0.28, "'": 0.20,
+              "-": 0.34, "(": 0.34, ")": 0.34}
+    wide = {"m": 0.84, "w": 0.73, "M": 0.84, "W": 0.95, "@": 1.02,
+            "%": 0.90, "G": 0.78, "O": 0.78, "Q": 0.78}
+    return font_size * sum(narrow.get(char, wide.get(char,
+        0.73 if char.isascii() and char.isupper() else 0.57 if char.isascii() else 1.0)) for char in text)
+
+
+def _bar_label_lines(label: str, maximum_width: float, font_size: int, maximum_lines: int) -> list[str]:
+    """Wrap presentation text without changing category identities or row data."""
+    remaining = " ".join(label.split())
+    lines: list[str] = []
+    while remaining and len(lines) < maximum_lines:
+        end = 0
+        advance = 0.0
+        for character in remaining:
+            next_advance = advance + _bar_label_width(character, font_size)
+            if next_advance > maximum_width:
+                break
+            advance = next_advance
+            end += 1
+        end = max(1, end)
+        if end == len(remaining):
+            lines.append(remaining)
+            break
+        if len(lines) == maximum_lines - 1:
+            while end > 1 and _bar_label_width(remaining[:end].rstrip() + "…", font_size) > maximum_width:
+                end -= 1
+            lines.append(remaining[:end].rstrip() + "…")
+            break
+        word_end = remaining.rfind(" ", 0, end + 1)
+        if word_end > 0:
+            end = word_end
+        lines.append(remaining[:end].rstrip())
+        remaining = remaining[end:].lstrip()
+    return lines or [""]
+
+
 def _render_bar_svg(
     path: Path,
     *,
@@ -6439,6 +6481,16 @@ def _render_bar_svg(
     groups = _bar_groups(rows)
     value_min, value_max = _bar_value_range(rows)
     grouped = {(row.category, row.group or "Value"): row.value for row in rows}
+    label_font = 12
+    if orientation == "horizontal":
+        # Bound the gutter to 34%/360px, preserving useful plotting space even
+        # for pathological names; complete names remain in titles/data-category.
+        gutter_cap = min(360, int(layout.width * 0.34))
+        desired = math.ceil(max((_bar_label_width(category, label_font) for category in categories), default=0)) + 24
+        left = min(max(layout.left, desired), gutter_cap)
+        value_margin = math.ceil(max((_bar_label_width(f"{row.value:g}", 10) for row in rows), default=0)) + 16 if show_values else layout.right
+        right = min(max(layout.right, value_margin), int(layout.width * 0.24))
+        layout = replace(layout, left=left, right=right)
     x0 = layout.left
     x1 = layout.width - layout.right
     y0 = layout.top
@@ -6469,11 +6521,23 @@ def _render_bar_svg(
         parts.append(f'<line x1="{x0}" y1="{y1}" x2="{x1}" y2="{y1}" stroke="#111827" stroke-width="1.5"/>')
         for cat_index, category in enumerate(categories):
             base_y = y0 + cat_index * category_band
-            parts.append(
-                f'<text x="{x0 - 8}" y="{base_y + category_band / 2 + 4:.2f}" '
-                'text-anchor="end" font-family="Arial, sans-serif" font-size="11" '
-                f'fill="#475569">{html.escape(category)}</text>'
-            )
+            label_width = max(1, x0 - 24)
+            max_lines = 2 if category_band >= 32 else 1
+            lines = _bar_label_lines(category, label_width, label_font, max_lines)
+            line_height = label_font + 3
+            first_y = base_y + category_band / 2 - (len(lines) - 1) * line_height / 2 + 4
+            parts.append(f'<g class="bar-category-label" data-category="{html.escape(category, quote=True)}">'
+                         f'<title>{html.escape(category)}</title>')
+            for line_index, line in enumerate(lines):
+                # Explicit advances keep fallback fonts inside the same bounds.
+                text_width = min(label_width, _bar_label_width(line, label_font))
+                parts.append(
+                    f'<text x="{x0 - 10}" y="{first_y + line_index * line_height:.2f}" '
+                    f'text-anchor="end" font-family="Arial, sans-serif" font-size="{label_font}" '
+                    f'textLength="{text_width:.2f}" lengthAdjust="spacingAndGlyphs" '
+                    f'fill="#475569">{html.escape(line)}</text>'
+                )
+            parts.append('</g>')
             for group_index, group in enumerate(groups):
                 value = grouped.get((category, group))
                 if value is None:
@@ -6490,12 +6554,19 @@ def _render_bar_svg(
                     f'data-group="{html.escape(group, quote=True)}" data-value="{value:.6g}"/>'
                 )
                 if show_values:
+                    label = f"{value:g}"
+                    text_width = min(_bar_label_width(label, 10), layout.plot_width - 8)
                     label_x = x_value + (4 if value >= 0 else -4)
                     anchor = "start" if value >= 0 else "end"
+                    if anchor == "start":
+                        label_x = min(label_x, layout.width - 12 - text_width)
+                    else:
+                        label_x = max(label_x, x0 + text_width + 4)
                     parts.append(
-                        f'<text x="{label_x:.2f}" y="{rect_y + bar_height / 2 + 4:.2f}" '
+                        f'<text class="bar-value-label" x="{label_x:.2f}" y="{rect_y + bar_height / 2 + 4:.2f}" '
                         f'text-anchor="{anchor}" font-family="Arial, sans-serif" '
-                        f'font-size="10" fill="#334155">{value:g}</text>'
+                        f'textLength="{text_width:.2f}" lengthAdjust="spacingAndGlyphs" '
+                        f'font-size="10" fill="#334155">{label}</text>'
                     )
     else:
         category_band = layout.plot_width / max(1, len(categories))

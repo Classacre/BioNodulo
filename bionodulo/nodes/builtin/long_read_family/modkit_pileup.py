@@ -40,11 +40,11 @@ class ModkitPileupNode(LongReadCommandNode):
     REQUIRED_PATH_INPUTS = ("bam", "bam_index")
     REQUIRED_EXECUTABLES = ["modkit"]
     REQUIRED_CONDA_PACKAGES = ["ont-modkit"]
-    PACKAGE_CONSTRAINT = "ont-modkit = 0.6.4"
-    VERSION = "0.6.4"
+    PACKAGE_CONSTRAINT = "ont-modkit = 0.4.3"
+    VERSION = "0.4.3"
     GIT_URL = "https://github.com/nanoporetech/modkit.git"
-    GIT_COMMIT = "cd85862f71d3bfc289f12adc1052a2e574c95e0f"
-    SOURCE_TAG = "v0.6.4"
+    GIT_COMMIT = "d13b97db2d221afc4a1db3616a7eccdc6858a313"
+    SOURCE_TAG = "v0.4.3"
     DOCUMENTATION_URL = "https://nanoporetech.github.io/modkit/intro_pileup.html"
     UPSTREAM_SOURCE = "src/pileup/subcommand.rs; src/fasta.rs; src/bin/main.rs"
     SOURCE_AUTHORITIES = {
@@ -97,9 +97,9 @@ class ModkitPileupNode(LongReadCommandNode):
                     {
                         "default": "",
                         "description": (
-                            "Comma-separated modified-base codes passed to --modified-bases "
-                            "(long names: '5mC', '6mA', 'pseU'. Empty omits the flag; non-5mC "
-                            "mods are only reported when declared"
+                            "Legacy field: leave empty with pinned Modkit 0.4.3, which "
+                            "reads modification codes from BAM tags and does not support "
+                            "--modified-bases. Nonempty selections are rejected."
                         ),
                     },
                 ),
@@ -112,6 +112,11 @@ class ModkitPileupNode(LongReadCommandNode):
         validation = super().VALIDATE_INPUTS(inputs)
         if validation is not True:
             return validation
+        if str(option_value(inputs, "modified_bases", "") or "").strip():
+            return (
+                "Input 'modified_bases' is unsupported by pinned Modkit 0.4.3; "
+                "leave it empty. This release reads modification codes from BAM tags."
+            )
         validation = validate_colocated_bam_index(inputs)
         if validation is not True:
             return validation
@@ -135,9 +140,7 @@ class ModkitPileupNode(LongReadCommandNode):
         )
         if validation is not True:
             return validation
-        if option_value(inputs, "no_filtering", False) and float(
-            option_value(inputs, "filter_percentile", 0.1)
-        ) != 0.1:
+        if option_value(inputs, "no_filtering", False) and float(option_value(inputs, "filter_percentile", 0.1)) != 0.1:
             return (
                 "Input 'filter_percentile' cannot be combined with 'no_filtering'; "
                 "the pinned Modkit parser treats them as mutually exclusive"
@@ -183,7 +186,6 @@ class ModkitPileupNode(LongReadCommandNode):
             inputs,
             "modkit",
             "pileup",
-            "--high-depth",
             str(inputs["bam"]),
             f"{output}/bedmethyl.bed",
             "--threads",
@@ -210,7 +212,4 @@ class ModkitPileupNode(LongReadCommandNode):
             command.append("--combine-strands")
         if option_value(inputs, "with_header", False):
             command.append("--header")
-        modified_bases = str(option_value(inputs, "modified_bases", "") or "").strip()
-        if modified_bases:
-            command.extend(["--modified-bases", *modified_bases.replace(" ", "").split(",")])
         return command

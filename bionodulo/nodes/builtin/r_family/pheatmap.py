@@ -19,6 +19,25 @@ from .adapter import (
 PHEATMAP_VERSION = "1.0.13"
 PHEATMAP_COMMIT = "ffd0f8c4b5a3dc2628a3dfd9b5fd4321c2aa1569"
 
+# Native pheatmap places legend headings using the height of "FGH". That
+# underestimates some device/font combinations. Pad the returned grobs rather
+# than changing the package namespace, matrix, labels, colors or clustering.
+_ANNOTATION_LEGEND_PADDING_R = """\
+pad_annotation_legend <- function(legend, annotation_names, fontsize) {
+    offset <- grid::unit(0, "bigpts")
+    padding <- grid::unit(fontsize * 0.8, "bigpts")
+    for (index in seq_along(legend$children)) {
+        child <- legend$children[[index]]
+        is_heading <- inherits(child, "text") && length(child$label) == 1L &&
+            child$label %in% annotation_names && isTRUE(as.integer(child$gp$font) == 2L)
+        child$y <- child$y - offset
+        legend$children[[index]] <- child
+        if (is_heading) offset <- offset + padding
+    }
+    legend
+}
+"""
+
 
 class PheatmapNode(PreparedRScriptNode):
     """Render a numeric CSV matrix with pheatmap's documented file output path."""
@@ -34,6 +53,7 @@ class PheatmapNode(PreparedRScriptNode):
     REQUIRED_CONDA_PACKAGES = ["r-base", "r-pheatmap"]
     CONDA_PACKAGE_CONSTRAINTS = {"r-base": R_VERSION, "r-pheatmap": PHEATMAP_VERSION}
     VERSION = PHEATMAP_VERSION
+    CACHE_VERSION = "1.0.13-render2"
     GIT_URL = "https://github.com/raivokolde/pheatmap.git"
     GIT_COMMIT = PHEATMAP_COMMIT
     DOCUMENTATION_URL = "https://cran.r-project.org/package=pheatmap"
@@ -133,7 +153,7 @@ class PheatmapNode(PreparedRScriptNode):
 
             {annotation_code}
 
-            pheatmap::pheatmap(
+            heatmap <- pheatmap::pheatmap(
                 matrix_data,
                 scale = {r_string(inputs.get('scale', 'row'))},
                 cluster_rows = {str(bool(inputs.get('cluster_rows', True))).upper()},
@@ -147,5 +167,26 @@ class PheatmapNode(PreparedRScriptNode):
                 width = {int(inputs.get('width', 800)) / 100!r},
                 height = {int(inputs.get('height', 600)) / 100!r}
             )
+
+            {_ANNOTATION_LEGEND_PADDING_R}
+            legend_index <- which(heatmap$gtable$layout$name == "annotation_legend")
+            if (length(legend_index) == 1L) {{
+                heatmap$gtable$grobs[[legend_index]] <- pad_annotation_legend(
+                    heatmap$gtable$grobs[[legend_index]],
+                    colnames(annotation_data),
+                    {int(inputs.get('fontsize', 10))}
+                )
+                # Reuse the computed gtable; do not cluster the matrix again.
+                grDevices::png(
+                    filename = {r_string(outputs[0])},
+                    width = {int(inputs.get('width', 800)) / 100!r},
+                    height = {int(inputs.get('height', 600)) / 100!r},
+                    units = "in", res = 300
+                )
+                tryCatch({{
+                    grid::grid.newpage()
+                    grid::grid.draw(heatmap$gtable)
+                }}, finally = grDevices::dev.off())
+            }}
             """
         )
