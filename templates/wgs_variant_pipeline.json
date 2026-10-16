@@ -320,7 +320,7 @@
         497
       ],
       "params": {
-        "custom_filter": "INFO/ANN ~ 'HIGH|MODERATE'",
+        "custom_filter": "INFO/ANN ~ 'HIGH' || INFO/ANN ~ 'MODERATE'",
         "pass_only": true
       },
       "ui": {
