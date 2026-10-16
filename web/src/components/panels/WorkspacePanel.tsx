@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { useAtomValue } from 'jotai';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { apiGet, apiGetText, apiPost, ApiError } from '../../api/client';
 import { logError } from '../../state/logging';
 import { useSettings } from '../../hooks/settings';
 import { authUserAtom, cloudConfigAtom } from '../../state/appAtoms';
+import { cloudInviteSessionAtom } from '../../collab/cloudInvite';
 import { call, listCloudFiles, type CloudFile } from '../../api/website';
 import { startCloudDownload, uploadBrowserFileToCloud, uploadWorkspaceFileToCloud } from '../../api/cloudFiles';
 import { getMcpRuntime } from '../../mcp/runtime';
@@ -38,7 +39,29 @@ function workspaceRelativePath(path: string): string {
   return normalized === '.' ? '' : normalized;
 }
 
-export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkflow }: WorkspacePanelProps) {
+const runtimeIdentities = new WeakMap<object, number>();
+let nextRuntimeIdentity = 0;
+function runtimeIdentity(runtime: object | undefined): number | null {
+  if (!runtime) return null;
+  if (!runtimeIdentities.has(runtime)) runtimeIdentities.set(runtime, ++nextRuntimeIdentity);
+  return runtimeIdentities.get(runtime)!;
+}
+
+export default function WorkspacePanel(props: WorkspacePanelProps) {
+  const authUser = useAtomValue(authUserAtom);
+  const config = useAtomValue(cloudConfigAtom);
+  const invite = useAtomValue(cloudInviteSessionAtom);
+  const runtime = getMcpRuntime();
+  const nonMemberInvite = Boolean(invite && !invite.member);
+  const cloudAllowed = !nonMemberInvite && Boolean(runtime || authUser || (config?.user?.id && config?.team?.id));
+  const owner = JSON.stringify([authUser?.id, config?.user?.id, config?.team?.id, runtime?.teamId,
+    runtimeIdentity(runtime), nonMemberInvite, config?.editorMode]);
+  // A new owner gets a fresh component before paint. Old async closures retain
+  // their unmounted instance's invalidated liveness guard, even after A -> B -> A.
+  return <ScopedWorkspacePanel key={owner} {...props} cloudAllowed={cloudAllowed} />;
+}
+
+function ScopedWorkspacePanel({ onClose, onOpenSettings, onImportWorkflow, cloudAllowed }: WorkspacePanelProps & { cloudAllowed: boolean }) {
   const { t, i18n } = useTranslation();
   const { getBool } = useSettings();
   const showHidden = getBool('bionodulo.showHiddenFiles', false);
@@ -73,20 +96,31 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
   const uploadInputRef = useRef<HTMLInputElement>(null);
   // Right-click menu over a local or cloud file row.
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const alive = useRef(true);
+  const listGeneration = useRef(0);
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; listGeneration.current += 1; };
+  }, []);
 
   const loadCloudFiles = useCallback(async () => {
+    if (!alive.current || !cloudAllowed) return;
+    const generation = ++listGeneration.current;
     setCloudLoading(true); setCloudError('');
     try {
-      setCloudFiles(await listCloudFiles());
+      const rows = await listCloudFiles();
+      if (!alive.current || generation !== listGeneration.current) return;
+      setCloudFiles(rows);
     } catch (err) {
+      if (!alive.current || generation !== listGeneration.current) return;
       logError('workspace.cloud.list', err);
       setCloudError(runtime
         ? 'Could not list cloud files. Reconnect the MCP host and retry.'
         : t('workspace.cloudListError', { defaultValue: 'Could not list cloud files.' }));
       setCloudFiles([]);
     }
-    setCloudLoading(false);
-  }, [t, runtime]);
+    if (alive.current && generation === listGeneration.current) setCloudLoading(false);
+  }, [t, runtime, cloudAllowed]);
 
   useEffect(() => {
     if (tab === 'cloud' && cloudAvailable) loadCloudFiles();
@@ -98,22 +132,30 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
   }, [cloudOnly, cloudAvailable, tab]);
 
   const uploadSelectedFiles = useCallback(async (files: FileList | null) => {
-    if (!files?.length) return;
+    if (!files?.length || !alive.current || !cloudAllowed) return;
     setUploading(true);
     setCloudError('');
     try {
-      for (const file of Array.from(files)) await uploadBrowserFileToCloud(file);
+      for (const file of Array.from(files)) {
+        if (!alive.current) return;
+        await uploadBrowserFileToCloud(file);
+      }
+      if (!alive.current) return;
       await loadCloudFiles();
     } catch (err) {
+      if (!alive.current) return;
       logError('workspace.cloud.upload', err);
       setCloudError(err instanceof Error ? err.message : 'Could not upload the selected file.');
     } finally {
-      setUploading(false);
-      if (uploadInputRef.current) uploadInputRef.current.value = '';
+      if (alive.current) {
+        setUploading(false);
+        if (uploadInputRef.current) uploadInputRef.current.value = '';
+      }
     }
-  }, [loadCloudFiles]);
+  }, [loadCloudFiles, cloudAllowed]);
 
   const downloadCloudFile = useCallback(async (file: CloudFile) => {
+    if (!alive.current || !cloudAllowed) return;
     try {
       if (runtime) {
         if (!file.url) throw new Error('A download link is unavailable for this file.');
@@ -127,52 +169,58 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
         link.click();
       } else await startCloudDownload(file);
     } catch (err) {
+      if (!alive.current) return;
       logError('workspace.cloud.download', err);
       setCloudError(err instanceof Error ? err.message : 'Could not download this file.');
     }
-  }, [runtime, cloudOnly]);
+  }, [runtime, cloudOnly, cloudAllowed]);
 
   const verifyPendingUpload = useCallback(async (file: WorkspaceCloudFile) => {
+    if (!alive.current || !cloudAllowed) return;
     setCloudError('');
     try {
       if (runtime) await runtime.host.tool('complete_upload', {
         ...(runtime.teamId ? { team_id: runtime.teamId } : {}), key: file.key,
       });
       else await call('/files/complete', { method: 'POST', body: JSON.stringify({ key: file.key }) });
-      await loadCloudFiles();
+      if (alive.current) await loadCloudFiles();
     } catch (err) {
+      if (!alive.current) return;
       logError('workspace.cloud.verify', err);
       setCloudError(err instanceof Error ? err.message : 'Could not verify the upload.');
     }
-  }, [runtime, loadCloudFiles]);
+  }, [runtime, loadCloudFiles, cloudAllowed]);
 
   // Read a local workspace file's raw bytes and upload it to cloud storage.
   const sendToCloud = useCallback(async (file: FileEntry) => {
+    if (!alive.current || !cloudAllowed) return;
     try {
       await uploadWorkspaceFileToCloud(file.path, file.name);
-      if (tab === 'cloud') loadCloudFiles();
+      if (alive.current && tab === 'cloud') loadCloudFiles();
     } catch (err) {
+      if (!alive.current) return;
       logError('workspace.sendToCloud', err);
       await alertDialog(t('workspace.sendToCloudError', { defaultValue: 'Could not send this file to the cloud.' }));
     }
-  }, [t, tab, loadCloudFiles]);
+  }, [t, tab, loadCloudFiles, cloudAllowed]);
 
   const openLocalMenu = useCallback((e: React.MouseEvent, file: FileEntry) => {
-    if (file.type !== 'file' || !cloudAvailable) return;
+    if (file.type !== 'file' || !cloudAvailable || !cloudAllowed || !alive.current) return;
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, items: [
       { key: 'send', label: t('workspace.sendToCloud', { defaultValue: 'Send to cloud' }), icon: 'export', onClick: () => sendToCloud(file) },
     ] });
-  }, [cloudAvailable, t, sendToCloud]);
+  }, [cloudAvailable, cloudAllowed, t, sendToCloud]);
 
   const openCloudMenu = useCallback((e: React.MouseEvent, file: WorkspaceCloudFile) => {
+    if (!alive.current || !cloudAllowed) return;
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, items: file.verificationPending ? [
       { key: 'verify', label: 'Verify upload', icon: 'activity', onClick: () => { void verifyPendingUpload(file); } },
     ] : [
       { key: 'download', label: t('workspace.download', { defaultValue: 'Download' }), icon: 'download', onClick: () => { void downloadCloudFile(file); } },
     ] });
-  }, [t, downloadCloudFile, verifyPendingUpload]);
+  }, [t, downloadCloudFile, verifyPendingUpload, cloudAllowed]);
 
   const loadRoot = useCallback(async () => {
     try {
@@ -354,7 +402,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
             <div className="workspace-cloud-toolbar">
               <span className="workspace-cloud-hint">{t('workspace.cloudHint', { defaultValue: 'Right-click a file to download.' })}</span>
               <input ref={uploadInputRef} type="file" multiple style={{ display: 'none' }} aria-label="Choose cloud files" onChange={e => { void uploadSelectedFiles(e.target.files); }} />
-              <button className="btn btn-sm" disabled={uploading} onClick={() => uploadInputRef.current?.click()}>{uploading ? 'Uploading…' : 'Upload'}</button>
+              <button className="btn btn-sm" disabled={uploading || !cloudAllowed} onClick={() => uploadInputRef.current?.click()}>{uploading ? 'Uploading…' : 'Upload'}</button>
               <button className="btn btn-icon btn-sm" onClick={loadCloudFiles} title={t('common.refresh', { defaultValue: 'Refresh' })}><Icon name="activity" size={13} /></button>
             </div>
             {cloudError && <div className="workspace-root-error">{cloudError}</div>}
@@ -372,7 +420,7 @@ export default function WorkspacePanel({ onClose, onOpenSettings, onImportWorkfl
                     onDoubleClick={() => { if (f.verificationPending) void verifyPendingUpload(f); else void downloadCloudFile(f); }}
                     draggable={f.key.startsWith('uploads/') && !f.verificationPending}
                     onDragStart={e => {
-                      if (!f.key.startsWith('uploads/') || f.verificationPending) return;
+                      if (!alive.current || !cloudAllowed || !f.key.startsWith('uploads/') || f.verificationPending) return;
                       e.dataTransfer.setData('application/bionodulo-workspace-file', f.key);
                       e.dataTransfer.setData('text/plain', f.key);
                       e.dataTransfer.effectAllowed = 'copy';

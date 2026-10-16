@@ -69,6 +69,7 @@ import { fitDockedPanels } from './utils/panelLayout';
 import { useHPC } from './hooks/useHPC';
 import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages } from './hooks/workflow';
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
+import { useOwnedWorkflowHistory, useOwnershipEpoch } from './hooks/workflow/useOwnedWorkflowHistory';
 import { useAuth, useCollabPolling, useDeepLinkJoin } from './hooks/collab';
 import { useCloudConfig, useClerkAuth } from './hooks/cloud';
 import { useGlobalShortcut, useKeybindings, useRegisteredCommands } from './hooks/ui';
@@ -77,7 +78,8 @@ import { logError } from './state/logging';
 import { bootProgress, bootDone } from './state/bootLoader';
 import { usePanelRegistry } from './state/panels';
 import { paletteDisplayName } from './state/palettes';
-import { rememberRecentWorkflow } from './state/recentWorkflows';
+import { getRecentWorkflows, rememberRecentWorkflow } from './state/recentWorkflows';
+import { resolveBrowserStorageScope } from './utils/browserStorageScope';
 import { renderRecentThumbnail } from './utils/workflowThumbnail';
 import { resolveWorkflowName, suggestWorkflowName } from './utils/workflowNaming';
 import { duplicateWorkflow } from './utils/duplicateWorkflow';
@@ -194,13 +196,6 @@ const PANEL_LABEL_KEYS: Partial<Record<OpenPanelTab, string>> = {
   hpc: 'panels.hpc',
   user: 'panels.account',
   compute: 'panels.compute',
-};
-type AppHistorySnapshot = {
-  nodes: WorkflowNode[];
-  edges: Workflow['edges'];
-  groups: Workflow['groups'];
-  parameters: Workflow['parameters'];
-  viewport?: { x: number; y: number; scale: number };
 };
 
 function workflowNameSignature(workflows: Workflow[]): string {
@@ -722,6 +717,13 @@ export default function App() {
   }, [activeWorkflow]);
 
   const cloudInviteSession = useAtomValue(cloudInviteSessionAtom);
+  const browserStorageScope = useMemo(() => resolveBrowserStorageScope(
+    cloudConfig, Boolean(cloudInviteSession && !cloudInviteSession.member),
+  ), [cloudConfig, cloudInviteSession]);
+  const browserStorageOwnership = useOwnershipEpoch(browserStorageScope.identity, authUser?.id ?? null,
+    cloudInviteSession && !cloudInviteSession.member ? cloudInviteSession : null);
+  const browserStorageScopeRef = useRef(browserStorageOwnership);
+  browserStorageScopeRef.current = browserStorageOwnership;
   const setCloudInviteSessionAtom = useSetAtom(cloudInviteSessionAtom);
   const guestSessionForWorkflow = (
     cloudInviteSession
@@ -1456,114 +1458,25 @@ export default function App() {
     }).catch(() => { /* offline */ });
   }, [setRuns, addLog, setLogs, t, hostFeaturesEnabled]);
 
-  // History stack for undo/redo
+  // History and pending edits are invalidated before an owner/document can paint.
   const canvasRef = useRef<WorkflowCanvasRef>(null);
-  const historyRef = useRef<AppHistorySnapshot[]>([]);
-  const historyIndexRef = useRef(-1);
-  const pendingStateRef = useRef<Partial<Workflow>>({});
-
-  useEffect(() => {
-    historyRef.current = [];
-    historyIndexRef.current = -1;
-  }, [activeIndex]);
-
-  // Structural fingerprint used to deduplicate identical successive snapshots
-  // (e.g. when a drag commit reports the same coordinates twice). Deliberately
-  // ignores viewport so pan/zoom alone doesn't burn a slot.
-  const snapshotSignature = useCallback((workflow: AppHistorySnapshot) => {
-    return JSON.stringify([
-      workflow.nodes.map(n => [n.id, n.type, n.position, n.params, n.ui]),
-      workflow.edges.map(e => [e.from.node, e.from.output, e.to.node, e.to.input]),
-      workflow.groups.map(g => [g.id, g.name, g.position, g.width, g.height, g.color, g.collapsed]),
-      workflow.parameters ?? [],
-    ]);
-  }, []);
-
-  const pushHistory = useCallback(() => {
-    const pending = pendingStateRef.current;
-    if (Object.keys(pending).length === 0) return;
-    pendingStateRef.current = {};
-    const wf = { ...activeWorkflow, ...pending };
-    const snapshot = {
-      nodes: wf.nodes,
-      edges: wf.edges,
-      groups: wf.groups,
-      parameters: wf.parameters,
-      viewport: canvasRef.current?.getViewport?.(),
-    };
-    const tip = historyRef.current[historyIndexRef.current];
-    if (tip && snapshotSignature(tip) === snapshotSignature(snapshot)) {
-      // No-op push: stack tip is already identical (deduplication).
-      // Still refresh the viewport on the tip so future undo restores the
-      // latest pan/zoom even when the graph structure hasn't changed.
-      if (snapshot.viewport) tip.viewport = snapshot.viewport;
-      return;
-    }
-    const next = historyRef.current.slice(0, historyIndexRef.current + 1);
-    next.push({ ...snapshot });
-    if (next.length > 50) next.shift();
-    historyRef.current = next;
-    historyIndexRef.current = next.length - 1;
-  }, [activeWorkflow, snapshotSignature]);
-
-  // Auto-history: whenever the active workflow's structure changes, queue a
-  // debounced push so callers no longer have to remember onPushHistory(). The
-  // dedup check above ensures double-pushes from explicit + auto are harmless.
-  useEffect(() => {
-    if (Object.keys(pendingStateRef.current).length === 0) return;
-    const timer = setTimeout(() => pushHistory(), 350);
-    return () => clearTimeout(timer);
-  }, [activeWorkflow.nodes, activeWorkflow.edges, activeWorkflow.groups, activeWorkflow.parameters, pushHistory]);
-
-  // Capture eagerly on mouseup/keyup so a completed drag, widget edit, or
-  // key shortcut commits pending state instead of waiting for the debounce.
-  useEffect(() => {
-    const flush = () => {
-      if (Object.keys(pendingStateRef.current).length > 0) pushHistory();
-    };
-    window.addEventListener('mouseup', flush);
-    window.addEventListener('keyup', flush);
-    return () => {
-      window.removeEventListener('mouseup', flush);
-      window.removeEventListener('keyup', flush);
-    };
-  }, [pushHistory]);
-
-  const undo = useCallback(() => {
-    if (historyIndexRef.current <= 0) return;
-    historyIndexRef.current -= 1;
-    const state = historyRef.current[historyIndexRef.current];
-    if (bridgeRef.current) {
-      bridgeRef.current.onNodesChanged(state.nodes);
-      bridgeRef.current.onEdgesChanged(state.edges);
-      bridgeRef.current.onGroupsChanged(state.groups);
-    }
-    updateWorkflow(activeIndex, {
-      nodes: state.nodes,
-      edges: state.edges,
-      groups: state.groups,
-      parameters: state.parameters,
-    });
-    if (state.viewport) canvasRef.current?.setViewport(state.viewport);
-  }, [activeIndex, updateWorkflow]);
-
-  const redo = useCallback(() => {
-    if (historyIndexRef.current >= historyRef.current.length - 1) return;
-    historyIndexRef.current += 1;
-    const state = historyRef.current[historyIndexRef.current];
-    if (bridgeRef.current) {
-      bridgeRef.current.onNodesChanged(state.nodes);
-      bridgeRef.current.onEdgesChanged(state.edges);
-      bridgeRef.current.onGroupsChanged(state.groups);
-    }
-    updateWorkflow(activeIndex, {
-      nodes: state.nodes,
-      edges: state.edges,
-      groups: state.groups,
-      parameters: state.parameters,
-    });
-    if (state.viewport) canvasRef.current?.setViewport(state.viewport);
-  }, [activeIndex, updateWorkflow]);
+  const { queuePatch: queueHistoryPatch, pushHistory, undo, redo } = useOwnedWorkflowHistory({
+    owner: browserStorageOwnership,
+    documentId: activeWorkflowId,
+    workflow: activeWorkflow,
+    getViewport: () => canvasRef.current?.getViewport?.(),
+    apply: (state) => {
+      if (bridgeRef.current) {
+        bridgeRef.current.onNodesChanged(state.nodes);
+        bridgeRef.current.onEdgesChanged(state.edges);
+        bridgeRef.current.onGroupsChanged(state.groups);
+      }
+      updateWorkflow(activeIndex, {
+        nodes: state.nodes, edges: state.edges, groups: state.groups, parameters: state.parameters,
+      });
+      if (state.viewport) canvasRef.current?.setViewport(state.viewport);
+    },
+  });
 
   const consoleVisible = useAtomValue(consoleVisibleAtom);
   const setConsoleVisible = useSetAtom(consoleVisibleAtom);
@@ -1863,10 +1776,10 @@ export default function App() {
   }, [activeIndex, updateWorkflow]);
 
   const handleNodesChange = useCallback((nodes: WorkflowNode[]) => {
+    if (!queueHistoryPatch({ nodes })) return;
     if (bridgeRef.current) {
       bridgeRef.current.onNodesChanged(nodes);
     }
-    pendingStateRef.current = { ...pendingStateRef.current, nodes };
     setDirty(true);
     updateActive({ nodes });
     // Auto-clear error overlays for any node whose params changed. Compare
@@ -1887,16 +1800,16 @@ export default function App() {
       }
       return next;
     });
-  }, [updateActive]);
+  }, [updateActive, queueHistoryPatch]);
 
   const handleEdgesChange = useCallback((edges: Workflow['edges']) => {
+    if (!queueHistoryPatch({ edges })) return;
     if (bridgeRef.current) {
       bridgeRef.current.onEdgesChanged(edges);
     }
-    pendingStateRef.current = { ...pendingStateRef.current, edges };
     setDirty(true);
     updateActive({ edges });
-  }, [updateActive]);
+  }, [updateActive, queueHistoryPatch]);
 
   // Media paste: pasting a clipboard image / audio / generic file blob
   // (Ctrl+V outside any text input) uploads it to the workspace and spawns
@@ -2764,6 +2677,7 @@ export default function App() {
   }, [activeWorkflow, addLog, addRun, cacheEnabled, submitRun, validate, setRailTab, t]);
 
   const handleSaveSnippet = useCallback(async () => {
+    if (browserStorageScope.mode === 'blocked') return;
     const selectedIds = canvasRef.current?.getSelectedNodeIds() ?? [];
     if (selectedIds.length === 0) {
       toast.info(t('snippets.selectAtLeastOne'));
@@ -2781,15 +2695,18 @@ export default function App() {
       inputLabel: t('snippets.savePromptInputLabel'),
       defaultValue: defaultName,
     });
-    if (!name) return;
+    if (!name || browserStorageScopeRef.current !== browserStorageOwnership) return;
     const { saveWorkflowSnippet } = await import('./state/workflowSnippets');
-    saveWorkflowSnippet({ name, nodes: snippetNodes, edges: snippetEdges });
+    if (browserStorageScopeRef.current !== browserStorageOwnership) return;
+    saveWorkflowSnippet({ name, nodes: snippetNodes, edges: snippetEdges }, browserStorageScope);
     toast.success(t('snippets.savedTitle'), { message: t('snippets.savedMessage', { count: snippetNodes.length }) });
-  }, [activeWorkflow, t]);
+  }, [activeWorkflow, t, browserStorageScope, browserStorageOwnership]);
 
   const handleInsertSnippet = useCallback(async () => {
+    if (browserStorageScope.mode === 'blocked') return;
     const { listWorkflowSnippets, instantiateSnippet } = await import('./state/workflowSnippets');
-    const snippets = listWorkflowSnippets();
+    if (browserStorageScopeRef.current !== browserStorageOwnership) return;
+    const snippets = listWorkflowSnippets(browserStorageScope);
     if (snippets.length === 0) {
       toast.info(t('snippets.emptyLibrary'));
       return;
@@ -2802,7 +2719,8 @@ export default function App() {
       inputLabel: t('snippets.insertPromptInputLabel'),
       defaultValue: '1',
     });
-    const index = Math.max(1, Math.min(snippets.length, parseInt(choice || '1', 10))) - 1;
+    if (!choice || browserStorageScopeRef.current !== browserStorageOwnership) return;
+    const index = Math.max(1, Math.min(snippets.length, parseInt(choice, 10))) - 1;
     if (Number.isNaN(index)) return;
     const snippet = snippets[index];
     const vp = canvasRef.current?.getViewport();
@@ -2817,7 +2735,7 @@ export default function App() {
     };
     updateWorkflow(activeIndex, next);
     toast.success(t('snippets.insertedTitle'), { message: `${snippet.name}` });
-  }, [activeWorkflow, activeIndex, t, updateWorkflow]);
+  }, [activeWorkflow, activeIndex, t, updateWorkflow, browserStorageScope, browserStorageOwnership]);
 
   // Restore the saved viewport whenever the user switches workflow tabs.
   const prevActiveIndexRef = useRef(activeIndex);
@@ -3039,7 +2957,7 @@ export default function App() {
   const handleLoadTemplate = useCallback(async (template: TemplateInfo) => {
     logTelemetry('template.load', { id: template.id, name: template.name, category: template.category });
     const wf = await fetchTemplateWorkflow(template);
-    if (!wf) {
+    if (!wf || browserStorageScopeRef.current !== browserStorageOwnership) {
       return;
     }
     if (collabSessionActive || editorMode) {
@@ -3068,15 +2986,16 @@ export default function App() {
       filename: template.filename,
       thumbnailUrl: (template as { thumbnail_url?: string }).thumbnail_url || renderRecentThumbnail(wf),
       nodeCount: wf.nodes?.length ?? 0,
-    });
+    }, browserStorageScope);
     // Auto-fit view after nodes render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, editorMode, publishCollabWorkflowSnapshot, setWorkflow, t]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, editorMode, publishCollabWorkflowSnapshot, setWorkflow, t, browserStorageScope, browserStorageOwnership]);
 
   const handleImport = useCallback((wf: Workflow) => {
+    if (browserStorageScopeRef.current !== browserStorageOwnership) return;
     logTelemetry('workflow.import', { name: wf.name, nodes: wf.nodes?.length ?? 0 });
     const imported = withWorkflowId(wf, editorMode && !collabSessionActive
       ? createWorkflowId() : wf.id || activeWorkflowId);
@@ -3097,13 +3016,13 @@ export default function App() {
       source: 'import',
       thumbnailUrl: renderRecentThumbnail(wf),
       nodeCount: wf.nodes?.length ?? 0,
-    });
+    }, browserStorageScope);
     // Auto-fit view after nodes render
     requestAnimationFrame(() => {
       requestAnimationFrame(() => canvasRef.current?.fitView());
     });
     // Resolve is auto-triggered by the activeWorkflow useEffect
-  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, editorMode, publishCollabWorkflowSnapshot, t, updateWorkflow]);
+  }, [activeIndex, activeWorkflowId, addWorkflow, collabDoc, collabSessionActive, editorMode, publishCollabWorkflowSnapshot, t, updateWorkflow, browserStorageScope, browserStorageOwnership]);
 
   // Replay any URL-hash workflow that mount stashed before handleImport
   // existed. Runs once handleImport stabilises.
@@ -3646,7 +3565,7 @@ export default function App() {
     // Recent workflows: dynamic require to avoid pulling the module on first
     // paint if nothing is open yet.
     try {
-      const recents = JSON.parse(localStorage.getItem('bionodulo.recentWorkflows') || '[]') as Array<{ id: string; name: string; filename?: string }>;
+      const recents = getRecentWorkflows(browserStorageScope);
       for (const entry of recents.slice(0, 12)) {
         items.push({
           id: `recent.${entry.id}`,
@@ -3655,6 +3574,7 @@ export default function App() {
           group: 'Workflow',
           groupLabelKey: 'commandPalette.groups.workflow',
           onSelect: async () => {
+            if (browserStorageScopeRef.current !== browserStorageOwnership) return;
             if (entry.filename) {
               const template = { id: entry.id, name: entry.name, filename: entry.filename, category: '', tags: [], tools: [], description: '', node_count: 0 } as TemplateInfo;
               await handleLoadTemplate(template);
@@ -3664,7 +3584,7 @@ export default function App() {
       }
     } catch { /* ignore */ }
     return items;
-  }, [objectInfo, activeWorkflow, activeIndex, updateWorkflow, handleLoadTemplate, t]);
+  }, [objectInfo, activeWorkflow, activeIndex, updateWorkflow, handleLoadTemplate, t, browserStorageScope, browserStorageOwnership]);
   useRegisteredCommands('dynamic', dynamicCommands);
 
   useGlobalShortcut('commandPalette.open', () => toggleCommandPalette());
@@ -3698,6 +3618,7 @@ export default function App() {
     publishCollabWorkflowSnapshot,
     setDirty,
     clearDirtyOnInterval: !editorMode,
+    storageScope: browserStorageScope,
   });
 
   const workflowResolveKey = useMemo(() => JSON.stringify({

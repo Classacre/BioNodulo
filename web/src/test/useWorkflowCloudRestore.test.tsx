@@ -535,6 +535,127 @@ describe('cloud workflow restoration', () => {
     await waitFor(() => expect(result.current.cloudSaveStates.first).toBeUndefined());
   }, 8000);
 
+  it('masks dirty saved graphs before any new-owner render even when browser recovery storage fails', async () => {
+    website.listCloudWorkflows.mockResolvedValueOnce([{ id: 'saved-a' }]).mockResolvedValue([]);
+    website.getCloudWorkflow.mockResolvedValue(workflow('saved-a'));
+    let store!: ReturnType<typeof createStore>;
+    const observations: Array<{ team: string | undefined; names: string[] }> = [];
+    const wrapper = cloudWrapper('user-a', 'team-a', value => { store = value; });
+    const hook = renderHook(() => {
+      const state = useWorkflow();
+      observations.push({ team: store.get(cloudConfigAtom)?.team?.id, names: state.workflows.map(wf => wf.name) });
+      return state;
+    }, { wrapper });
+    await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+    act(() => hook.result.current.updateWorkflow(0, { name: 'Private unsaved A' }));
+    const storage = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Quota', 'QuotaExceededError'); });
+    try {
+      act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-b', name: 'B' } }));
+      await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+      expect(observations.filter(row => row.team === 'team-b').every(row => !row.names.includes('Private unsaved A'))).toBe(true);
+      act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-a', name: 'A' } }));
+      expect(hook.result.current.activeWorkflow).toMatchObject({ id: 'saved-a', name: 'Private unsaved A' });
+      expect(hook.result.current.cloudSaveStates['saved-a']?.phase).toBe('error');
+      expect(website.createCloudWorkflow).not.toHaveBeenCalled();
+      storage.mockRestore();
+      act(() => hook.result.current.retryCloudSave('saved-a'));
+      await waitFor(() => expect(website.saveCloudWorkflow).toHaveBeenCalledWith(expect.objectContaining({ id: 'saved-a', name: 'Private unsaved A' }), writeContext));
+    } finally { storage.mockRestore(); hook.unmount(); }
+  });
+
+  it('ignores a retired restore response after the same owner returns', async () => {
+    let finishOld!: (rows: Array<{ id: string }>) => void;
+    website.listCloudWorkflows.mockReturnValueOnce(new Promise(resolve => { finishOld = resolve; }))
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'current-a' }]);
+    website.getCloudWorkflow.mockImplementation(async (id: string) => workflow(id));
+    let store!: ReturnType<typeof createStore>;
+    const hook = renderHook(() => useWorkflow(), { wrapper: cloudWrapper('user-a', 'team-a', value => { store = value; }) });
+    await waitFor(() => expect(website.listCloudWorkflows).toHaveBeenCalledTimes(1));
+    act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-b', name: 'B' } }));
+    await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+    act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-a', name: 'A' } }));
+    await waitFor(() => expect(hook.result.current.activeWorkflow.id).toBe('current-a'));
+    await act(async () => { finishOld([{ id: 'retired-a' }]); });
+    expect(hook.result.current.activeWorkflow.id).toBe('current-a');
+    expect(website.getCloudWorkflow).not.toHaveBeenCalledWith('retired-a');
+    hook.unmount();
+  });
+
+  it('reconciles a returning pending draft using its original request ID without accepting the old create response', async () => {
+    website.listCloudWorkflows.mockResolvedValue([]);
+    let finishOld!: (wf: Workflow) => void;
+    let finishCurrent!: (wf: Workflow) => void;
+    website.createCloudWorkflow.mockReturnValueOnce(new Promise(resolve => { finishOld = resolve; }))
+      .mockReturnValueOnce(new Promise(resolve => { finishCurrent = resolve; }));
+    let store!: ReturnType<typeof createStore>;
+    const hook = renderHook(() => useWorkflow(), { wrapper: cloudWrapper('user-a', 'team-a', value => { store = value; }) });
+    await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+    act(() => { void hook.result.current.newCloudWorkflow(); });
+    await waitFor(() => expect(website.createCloudWorkflow).toHaveBeenCalledTimes(1));
+    const draftId = hook.result.current.activeWorkflow.id!;
+    const requestId = website.createCloudWorkflow.mock.calls[0][1].clientRequestId;
+    act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-b', name: 'B' } }));
+    await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+    act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-a', name: 'A' } }));
+    act(() => hook.result.current.retryCloudSave(draftId));
+    await waitFor(() => expect(website.createCloudWorkflow).toHaveBeenCalledTimes(2));
+    expect(website.createCloudWorkflow.mock.calls[1][1].clientRequestId).toBe(requestId);
+    await act(async () => { finishOld(workflow('retired-server-id')); });
+    expect(hook.result.current.workflows.some(wf => wf.id === 'retired-server-id')).toBe(false);
+    act(() => hook.result.current.retryCloudSave(draftId));
+    expect(website.createCloudWorkflow).toHaveBeenCalledTimes(2);
+    await act(async () => { finishCurrent(workflow('current-server-id')); });
+    expect(hook.result.current.activeWorkflow.id).toBe('current-server-id');
+    hook.unmount();
+  });
+
+  it('rejects retired retry and new-workflow callbacks before mutating a new or returning owner', async () => {
+    website.listCloudWorkflows.mockResolvedValueOnce([{ id: 'saved-a' }]).mockResolvedValue([]);
+    website.getCloudWorkflow.mockResolvedValue(workflow('saved-a'));
+    let store!: ReturnType<typeof createStore>;
+    const hook = renderHook(() => useWorkflow(), { wrapper: cloudWrapper('user-a', 'team-a', value => { store = value; }) });
+    await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+    act(() => hook.result.current.updateWorkflow(0, { name: 'Private A edit' }));
+    const retiredRetry = hook.result.current.retryCloudSave;
+    const retiredNew = hook.result.current.newCloudWorkflow;
+    act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-b', name: 'B' } }));
+    await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+    act(() => { retiredRetry('saved-a'); void retiredNew(); });
+    expect(hook.result.current.cloudSaveStates).toEqual({});
+    expect(hook.result.current.workflows).toHaveLength(1);
+    act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-a', name: 'A' } }));
+    act(() => { retiredRetry('saved-a'); void retiredNew(); });
+    expect(hook.result.current.cloudSaveStates['saved-a']?.phase).toBe('error');
+    expect(hook.result.current.workflows).toHaveLength(1);
+    expect(website.saveCloudWorkflow).not.toHaveBeenCalled();
+    expect(website.createCloudWorkflow).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
+  it('does not let a retired same-payload save clear a returning owner save', async () => {
+    website.listCloudWorkflows.mockResolvedValueOnce([{ id: 'saved-a' }]).mockResolvedValue([]);
+    website.getCloudWorkflow.mockResolvedValue(workflow('saved-a'));
+    let finishOld!: () => void; let finishCurrent!: () => void;
+    website.saveCloudWorkflow.mockImplementationOnce(() => new Promise<void>(resolve => { finishOld = resolve; }))
+      .mockImplementationOnce(() => new Promise<void>(resolve => { finishCurrent = resolve; }));
+    let store!: ReturnType<typeof createStore>;
+    const hook = renderHook(() => useWorkflow(), { wrapper: cloudWrapper('user-a', 'team-a', value => { store = value; }) });
+    await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+    act(() => hook.result.current.updateWorkflow(0, { name: 'Same private payload' }));
+    await waitFor(() => expect(website.saveCloudWorkflow).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-b', name: 'B' } }));
+    await waitFor(() => expect(hook.result.current.cloudRestored).toBe(true));
+    act(() => store.set(cloudConfigAtom, { ...store.get(cloudConfigAtom)!, team: { id: 'team-a', name: 'A' } }));
+    act(() => hook.result.current.retryCloudSave('saved-a'));
+    await waitFor(() => expect(website.saveCloudWorkflow).toHaveBeenCalledTimes(2));
+    await act(async () => { finishOld(); });
+    expect(hook.result.current.cloudSaveStates['saved-a']?.phase).toBe('saving');
+    await act(async () => { finishCurrent(); });
+    await waitFor(() => expect(hook.result.current.cloudSaveStates['saved-a']).toBeUndefined());
+    expect(website.createCloudWorkflow).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
   it('does not send a queued old-team save after switching teams', async () => {
     website.listCloudWorkflows.mockResolvedValueOnce([{ id: 'first' }]).mockResolvedValue([]);
     website.getCloudWorkflow.mockResolvedValue(workflow('first'));
@@ -557,11 +678,13 @@ describe('cloud workflow restoration', () => {
     await waitFor(() => expect(result.current.cloudRestored).toBe(true));
     await new Promise(resolve => setTimeout(resolve, 1300));
     expect(website.saveCloudWorkflow).toHaveBeenCalledTimes(1);
-    expect(result.current.workflows.some(wf => wf.name === 'Queued revision')).toBe(true);
-    expect(result.current.cloudSaveStates.first?.phase).toBe('error');
+    expect(result.current.workflows.some(wf => wf.name === 'Queued revision')).toBe(false);
+    expect(result.current.cloudSaveStates.first).toBeUndefined();
     act(() => store.set(cloudConfigAtom, {
       ...store.get(cloudConfigAtom)!, team: { id: 'team-a', name: 'Team A' },
     }));
+    expect(result.current.activeWorkflow).toMatchObject({ id: 'first', name: 'Queued revision' });
+    expect(result.current.cloudSaveStates.first?.phase).toBe('error');
     act(() => result.current.retryCloudSave('first'));
     await waitFor(() => expect(website.saveCloudWorkflow).toHaveBeenCalledTimes(2));
     expect(website.saveCloudWorkflow).toHaveBeenLastCalledWith(expect.objectContaining({

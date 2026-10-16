@@ -1,4 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useAtomValue } from 'jotai';
+import { cloudConfigAtom } from '../../state/appAtoms';
+import { cloudInviteSessionAtom } from '../../collab/cloudInvite';
+import { resolveBrowserStorageScope, type BrowserStorageScope } from '../../utils/browserStorageScope';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { getRecentWorkflows, subscribeRecentWorkflows, forgetRecentWorkflow, setRecentTags, type RecentWorkflow } from '../../state/recentWorkflows';
@@ -147,15 +151,23 @@ function persistCachedReleases(releases: ReleaseNote[]): void {
   }
 }
 
-export default function GettingStartedModal({
+export default function GettingStartedModal(props: GettingStartedModalProps) {
+  const config = useAtomValue(cloudConfigAtom);
+  const invite = useAtomValue(cloudInviteSessionAtom);
+  const scope = useMemo(() => resolveBrowserStorageScope(config, Boolean(invite && !invite.member)), [config, invite]);
+  return <ScopedGettingStartedModal key={scope.identity} {...props} storageScope={scope} />;
+}
+
+function ScopedGettingStartedModal({
   onClose,
   onDontShowAgain,
   showOnStartup,
   onOpenRecent,
-}: GettingStartedModalProps) {
+  storageScope,
+}: GettingStartedModalProps & { storageScope: BrowserStorageScope }) {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<TabId>('welcome');
-  const [recents, setRecents] = useState<RecentWorkflow[]>(() => getRecentWorkflows());
+  const [recents, setRecents] = useState<RecentWorkflow[]>(() => getRecentWorkflows(storageScope));
   // Tag filter. Empty string == "All". Set by clicking a tag chip.
   const [recentTagFilter, setRecentTagFilter] = useState<string>('');
   const [taggingRecentId, setTaggingRecentId] = useState<string | null>(null);
@@ -201,9 +213,9 @@ export default function GettingStartedModal({
     return () => controller.abort();
   }, [tab, liveReleases]);
   useEffect(() => {
-    const unsubscribe = subscribeRecentWorkflows(() => setRecents(getRecentWorkflows()));
+    const unsubscribe = subscribeRecentWorkflows(() => setRecents(getRecentWorkflows(storageScope)));
     return unsubscribe;
-  }, []);
+  }, [storageScope]);
   // The standalone Example Data tab was removed — see the comment near the
   // TABS constant. Templates now reference URLs directly in their input
   // node params, so the up-front /api/getting-started/download step isn't
@@ -371,8 +383,8 @@ export default function GettingStartedModal({
                             placeholder={t('gettingStarted.recentTagsPlaceholder')}
                             onBlur={() => {
                               const tags = tagDraft.split(',').map(t => t.trim()).filter(Boolean);
-                              setRecentTags(entry.id, tags);
-                              setRecents(getRecentWorkflows());
+                              setRecentTags(entry.id, tags, storageScope);
+                              setRecents(getRecentWorkflows(storageScope));
                               setTaggingRecentId(null);
                             }}
                             onKeyDown={e => {
@@ -398,7 +410,7 @@ export default function GettingStartedModal({
                         )}
                         <button
                           type="button"
-                          onClick={() => forgetRecentWorkflow(entry.id)}
+                          onClick={() => forgetRecentWorkflow(entry.id, storageScope)}
                           title={t('gettingStarted.recentForgetTitle')}
                           style={{
                             background: 'transparent',

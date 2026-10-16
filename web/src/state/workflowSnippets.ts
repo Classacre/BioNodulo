@@ -10,6 +10,7 @@
 // them in one store would lead to surprising behaviour.
 
 import type { WorkflowNode, WorkflowEdge } from '../types';
+import { browserStorageKey, LOCAL_BROWSER_STORAGE_SCOPE, type BrowserStorageScope } from '../utils/browserStorageScope';
 
 const STORAGE_KEY = 'bionodulo.workflowSnippets';
 const MAX_ENTRIES = 100;
@@ -30,10 +31,12 @@ function emit(): void {
   for (const listener of listeners) listener();
 }
 
-function readStorage(): WorkflowSnippet[] {
+function readStorage(scope: BrowserStorageScope): WorkflowSnippet[] {
   if (typeof window === 'undefined') return [];
+  const key = browserStorageKey(STORAGE_KEY, scope);
+  if (!key) return [];
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -51,34 +54,36 @@ function readStorage(): WorkflowSnippet[] {
   }
 }
 
-function writeStorage(entries: WorkflowSnippet[]): void {
+function writeStorage(entries: WorkflowSnippet[], scope: BrowserStorageScope): void {
   if (typeof window === 'undefined') return;
+  const key = browserStorageKey(STORAGE_KEY, scope);
+  if (!key) return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_ENTRIES)));
+    window.localStorage.setItem(key, JSON.stringify(entries.slice(0, MAX_ENTRIES)));
   } catch {
     /* quota; the library is a convenience */
   }
   emit();
 }
 
-export function listWorkflowSnippets(): WorkflowSnippet[] {
-  return readStorage().sort((a, b) => b.createdAt - a.createdAt);
+export function listWorkflowSnippets(scope = LOCAL_BROWSER_STORAGE_SCOPE): WorkflowSnippet[] {
+  return readStorage(scope).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export function saveWorkflowSnippet(snippet: Omit<WorkflowSnippet, 'id' | 'createdAt'>): WorkflowSnippet {
+export function saveWorkflowSnippet(snippet: Omit<WorkflowSnippet, 'id' | 'createdAt'>, scope = LOCAL_BROWSER_STORAGE_SCOPE): WorkflowSnippet {
   const entry: WorkflowSnippet = {
     ...snippet,
     id: `snippet_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     createdAt: Date.now(),
   };
-  const existing = readStorage();
-  writeStorage([entry, ...existing]);
+  const existing = readStorage(scope);
+  writeStorage([entry, ...existing], scope);
   return entry;
 }
 
-export function deleteWorkflowSnippet(id: string): void {
-  const existing = readStorage();
-  writeStorage(existing.filter(entry => entry.id !== id));
+export function deleteWorkflowSnippet(id: string, scope = LOCAL_BROWSER_STORAGE_SCOPE): void {
+  const existing = readStorage(scope);
+  writeStorage(existing.filter(entry => entry.id !== id), scope);
 }
 
 export function subscribeWorkflowSnippets(listener: Listener): () => void {

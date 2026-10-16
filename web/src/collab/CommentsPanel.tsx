@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Comment, CollabUser } from './types';
 import Icon from '../components/ui/Icon';
 import { confirmDialog } from '../components/ui';
 import { selectedNodeIdAtom } from '../state/uiAtoms';
+import { cloudConfigAtom } from '../state/appAtoms';
+import { cloudInviteSessionAtom } from './cloudInvite';
+import { resolveBrowserStorageScope } from '../utils/browserStorageScope';
+import { getMcpRuntime } from '../mcp/runtime';
 
 interface CommentsPanelProps {
+  workflowId?: string;
   /** Flat comment list for the active workflow (threads via parent_id). */
   comments: Comment[];
   currentUser: CollabUser;
@@ -72,13 +77,40 @@ function buildThreads(comments: Comment[]): Comment[] {
     .map(root => ({ ...root, replies: (byParent.get(root.id) ?? []).sort(byTime) }));
 }
 
-export default function CommentsPanel({ comments, currentUser, isOpen, onClose, onFocusNode, onAddComment, onResolveComment, onDeleteComment }: CommentsPanelProps) {
-  const { t } = useTranslation();
+export default function CommentsPanel(props: CommentsPanelProps) {
+  const config = useAtomValue(cloudConfigAtom);
+  const invite = useAtomValue(cloudInviteSessionAtom);
+  const runtime = getMcpRuntime();
+  const scope = resolveBrowserStorageScope(config, Boolean(invite && !invite.member));
+  const guestSession = invite && !invite.member ? invite : null;
+  const inviteEpoch = useRef({ session: guestSession, value: 0 });
+  if (inviteEpoch.current.session !== guestSession) {
+    inviteEpoch.current = { session: guestSession, value: inviteEpoch.current.value + 1 };
+  }
+  const owner = JSON.stringify([scope.identity, runtime?.teamId, props.currentUser.id,
+    props.workflowId ?? props.comments[0]?.workflow_id ?? null, inviteEpoch.current.value]);
   const selectedNodeId = useAtomValue(selectedNodeIdAtom);
+  const setSelectedNodeId = useSetAtom(selectedNodeIdAtom);
+  const previousOwner = useRef(owner);
+  const ownerChanged = previousOwner.current !== owner;
+  useLayoutEffect(() => {
+    if (previousOwner.current !== owner) setSelectedNodeId(null);
+    previousOwner.current = owner;
+  }, [owner, setSelectedNodeId]);
+  return <ScopedCommentsPanel key={owner} {...props} selectedNodeId={ownerChanged ? null : selectedNodeId} />;
+}
+
+function ScopedCommentsPanel({ comments, currentUser, isOpen, onClose, onFocusNode, onAddComment, onResolveComment, onDeleteComment, selectedNodeId }: CommentsPanelProps & { selectedNodeId: string | null }) {
+  const { t } = useTranslation();
   const [newContent, setNewContent] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [showAll, setShowAll] = useState(true);
+  const alive = useRef(true);
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -120,7 +152,7 @@ export default function CommentsPanel({ comments, currentUser, isOpen, onClose, 
       confirmLabel: t('common.delete'),
       tone: 'danger',
     });
-    if (!ok) return;
+    if (!ok || !alive.current) return;
     onDeleteComment(commentId);
   };
 

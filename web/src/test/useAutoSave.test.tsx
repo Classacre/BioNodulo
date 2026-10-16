@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Workflow } from '../types';
 import { useAutoSave } from '../hooks/workflow/useAutoSave';
+import { resolveBrowserStorageScope } from '../utils/browserStorageScope';
 
 function workflow(name: string): Workflow {
   return { id: 'wf', version: '2.0', app: 'bionodulo', name, description: '',
@@ -38,4 +39,22 @@ describe('useAutoSave collaboration persistence', () => {
     await act(async () => { finish(); });
     expect(setDirty).not.toHaveBeenCalledWith(false);
   });
+  it('ignores a retired autosave publish after A to B to A', async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    const publish = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+    const setDirty = vi.fn();
+    const a = resolveBrowserStorageScope({ editorMode: true, user: { id: 'a' }, team: { id: 'a' } });
+    const b = resolveBrowserStorageScope({ editorMode: true, user: { id: 'a' }, team: { id: 'b' } });
+    const sameWorkflow = workflow('same');
+    const hook = renderHook(({ storageScope }) => useAutoSave({ autoSaveSetting: '30s', collabEnabled: true,
+      latestWorkflow: sameWorkflow, publishCollabWorkflowSnapshot: publish, setDirty, storageScope }), { initialProps: { storageScope: a } });
+    act(() => { vi.advanceTimersByTime(30000); });
+    hook.rerender({ storageScope: b });
+    hook.rerender({ storageScope: a });
+    await act(async () => { finish(); });
+    expect(setDirty).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
 });

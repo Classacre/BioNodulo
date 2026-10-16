@@ -140,6 +140,7 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
       />
 
       <CommentsPanel
+        workflowId={activeWorkflowId}
         comments={comments}
         currentUser={currentUser}
         isOpen={showComments}

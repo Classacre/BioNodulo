@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultStore } from 'jotai';
-import { cloudConfigAtom } from '../state/appAtoms';
+import { cloudConfigAtom, type CloudConfig } from '../state/appAtoms';
+import { cloudInviteSessionAtom } from '../collab/cloudInvite';
 
 const runtimeMock = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('../mcp/runtime', () => ({ getMcpRuntime: () => runtimeMock.current }));
@@ -37,9 +38,11 @@ describe('WorkspacePanel', () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
   let originalLocalStorage: Storage;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await import('../i18n');
     runtimeMock.current = undefined;
     getDefaultStore().set(cloudConfigAtom, null);
+    getDefaultStore().set(cloudInviteSessionAtom, null);
     storage.clear();
     originalLocalStorage = window.localStorage;
     vi.stubGlobal('localStorage', localStorageStub);
@@ -85,6 +88,7 @@ describe('WorkspacePanel', () => {
   afterEach(async () => {
     runtimeMock.current = undefined;
     getDefaultStore().set(cloudConfigAtom, null);
+    getDefaultStore().set(cloudInviteSessionAtom, null);
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
     storage.clear();
@@ -94,6 +98,60 @@ describe('WorkspacePanel', () => {
       value: originalLocalStorage,
     });
     fetchSpy.mockRestore();
+  });
+
+  it('rejects old cloud rows and errors after an in-place MCP team A to B to A change', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    let finishA!: (response: Response) => void;
+    let failB!: (error: Error) => void;
+    const request = vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>(resolve => { finishA = resolve; }))
+      .mockImplementationOnce(() => new Promise<Response>((_resolve, reject) => { failB = reject; }))
+      .mockResolvedValue(Response.json({ success: true, data: [{ key: 'uploads/a/new', name: 'Current A', size: 1, url: 'https://files.example/current' }] }));
+    const runtime = { teamId: 'a', request: (service: string, path: string, init: RequestInit) => path === '/files' ? request(service, path, init) : Promise.resolve(Response.json({})), host: { tool: vi.fn() }, openLink: vi.fn() };
+    runtimeMock.current = runtime;
+    const store = getDefaultStore();
+    const config = (team: string) => ({ editorMode: true, cloudMode: true, user: { id: 'user' }, team: { id: team } } as CloudConfig);
+    store.set(cloudConfigAtom, config('a'));
+    render(<WorkspacePanel onClose={() => undefined} />);
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    act(() => { runtime.teamId = 'b'; store.set(cloudConfigAtom, config('b')); });
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    act(() => { runtime.teamId = 'a'; store.set(cloudConfigAtom, config('a')); });
+    expect(await screen.findByText('Current A')).toBeInTheDocument();
+    await act(async () => {
+      finishA(Response.json({ success: true, data: [{ key: 'uploads/a/old', name: 'Retired A', size: 1, url: 'https://files.example/old' }] }));
+      failB(new Error('Retired B error'));
+    });
+    expect(screen.queryByText('Retired A')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Retired B/)).not.toBeInTheDocument();
+    expect(screen.getByText('Current A')).toBeInTheDocument();
+    expect(loggingMock.logError).not.toHaveBeenCalled();
+  });
+
+  it('clears signed-link rows and the old download menu on account and guest changes', async () => {
+    const { default: WorkspacePanel } = await import('../components/panels/WorkspacePanel');
+    const store = getDefaultStore();
+    const config = (user: string | null) => ({ editorMode: true, cloudMode: true,
+      user: user ? { id: user } : null, team: user ? { id: 'a' } : null } as CloudConfig);
+    const openLink = vi.fn();
+    const request = vi.fn().mockResolvedValueOnce(Response.json({ success: true, data: [
+      { key: 'uploads/a/secret', name: 'Private A filename', size: 1, url: 'https://files.example/private' },
+    ] })).mockResolvedValue(Response.json({ success: true, data: [] }));
+    runtimeMock.current = { teamId: 'a', request, host: { tool: vi.fn() }, openLink };
+    store.set(cloudConfigAtom, config('a'));
+    render(<WorkspacePanel onClose={() => undefined} />);
+    const row = await screen.findByText('Private A filename');
+    fireEvent.contextMenu(row, { clientX: 10, clientY: 10 });
+    expect(screen.getByText('Download')).toBeInTheDocument();
+    act(() => store.set(cloudConfigAtom, config('b')));
+    expect(screen.queryByText('Private A filename')).not.toBeInTheDocument();
+    expect(screen.queryByText('Download')).not.toBeInTheDocument();
+    expect(openLink).not.toHaveBeenCalled();
+    runtimeMock.current = undefined;
+    act(() => store.set(cloudConfigAtom, config(null)));
+    expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
+    expect(screen.queryByText('Private A filename')).not.toBeInTheDocument();
   });
 
   it('renders root controls and file list labels from the active locale', async () => {

@@ -1,7 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { getDefaultStore } from 'jotai';
+import { cloudConfigAtom, type CloudConfig } from '../state/appAtoms';
+import { rememberRecentWorkflow } from '../state/recentWorkflows';
+import { resolveBrowserStorageScope } from '../utils/browserStorageScope';
 
 const storage = new Map<string, string>();
 const loggingMock = vi.hoisted(() => ({
@@ -27,6 +31,7 @@ const localStorageStub: Storage = {
 
 describe('GettingStartedModal i18n', () => {
   beforeEach(() => {
+    getDefaultStore().set(cloudConfigAtom, { editorMode: false, cloudMode: false } as CloudConfig);
     storage.clear();
     loggingMock.logError.mockReset();
     vi.stubGlobal('localStorage', localStorageStub);
@@ -35,8 +40,29 @@ describe('GettingStartedModal i18n', () => {
   afterEach(async () => {
     const { setLanguage } = await import('../i18n');
     await setLanguage('en');
+    getDefaultStore().set(cloudConfigAtom, null);
     storage.clear();
     vi.unstubAllGlobals();
+  });
+
+  it('replaces recent names and previews immediately on team, account, and guest transitions', async () => {
+    const { default: GettingStartedModal } = await import('../components/modals/GettingStartedModal');
+    const store = getDefaultStore();
+    const a = { editorMode: true, cloudMode: true, user: { id: 'a' }, team: { id: 'a' } } as CloudConfig;
+    const b = { ...a, team: { id: 'b' } } as CloudConfig;
+    rememberRecentWorkflow({ id: 'same', name: 'A private graph', source: 'import', thumbnailUrl: 'data:image/svg+xml,A' }, resolveBrowserStorageScope(a));
+    rememberRecentWorkflow({ id: 'same', name: 'B private graph', source: 'import' }, resolveBrowserStorageScope(b));
+    rememberRecentWorkflow({ id: 'legacy', name: 'Legacy desktop graph', source: 'import' });
+    store.set(cloudConfigAtom, a);
+    render(<GettingStartedModal onClose={() => undefined} onDontShowAgain={() => undefined} onOpenRecent={() => undefined} showOnStartup />);
+    expect(screen.getByText('A private graph')).toBeInTheDocument();
+    act(() => store.set(cloudConfigAtom, b));
+    expect(screen.queryByText('A private graph')).not.toBeInTheDocument();
+    expect(screen.getByText('B private graph')).toBeInTheDocument();
+    act(() => store.set(cloudConfigAtom, { ...b, user: { id: 'other' } } as CloudConfig));
+    expect(screen.queryByText('B private graph')).not.toBeInTheDocument();
+    act(() => store.set(cloudConfigAtom, { editorMode: true, user: null, team: null } as CloudConfig));
+    expect(screen.queryByText('Legacy desktop graph')).not.toBeInTheDocument();
   });
 
   it('renders the getting-started shell and welcome intro from the active locale', async () => {

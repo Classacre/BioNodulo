@@ -1,5 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { Provider } from 'jotai';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { Provider, createStore } from 'jotai';
+import { cloudConfigAtom, type CloudConfig } from '../state/appAtoms';
+import { selectedNodeIdAtom } from '../state/uiAtoms';
+import { cloudInviteSessionAtom, type CloudInviteSession } from '../collab/cloudInvite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Comment } from '../collab/types';
 
@@ -62,6 +65,76 @@ describe('CommentsPanel (Yjs-backed)', () => {
     );
     return { onAddComment, onResolveComment, onDeleteComment };
   }
+
+  it('clears comment/reply drafts and node association on owner and workflow changes before paint', async () => {
+    const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    await import('../i18n');
+    const store = createStore();
+    const a = { editorMode: true, user: { id: 'a' }, team: { id: 'a' } } as CloudConfig;
+    store.set(cloudConfigAtom, a);
+    store.set(selectedNodeIdAtom, 'old-node');
+    const onAddComment = vi.fn();
+    const view = (workflowId: string) => <Provider store={store}><CommentsPanel workflowId={workflowId}
+      comments={[comment({ id: 'root' })]} currentUser={{ id: 'me', name: 'Me', color: '#000' }} isOpen
+      onClose={() => undefined} onAddComment={onAddComment} onResolveComment={() => undefined} onDeleteComment={() => undefined} /></Provider>;
+    const rendered = render(view('same-workflow'));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Private new comment' } });
+    fireEvent.click(screen.getByRole('button', { name: /^reply$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/write.*reply/i), { target: { value: 'Private reply' } });
+    act(() => store.set(cloudConfigAtom, { ...a, team: { id: 'b' } } as CloudConfig));
+    expect(screen.queryByDisplayValue('Private new comment')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Private reply')).not.toBeInTheDocument();
+    expect(store.get(selectedNodeIdAtom)).toBeNull();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Team B draft' } });
+    rendered.rerender(view('other-workflow'));
+    expect(screen.queryByDisplayValue('Team B draft')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Other document draft' } });
+    act(() => store.set(cloudConfigAtom, { ...a, user: { id: 'other' } } as CloudConfig));
+    expect(screen.queryByDisplayValue('Other document draft')).not.toBeInTheDocument();
+    expect(onAddComment).not.toHaveBeenCalled();
+  });
+
+  it('rejects a pending delete confirmation after A to B to A and after unmount', async () => {
+    const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    const store = createStore();
+    const a = { editorMode: true, user: { id: 'a' }, team: { id: 'a' } } as CloudConfig;
+    store.set(cloudConfigAtom, a);
+    let finish!: (ok: boolean) => void;
+    dialogMocks.confirmDialog.mockImplementation(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    const onDeleteComment = vi.fn();
+    const rendered = render(<Provider store={store}><CommentsPanel workflowId="same"
+      comments={[comment({ user_id: 'me' })]} currentUser={{ id: 'me', name: 'Me', color: '#000' }} isOpen
+      onClose={() => undefined} onAddComment={() => undefined} onResolveComment={() => undefined} onDeleteComment={onDeleteComment} /></Provider>);
+    fireEvent.click(screen.getByTitle(/delete/i));
+    act(() => store.set(cloudConfigAtom, { ...a, team: { id: 'b' } } as CloudConfig));
+    act(() => store.set(cloudConfigAtom, a));
+    await act(async () => { finish(true); });
+    expect(onDeleteComment).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTitle(/delete/i));
+    rendered.unmount();
+    await act(async () => { finish(true); });
+    expect(onDeleteComment).not.toHaveBeenCalled();
+  });
+
+  it('treats a newly redeemed invite for the same named guest and workflow as a new volatile session', async () => {
+    const { default: CommentsPanel } = await import('../collab/CommentsPanel');
+    const store = createStore();
+    const invite: CloudInviteSession = { workflowId: 'same', member: false, role: 'editor', identity: { name: 'Guest', kind: 'guest' },
+      room: null, roomToken: null, roomHost: null, roomExpiresAt: null, runToken: null, name: 'Guest' };
+    store.set(cloudInviteSessionAtom, invite);
+    let finish!: (ok: boolean) => void;
+    dialogMocks.confirmDialog.mockImplementation(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    const onDeleteComment = vi.fn();
+    render(<Provider store={store}><CommentsPanel workflowId="same" comments={[comment({ user_id: 'guest' })]}
+      currentUser={{ id: 'guest', name: 'Guest', color: '#000' }} isOpen onClose={() => undefined}
+      onAddComment={() => undefined} onResolveComment={() => undefined} onDeleteComment={onDeleteComment} /></Provider>);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Previous invite draft' } });
+    fireEvent.click(screen.getByTitle(/delete/i));
+    act(() => store.set(cloudInviteSessionAtom, { ...invite }));
+    expect(screen.queryByDisplayValue('Previous invite draft')).not.toBeInTheDocument();
+    await act(async () => { finish(true); });
+    expect(onDeleteComment).not.toHaveBeenCalled();
+  });
 
   it('renders comments and chrome from the active locale', async () => {
     const { setLanguage } = await import('../i18n');

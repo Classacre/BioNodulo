@@ -1,6 +1,8 @@
 // Track recently-opened workflows in localStorage so the user can jump back
 // without rummaging through templates or workspace files.
 
+import { browserStorageKey, LOCAL_BROWSER_STORAGE_SCOPE, type BrowserStorageScope } from '../utils/browserStorageScope';
+
 const STORAGE_KEY = 'bionodulo.recentWorkflows';
 const MAX_ENTRIES = 12;
 
@@ -19,10 +21,12 @@ export interface RecentWorkflow {
 type Listener = () => void;
 const listeners = new Set<Listener>();
 
-function readStorage(): RecentWorkflow[] {
+function readStorage(scope = LOCAL_BROWSER_STORAGE_SCOPE): RecentWorkflow[] {
   if (typeof window === 'undefined') return [];
+  const key = browserStorageKey(STORAGE_KEY, scope);
+  if (!key) return [];
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -40,23 +44,25 @@ function readStorage(): RecentWorkflow[] {
   }
 }
 
-function writeStorage(entries: RecentWorkflow[]) {
+function writeStorage(entries: RecentWorkflow[], scope: BrowserStorageScope) {
   if (typeof window === 'undefined') return;
+  const key = browserStorageKey(STORAGE_KEY, scope);
+  if (!key) return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_ENTRIES)));
+    window.localStorage.setItem(key, JSON.stringify(entries.slice(0, MAX_ENTRIES)));
   } catch {
     // Storage may be full or disabled; recents are a convenience only.
   }
 }
 
-export function getRecentWorkflows(): RecentWorkflow[] {
-  return readStorage().sort((a, b) => b.openedAt - a.openedAt);
+export function getRecentWorkflows(scope = LOCAL_BROWSER_STORAGE_SCOPE): RecentWorkflow[] {
+  return readStorage(scope).sort((a, b) => b.openedAt - a.openedAt);
 }
 
-export function rememberRecentWorkflow(entry: Omit<RecentWorkflow, 'openedAt'> & { openedAt?: number }): void {
+export function rememberRecentWorkflow(entry: Omit<RecentWorkflow, 'openedAt'> & { openedAt?: number }, scope = LOCAL_BROWSER_STORAGE_SCOPE): void {
   const stamped: RecentWorkflow = { ...entry, openedAt: entry.openedAt ?? Date.now() };
-  const existing = readStorage().filter(item => item.id !== stamped.id);
-  writeStorage([stamped, ...existing]);
+  const existing = readStorage(scope).filter(item => item.id !== stamped.id);
+  writeStorage([stamped, ...existing], scope);
   listeners.forEach(listener => listener());
 }
 
@@ -65,11 +71,11 @@ export function rememberRecentWorkflow(entry: Omit<RecentWorkflow, 'openedAt'> &
  * the list. Returns false if the entry isn't tracked yet (the caller should
  * fall back to rememberRecentWorkflow).
  */
-export function setRecentTags(id: string, tags: string[]): boolean {
-  const entries = readStorage();
+export function setRecentTags(id: string, tags: string[], scope = LOCAL_BROWSER_STORAGE_SCOPE): boolean {
+  const entries = readStorage(scope);
   const next = entries.map(entry => entry.id === id ? { ...entry, tags: tags.slice() } : entry);
   if (next.every((entry, i) => entry === entries[i])) return false;
-  writeStorage(next);
+  writeStorage(next, scope);
   listeners.forEach(listener => listener());
   return true;
 }
@@ -80,8 +86,8 @@ export function setRecentTags(id: string, tags: string[]): boolean {
  * autosave so the recents thumbnail tracks the live workflow as the user
  * edits it.
  */
-export function refreshRecentThumbnail(id: string, thumbnailUrl: string, extras?: Partial<Pick<RecentWorkflow, 'name' | 'nodeCount'>>): void {
-  const entries = readStorage();
+export function refreshRecentThumbnail(id: string, thumbnailUrl: string, extras?: Partial<Pick<RecentWorkflow, 'name' | 'nodeCount'>>, scope = LOCAL_BROWSER_STORAGE_SCOPE): void {
+  const entries = readStorage(scope);
   let changed = false;
   const next = entries.map(entry => {
     if (entry.id !== id) return entry;
@@ -89,18 +95,18 @@ export function refreshRecentThumbnail(id: string, thumbnailUrl: string, extras?
     return { ...entry, thumbnailUrl, ...(extras || {}) };
   });
   if (!changed) return;
-  writeStorage(next);
+  writeStorage(next, scope);
   listeners.forEach(listener => listener());
 }
 
-export function forgetRecentWorkflow(id: string): void {
-  const next = readStorage().filter(item => item.id !== id);
-  writeStorage(next);
+export function forgetRecentWorkflow(id: string, scope = LOCAL_BROWSER_STORAGE_SCOPE): void {
+  const next = readStorage(scope).filter(item => item.id !== id);
+  writeStorage(next, scope);
   listeners.forEach(listener => listener());
 }
 
-export function clearRecentWorkflows(): void {
-  writeStorage([]);
+export function clearRecentWorkflows(scope = LOCAL_BROWSER_STORAGE_SCOPE): void {
+  writeStorage([], scope);
   listeners.forEach(listener => listener());
 }
 
