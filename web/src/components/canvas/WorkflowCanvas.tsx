@@ -34,6 +34,7 @@ import {
   type EdgeChange,
   type Connection,
   type OnSelectionChangeParams,
+  type FitViewOptions,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
@@ -1095,7 +1096,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
   }), [removeViewEdge]);
 
   // ---- Imperative ref API used across App ----
-  const fitView = useCallback(() => { rf.fitView({ padding: 0.2, duration: 220 }); }, [rf]);
+  const fitView = useCallback((options?: FitViewOptions) => { rf.fitView({ padding: 0.2, duration: 220, ...options }); }, [rf]);
   const focusNode = useCallback((nodeId: string) => {
     const n = rf.getNode(nodeId);
     if (n) rf.fitView({ nodes: [{ id: nodeId }], padding: 0.6, duration: 240, maxZoom: 1.4 });

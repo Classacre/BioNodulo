@@ -2703,12 +2703,15 @@ export default function App() {
     toast.success(t('snippets.savedTitle'), { message: t('snippets.savedMessage', { count: snippetNodes.length }) });
   }, [activeWorkflow, t, browserStorageScope, browserStorageOwnership]);
 
+  const revealInsertedSnippet = useCallback((options: Parameters<WorkflowCanvasRef['fitView']>[0]) => canvasRef.current?.fitView(options), []);
   const handleInsertSnippet = useInsertWorkflowSnippet({
     storageScope: browserStorageScope,
     workflow: activeWorkflow,
+    objectInfo,
     isCurrent: isCurrentHistory,
     commitPatch: commitHistoryPatch,
     getViewport: getHistoryViewport,
+    onInserted: revealInsertedSnippet,
   });
 
   // Restore the saved viewport whenever the user switches workflow tabs.
@@ -3569,6 +3572,9 @@ export default function App() {
   useGlobalShortcut('workflow.run', () => { void handleRun(); });
   useGlobalShortcut('workflow.export', () => setShowExport(true));
   useGlobalShortcut('workflow.import', () => setShowImport(true));
+  useGlobalShortcut('canvas.undo', undo);
+  useGlobalShortcut('canvas.redo', redo);
+  useGlobalShortcut('canvas.redoAlternate', redo);
   useGlobalShortcut('settings.toggle', () => togglePanel('settings'));
   useGlobalShortcut('console.toggle', handleToggleQueue);
   useGlobalShortcut('ai.open', () => setShowAI(true));

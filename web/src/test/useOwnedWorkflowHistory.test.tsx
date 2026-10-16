@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useOwnedWorkflowHistory, useOwnershipEpoch } from '../hooks/workflow/useOwnedWorkflowHistory';
 import type { Workflow } from '../types';
@@ -48,6 +48,48 @@ describe('workflow history ownership', () => {
     rerender({ ...props, workflow: { ...edited, ...apply.mock.lastCall![0] } });
     act(() => result.current.undo());
     expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves post-insert fit and manual pan through real Undo/Redo without extra graph steps', () => {
+    const initial = graph('doc-a', 'original');
+    const originalView = { x: 10, y: 20, scale: 1 };
+    const fittedView = { x: -300, y: 40, scale: 0.5 };
+    const pannedView = { x: 90, y: -25, scale: 1.2 };
+    let viewport = originalView;
+    const getViewport = vi.fn(() => viewport);
+    const applied = vi.fn();
+    const { result, unmount } = renderHook(() => {
+      const [workflow, setWorkflow] = useState(initial);
+      const history = useOwnedWorkflowHistory({ owner: 'owner', documentId: 'doc-a', workflow, getViewport,
+        apply: value => {
+          applied(value);
+          if (value.viewport) viewport = value.viewport;
+          setWorkflow(previous => ({ ...previous, ...value }));
+        } });
+      return { workflow, history };
+    });
+    const inserted = graph('doc-a', 'inserted');
+    act(() => { result.current.history.commitPatch({ nodes: [...initial.nodes, ...inserted.nodes] }); });
+    viewport = fittedView; // Post-render fit does not create a graph edit.
+    applied.mockClear();
+    act(() => result.current.history.undo());
+    expect(result.current.workflow.nodes).toEqual(initial.nodes);
+    expect(viewport).toEqual(originalView);
+    expect(applied).toHaveBeenCalledOnce();
+
+    viewport = pannedView;
+    getViewport.mockClear(); applied.mockClear();
+    act(() => result.current.history.undo()); // Boundary remains a true no-op.
+    expect(getViewport).not.toHaveBeenCalled();
+    expect(applied).not.toHaveBeenCalled();
+    expect(viewport).toEqual(pannedView);
+    act(() => result.current.history.redo());
+    expect(result.current.workflow.nodes).toHaveLength(2);
+    expect(viewport).toEqual(fittedView);
+    act(() => result.current.history.undo());
+    expect(result.current.workflow.nodes).toEqual(initial.nodes);
+    expect(viewport).toEqual(pannedView);
+    unmount();
   });
 
   it('snapshots parameter-only edits, deduplicates equal values, and restores them through undo and redo', () => {

@@ -11,6 +11,7 @@ import { saveWorkflowSnippet } from '../state/workflowSnippets';
 import { LOCAL_BROWSER_STORAGE_SCOPE, resolveBrowserStorageScope } from '../utils/browserStorageScope';
 import type { BrowserStorageScope } from '../utils/browserStorageScope';
 import type { Workflow } from '../types';
+import { placementBounds, placementOverlaps, snippetNodeSize } from '../utils/snippetPlacement';
 
 vi.mock('../state/dialogs', () => ({ promptDialog: vi.fn() }));
 vi.mock('../state/notifications', () => ({ toast: { info: vi.fn(), success: vi.fn() } }));
@@ -34,9 +35,11 @@ function saveSnippet(workflow: Workflow, scope = LOCAL_BROWSER_STORAGE_SCOPE) {
   return saveWorkflowSnippet({ name: 'Audit snippet', nodes: workflow.nodes, edges: workflow.edges }, scope);
 }
 
-function setup(scope = LOCAL_BROWSER_STORAGE_SCOPE) {
+function setup(scope = LOCAL_BROWSER_STORAGE_SCOPE, options: {
+  viewport?: { x: number; y: number; scale: number }; onInserted?: () => void;
+} = {}) {
   const applied = vi.fn();
-  const viewport = { x: 5, y: 6, scale: 1.5 };
+  const viewport = options.viewport ?? { x: 5, y: 6, scale: 1.5 };
   const hook = renderHook(({ owner, storageScope }: { owner: string; storageScope: BrowserStorageScope }) => {
     const [workflow, setWorkflow] = useState(graph);
     const getViewport = useCallback(() => viewport, []);
@@ -45,7 +48,7 @@ function setup(scope = LOCAL_BROWSER_STORAGE_SCOPE) {
       apply: value => { applied(value); setWorkflow(current => ({ ...current, ...value })); },
     });
     const insert = useInsertWorkflowSnippet({ storageScope, workflow, isCurrent: history.isCurrent,
-      commitPatch: history.commitPatch, getViewport });
+      commitPatch: history.commitPatch, getViewport, onInserted: options.onInserted });
     const edit = (text: string) => {
       const nodes = workflow.nodes.map(node => node.id === 'source'
         ? { ...node, params: { ...node.params, template: text } } : node);
@@ -58,7 +61,12 @@ function setup(scope = LOCAL_BROWSER_STORAGE_SCOPE) {
 
 describe('snippet insertion history transaction', () => {
   beforeEach(() => { vi.useFakeTimers(); localStorage.clear(); vi.clearAllMocks(); vi.mocked(promptDialog).mockResolvedValue('1'); });
-  afterEach(() => { localStorage.clear(); vi.useRealTimers(); });
+  afterEach(() => {
+    localStorage.clear();
+    document.querySelectorAll('[data-placement-fixture]').forEach(element => element.remove());
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
   it.each([0, 350])('undoes only insertion and redoes the complete snippet after an earlier text edit (%i ms flush)', async delay => {
     const { result } = setup();
@@ -117,6 +125,134 @@ describe('snippet insertion history transaction', () => {
     const insert = result.current.insert;
     act(() => result.current.edit('B'));
     expect(result.current.insert).toBe(insert);
+  });
+
+  it('places the complete snippet clear of live measured nodes and both overlaid drawers', async () => {
+    const shell = document.createElement('div');
+    shell.className = 'app-shell';
+    shell.dataset.placementFixture = '';
+    shell.style.setProperty('--left-panel-inset', '600px');
+    shell.style.setProperty('--right-panel-inset', '100px');
+    shell.innerHTML = '<div class="main-canvas"><div class="react-flow"></div></div>';
+    document.body.append(shell);
+    const canvas = shell.querySelector<HTMLElement>('.react-flow')!;
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ width: 2200, height: 1500 } as DOMRect);
+    const sizes = { note: { width: 260, height: 120 }, source: { width: 220, height: 520 }, target: { width: 220, height: 300 } };
+    for (const [id, dimensions] of Object.entries(sizes)) {
+      const node = document.createElement('div');
+      node.className = 'react-flow__node';
+      node.dataset.id = id;
+      Object.defineProperties(node, { offsetWidth: { value: dimensions.width }, offsetHeight: { value: dimensions.height } });
+      canvas.append(node);
+    }
+    const reveal = vi.fn();
+    const { result } = setup(LOCAL_BROWSER_STORAGE_SCOPE, { viewport: { x: 600, y: 300, scale: 1 }, onInserted: reveal });
+    act(() => result.current.edit('B'));
+    const before = structuredClone(result.current.workflow);
+    saveSnippet(before);
+    await act(async () => { await result.current.insert(); });
+    const after = result.current.workflow;
+    expect(after.nodes.slice(0, 3)).toEqual(before.nodes);
+    expect(after.edges[0]).toEqual(before.edges[0]);
+    const added = after.nodes.slice(3);
+    const insertedBounds = placementBounds(added.map(node => ({ x: node.position[0], y: node.position[1], ...snippetNodeSize(node) })));
+    const obstacles = before.nodes.map(node => ({ x: node.position[0], y: node.position[1], ...sizes[node.id as keyof typeof sizes] }));
+    expect(obstacles.some(rect => placementOverlaps(insertedBounds, rect))).toBe(false);
+    // Actual 2200 px canvas minus 600/100 px drawers, translated by viewport.
+    expect(insertedBounds.x).toBeGreaterThanOrEqual(24);
+    expect(insertedBounds.x + insertedBounds.width).toBeLessThanOrEqual(1500 - 24);
+    expect(insertedBounds.y).toBeGreaterThanOrEqual(-300 + 24);
+    expect(insertedBounds.y + insertedBounds.height).toBeLessThanOrEqual(1200 - 24);
+    for (let index = 1; index < added.length; index++) {
+      expect(added[index].position.map((value, axis) => value - added[0].position[axis]))
+        .toEqual(before.nodes[index].position.map((value, axis) => value - before.nodes[0].position[axis]));
+      expect(added[index].params).toEqual(before.nodes[index].params);
+    }
+    expect(after.edges[1].from.node).toBe(added[1].id);
+    expect(after.edges[1].to.node).toBe(added[2].id);
+    act(() => vi.advanceTimersByTime(100));
+    expect(reveal).not.toHaveBeenCalled();
+    act(() => result.current.history.undo());
+    expect(result.current.workflow.nodes).toEqual(before.nodes);
+    act(() => result.current.history.redo());
+    expect(result.current.workflow.nodes).toEqual(after.nodes);
+  });
+
+  it.each(['current', 'owner', 'document', 'undo', 'unmount'] as const)(
+    'reveals an oversized insertion only after layout, while still current (%s)', async transition => {
+      const reveal = vi.fn();
+      const frames: FrameRequestCallback[] = [];
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
+      const { result, rerender, unmount } = setup(LOCAL_BROWSER_STORAGE_SCOPE, { onInserted: reveal });
+      saveSnippet(graph());
+      await act(async () => { await result.current.insert(); });
+      expect(reveal).not.toHaveBeenCalled();
+      expect(frames).toHaveLength(1);
+      act(() => frames.shift()!(0));
+      expect(reveal).not.toHaveBeenCalled();
+      if (transition === 'owner') rerender({ owner: 'owner-b', storageScope: LOCAL_BROWSER_STORAGE_SCOPE });
+      if (transition === 'document') act(() => result.current.replace(graph('draft-b')));
+      if (transition === 'undo') act(() => result.current.history.undo());
+      if (transition === 'unmount') unmount();
+      act(() => frames.shift()!(16));
+      expect(reveal).toHaveBeenCalledTimes(transition === 'current' ? 1 : 0);
+    },
+  );
+
+  it('keeps insertion above the measured open BottomConsole rather than using its obscured canvas area', async () => {
+    const shell = document.createElement('div');
+    shell.className = 'app-shell';
+    shell.dataset.placementFixture = '';
+    shell.innerHTML = '<div class="main-canvas"><div class="react-flow"></div></div><div class="bottom-console"></div>';
+    document.body.append(shell);
+    vi.spyOn(shell.querySelector<HTMLElement>('.react-flow')!, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 100, left: 0, top: 100, right: 1800, bottom: 1100, width: 1800, height: 1000,
+    } as DOMRect);
+    vi.spyOn(shell.querySelector<HTMLElement>('.bottom-console')!, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 600, left: 0, top: 600, right: 1800, bottom: 1100, width: 1800, height: 500,
+    } as DOMRect);
+    const reveal = vi.fn();
+    const { result } = setup(LOCAL_BROWSER_STORAGE_SCOPE, { viewport: { x: 600, y: 0, scale: 1 }, onInserted: reveal });
+    act(() => result.current.replace({ ...graph(), nodes: graph().nodes.map(node => ({ ...node, position: [node.position[0], -300] as [number, number] })) }));
+    saveSnippet(result.current.workflow);
+    const before = structuredClone(result.current.workflow.nodes);
+    await act(async () => { await result.current.insert(); });
+    const added = result.current.workflow.nodes.slice(3);
+    const bounds = placementBounds(added.map(node => ({ x: node.position[0], y: node.position[1], ...snippetNodeSize(node) })));
+    expect(result.current.workflow.nodes.slice(0, 3)).toEqual(before);
+    expect(bounds.y).toBeGreaterThanOrEqual(24);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(500 - 24);
+    expect(before.some(node => placementOverlaps(bounds, { x: node.position[0], y: node.position[1], ...snippetNodeSize(node) }))).toBe(false);
+    act(() => vi.advanceTimersByTime(100));
+    expect(reveal).not.toHaveBeenCalled();
+  });
+
+  it('remeasures overlays after insertion before revealing only the new node IDs', async () => {
+    const reveal = vi.fn();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
+    const { result } = setup(LOCAL_BROWSER_STORAGE_SCOPE, { onInserted: reveal });
+    saveSnippet(graph());
+    await act(async () => { await result.current.insert(); });
+    const insertedIds = result.current.workflow.nodes.slice(3).map(node => node.id);
+    const shell = document.createElement('div');
+    shell.className = 'app-shell';
+    shell.dataset.placementFixture = '';
+    shell.style.setProperty('--left-panel-inset', '400px');
+    shell.style.setProperty('--right-panel-inset', '200px');
+    shell.innerHTML = '<div class="main-canvas"><div class="react-flow"></div></div><div class="bottom-console"></div>';
+    document.body.append(shell);
+    vi.spyOn(shell.querySelector<HTMLElement>('.react-flow')!, 'getBoundingClientRect').mockReturnValue({
+      x: 56, y: 76, left: 56, top: 76, right: 1256, bottom: 976, width: 1200, height: 900,
+    } as DOMRect);
+    vi.spyOn(shell.querySelector<HTMLElement>('.bottom-console')!, 'getBoundingClientRect').mockReturnValue({
+      x: 56, y: 526, left: 56, top: 526, right: 1256, bottom: 976, width: 1200, height: 450,
+    } as DOMRect);
+    act(() => frames.shift()!(0));
+    expect(reveal).not.toHaveBeenCalled();
+    act(() => frames.shift()!(16));
+    expect(reveal).toHaveBeenCalledWith({ nodes: insertedIds.map(id => ({ id })), minZoom: 0, duration: 220,
+      padding: { left: '424px', right: '224px', top: '24px', bottom: '474px' } });
   });
 
   it.each(['document', 'owner', 'owner-return'] as const)('rejects a chooser result after a %s change', async transition => {

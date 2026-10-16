@@ -1,22 +1,51 @@
 import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { FitViewOptions } from '@xyflow/react';
 import { promptDialog } from '../../state/dialogs';
 import { toast } from '../../state/notifications';
-import type { Workflow } from '../../types';
+import type { ObjectInfo, Workflow, WorkflowNode } from '../../types';
 import type { BrowserStorageScope } from '../../utils/browserStorageScope';
+import { findSnippetPlacement, placementBounds, snippetNodeSize, snippetRevealOptions, type PlacementSize } from '../../utils/snippetPlacement';
 import type { WorkflowHistorySnapshot } from './useOwnedWorkflowHistory';
 
+function measureCanvasArea() {
+  const canvas = document.querySelector<HTMLElement>('.main-canvas .react-flow');
+  const rect = canvas?.getBoundingClientRect();
+  const width = Math.max(1, rect?.width || window.innerWidth);
+  const height = Math.max(1, rect?.height || window.innerHeight);
+  const shell = canvas?.closest<HTMLElement>('.app-shell');
+  const style = shell && !shell.classList.contains('focus-mode') ? getComputedStyle(shell) : null;
+  const inset = (key: string) => {
+    const value = parseFloat(style?.getPropertyValue(key) ?? '');
+    return Number.isFinite(value) ? Math.max(0, value) : 0;
+  };
+  const leftInset = Math.min(width - 1, inset('--left-panel-inset'));
+  const rightInset = Math.min(width - leftInset - 1, inset('--right-panel-inset'));
+  const consoleRect = style ? shell?.querySelector<HTMLElement>('.bottom-console')?.getBoundingClientRect() : undefined;
+  const top = rect?.top ?? 0;
+  const left = rect?.left ?? 0;
+  const consoleOverlaps = consoleRect && consoleRect.width > 0 && consoleRect.height > 0
+    && consoleRect.left < left + width && consoleRect.right > left
+    && consoleRect.top < top + height && consoleRect.bottom > top;
+  const bottomInset = consoleOverlaps ? Math.min(height - 1, Math.max(0, top + height - consoleRect.top)) : 0;
+  return { canvas, width, height, leftInset, rightInset, bottomInset };
+}
+
 /** Insert into the current document as one owner-bound undo transaction. */
-export function useInsertWorkflowSnippet({ storageScope, workflow, isCurrent, commitPatch, getViewport }: {
+export function useInsertWorkflowSnippet({ storageScope, workflow, objectInfo = {}, isCurrent, commitPatch, getViewport, onInserted }: {
   storageScope: BrowserStorageScope;
   workflow: Workflow;
+  objectInfo?: ObjectInfo;
   isCurrent: () => boolean;
   commitPatch: (patch: Partial<Pick<Workflow, 'nodes' | 'edges' | 'groups' | 'parameters'>>) => boolean;
   getViewport: () => WorkflowHistorySnapshot['viewport'];
+  onInserted?: (options: FitViewOptions) => void;
 }) {
   const { t } = useTranslation();
   const currentWorkflow = useRef(workflow);
   currentWorkflow.current = workflow;
+  const latest = useRef({ objectInfo, onInserted });
+  latest.current = { objectInfo, onInserted };
 
   return useCallback(async () => {
     if (storageScope.mode === 'blocked' || !isCurrent()) return;
@@ -38,13 +67,36 @@ export function useInsertWorkflowSnippet({ storageScope, workflow, isCurrent, co
     const index = Math.max(1, Math.min(snippets.length, parseInt(choice, 10))) - 1;
     if (Number.isNaN(index)) return;
     const snippet = snippets[index];
+    if (!snippet.nodes.length) return;
     const viewport = getViewport();
-    const centreWorld = viewport
-      ? { x: (-viewport.x + window.innerWidth / 2) / viewport.scale, y: (-viewport.y + window.innerHeight / 2) / viewport.scale }
-      : { x: 100, y: 100 };
-    const { nodes, edges } = instantiateSnippet(snippet, centreWorld);
     const current = currentWorkflow.current;
+    // Drawers/console overlay Flow; its full DOM size includes obscured space.
+    const area = measureCanvasArea();
+    const measured = new Map<string, PlacementSize>();
+    area.canvas?.querySelectorAll<HTMLElement>('.react-flow__node[data-id]').forEach(element => {
+      if (element.dataset.id && element.offsetWidth > 0 && element.offsetHeight > 0) {
+        measured.set(element.dataset.id, { width: element.offsetWidth, height: element.offsetHeight });
+      }
+    });
+    const sizeFor = (node: WorkflowNode, live: boolean) => snippetNodeSize(node,
+      latest.current.objectInfo[node.type] ?? node.node_info, live ? measured.get(node.id) : undefined);
+    const existing = current.nodes.map(node => ({ x: node.position[0], y: node.position[1], ...sizeFor(node, true) }));
+    const snippetBounds = placementBounds(snippet.nodes.map(node => ({ x: node.position[0], y: node.position[1], ...sizeFor(node, false) })));
+    const scale = viewport && Number.isFinite(viewport.scale) && viewport.scale > 0 ? viewport.scale : 1;
+    const placement = findSnippetPlacement(existing, { width: snippetBounds.width, height: snippetBounds.height }, {
+      x: (area.leftInset - (viewport?.x ?? 0)) / scale, y: -(viewport?.y ?? 0) / scale,
+      width: (area.width - area.leftInset - area.rightInset) / scale,
+      height: (area.height - area.bottomInset) / scale,
+    });
+    const { nodes, edges } = instantiateSnippet(snippet, placement);
     if (!commitPatch({ nodes: [...current.nodes, ...nodes], edges: [...current.edges, ...edges] })) return;
+    if (placement.needsReveal && latest.current.onInserted) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (isCurrent() && nodes.every(node => currentWorkflow.current.nodes.some(currentNode => currentNode.id === node.id))) {
+          latest.current.onInserted?.(snippetRevealOptions(measureCanvasArea(), nodes.map(node => node.id)));
+        }
+      }));
+    }
     toast.success(t('snippets.insertedTitle'), { message: snippet.name });
   }, [storageScope, isCurrent, commitPatch, getViewport, t]);
 }

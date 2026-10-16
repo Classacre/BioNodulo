@@ -109,6 +109,11 @@ export function useOwnedWorkflowHistory({ owner, documentId, workflow, getViewpo
     pushHistory();
     const index = session.index + direction;
     if (!isCurrent() || index < 0 || index >= session.snapshots.length) return;
+    // A discrete insert may fit the canvas after its graph commit. Preserve
+    // that revealed view (and later manual pans) when leaving this entry.
+    const viewport = latest.current.getViewport();
+    if (!isCurrent()) return;
+    if (viewport) session.snapshots[session.index].viewport = { ...viewport };
     session.index = index;
     const value = session.snapshots[index];
     session.pending = {};

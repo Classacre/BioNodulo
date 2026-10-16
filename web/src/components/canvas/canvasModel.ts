@@ -2,6 +2,7 @@
 // WorkflowCanvas and the inspector/editor panels. Holds the node geometry /
 // colour / layout logic as a single source of truth.
 import type { NodeMetadata, NodeStatus } from '../../types';
+import type { FitViewOptions } from '@xyflow/react';
 
 export const NODE_WIDTH = 220;
 export const NODE_NOTE_WIDTH = 260;
@@ -45,7 +46,7 @@ export interface GraphNode {
 }
 
 export interface WorkflowCanvasRef {
-  fitView: () => void;
+  fitView: (options?: FitViewOptions) => void;
   focusNode: (nodeId: string) => void;
   setViewport: (viewport: { x: number; y: number; scale: number }) => void;
   getViewport: () => { x: number; y: number; scale: number };
