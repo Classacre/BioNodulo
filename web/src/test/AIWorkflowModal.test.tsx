@@ -203,6 +203,44 @@ describe('AIWorkflowModal i18n', () => {
     expect(JSON.parse(storage.get('bionodulo-ai-sessions')!)[0].name).toBe('LOCAL_PRIVATE');
   });
 
+  it('clears transient guest proposals and attachments across workflows even when the invite object is reused', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const store = createStore(); store.set(cloudConfigAtom, cloudConfig('team-a'));
+    store.set(cloudInviteSessionAtom, { member: false, workflowId: 'foreign-a' } as CloudInviteSession);
+    let resolveLate!: () => void;
+    let signal!: AbortSignal;
+    vi.mocked(streamAIChat).mockImplementationOnce(async (_request, onStep, requestSignal) => {
+      signal = requestSignal!;
+      onStep({ type: 'propose_changes', content: '', workflow: workflow({ name: 'Private guest proposal' }) as unknown as Record<string, unknown> });
+      await new Promise<void>(resolve => { resolveLate = resolve; });
+    });
+    const apply = vi.fn();
+    const view = render(<Provider store={store}><AIWorkflowModal workflow={workflow({ id: 'foreign-a' })} onClose={() => undefined} onApplyWorkflow={apply} /></Provider>);
+    fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [new File(['private'], 'GUEST_A.csv', { type: 'text/csv' })] } });
+    await screen.findByText('GUEST_A.csv');
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), { target: { value: 'GUEST_A_PROMPT' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(screen.getByRole('button', { name: 'Apply Changes' })).toBeInTheDocument();
+    view.rerender(<Provider store={store}><AIWorkflowModal workflow={workflow({ id: 'foreign-b' })} onClose={() => undefined} onApplyWorkflow={apply} /></Provider>);
+    expect(signal.aborted).toBe(true);
+    expect(screen.queryByText('GUEST_A_PROMPT')).not.toBeInTheDocument();
+    expect(screen.queryByText('GUEST_A.csv')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply Changes' })).not.toBeInTheDocument();
+    await act(async () => resolveLate());
+    expect(apply).not.toHaveBeenCalled();
+    expect(storage.has('bionodulo-ai-sessions.cloud.user-a.team-a')).toBe(false);
+  });
+
+  it('preserves a member conversation while switching workflow tabs within its own team', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const store = createStore(); store.set(cloudConfigAtom, cloudConfig('team-a'));
+    storage.set('bionodulo-ai-sessions.cloud.user-a.team-a', JSON.stringify(privateSessions('MEMBER_CONVERSATION')));
+    const view = render(<Provider store={store}><AIWorkflowModal workflow={workflow({ id: 'own-a' })} onClose={() => undefined} onApplyWorkflow={() => undefined} /></Provider>);
+    view.rerender(<Provider store={store}><AIWorkflowModal workflow={workflow({ id: 'own-b' })} onClose={() => undefined} onApplyWorkflow={() => undefined} /></Provider>);
+    expect(screen.getByText('MEMBER_CONVERSATION')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply Changes' })).toBeInTheDocument();
+  });
+
   it('renders shell and session chrome from the active locale', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const { setLanguage } = await import('../i18n');

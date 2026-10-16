@@ -187,8 +187,9 @@ export default function AIWorkflowModal(props: AIWorkflowModalProps) {
   const privacyScope = resolveBrowserStorageScope(config, Boolean(guestInvite));
   const storageKey = mcpRuntime ? null : browserStorageKey(STORAGE_KEY, privacyScope);
   let scope = privacyScope.identity;
-  if (mcpRuntime) scope = `mcp:${contextId(mcpRuntime)}:${scope}:${guestInvite ? contextId(invite) : 'member'}`;
-  else if (guestInvite) scope = `invite:${contextId(invite)}:${scope}`;
+  const invitationContext = guestInvite ? `${contextId(invite)}:${invite.workflowId}:${props.workflow.id || ''}` : 'member';
+  if (mcpRuntime) scope = `mcp:${contextId(mcpRuntime)}:${scope}:${invitationContext}`;
+  else if (guestInvite) scope = `invite:${invitationContext}:${scope}`;
   return <AIWorkflowSession key={storageKey || scope} {...props} storageKey={storageKey} mcpRuntime={mcpRuntime} />;
 }
 
