@@ -12,7 +12,11 @@ const website = vi.hoisted(() => ({
   saveCloudWorkflow: vi.fn(),
   submitCloudRun: vi.fn(),
 }));
-const openTabs = vi.hoisted(() => ({ readOpenWorkflows: vi.fn((): string[] | null => null), writeOpenWorkflows: vi.fn() }));
+const openTabs = vi.hoisted(() => ({
+  readOpenWorkflows: vi.fn((): string[] | null => null),
+  readOpenWorkflowRecord: vi.fn(),
+  writeOpenWorkflows: vi.fn(),
+}));
 vi.mock('../api/website', async importOriginal => ({
   ...(await importOriginal<typeof import('../api/website')>()), ...website,
 }));
@@ -46,6 +50,10 @@ describe('cloud workflow restoration', () => {
     localStorage.clear();
     vi.clearAllMocks();
     openTabs.readOpenWorkflows.mockReturnValue(null);
+    openTabs.readOpenWorkflowRecord.mockImplementation(() => {
+      const ids = openTabs.readOpenWorkflows();
+      return ids === null ? null : { version: 1, openIds: ids, activeId: null };
+    });
     website.createCloudWorkflow.mockReset();
     website.createCloudWorkflow.mockImplementation(async (name: string, options?: { clientRequestId: string; workflow: Workflow }) => ({
       ...(options?.workflow || workflow('new')),
@@ -148,7 +156,7 @@ describe('cloud workflow restoration', () => {
       expect.objectContaining({ id: 'created', name: 'Edited created' }),
       writeContext,
     ), { timeout: 3000 });
-    expect(openTabs.writeOpenWorkflows).toHaveBeenCalledWith(['created'], 'user-a.team-a');
+    expect(openTabs.writeOpenWorkflows).toHaveBeenCalledWith(['created'], 'user-a.team-a', 'created');
   });
 
   it('autosaves a server-backed DOI tab added after cloud restoration', async () => {

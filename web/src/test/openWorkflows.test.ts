@@ -11,7 +11,7 @@ const localStorageStub: Storage = {
   setItem: (key: string, value: string) => { storage.set(key, String(value)); },
 };
 
-import { readOpenWorkflows, writeOpenWorkflows } from '../state/openWorkflows';
+import { MAX_OPEN_WORKFLOWS, readOpenWorkflowRecord, readOpenWorkflows, writeOpenWorkflows } from '../state/openWorkflows';
 
 beforeEach(() => {
   storage.clear();
@@ -69,9 +69,47 @@ describe('open workflow tabs', () => {
   });
 
   it('caps what it restores', () => {
-    writeOpenWorkflows(Array.from({ length: 20 }, (_, i) => `w${i}`));
+    writeOpenWorkflows(Array.from({ length: 100 }, (_, i) => `w${i}`), undefined, 'w99');
 
-    expect(readOpenWorkflows()!.length).toBeLessThanOrEqual(8);
+    expect(readOpenWorkflows()).toHaveLength(MAX_OPEN_WORKFLOWS);
+    expect(readOpenWorkflows()).toContain('w99');
+    expect(readOpenWorkflowRecord()?.activeId).toBe('w99');
+  });
+
+  it('retains all ordinary open tabs and their selected document', () => {
+    const ids = Array.from({ length: 17 }, (_, i) => `w${i}`);
+    writeOpenWorkflows(ids, 'user-a.team-a', 'w16');
+    expect(readOpenWorkflowRecord('user-a.team-a')).toEqual({ version: 1, openIds: ids, activeId: 'w16' });
+    expect(JSON.parse(storage.get('bionodulo.workflows.open.user-a.team-a')!)).toEqual({
+      version: 1, openIds: ids, activeId: 'w16',
+    });
+  });
+
+  it('accepts legacy arrays without assigning an invented selection or migrating on read', () => {
+    const legacy = JSON.stringify(['a', 'b']);
+    storage.set('bionodulo.workflows.open', legacy);
+    expect(readOpenWorkflowRecord()).toEqual({ version: 1, openIds: ['a', 'b'], activeId: null });
+    expect(storage.get('bionodulo.workflows.open')).toBe(legacy);
+  });
+
+  it('rejects malformed IDs and a selection outside the open set', () => {
+    storage.set('bionodulo.workflows.open', JSON.stringify({
+      version: 1, openIds: ['a', '', ' ', null, false, 'x'.repeat(257), 'a', 'b'], activeId: 'outside',
+    }));
+    expect(readOpenWorkflowRecord()).toEqual({ version: 1, openIds: ['a', 'b'], activeId: null });
+  });
+
+  it('does not parse oversized records or unknown future formats as open sessions', () => {
+    storage.set('bionodulo.workflows.open', JSON.stringify({ version: 2, openIds: ['a'] }));
+    expect(readOpenWorkflowRecord()).toBeNull();
+    storage.set('bionodulo.workflows.open', ' '.repeat(65537));
+    expect(readOpenWorkflowRecord()).toBeNull();
+  });
+
+  it('performs no reads or writes for a blocked scope', () => {
+    writeOpenWorkflows(['guest'], null, 'guest');
+    expect(readOpenWorkflowRecord(null)).toBeNull();
+    expect(storage.size).toBe(0);
   });
 
   it('falls back to recent work when storage is unusable', () => {

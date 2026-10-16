@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -7,8 +7,8 @@ import { batchCountAtom } from '../../state/runAtoms';
 import { showOutputDiffAtom } from '../../state/uiAtoms';
 import Icon from '../ui/Icon';
 import { call } from '../../api/website';
-import { getMcpRuntime } from '../../mcp/runtime';
-import { safeHttpsUrl } from '../../mcp/host';
+import { openVerifiedCloudDownload } from '../../utils/cloudOutputDownload';
+import { useOwnershipEpoch } from '../../hooks/workflow/useOwnedWorkflowHistory';
 import { cloudConfigAtom } from '../../state/appAtoms';
 import { cloudInviteSessionAtom } from '../../collab/cloudInvite';
 import { cloudPreviewSelectionAtom } from '../../state/cloudPreview';
@@ -251,6 +251,16 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
   const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
   const [downloadError, setDownloadError] = useState('');
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
+  const downloadOwnerKey = JSON.stringify([run.run_id, previewScope, cloudConfig?.user?.id, cloudConfig?.team?.id]);
+  const downloadEpoch = useOwnershipEpoch(downloadOwnerKey, cloudConfig?.user?.id ?? null, invite);
+  const downloadOwner = useRef<object | null>(downloadEpoch);
+  downloadOwner.current = downloadEpoch;
+  useLayoutEffect(() => {
+    downloadOwner.current = downloadEpoch;
+    setDownloadError('');
+    setDownloadingKey(null);
+    return () => { downloadOwner.current = null; };
+  }, [downloadEpoch]);
   const downloadOutput = async (output: CloudRunOutput) => {
     setDownloadError('');
     setDownloadingKey(output.key);
@@ -258,22 +268,15 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
       // Signed links expire. Recheck the committed manifest and get a fresh link
       // at the moment of download rather than trusting a saved run record URL.
       const { outputs } = await call<{ outputs: CloudRunOutput[] }>(`/runs/${encodeURIComponent(run.run_id)}/outputs`);
+      if (downloadOwner.current !== downloadEpoch) return;
       const current = outputs.find(item => item.key === output.key);
       if (!current?.url) throw new Error('This verified output is no longer available for download.');
-      const url = safeHttpsUrl(current.url);
-      const runtime = getMcpRuntime();
-      if (runtime) await runtime.openLink(url);
-      else {
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = current.name;
-        link.rel = 'noopener noreferrer';
-        link.click();
-      }
+      if (current.size !== output.size || current.sha256 !== output.sha256) throw new Error('This output changed. Refresh the run before downloading.');
+      await openVerifiedCloudDownload(current);
     } catch (error) {
-      setDownloadError(error instanceof Error ? error.message : 'Could not download this output.');
+      if (downloadOwner.current === downloadEpoch) setDownloadError(error instanceof Error ? error.message : 'Could not download this output.');
     } finally {
-      setDownloadingKey(null);
+      if (downloadOwner.current === downloadEpoch) setDownloadingKey(null);
     }
   };
   return (

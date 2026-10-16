@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { Provider } from 'jotai';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunRecord } from '../types';
+import { cloudConfigAtom, type CloudConfig } from '../state/appAtoms';
 
 const cloudMocks = vi.hoisted(() => ({ call: vi.fn(), runtime: undefined as unknown }));
 vi.mock('../api/website', () => ({ call: cloudMocks.call }));
@@ -145,6 +146,23 @@ describe('RunsDrawer', () => {
     })]} onClose={() => undefined} /></Provider>);
     fireEvent.click(screen.getByRole('button', { name: 'Download result.bam' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Committed outputs are temporarily unavailable.');
+    expect(openLink).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('does not revive a historical download after owner change, including return=%s', async returnToOwner => {
+    const { default: RunsDrawer } = await import('../components/layout/RunsDrawer');
+    const openLink = vi.fn(); cloudMocks.runtime = { openLink };
+    let resolve!: (value: unknown) => void;
+    cloudMocks.call.mockImplementation(() => new Promise(done => { resolve = done; }));
+    const store = createStore();
+    const config = (team: string) => ({ editorMode: true, user: { id: 'user' }, team: { id: team } }) as CloudConfig;
+    store.set(cloudConfigAtom, config('a'));
+    const output = { key: 'team/run/result.bam', name: 'result.bam', size: 1024, sha256: 'abc', url: 'https://files.example/fresh' };
+    render(<Provider store={store}><RunsDrawer open queue={[]} history={[runRecord({ run_id: 'run-1', status: 'completed', cloud_outputs: [output] })]} onClose={() => undefined} /></Provider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Download result.bam' }));
+    act(() => store.set(cloudConfigAtom, config('b')));
+    if (returnToOwner) act(() => store.set(cloudConfigAtom, config('a')));
+    await act(async () => resolve({ outputs: [output] }));
     expect(openLink).not.toHaveBeenCalled();
   });
 

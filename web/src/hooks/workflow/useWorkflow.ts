@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, type SetStateAction } from 'react';
 import { useAtomValue } from 'jotai';
 import type { Workflow, RunRecord, ResolveReport } from '../../types';
 import { apiPost, apiRequest } from '../../api/client';
@@ -15,7 +15,7 @@ import {
   type WorkflowRow,
 } from '../../api/website';
 import { cloudConfigAtom } from '../../state/appAtoms';
-import { readOpenWorkflows, writeOpenWorkflows } from '../../state/openWorkflows';
+import { readOpenWorkflowRecord, readOpenWorkflows, writeOpenWorkflows } from '../../state/openWorkflows';
 import i18n from '../../i18n';
 import { logError } from '../../state/logging';
 import { collectLocalInputArtifacts } from '../../utils/workflowFiles';
@@ -247,7 +247,14 @@ export function useWorkflow() {
   const initial = useState(() => getMcpRuntime() ? { workflows: [emptyWorkflow()], activeIndex: 0 } : loadLocalWorkflows())[0];
   const initialLocalKeys = useRef(new Map(initial.workflows.map(wf => [wf.id, workflowSaveKey(wf)])));
   const [workflows, setWorkflows] = useState<Workflow[]>(initial.workflows);
-  const [activeIndex, setActiveIndex] = useState(initial.activeIndex);
+  const [activeIndex, setActiveIndexState] = useState(initial.activeIndex);
+  const selectionEpochRef = useRef(0);
+  const setActiveIndex = useCallback((next: SetStateAction<number>) => {
+    selectionEpochRef.current += 1;
+    setActiveIndexState(next);
+  }, []);
+  const activeWorkflowIdRef = useRef(workflows[activeIndex]?.id);
+  activeWorkflowIdRef.current = workflows[activeIndex]?.id;
   const [validation, setValidation] = useState<{ valid: boolean; errors: string[] }>({ valid: true, errors: [] });
   const [resolveReport, setResolveReport] = useState<ResolveReport | null>(null);
   const resolveRequestIdRef = useRef(0);
@@ -382,17 +389,17 @@ export function useWorkflow() {
     setResolveReport(null);
     resolveRequestIdRef.current += 1;
     setWorkflows(recovered);
-    setActiveIndex(Math.max(0, Math.min(parked?.activeIndex ?? 0, recovered.length - 1)));
+    setActiveIndexState(Math.max(0, Math.min(parked?.activeIndex ?? 0, recovered.length - 1)));
   }, [editorMode, cloudDraftKey, cloudScopeChanging, workflows, activeIndex, cloudSaveStates, cloudRestored, cloudLoadError]);
 
   // Cloud load: on first entry to editor mode, open the team's recent workflows
   // as tabs (the deep-linked one focused first). Workflows are managed in-app via
   // tabs now, so we hydrate several rather than a single one.
-  const CLOUD_TAB_LIMIT = 8;
   useEffect(() => {
     if (!editorMode || !cloudScope || cloudScopeChanging || cloudLoadStartedRef.current) return;
     cloudLoadStartedRef.current = true;
     const idsAtRestoreStart = new Set(workflows.map(wf => wf.id));
+    const selectionAtRestoreStart = selectionEpochRef.current;
     const persistedDrafts = readCloudDrafts(cloudDraftKey);
     const persistedIds = new Set(persistedDrafts.map(wf => wf.id));
     const savedDrafts = [...persistedDrafts, ...workflows.filter(wf => wf.cloudRequestId
@@ -407,7 +414,7 @@ export function useWorkflow() {
         const list = await listCloudWorkflows();
         if (!isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return;
         const known = new Set(list.map(summary => summary.id));
-        const remembered = readOpenWorkflows(cloudScope);
+        const remembered = readOpenWorkflowRecord(cloudScope);
 
         // Restore exactly the tabs that were open, plus any deep link. Only a
         // browser that has never recorded a set falls back to recent work --
@@ -422,8 +429,7 @@ export function useWorkflow() {
           const mostRecent = list[0];
           if (mostRecent && !ids.includes(mostRecent.id)) ids.push(mostRecent.id);
         } else {
-          for (const id of remembered) {
-            if (ids.length >= CLOUD_TAB_LIMIT) break;
+          for (const id of remembered.openIds) {
             // Drop anything deleted elsewhere; restoring it would 404.
             if (known.has(id) && !ids.includes(id)) ids.push(id);
           }
@@ -436,7 +442,7 @@ export function useWorkflow() {
             const seen = new Set(addedDuringRestore.map(wf => wf.id));
             const drafts = savedDrafts.filter(wf => !seen.has(wf.id));
             const next = [...addedDuringRestore, ...drafts];
-            setActiveIndex(Math.max(0, next.length - 1));
+            setActiveIndexState(Math.max(0, next.length - 1));
             return next.length ? next : [emptyWorkflow()];
           });
           cloudTabRecordReadyRef.current = true;
@@ -467,6 +473,7 @@ export function useWorkflow() {
         // editor then silently opens the wrong thing and looks like it ignored
         // the link.
         const requestedIndex = requested ? tabs.findIndex(w => w.id === requested) : -1;
+        const rememberedIndex = remembered?.activeId ? tabs.findIndex(w => w.id === remembered.activeId) : -1;
         if (requested && requestedIndex === -1) {
           logError(
             'cloud.workflows.deeplink',
@@ -480,10 +487,17 @@ export function useWorkflow() {
           const addedDuringRestore = prev.filter(wf => !idsAtRestoreStart.has(wf.id) && !restoredIds.has(wf.id));
           const seen = new Set([...tabs, ...addedDuringRestore].map(wf => wf.id));
           const drafts = savedDrafts.filter(wf => !seen.has(wf.id));
-          setActiveIndex(addedDuringRestore.length || drafts.length
-            ? tabs.length + addedDuringRestore.length + drafts.length - 1
-            : requestedIndex >= 0 ? requestedIndex : 0);
-          return [...tabs, ...addedDuringRestore, ...drafts];
+          const next = [...tabs, ...addedDuringRestore, ...drafts];
+          const newerSelection = selectionEpochRef.current !== selectionAtRestoreStart
+            ? next.findIndex(wf => wf.id === activeWorkflowIdRef.current) : -1;
+          // A newer explicit action wins over the initial URL; the URL still
+          // takes precedence over the older remembered selection/drafts.
+          setActiveIndexState(newerSelection >= 0 ? newerSelection
+            : addedDuringRestore.length ? tabs.length + addedDuringRestore.length - 1
+              : requestedIndex >= 0 ? requestedIndex
+                : drafts.length ? tabs.length + drafts.length - 1
+                  : rememberedIndex >= 0 ? rememberedIndex : 0);
+          return next;
         });
         for (const wf of tabs) if (wf.id) {
           cloudServerIdsRef.current.add(wf.id);
@@ -517,8 +531,9 @@ export function useWorkflow() {
       workflows.filter(w => w.id && !w.cloudPending && cloudServerIdsRef.current.has(w.id))
         .map(w => w.id as string),
       cloudScope,
+      workflows[activeIndex]?.id ?? null,
     );
-  }, [workflows, editorMode, cloudRestored, cloudScopeChanging, cloudScope]);
+  }, [workflows, activeIndex, editorMode, cloudRestored, cloudScopeChanging, cloudScope]);
 
   // Keep unresolved cloud drafts and their idempotency keys across reloads.
   // Server-backed tabs are recorded separately in openWorkflows.
@@ -586,7 +601,8 @@ export function useWorkflow() {
         return next;
       });
       if (!cloudTabRecordReadyRef.current && !cloudClosedDraftIds.current.has(tempId)) {
-        writeOpenWorkflows([...(readOpenWorkflows(cloudScope) || []), created.id], cloudScope);
+        const selectedId = activeWorkflowIdRef.current === tempId ? created.id : activeWorkflowIdRef.current;
+        writeOpenWorkflows([...(readOpenWorkflows(cloudScope) || []), created.id], cloudScope, selectedId ?? null);
       }
     }).catch(err => {
       if (!isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return;
@@ -601,7 +617,7 @@ export function useWorkflow() {
     });
     cloudCreateRequests.current.set(tempId, request);
     return request;
-  }, [cloudDraftKey, cloudScope, cloudGeneration, isCurrentCloudGeneration]);
+  }, [cloudDraftKey, cloudScope, cloudGeneration, isCurrentCloudGeneration, setActiveIndex]);
 
   const scheduleCloudSave = useCallback((wf: Workflow, immediate = false) => {
     if (!isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return;
@@ -816,7 +832,7 @@ export function useWorkflow() {
       setActiveIndex(prev.length);
       return [...prev, emptyWorkflow()];
     });
-  }, []);
+  }, [setActiveIndex]);
 
   const addWorkflow = useCallback((wf: Workflow) => {
     // Imported JSON can carry an existing server id, while converters can
@@ -829,7 +845,7 @@ export function useWorkflow() {
       return [...prev, normalizeWorkflow(added)];
     });
     return added.id;
-  }, [editorMode]);
+  }, [editorMode, setActiveIndex]);
 
   const addCloudWorkflow = useCallback((wf: Workflow) => {
     if (!wf.id) throw new Error('A cloud workflow must have a server ID');
@@ -839,24 +855,20 @@ export function useWorkflow() {
       setActiveIndex(prev.length);
       return [...prev, normalizeWorkflow(wf)];
     });
-  }, []);
+  }, [setActiveIndex]);
 
   // Open a DB-backed cloud workflow as a tab. If it's already open, just focus
   // it; otherwise fetch it and append a tab. No-op outside editor mode.
-  const openCloudWorkflow = useCallback(async (id: string) => {
-    if (!editorMode || !id) return;
-    let already = -1;
-    setWorkflows(prev => {
-      already = prev.findIndex(w => w.id === id);
-      return prev;
-    });
+  const openCloudWorkflow = useCallback(async (id: string): Promise<boolean> => {
+    if (!editorMode || !id || !isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return false;
+    const already = currentWorkflows.current.findIndex(w => w.id === id);
     if (already >= 0) {
       setActiveIndex(already);
-      return;
+      return true;
     }
     try {
       const wf = normalizeWorkflow(await getCloudWorkflow(id));
-      if (!isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return;
+      if (!isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return false;
       cloudPristineRef.current.set(id, workflowSaveKey(wf));
       cloudServerIdsRef.current.add(id);
       cloudLoadedRef.current = true;
@@ -867,11 +879,13 @@ export function useWorkflow() {
         setActiveIndex(prev.length);
         return [...prev, wf];
       });
+      return true;
     } catch (err) {
-      if (!isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return;
+      if (!isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return false;
       logError('cloud.workflows.open', err);
+      return false;
     }
-  }, [editorMode, cloudGeneration, cloudDraftKey, isCurrentCloudGeneration]);
+  }, [editorMode, cloudGeneration, cloudDraftKey, isCurrentCloudGeneration, setActiveIndex]);
 
   // Create a fresh cloud workflow and open it as a new tab. The tab appears
   // IMMEDIATELY with a temp id (cloudPending) — the server round trip then
@@ -882,12 +896,15 @@ export function useWorkflow() {
     if (!editorMode || !isCurrentCloudGeneration(cloudGeneration, cloudDraftKey)) return;
     const placeholder: Workflow = { ...emptyWorkflow(), cloudPending: true,
       cloudRequestId: createRequestId() };
+    // A fast POST can settle before React commits the placeholder render.
+    // Preserve its selection when the partial-restore fallback records its ID.
+    activeWorkflowIdRef.current = placeholder.id;
     setWorkflows(prev => {
       setActiveIndex(prev.length);
       return [...prev, placeholder];
     });
     await startCloudCreation(placeholder);
-  }, [editorMode, startCloudCreation, cloudGeneration, cloudDraftKey, isCurrentCloudGeneration]);
+  }, [editorMode, startCloudCreation, cloudGeneration, cloudDraftKey, isCurrentCloudGeneration, setActiveIndex]);
 
   const closeTab = useCallback((index: number) => {
     const closingId = workflows[index]?.id;
@@ -919,7 +936,7 @@ export function useWorkflow() {
     // not the render-closure `workflows.length` which lags one render behind
     // and could leave activeIndex pointing a tab off after rapid closes.
     setActiveIndex(prev => Math.max(0, Math.min(prev, nextLen - 1)));
-  }, [workflows, cloudDraftKey]);
+  }, [workflows, cloudDraftKey, setActiveIndex]);
 
   const reorderWorkflows = useCallback((from: number, to: number) => {
     setWorkflows(prev => {
@@ -934,7 +951,7 @@ export function useWorkflow() {
       if (from > to && prev < from && prev >= to) return prev + 1;
       return prev;
     });
-  }, []);
+  }, [setActiveIndex]);
 
   const validate = useCallback(async (wf: Workflow) => {
     try {

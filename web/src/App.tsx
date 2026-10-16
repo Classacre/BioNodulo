@@ -71,6 +71,7 @@ import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages } from './h
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
 import { useOwnedWorkflowHistory, useOwnershipEpoch } from './hooks/workflow/useOwnedWorkflowHistory';
 import { useAuth, useCollabPolling, useDeepLinkJoin } from './hooks/collab';
+import { useCollabRoomTarget } from './hooks/collab/useCollabRoomTarget';
 import { useCloudConfig, useClerkAuth } from './hooks/cloud';
 import { useGlobalShortcut, useKeybindings, useRegisteredCommands } from './hooks/ui';
 import { usePaletteTheme } from './hooks/usePaletteTheme';
@@ -143,7 +144,6 @@ import { safeValidateHostStatus, safeValidateRunsList } from './api/validators';
 import { instantiateBlueprint } from './state/subgraphLibrary';
 import { getLocalTemplateWorkflow, isCuratedTemplateInputArtifact } from './localTemplates';
 import {
-  requestedWorkflowIdAtom,
   computeSpecAtom,
   authUserAtom,
   cloudConfigAtom,
@@ -426,14 +426,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const initialCollabTarget = useMemo(() => readCollabLinkTarget(), []);
-  const initialRequestedWorkflowId = initialCollabTarget?.workflowId ?? null;
   const [collabInvite, setCollabInvite] = useState<CollabLinkTarget | null>(initialCollabTarget);
   const [collabPublicBaseUrl, setCollabPublicBaseUrl] = useState<string | null>(null);
   const [collabRoomActive, setCollabRoomActive] = useState(false);
   const [pendingCollabAction, setPendingCollabAction] = useState<
     { type: 'create' } | { type: 'join'; target: CollabLinkTarget } | null
   >(null);
-  const [requestedWorkflowId, setRequestedWorkflowId] = useAtom(requestedWorkflowIdAtom);
   // Selected cloud compute spec (Compute panel) sent with the next cloud run.
   const computeSpec = useAtomValue(computeSpecAtom);
   // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
@@ -510,7 +508,6 @@ export default function App() {
   useEffect(() => {
     setNodePreviews(deriveLatestPreviews(runs.filter(run => run.options?.cloud !== true)));
   }, [runs, setNodePreviews]);
-  const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
   const resetCollabOnStartupRef = useRef(false);
 
   useEffect(() => {
@@ -701,12 +698,6 @@ export default function App() {
     });
   }, [editorMode, configResolved, objectInfoLoading, authUser, cloudConfig, cloudRestored, objectInfo, addWorkflow, addCloudWorkflow, openCloudWorkflow, setWorkflow, updateWorkflow, t]);
 
-  useEffect(() => {
-    if (initialRequestedWorkflowId && requestedWorkflowId !== initialRequestedWorkflowId) {
-      setRequestedWorkflowId(initialRequestedWorkflowId);
-    }
-  }, [initialRequestedWorkflowId, requestedWorkflowId, setRequestedWorkflowId]);
-
   const activeWorkflowId = useMemo(() => {
     if (activeWorkflow.id) return activeWorkflow.id;
     const existing = pendingWorkflowIdsRef.current.get(activeWorkflow);
@@ -715,6 +706,10 @@ export default function App() {
     pendingWorkflowIdsRef.current.set(activeWorkflow, id);
     return id;
   }, [activeWorkflow]);
+
+  // Startup URLs are navigated by useWorkflow. Only an explicit room join
+  // gates collaboration; neither a URL nor room intent can rename other tabs.
+  const { requestedWorkflowId, setRequestedWorkflowId, requestedWorkflowPending } = useCollabRoomTarget(activeWorkflowId);
 
   const cloudInviteSession = useAtomValue(cloudInviteSessionAtom);
   const browserStorageScope = useMemo(() => resolveBrowserStorageScope(
@@ -755,16 +750,6 @@ export default function App() {
     }
   }, [activeWorkflow.id, activeWorkflowId, activeIndex, updateWorkflow]);
 
-  // Copied collaboration links pin the local tab to a room ID, but do not
-  // connect until the user explicitly joins from the Collaboration menu.
-  useEffect(() => {
-    if (!effectiveRequestedWorkflowId) return;
-    if (activeWorkflow.id !== effectiveRequestedWorkflowId) {
-      updateWorkflow(activeIndex, { id: effectiveRequestedWorkflowId });
-    }
-  }, [activeWorkflow.id, activeIndex, effectiveRequestedWorkflowId, updateWorkflow]);
-
-  const requestedWorkflowPending = Boolean(effectiveRequestedWorkflowId && activeWorkflow.id !== effectiveRequestedWorkflowId);
   // Share-link guest session (cloud): carries identity + room access, so it
   // stands in for authUser in the collab gate below.
   const collabWorkflowId = (
@@ -947,9 +932,9 @@ export default function App() {
     [activeWorkflowId, activeInviteToken, collabPublicBaseUrl],
   );
   const hasPendingJoinLink = Boolean(
-    effectiveRequestedWorkflowId
+    requestedWorkflowId
     && !collabEnabled
-    && activeWorkflowId === effectiveRequestedWorkflowId,
+    && activeWorkflowId === requestedWorkflowId,
   );
 
   const requestCollabAuth = useCallback((action: { type: 'create' } | { type: 'join'; target: CollabLinkTarget }) => {
@@ -1076,7 +1061,7 @@ export default function App() {
       return;
     }
     setRequestedWorkflowId(joinTarget.workflowId);
-    if (activeWorkflow.id !== joinTarget.workflowId) {
+    if (!CLOUD_COLLAB && activeWorkflow.id !== joinTarget.workflowId) {
       updateWorkflow(activeIndex, { id: joinTarget.workflowId });
     }
     if (!authUser) {
@@ -1086,6 +1071,10 @@ export default function App() {
     // Cloud editor: joining == opening the team's workflow; the room token is
     // fetched on connect. No local FastAPI join call.
     if (CLOUD_COLLAB) {
+      if (!await openCloudWorkflow(joinTarget.workflowId)) {
+        toast.error(appCollabCopy.error.joinFailed);
+        return;
+      }
       set('bionodulo.collab.enabled', true);
       setCollabRoomActive(true);
       toast.success(appCollabCopy.toast.joined, {
@@ -1117,6 +1106,7 @@ export default function App() {
     activeWorkflow.id,
     appCollabCopy,
     authUser,
+    openCloudWorkflow,
     requestCollabAuth,
     set,
     setAuthUser,
@@ -1166,6 +1156,10 @@ export default function App() {
       setRequestedWorkflowId(target.workflowId);
       if (session.member) {
         // Logged-in member of the owning team: standard team path.
+        if (!await openCloudWorkflow(target.workflowId)) {
+          toast.error(appCollabCopy.error.joinFailed);
+          return;
+        }
         set('bionodulo.collab.enabled', true);
         setCollabRoomActive(true);
         toast.success(appCollabCopy.toast.joined, { message: t('collab.cloudCollabOn', { defaultValue: 'Live collaboration is on.' }) });
@@ -1190,7 +1184,7 @@ export default function App() {
       toast.error(appCollabCopy.error.joinFailed, { message: err instanceof Error ? err.message : String(err) });
       logError('collab.invite.join', err);
     }
-  }, [initialCollabTarget, activeIndex, appCollabCopy, set, setCollabRoomActive, setRequestedWorkflowId, t, updateWorkflow]);
+  }, [initialCollabTarget, activeIndex, appCollabCopy, openCloudWorkflow, set, setCloudInviteSessionAtom, setCollabRoomActive, setRequestedWorkflowId, t, updateWorkflow]);
 
   const cloudInviteLoginPendingRef = useRef(false);
   const cloudInviteUser = useAtomValue(authUserAtom);

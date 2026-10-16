@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { call, getCloudOutputPreview } from '../../api/website';
 import { cloudConfigAtom } from '../../state/appAtoms';
 import { cloudInviteSessionAtom } from '../../collab/cloudInvite';
 import { cloudPreviewSelectionAtom } from '../../state/cloudPreview';
 import { cloudLogStorageKey } from '../../hooks/cloud/useCloudLogStorage';
-import { CLOUD_PREVIEW_MAX_BYTES, cloudPreviewKind, sandboxedCloudHtml } from '../../utils/cloudPreview';
-import { safeHttpsUrl } from '../../mcp/host';
-import { getMcpRuntime } from '../../mcp/runtime';
+import { CLOUD_PREVIEW_MAX_BYTES, cloudHtmlPreviewFallback, cloudPreviewKind, sandboxedCloudHtml } from '../../utils/cloudPreview';
+import { openVerifiedCloudDownload } from '../../utils/cloudOutputDownload';
+import { useOwnershipEpoch } from '../../hooks/workflow/useOwnedWorkflowHistory';
 import { useFocusTrap } from '../../hooks/ui/useFocusTrap';
 import type { CloudRunOutput } from '../../types';
 
@@ -19,8 +19,16 @@ export default function CloudOutputPreviewModal() {
   const scope = !invite || invite.member ? cloudLogStorageKey(config?.user?.id, config?.team?.id) : null;
   const [loaded, setLoaded] = useState<{ selection: typeof selection; url?: string; text?: string; error?: string } | null>(null);
   const [downloadError, setDownloadError] = useState<{ selection: typeof selection; message: string } | null>(null);
+  const downloadEpoch = useOwnershipEpoch(JSON.stringify([scope, selection?.runId, selection?.output.key]), config?.user?.id ?? null, invite);
+  const currentDownloadOwner = useRef<object | null>(downloadEpoch);
+  currentDownloadOwner.current = downloadEpoch;
   const currentSelection = useRef(selection);
   currentSelection.current = selection?.scope === scope ? selection : null;
+  useLayoutEffect(() => {
+    currentSelection.current = selection?.scope === scope ? selection : null;
+    currentDownloadOwner.current = downloadEpoch;
+    return () => { currentSelection.current = null; currentDownloadOwner.current = null; };
+  }, [downloadEpoch, scope, selection]);
   const active = selection !== null && selection.scope === scope;
   const dialogRef = useRef<HTMLElement | null>(null);
   useFocusTrap(dialogRef, active, () => setSelection(null));
@@ -44,7 +52,10 @@ export default function CloudOutputPreviewModal() {
         setLoaded({ selection, url: objectUrl });
       } else {
         const text = await blob.text();
-        if (!cancelled) setLoaded({ selection, text });
+        if (!cancelled) {
+          const fallback = cloudPreviewKind(selection.output) === 'html' ? cloudHtmlPreviewFallback(text) : null;
+          setLoaded(fallback ? { selection, error: fallback } : { selection, text });
+        }
       }
     }).catch(error => {
       if (!cancelled) setLoaded({ selection, error: error instanceof Error ? error.message : 'Could not preview this output. Download it instead.' });
@@ -66,18 +77,13 @@ export default function CloudOutputPreviewModal() {
     setDownloadError(null);
     try {
       const { outputs } = await call<{ outputs: CloudRunOutput[] }>(`/runs/${encodeURIComponent(selection.runId)}/outputs`);
-      if (currentSelection.current !== selection) return;
+      if (currentSelection.current !== selection || currentDownloadOwner.current !== downloadEpoch) return;
       const output = outputs.find(item => item.key === selection.output.key);
       if (!output?.url) throw new Error('This verified output is no longer available.');
-      const url = safeHttpsUrl(output.url);
-      const runtime = getMcpRuntime();
-      if (runtime) await runtime.openLink(url);
-      else {
-        const anchor = document.createElement('a');
-        anchor.href = url; anchor.download = output.name; anchor.rel = 'noopener noreferrer'; anchor.click();
-      }
+      if (output.size !== selection.output.size || output.sha256 !== selection.output.sha256) throw new Error('This output changed. Refresh the run before downloading.');
+      await openVerifiedCloudDownload(output);
     } catch (error) {
-      if (currentSelection.current === selection) setDownloadError({ selection, message: error instanceof Error ? error.message : 'Download unavailable.' });
+      if (currentSelection.current === selection && currentDownloadOwner.current === downloadEpoch) setDownloadError({ selection, message: error instanceof Error ? error.message : 'Download unavailable.' });
     }
   };
   return <div className="lightbox-overlay" onClick={event => { if (event.target === event.currentTarget) setSelection(null); }}>

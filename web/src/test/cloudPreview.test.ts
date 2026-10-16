@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CloudRunOutput, RunRecord, Workflow } from '../types';
-import { cloudExecutedGraphOutput, cloudOutputNodeId, cloudPreviewKind, deriveCloudNodeOutputs, parseCloudPreviewGraph, sandboxedCloudHtml, withoutCloudDownloadUrl } from '../utils/cloudPreview';
+import { cloudExecutedGraphOutput, cloudHtmlPreviewFallback, cloudOutputNodeId, cloudPreviewKind, deriveCloudNodeOutputs, parseCloudPreviewGraph, sandboxedCloudHtml, withoutCloudDownloadUrl } from '../utils/cloudPreview';
 
 const output = (node: string, name: string, run = 'run', team = 'team'): CloudRunOutput => ({ key: `${team}/${run}/${node}/tool/${name}`, name, size: 20, sha256: 'a'.repeat(64), url: 'https://signed.example/secret' });
 const workflow = { id: 'wf', nodes: [{ id: 'source', type: 'plot' }, { id: 'preview', type: 'image_preview' }], edges: [{ from: { node: 'source', output: 'image' }, to: { node: 'preview', input: 'file' } }] } as Workflow;
@@ -67,5 +67,26 @@ describe('verified cloud node preview association', () => {
     expect(withoutCloudDownloadUrl(output('source', 'x.png'))).not.toHaveProperty('url');
     expect(sandboxedCloudHtml('<html>report</html>')).toContain("default-src 'none'");
     expect(sandboxedCloudHtml('report')).not.toContain('script-src');
+  });
+  it('recognizes known Plotly and empty script-only reports without executing their code', () => {
+    const script = vi.fn();
+    Object.assign(window, { cloudPreviewProbe: script });
+    const html = '<html><head><title>Coverage</title><script src="https://cdn.example/plotly.js"></script></head><body><div class="plotly-graph-div"></div><script>window.cloudPreviewProbe();Plotly.newPlot("plot",[])</script></body></html>';
+    expect(cloudHtmlPreviewFallback(html)).toContain('needs JavaScript');
+    expect(cloudHtmlPreviewFallback('<div id="root"></div><script>document.body.innerHTML="report"</script>')).toContain('no static content');
+    expect(script).not.toHaveBeenCalled();
+    expect(document.querySelector('.plotly-graph-div')).toBeNull();
+    Reflect.deleteProperty(window, 'cloudPreviewProbe');
+  });
+  it('preserves static HTML and embedded graphic fallbacks while all scripts stay sandboxed', () => {
+    expect(cloudHtmlPreviewFallback('<h1>Report</h1><table><tr><td>42</td></tr></table><script>analytics()</script>')).toBeNull();
+    expect(cloudHtmlPreviewFallback('<div class="plotly-graph-div"></div><svg><path d="M0 0L10 10"/></svg><script>Plotly.newPlot("x",[])</script>')).toBeNull();
+    expect(cloudHtmlPreviewFallback('<img src="data:image/png;base64,AAAA"><script>unused()</script>')).toBeNull();
+    expect(cloudHtmlPreviewFallback('<pre>Plotly.newPlot is mentioned as plain documentation.</pre>')).toBeNull();
+    expect(cloudHtmlPreviewFallback('<h1>Report</h1><script type="application/json">{"library":"plotly"}</script>')).toBeNull();
+  });
+  it('keeps script-only hidden placeholders from being mistaken for visible content', () => {
+    expect(cloudHtmlPreviewFallback('<title>Report</title><div hidden>placeholder</div><script>render()</script>')).toContain('no static content');
+    expect(cloudHtmlPreviewFallback('x'.repeat(2 * 1024 * 1024 + 1))).toContain('exceeds the preview limit');
   });
 });

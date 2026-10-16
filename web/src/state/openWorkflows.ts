@@ -16,8 +16,45 @@
 
 const STORAGE_KEY = 'bionodulo.workflows.open';
 
-/** Matches the editor's tab cap; a longer list is not restorable anyway. */
-const MAX_TABS = 8;
+/** Bound corrupted records without dropping ordinary multi-document sessions. */
+export const MAX_OPEN_WORKFLOWS = 64;
+const MAX_RECORD_BYTES = 64 * 1024;
+
+export interface OpenWorkflowRecord {
+  version: 1;
+  openIds: string[];
+  activeId: string | null;
+}
+
+function validId(id: unknown): id is string {
+  return typeof id === 'string' && id.length <= 256 && id.trim().length > 0;
+}
+
+function normalizeRecord(ids: unknown[], selected: unknown): OpenWorkflowRecord {
+  const unique = [...new Set(ids.filter(validId))];
+  const activeId = validId(selected) && unique.includes(selected) ? selected : null;
+  const openIds = unique.slice(0, MAX_OPEN_WORKFLOWS);
+  // Even a capped/corrupt oversized record must retain its selected document.
+  if (activeId && !openIds.includes(activeId)) openIds[MAX_OPEN_WORKFLOWS - 1] = activeId;
+  return { version: 1, openIds, activeId };
+}
+
+/** Read current records and the legacy ID-only arrays, without migrating on read. */
+export function readOpenWorkflowRecord(scope?: string | null): OpenWorkflowRecord | null {
+  if (scope === null) return null;
+  try {
+    const raw = window.localStorage.getItem(scope ? `${STORAGE_KEY}.${scope}` : STORAGE_KEY);
+    if (raw === null || raw.length > MAX_RECORD_BYTES) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return normalizeRecord(parsed, null);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const record = parsed as Partial<OpenWorkflowRecord>;
+    if (record.version !== 1 || !Array.isArray(record.openIds)) return null;
+    return normalizeRecord(record.openIds, record.activeId);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Ids that were open, oldest first, or `null` when nothing was ever recorded.
@@ -27,26 +64,15 @@ const MAX_TABS = 8;
  * and should get an empty editor rather than a wall of restored tabs.
  */
 export function readOpenWorkflows(scope?: string | null): string[] | null {
-  if (scope === null) return null;
-  try {
-    const raw = window.localStorage.getItem(scope ? `${STORAGE_KEY}.${scope}` : STORAGE_KEY);
-    if (raw === null) return null;
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return null;
-    return parsed.filter((id): id is string => typeof id === 'string').slice(0, MAX_TABS);
-  } catch {
-    // Private mode or corrupt data: fall back to recent work rather than
-    // showing an empty editor and looking like the workflows are gone.
-    return null;
-  }
+  return readOpenWorkflowRecord(scope)?.openIds ?? null;
 }
 
 /** Record the currently open tabs. Safe to call on every change. */
-export function writeOpenWorkflows(ids: string[], scope?: string | null): void {
+export function writeOpenWorkflows(ids: string[], scope?: string | null, activeId: string | null = null): void {
   if (scope === null) return;
   try {
-    const unique = [...new Set(ids.filter(Boolean))].slice(0, MAX_TABS);
-    window.localStorage.setItem(scope ? `${STORAGE_KEY}.${scope}` : STORAGE_KEY, JSON.stringify(unique));
+    const record = normalizeRecord(ids, activeId);
+    window.localStorage.setItem(scope ? `${STORAGE_KEY}.${scope}` : STORAGE_KEY, JSON.stringify(record));
   } catch {
     /* Nothing to do; the next visit falls back to recent work. */
   }

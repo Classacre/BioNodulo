@@ -112,3 +112,24 @@ export function deriveCloudNodeOutputs(runs: RunRecord[], workflow: Workflow, te
 export function sandboxedCloudHtml(html: string): string {
   return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'">${html}`;
 }
+
+/** Inspect inert template contents only; never attach report markup to the app.
+ * This is a presentation fallback, not a sanitizer or permission to run scripts.
+ */
+export function cloudHtmlPreviewFallback(html: string): string | null {
+  if (html.length > CLOUD_PREVIEW_MAX_BYTES) return 'This report exceeds the preview limit. Download the complete file to view it.';
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const content = template.content;
+  const scripts = Array.from(content.querySelectorAll('script')).filter(script => {
+    const type = script.getAttribute('type')?.trim().toLowerCase() || '';
+    return !type || type === 'module' || /(?:java|ecma)script/.test(type);
+  });
+  const plotly = Boolean(content.querySelector('.plotly-graph-div'))
+    || scripts.some(script => /plotly/i.test(script.getAttribute('src') || '') || /\bPlotly\.(?:newPlot|react|plot)\s*\(/.test(script.textContent || ''));
+  content.querySelectorAll('script,style,link,meta,title,template,[hidden],[aria-hidden="true"]').forEach(element => element.remove());
+  const staticGraphic = Boolean(content.querySelector('svg > :not(title):not(desc):not(metadata), img[src^="data:"], img[src^="blob:"]'));
+  if (plotly && !staticGraphic) return 'This interactive report needs JavaScript and cannot be displayed in the protected preview. Download the complete report to view its charts.';
+  if (scripts.length && !content.textContent?.trim() && !staticGraphic) return 'This report has no static content to preview. Download the complete report to view its interactive features.';
+  return null;
+}
