@@ -487,5 +487,6 @@ describe('runDoiFlow', () => {
     expect(wf.nodes).toHaveLength(1);
     expect(wf.nodes[0].type).toBe('note');
     expect(h.notices.at(-1)?.kind).toBe('error');
+    expect(wf.name).toBe('Analysis failed');
   });
 });

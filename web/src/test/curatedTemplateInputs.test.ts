@@ -4,7 +4,7 @@ import { isCuratedTemplateInputArtifact } from '../localTemplates';
 describe('curated template worker inputs', () => {
   it.each([
     'templates/data/smoke/coding_sequences.fasta',
-    'templates/data/deseq2_gene_sets.json',
+    'templates/data/deseq2_airway_example_gene_sets.json',
     'examples/data/deseq2/counts.csv',
     'examples/data/deseq2/sample_info.csv',
     'examples/data/metabolomics/sample.mzML',
@@ -25,6 +25,7 @@ describe('curated template worker inputs', () => {
   it.each([
     'templates/data/../../private.csv',
     'templates/data/not-curated.csv',
+    'templates/data/deseq2_gene_sets.json',
     'examples/data/deseq2/not-curated.csv',
     'examples/data/deseq2/../deseq2/counts.csv',
     'examples\\data\\deseq2\\counts.csv',

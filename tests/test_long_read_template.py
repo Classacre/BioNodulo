@@ -115,7 +115,7 @@ def test_long_read_ont_template_uses_source_native_options_and_explicit_selectio
 
     assert "model" not in basecaller["params"]
     assert "modified_bases" not in basecaller["params"]
-    assert basecaller["params"]["device"] == "auto"
+    assert basecaller["params"]["device"] == "cpu"
     # kit_name is absent: naming SQK-NBD114-24 (a kit-14 barcoding kit) told
     # dorado to demultiplex barcodes this LSK109 run cannot contain.
     assert "kit_name" not in basecaller["params"]

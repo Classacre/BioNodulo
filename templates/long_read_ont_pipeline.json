@@ -36,7 +36,7 @@
         80
       ],
       "params": {
-        "text": "ONT long-read workflow: provisions the vendor Dorado binary, basecalls POD5 to a sorted BAM/BAI pair with 5mCG modified-base calls, filters with chopper, runs NanoPlot QC, and pileups CpG methylation with modkit.\n\nData: nf-core/test-datasets test.pod5 (100 reads, R9.4.1 4 kHz, SQK-LSK109).\nNOTE: this file is filed under sarscov2/ upstream but the reads are human -- BLAST puts them on chr22 (86% identity to chr22 clones) and 0/100 map to SARS-CoV-2, while 15 map to chr22. The reference is therefore hg38 chr22.\nThresholds are measured on this data: median read 318 bp, median Q14.2, so chopper -q 7 -l 200 keeps 74/100 reads (the old -l 1000 kept none)."
+        "text": "ONT example: basecall 100 POD5 reads on CPU with staged fast and 5mCG models, align to hg38 chr22, filter reads, inspect NanoPlot QC, and pile up CpG methylation.\n\nCPU is explicit for this small demonstration and is slower than GPU basecalling. For larger data, select auto/CUDA and supported GPU compute. GPU runs remain subject to provider availability.\n\nSource: nf-core/test-datasets test.pod5, R9.4.1 4 kHz, SQK-LSK109. Its upstream sarscov2 folder name is misleading: prior checks identify human chr22 reads. The short, low-quality subset illustrates execution; it does not validate methylation accuracy. Chopper Q7 / 200 bp thresholds retain useful reads."
       },
       "ui": {
         "title": "Notes",
@@ -164,7 +164,7 @@
       "params": {
         "trim": "all",
         "min_qscore": 9,
-        "device": "auto"
+        "device": "cpu"
       },
       "ui": {
         "title": "Dorado Basecaller"

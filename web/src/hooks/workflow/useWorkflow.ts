@@ -165,19 +165,31 @@ function latestRunStatus<T extends string>(previous: T | undefined, incoming: T 
 // Socket events can arrive before the HTTP submission response registers the
 // run. Keep those updates and merge registration without resetting progress.
 function mergeRunRecord(previous: RunRecord | undefined, incoming: Partial<RunRecord> & Pick<RunRecord, 'run_id'>): RunRecord {
-  const nodes = new Map((previous?.node_statuses ?? []).map(node => [node.node_id, node]));
+  const cloudRun = incoming.options?.cloud === true || previous?.options?.cloud === true
+    || incoming.cloud_workflow_context !== undefined;
+  const shortId = incoming.run_id.length > 12 ? `${incoming.run_id.slice(0, 8)}...${incoming.run_id.slice(-4)}` : incoming.run_id;
+  const fallbackName = cloudRun
+    ? i18n.t('console.cloudRunFallbackName', { defaultValue: 'Cloud run {{id}}', id: shortId }) : i18n.t('common.untitled');
+  const replaceCloudPlan = incoming.cloud_workflow_context !== undefined && incoming.execution_plan !== undefined;
+  const plan = replaceCloudPlan
+    ? [...new Set(incoming.execution_plan)]
+    : [...new Set([...(previous?.execution_plan ?? []), ...(incoming.execution_plan ?? [])])];
+  const planIds = new Set(plan);
+  const nodes = new Map((previous?.node_statuses ?? [])
+    .filter(node => !replaceCloudPlan || planIds.has(node.node_id)).map(node => [node.node_id, node]));
   for (const node of incoming.node_statuses ?? []) {
     const existing = nodes.get(node.node_id);
-    nodes.set(node.node_id, { ...existing, ...node, status: latestRunStatus(existing?.status, node.status)! });
+    nodes.set(node.node_id, replaceCloudPlan ? node
+      : { ...existing, ...node, status: latestRunStatus(existing?.status, node.status)! });
   }
   return {
     ...previous,
     ...incoming,
     run_id: incoming.run_id,
-    workflow_name: incoming.workflow_name || previous?.workflow_name || i18n.t('common.untitled'),
+    workflow_name: incoming.workflow_name || previous?.workflow_name || fallbackName,
     status: latestRunStatus(previous?.status, incoming.status) ?? 'pending',
     node_statuses: [...nodes.values()],
-    execution_plan: [...new Set([...(previous?.execution_plan ?? []), ...(incoming.execution_plan ?? [])])],
+    execution_plan: plan,
     node_outputs: { ...previous?.node_outputs, ...incoming.node_outputs },
     previews: { ...previous?.previews, ...incoming.previews },
     artifacts: { ...previous?.artifacts, ...incoming.artifacts },

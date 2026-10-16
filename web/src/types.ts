@@ -218,6 +218,13 @@ export interface NodeStatus {
   outputs?: Record<string, string>;
 }
 
+/** Server-owned submission metadata, independent of later saved-graph edits. */
+export interface CloudRunContext {
+  schemaVersion: 1;
+  workflowName: string | null;
+  executionNodeIds: string[] | null;
+}
+
 export interface RunRecord {
   run_id: string;
   workflow_id?: string;
@@ -234,6 +241,8 @@ export interface RunRecord {
   error?: string;
   /** Committed cloud outputs returned by the verified run-output endpoint. */
   cloud_outputs?: CloudRunOutput[];
+  /** Null marks a legacy snapshot whose plan can only be observed in logs. */
+  cloud_workflow_context?: CloudRunContext | null;
   credits_used?: number;
   duration_ms?: number;
 }

@@ -251,3 +251,49 @@ describe('specFromRecommendation', () => {
     expect(spec).toEqual({ kind: 'gpu', vcpu: 8, ramGb: 32, gpuCount: 1 });
   });
 });
+
+describe('explicit Dorado CPU capability', () => {
+  const info = { dorado_basecaller: { requires_gpu: true }, esmfold_predict: { requires_gpu: true } };
+  const node = (extra: Record<string, unknown> = {}) => ({ id: 'call', type: 'dorado_basecaller', params: { device: 'cpu' }, ...extra });
+
+  it('recommends and serializes normal free-plan CPU compute for an unbound literal', () => {
+    const recommendation = recommendComputeSpec([node()], [], info);
+    expect(recommendation.gpuCount).toBe(0);
+    const spec = specFromRecommendation(recommendation, capsForPlanName('free'));
+    expect(spec.kind).toBe('custom');
+    expect(specToRunBody(spec)).toEqual({ compute: { vcpu: 2, ramGb: 8 } });
+    expect(info.dorado_basecaller.requires_gpu).toBe(true);
+  });
+
+  it.each(['auto', 'cuda:0', 'cuda:all', '', 'CPU', ' cpu ', undefined, null, 0, {}, [], '{{device}}'])(
+    'keeps GPU recommendation for device=%j', device => {
+      expect(recommendComputeSpec([node({ params: { device } })], [], info).gpuCount).toBe(1);
+    },
+  );
+
+  it.each([
+    { inputs: { device: 'cuda:0' } }, { widgets: { device: 'cpu' } },
+    { inputs: null }, { widgets: [] }, { params: null },
+  ])('keeps conflicting and malformed %j conservative', extra => {
+    expect(recommendComputeSpec([node(extra)], [], info).gpuCount).toBe(1);
+  });
+
+  it.each([
+    { to: { node: 'call', input: 'device' } },
+    { target_node: 'call', target_input: 'device' },
+    { to_node: 'call', to_input: 'device' },
+    { to: 'call', input: 'device' },
+  ])('connected device %j cannot exempt GPU', edge => {
+    expect(recommendComputeSpec([node()], [edge as never], info).gpuCount).toBe(1);
+  });
+
+  it('keeps nested bindings and mixed GPU graphs on GPU compute', () => {
+    const nested = { id: 'sub', type: 'subgraph', params: {
+      workflow: { nodes: [node()], edges: [] },
+      input_ports: [{ innerNodeId: 'call', innerSlot: 'device' }],
+    } };
+    expect(recommendComputeSpec([nested], [], info).gpuCount).toBe(1);
+    expect(recommendComputeSpec([node(), { id: 'fold', type: 'esmfold_predict' }], [], info).gpuCount).toBe(1);
+    expect(recommendComputeSpec([node()], [{ to: { node: 'call', input: 'model' } }], info).gpuCount).toBe(0);
+  });
+});

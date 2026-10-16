@@ -1,6 +1,6 @@
 // Derive runs-drawer + canvas node state from a cloud run snapshot.
 //
-// Cloud runs execute on AWS Batch and report progress to the website API, which
+// Cloud dispatch workers report progress to the website API, which
 // persists a run-level status plus an accumulated plaintext log blob (the
 // per-node `nodeId` the worker sends is only published to the live SSE channel,
 // not stored as a queryable column). So when the editor SPA polls the run
@@ -12,7 +12,42 @@
 // fragile name->id matching, since the worker's labels and the SPA's titles can
 // diverge. The marker is stripped before the line is shown to the user.
 
-import type { NodeStatus, RunRecord } from '../types';
+import type { CloudRunContext, NodeStatus, RunRecord, Workflow } from '../types';
+
+/** Local submission evidence only; saved node IDs cannot prove an unchanged graph. */
+export function cloudRunWorkflowKey(workflow: Workflow): string {
+  return JSON.stringify({
+    id: workflow.id, version: workflow.version, app: workflow.app,
+    nodes: workflow.nodes.map(node => ({
+      id: node.id, type: node.type, params: node.params,
+      muted: node.ui?.muted, bypassed: node.ui?.bypassed,
+      promotedInputs: node.ui?.promotedInputs, validation: node.ui?.validation,
+    })),
+    edges: workflow.edges.map(edge => ({ from: edge.from, to: edge.to })),
+    outputs: workflow.outputs, environment: workflow.environment,
+    dependencies: workflow.dependencies, parameters: workflow.parameters,
+  });
+}
+
+export function canProjectCloudRunOntoWorkflow(run: RunRecord, workflow: Workflow, submittedKey?: string): boolean {
+  return Boolean(workflow.id && run.workflow_id === workflow.id && submittedKey
+    && submittedKey === cloudRunWorkflowKey(workflow));
+}
+
+/** Reject malformed or unsupported metadata rather than trusting graph-shaped hints. */
+export function parseCloudRunContext(value: unknown): CloudRunContext | null {
+  if (!value || typeof value !== 'object') return null;
+  const context = value as Record<string, unknown>;
+  if (context.schemaVersion !== 1
+    || (context.workflowName !== null && typeof context.workflowName !== 'string')
+    || (context.executionNodeIds !== null && (!Array.isArray(context.executionNodeIds)
+      || !context.executionNodeIds.every(id => typeof id === 'string' && id.length > 0)))) return null;
+  return {
+    schemaVersion: 1,
+    workflowName: context.workflowName as string | null,
+    executionNodeIds: context.executionNodeIds === null ? null : [...new Set(context.executionNodeIds as string[])],
+  };
+}
 
 /** Map a cloud run's coarse status onto the local RunRecord status union. */
 export function mapCloudRunStatus(status: string): RunRecord['status'] {
@@ -77,8 +112,9 @@ const SETTLED: ReadonlySet<NodeStatus['status']> = new Set(['completed', 'cached
  */
 export function deriveCloudNodeStatuses(
   logsText: string,
+  previous?: ReadonlyMap<string, NodeStatus['status']>,
 ): Map<string, NodeStatus['status']> {
-  const out = new Map<string, NodeStatus['status']>();
+  const out = new Map<string, NodeStatus['status']>(previous);
   if (!logsText) return out;
   for (const raw of logsText.split('\n')) {
     const id = nodeIdFromTag(raw);
@@ -105,19 +141,22 @@ export function deriveCloudNodeStatuses(
  * Build the NodeStatus[] for a cloud run by overlaying log-derived statuses on
  * an execution-plan baseline of `pending`. On a terminal success any node not
  * explicitly seen is promoted to `completed` (the whole run succeeded); on a
- * terminal failure, still-running nodes become `error`.
+ * terminal failure, still-running nodes become `error`. Legacy snapshots must
+ * disable success inference: a run-level completion cannot establish an
+ * unobserved per-node transition when the submitted plan is unknown.
  */
 export function buildCloudNodeStatuses(
   executionPlan: readonly string[],
   derived: ReadonlyMap<string, NodeStatus['status']>,
   runStatus: RunRecord['status'],
   errorMessage?: string | null,
+  inferTerminalSuccess = true,
 ): NodeStatus[] {
-  const terminalOk = runStatus === 'completed';
+  const terminalOk = inferTerminalSuccess && runStatus === 'completed';
   const failed = runStatus === 'error';
   return executionPlan.map((nodeId): NodeStatus => {
     let status = derived.get(nodeId) ?? 'pending';
-    if (terminalOk && !SETTLED.has(status)) {
+    if (terminalOk && status !== 'error' && !SETTLED.has(status)) {
       status = 'completed';
     } else if (failed && status === 'running') {
       status = 'error';

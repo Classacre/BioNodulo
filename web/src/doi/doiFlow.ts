@@ -329,6 +329,9 @@ export async function runDoiFlow(doi: string, deps: DoiFlowDeps): Promise<void> 
 
   if (outcome.kind === 'fail') {
     deps.onProgress(''); // clear the overlay
+    deps.renameActive(outcome.message === 'upload-cancelled'
+      ? t('doiFlow.tabCancelled', { defaultValue: 'Paper analysis cancelled' })
+      : t('doiFlow.errorNoteTitle', { defaultValue: 'Analysis failed' }));
     if (outcome.message === 'upload-cancelled') {
       notify.dismiss(TOAST_ID);
       return;

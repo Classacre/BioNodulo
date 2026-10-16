@@ -214,11 +214,48 @@ export interface RecommenderNode {
   id: string;
   type: string;
   params?: Record<string, unknown>;
+  inputs?: unknown;
+  widgets?: unknown;
 }
 
 export interface RecommenderEdge {
   from?: { node?: string } | null;
-  to?: { node?: string } | null;
+  to?: { node?: string; input?: string } | null;
+  target?: string;
+  to_node?: string;
+  target_node?: string;
+  target_input?: string;
+  to_input?: string;
+  input?: string;
+}
+
+function explicitDoradoCpuMode(node: RecommenderNode, edges: RecommenderEdge[], nested: boolean): boolean {
+  if (nested || node.type !== 'dorado_basecaller' || node.params?.device !== 'cpu') return false;
+  for (const values of [node.inputs, node.widgets]) {
+    if (values !== undefined && (!values || typeof values !== 'object' || Array.isArray(values) || 'device' in values)) return false;
+  }
+  if (!Array.isArray(edges) || edges.some(edge => !edge || typeof edge !== 'object' || Array.isArray(edge))) return false;
+  return !edges.some(edge => {
+    const to: unknown = edge.to;
+    const destination = to && typeof to === 'object' ? to as { node?: string; input?: string } : {};
+    return (edge.target || edge.to_node || edge.target_node || destination.node || (typeof to === 'string' ? to : '')) === node.id &&
+      (edge.target_input || edge.to_input || edge.input || destination.input || 'default') === 'device';
+  });
+}
+
+function workflowNodeRequiresGpu(
+  node: RecommenderNode, edges: RecommenderEdge[],
+  objectInfo: Record<string, RecommenderMeta | undefined>, nested = false,
+): boolean {
+  if (objectInfo[node.type]?.requires_gpu && !explicitDoradoCpuMode(node, edges, nested)) return true;
+  // Inner port bindings may override a literal, so nested GPU nodes stay conservative.
+  if (node.type !== 'subgraph') return false;
+  const workflow = node.params?.workflow;
+  if (!workflow || typeof workflow !== 'object') return false;
+  const raw = (workflow as { nodes?: unknown }).nodes;
+  const nodes = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? Object.values(raw) : [];
+  return nodes.some(inner => inner && typeof inner === 'object' &&
+    workflowNodeRequiresGpu(inner as RecommenderNode, [], objectInfo, true));
 }
 
 /** Minimal objectInfo entry shape the recommender reads. */
@@ -277,7 +314,7 @@ export function recommendComputeSpec(
   const threadsById = new Map<string, number>();
   for (const node of nodes) {
     const meta = metaOf(node.type);
-    if (meta?.requires_gpu) gpuCount = 1;
+    if (workflowNodeRequiresGpu(node, edges, objectInfo)) gpuCount = 1;
     threadsById.set(node.id, nodeThreads(node, meta));
   }
 

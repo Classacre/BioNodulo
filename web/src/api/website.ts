@@ -5,7 +5,8 @@
 // with the website (cloud.bionodulo.com), so these calls go to the website
 // root API with the Clerk session cookie (credentials: 'include') — no bearer
 // token plumbing. Base is configurable for cross-origin builds.
-import type { Workflow } from '../types';
+import type { CloudRunContext, Workflow } from '../types';
+import { parseCloudRunContext } from '../utils/cloudRunStatus';
 import { getToken } from '../collab/authStorage';
 import { getMcpRuntime } from '../mcp/runtime';
 
@@ -46,6 +47,46 @@ interface ApiEnvelope<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export const CLOUD_RUN_SUBMISSION_TIMEOUT_MS = 180_000;
+export class CloudRunSubmissionError extends Error {
+  constructor(message: string, readonly outcomeUnknown: boolean) {
+    super(message);
+    this.name = 'CloudRunSubmissionError';
+  }
+}
+
+/** Bound run admission only. Aborting a response never proves no run exists. */
+async function submitRunRequest(init: RequestInit): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
+  const controller = new AbortController();
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  const request = (async () => {
+    const response = await websiteRequest('/runs', { ...init, signal: controller.signal });
+    const body = await response.json().catch(() => null) as ApiEnvelope<Record<string, unknown>> | null;
+    if (!response.ok || !body?.success) {
+      throw new CloudRunSubmissionError(body?.error || `Cloud run submission failed (${response.status})`, response.status >= 500 || response.ok);
+    }
+    if (!body.data || typeof body.data.runId !== 'string' || !body.data.runId) {
+      throw new CloudRunSubmissionError('The cloud service returned an incomplete submission response.', true);
+    }
+    return body.data;
+  })();
+  try {
+    // The race also bounds an MCP host call whose transport cannot be aborted.
+    // Promise.race observes late rejection; neither late response can resubmit.
+    return await Promise.race([request, new Promise<never>((_, reject) => {
+      deadline = setTimeout(() => {
+        reject(new CloudRunSubmissionError('The cloud run submission response timed out after 180 seconds.', true));
+        controller.abort();
+      }, CLOUD_RUN_SUBMISSION_TIMEOUT_MS);
+    })]);
+  } catch (error) {
+    if (error instanceof CloudRunSubmissionError) throw error;
+    throw new CloudRunSubmissionError(error instanceof Error ? error.message : String(error), true);
+  } finally {
+    clearTimeout(deadline);
+  }
 }
 
 export interface WorkflowRow {
@@ -185,7 +226,7 @@ export function submitCloudRun(
   inputs?: CloudRunInputs,
   parameters?: Record<string, unknown>,
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
-  return call('/runs', {
+  return submitRunRequest({
     method: 'POST',
     body: JSON.stringify({
       workflowId,
@@ -207,7 +248,7 @@ export function submitCloudGuestRun(
   inputs?: CloudRunInputs,
   parameters?: Record<string, unknown>,
 ): Promise<{ runId?: string; dashboardUrl?: string } & Record<string, unknown>> {
-  return call('/runs', {
+  return submitRunRequest({
     method: 'POST',
     headers: {
       Authorization: `Bearer ${runToken}`,
@@ -230,6 +271,7 @@ export function cancelCloudRun(runId: string): Promise<{ runId: string; status: 
 export interface CloudRunSnapshot {
   id: string;
   workflowId?: string | null;
+  workflowContext?: CloudRunContext | null;
   status: string;
   logs: string;
   errorMessage: string | null;
@@ -268,7 +310,9 @@ export async function getCloudRun(runId: string): Promise<CloudRunSnapshot | nul
   try {
     const res = await websiteRequest(`/runs/${runId}`);
     if (!res.ok) return null;
-    return (await res.json()) as CloudRunSnapshot;
+    const snapshot = await res.json() as CloudRunSnapshot;
+    if (!snapshot || typeof snapshot.status !== 'string') return null;
+    return { ...snapshot, workflowContext: parseCloudRunContext(snapshot.workflowContext) };
   } catch {
     return null;
   }

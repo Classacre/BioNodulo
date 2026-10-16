@@ -6,7 +6,11 @@ import {
   buildCloudNodeStatuses,
   nodeIdFromTag,
   stripNodeTag,
+  parseCloudRunContext,
+  cloudRunWorkflowKey,
+  canProjectCloudRunOntoWorkflow,
 } from '../utils/cloudRunStatus';
+import type { RunRecord, Workflow } from '../types';
 
 // Build a worker-shaped log blob: each line "[<iso>] <LEVEL>: <message>".
 function line(message: string, level = 'INFO'): string {
@@ -122,11 +126,80 @@ describe('buildCloudNodeStatuses', () => {
     expect(out.map(n => n.status)).toEqual(['cached', 'completed', 'completed']);
   });
 
+  it('preserves an observed node error when the overall run continues to completion', () => {
+    const derived = new Map<string, 'error'>([['n1', 'error']]);
+    expect(buildCloudNodeStatuses(plan, derived, 'completed').map(node => node.status))
+      .toEqual(['error', 'completed', 'completed']);
+  });
+
+  it('preserves observed states without inventing completion for an unknown legacy plan', () => {
+    const observed = new Map<string, 'completed' | 'running'>([['seen-done', 'completed'], ['seen-started', 'running']]);
+    expect(buildCloudNodeStatuses([...observed.keys()], observed, 'completed', null, false)).toEqual([
+      { node_id: 'seen-done', status: 'completed' }, { node_id: 'seen-started', status: 'running' },
+    ]);
+  });
+
   it('turns still-running nodes into errors on failure and attaches the message', () => {
     const derived = new Map<string, 'completed' | 'running'>([['n1', 'completed'], ['n2', 'running']]);
     const out = buildCloudNodeStatuses(plan, derived, 'error', 'kaboom');
     expect(out[0]).toEqual({ node_id: 'n1', status: 'completed' });
     expect(out[1]).toEqual({ node_id: 'n2', status: 'error', error: 'kaboom' });
     expect(out[2]).toEqual({ node_id: 'n3', status: 'pending' });
+  });
+});
+
+describe('immutable cloud submission context', () => {
+  it('retains observed node progress when a bounded log window rolls over', () => {
+    const earlier = deriveCloudNodeStatuses(line('node input completed [node:old-observed]'));
+    const later = deriveCloudNodeStatuses(line('node plot started [node:new-observed]'), earlier);
+    expect([...later]).toEqual([['old-observed', 'completed'], ['new-observed', 'running']]);
+  });
+
+  it('keeps a submitted name and plan without consulting a saved workflow', () => {
+    expect(parseCloudRunContext({ schemaVersion: 1, workflowName: 'Submitted graph', executionNodeIds: ['old-a', 'old-b', 'old-a'] }))
+      .toEqual({ schemaVersion: 1, workflowName: 'Submitted graph', executionNodeIds: ['old-a', 'old-b'] });
+  });
+
+  it('retains a known name when the submitted plan is explicitly unknown', () => {
+    expect(parseCloudRunContext({ schemaVersion: 1, workflowName: 'Large graph', executionNodeIds: null }))
+      .toEqual({ schemaVersion: 1, workflowName: 'Large graph', executionNodeIds: null });
+  });
+
+  it.each([undefined, null, true, {}, { schemaVersion: 2, workflowName: 'Future', executionNodeIds: [] },
+    { schemaVersion: 1, workflowName: 'Invalid', executionNodeIds: true },
+    { schemaVersion: 1, workflowName: 'Invalid', executionNodeIds: ['node', 1] }])('rejects absent or malformed context %#', value => {
+    expect(parseCloudRunContext(value)).toBeNull();
+  });
+});
+
+describe('cloud canvas submission isolation', () => {
+  const workflow: Workflow = {
+    id: 'workflow-a', version: '2.0', app: 'bionodulo', name: 'Submitted', description: '',
+    nodes: [{ id: 'shared-node', type: 'input_file', position: [0, 0], params: { file: 'original.tsv' } }],
+    edges: [], groups: [], outputs: {},
+  };
+  const run = { workflow_id: workflow.id } as RunRecord;
+
+  it('requires evidence of the actual locally submitted graph, not matching node IDs', () => {
+    expect(canProjectCloudRunOntoWorkflow(run, workflow)).toBe(false);
+    const submitted = cloudRunWorkflowKey(workflow);
+    expect(canProjectCloudRunOntoWorkflow(run, workflow, submitted)).toBe(true);
+    expect(canProjectCloudRunOntoWorkflow(run, { ...workflow, id: 'workflow-b' }, submitted)).toBe(false);
+    expect(canProjectCloudRunOntoWorkflow(run, { ...workflow,
+      nodes: [{ ...workflow.nodes[0], params: { file: 'edited.tsv' } }],
+    }, submitted)).toBe(false);
+  });
+
+  it('allows cosmetic movement but invalidates changed execution settings', () => {
+    const submitted = cloudRunWorkflowKey(workflow);
+    expect(canProjectCloudRunOntoWorkflow(run, { ...workflow, name: 'Renamed',
+      nodes: [{ ...workflow.nodes[0], position: [500, 400], ui: { color: 'blue' } }],
+    }, submitted)).toBe(true);
+    for (const changed of [
+      { ...workflow, nodes: [{ ...workflow.nodes[0], ui: { muted: true } }] },
+      { ...workflow, environment: { TOOL_MODE: 'changed' } },
+      { ...workflow, parameters: [{ name: 'input', type: 'STRING', value: 'changed' }] },
+      { ...workflow, outputs: { result: 'shared-node.file' } },
+    ]) expect(canProjectCloudRunOntoWorkflow(run, changed, submitted)).toBe(false);
   });
 });

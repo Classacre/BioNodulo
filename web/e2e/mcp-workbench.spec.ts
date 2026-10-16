@@ -332,6 +332,13 @@ test('initial host run context resumes the saved run without a new submission', 
   const f = await fixture(page, { initialRunId: runId });
   await expect.poll(() => f.requests.filter(request => request.path === `/api/runs/${runId}`).length).toBeGreaterThan(0);
   await expect(f.app.getByRole('complementary', { name: 'Runs' })).toBeVisible();
+  // This legacy run has no immutable name or tagged node observations. Today's
+  // saved Counts workflow must not silently become its historical source.
+  await expect(f.app.locator('.queue-run-name')).toHaveText('Cloud run 55555555...5555');
+  await expect(f.app.locator('.queue-run-meta')).toContainText('No node events observed');
+  await expect(f.app.locator('.bio-node[data-node-id="input"]')).not.toHaveAttribute('data-status', 'completed');
+  await expect(f.app.getByRole('button', { name: 'Delete run from history', exact: true })).toHaveCount(0);
+  await expect(f.app.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
   expect(f.requests.filter(request => request.path === '/api/runs' && request.method === 'POST')).toEqual([]);
   expect(f.browserApi).toEqual([]);
   expect(f.unknown).toEqual([]);

@@ -131,6 +131,16 @@ function shortRunId(runId: string): string {
   return runId.length > 12 ? `${runId.slice(0, 8)}...${runId.slice(-4)}` : runId;
 }
 
+function nodeProgressLabel(run: RunRecord, progress: RunProgress, t: TFunction): string {
+  const observedOnly = run.cloud_workflow_context !== undefined
+    && run.cloud_workflow_context?.executionNodeIds == null;
+  if (observedOnly) return progress.total > 0
+    ? t('console.observedNodeProgress', { defaultValue: '{{completed}}/{{total}} observed nodes', completed: progress.completed, total: progress.total })
+    : t('console.noObservedNodes', { defaultValue: 'No node events observed' });
+  return progress.total > 0
+    ? t('console.nodeProgress', { completed: progress.completed, total: progress.total }) : t('console.noNodePlan');
+}
+
 function RunProgressBar({ progress, status, t }: { progress: RunProgress; status: RunRecord['status']; t: TFunction }) {
   return (
     <div className={`queue-progress is-${status}`} title={t('console.progressComplete', { percent: progress.percent })}>
@@ -196,7 +206,7 @@ function QueueRunCard({
         </div>
         <RunProgressBar progress={progress} status={run.status} t={t} />
         <div className="queue-run-meta">
-          <span>{progress.total > 0 ? t('console.nodeProgress', { completed: progress.completed, total: progress.total }) : t('console.noNodePlan')}</span>
+          <span>{nodeProgressLabel(run, progress, t)}</span>
           {progress.running > 0 && <span>{t('console.runningCount', { count: progress.running })}</span>}
           {progress.pending > 0 && <span>{t('console.pendingCount', { count: progress.pending })}</span>}
           {progress.failed > 0 && <span className="queue-run-error">{t('console.failedCount', { count: progress.failed })}</span>}
@@ -210,7 +220,7 @@ function QueueRunCard({
           </>
         )}
         {onRetryRun && canRetry && (
-          <RunActionButton title={run.options?.cloud === true ? t('console.openToRetry', { defaultValue: 'Open to retry' }) : t('console.retryRun')} icon="play" onClick={() => onRetryRun(run)} />
+          <RunActionButton title={run.options?.cloud === true ? t('console.openSavedWorkflow', { defaultValue: 'Open workflow' }) : t('console.retryRun')} icon={run.options?.cloud === true ? 'folder' : 'play'} onClick={() => onRetryRun(run)} />
         )}
         {onCancelRun && canCancel && (
           <RunActionButton title={t('console.cancelRun')} icon="stop" onClick={() => onCancelRun(run)} />
@@ -268,7 +278,7 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
         <RunProgressBar progress={progress} status={run.status} t={t} />
         <div className="queue-run-meta">
           <span>{run.end_time ? new Date(run.end_time).toLocaleString(locale) : t('console.inProgress')}</span>
-          <span>{progress.total > 0 ? t('console.nodeProgress', { completed: progress.completed, total: progress.total }) : t('console.noNodePlan')}</span>
+          <span>{nodeProgressLabel(run, progress, t)}</span>
           {typeof run.credits_used === 'number' && Number.isFinite(run.credits_used) && <span>{run.credits_used.toLocaleString(locale)} credits used</span>}
           {typeof run.duration_ms === 'number' && Number.isFinite(run.duration_ms) && <span>{(run.duration_ms / 1000).toLocaleString(locale, { maximumFractionDigits: 1 })} s</span>}
         </div>
@@ -291,7 +301,7 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
         )}
       </div>
       <div className="queue-run-actions">
-        {onLoadRunWorkflow && (
+        {onLoadRunWorkflow && run.options?.cloud !== true && (
           <RunActionButton
             title={t('console.loadWorkflow')}
             icon="import"
@@ -299,7 +309,7 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
           />
         )}
         {onRetryRun && canRetry && (
-          <RunActionButton title={run.options?.cloud === true ? t('console.openToRetry', { defaultValue: 'Open to retry' }) : t('console.retryRun')} icon="play" onClick={() => onRetryRun(run)} />
+          <RunActionButton title={run.options?.cloud === true ? t('console.openSavedWorkflow', { defaultValue: 'Open workflow' }) : t('console.retryRun')} icon={run.options?.cloud === true ? 'folder' : 'play'} onClick={() => onRetryRun(run)} />
         )}
         {onDeleteHistoryEntry && run.options?.cloud !== true && (
           <RunActionButton

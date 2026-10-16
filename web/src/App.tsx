@@ -123,7 +123,7 @@ import { setCollabRemoteBase } from './collab/remoteBase';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
 import { cancelCloudRun, getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';
-import { createCloudWorkflow, saveCloudWorkflow, getCloudWorkflow, listCloudRunSummaries } from './api/website';
+import { createCloudWorkflow, saveCloudWorkflow, listCloudRunSummaries, CloudRunSubmissionError, type CloudRunSummary } from './api/website';
 import {
   mapCloudRunStatus,
   isTerminalCloudStatus,
@@ -131,6 +131,8 @@ import {
   buildCloudNodeStatuses,
   nodeIdFromTag,
   stripNodeTag,
+  cloudRunWorkflowKey,
+  canProjectCloudRunOntoWorkflow,
 } from './utils/cloudRunStatus';
 import InviteDialog from './collab/InviteDialog';
 const OpenWorkflowModal = lazy(() => import('./components/modals/OpenWorkflowModal'));
@@ -1965,15 +1967,22 @@ export default function App() {
     return () => window.removeEventListener('paste', handler);
   }, [appFileActionCopy, handleNodesChange, objectInfo, pushHistory]);
 
-  // Cloud runs execute on AWS Batch; their progress is reported by the worker
+  // Cloud runs execute on dispatch workers; their progress is reported by the worker
   // to the website DB. Poll the run snapshot and stream newly-appended log lines
   // into the editor console so the user sees dependency install + node progress
   // without leaving the editor. (SSE can't bridge the worker callbacks to the
   // browser without Redis, so we poll the persisted snapshot.)
   const cloudRunPollers = useRef(new Map<string, () => void>());
+  // Full graph evidence is held only for runs submitted by this editor session.
+  // Restored immutable metadata has a name/plan, but cannot prove current params.
+  const cloudRunCanvasSources = useRef(new Map<string, string>());
+  const cloudRunReconcileTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const cloudRunPollGeneration = useRef(0);
   const restoredCloudRunScope = useRef<string | null>(null);
   useEffect(() => {
+    const pollers = cloudRunPollers.current;
+    const canvasSources = cloudRunCanvasSources.current;
+    const reconcileTimers = cloudRunReconcileTimers.current;
     if (editorMode && (!cloudConfig?.user?.id || !cloudConfig.team?.id) && restoredCloudRunScope.current) {
       restoredCloudRunScope.current = null;
       setRuns(previous => previous.filter(run => run.options?.cloud !== true));
@@ -1981,8 +1990,11 @@ export default function App() {
     }
     return () => {
       cloudRunPollGeneration.current += 1;
-      for (const stop of cloudRunPollers.current.values()) stop();
-      cloudRunPollers.current.clear();
+      for (const stop of pollers.values()) stop();
+      pollers.clear();
+      canvasSources.clear();
+      for (const timer of reconcileTimers) clearTimeout(timer);
+      reconcileTimers.clear();
     };
   }, [cloudConfig?.user?.id, cloudConfig?.team?.id, editorMode, setRuns, setLogs]);
 
@@ -1990,8 +2002,8 @@ export default function App() {
     if (!runId || cloudRunPollers.current.has(runId)) return;
     setLogs(previous => previous.filter(entry => entry.run_id !== runId));
     const generation = cloudRunPollGeneration.current;
-    let executionPlan = context.execution_plan ? [...context.execution_plan] : undefined;
     let workflowId = context.workflow_id;
+    let observedStatuses = deriveCloudNodeStatuses('');
     const lineRe = /^\[.*?\]\s+(\w+):\s+([\s\S]*)$/;
     let lastLen = 0;
     let stopped = false;
@@ -2021,16 +2033,7 @@ export default function App() {
       const snap = await getCloudRun(runId);
       if (stopped || generation !== cloudRunPollGeneration.current) return;
       if (snap) {
-        workflowId ||= snap.workflowId || undefined;
-        if (!executionPlan && workflowId) {
-          try {
-            const workflow = await getCloudWorkflow(workflowId);
-            if (stopped || generation !== cloudRunPollGeneration.current) return;
-            executionPlan = workflowExecutionPlan(workflow);
-          } catch (error) {
-            logError('cloud.run.restoreWorkflow', error);
-          }
-        }
+        workflowId = snap.workflowId || workflowId;
         const hasLogs = typeof snap.logs === 'string' && snap.logs.length > 0;
         if (!hasLogs && !isTerminalCloudStatus(snap.status)) {
           if (!announcedProvisioning) {
@@ -2074,18 +2077,25 @@ export default function App() {
         // Drive the runs drawer + canvas node coloring from the accumulated log
         // blob (the only durable per-node record the snapshot carries).
         const mappedStatus = mapCloudRunStatus(snap.status);
-        const derived = deriveCloudNodeStatuses(typeof snap.logs === 'string' ? snap.logs : '');
+        const derived = deriveCloudNodeStatuses(typeof snap.logs === 'string' ? snap.logs : '', observedStatuses);
+        observedStatuses = derived;
+        const immutableContext = snap.workflowContext ?? null;
+        const executionPlan = immutableContext?.executionNodeIds ?? [...derived.keys()];
         updateRun(runId, {
           status: mappedStatus,
+          execution_plan: executionPlan,
+          cloud_workflow_context: immutableContext,
           node_statuses: buildCloudNodeStatuses(
-            executionPlan ?? [...derived.keys()],
+            executionPlan,
             derived,
             mappedStatus,
             snap.errorMessage,
+            immutableContext?.executionNodeIds !== null && immutableContext?.executionNodeIds !== undefined,
           ),
           error: snap.errorMessage || undefined,
           ...(workflowId ? { workflow_id: workflowId } : {}),
-          ...(context.workflow_name ? { workflow_name: context.workflow_name } : {}),
+          ...(immutableContext?.workflowName || context.workflow_name
+            ? { workflow_name: immutableContext?.workflowName || context.workflow_name } : {}),
           ...(isTerminalCloudStatus(snap.status) ? { end_time: snap.completedAt || new Date().toISOString() } : {}),
           ...(snap.creditsUsed !== null ? { credits_used: snap.creditsUsed } : {}),
           ...(snap.durationMs !== null ? { duration_ms: snap.durationMs } : {}),
@@ -2138,6 +2148,51 @@ export default function App() {
     );
   }, [addLog, updateRun, setLogs, t]);
 
+  const registerCloudRunSummaries = useCallback((summaries: CloudRunSummary[]) => {
+    // Registration prepends new records; reverse newest-first API results so
+    // recent history remains at the top of the drawer after reload.
+    for (const summary of [...summaries].reverse()) {
+      const restored: RunRecord = {
+        run_id: summary.id, workflow_id: summary.workflowId || undefined,
+        // An empty incoming name preserves a genuinely captured name, or
+        // registers a stable Cloud run <id> label for unknown legacy names.
+        workflow_name: summary.workflowName || '',
+        status: mapCloudRunStatus(summary.status), execution_plan: [], node_statuses: [],
+        node_outputs: {}, previews: {}, artifacts: {}, options: { cloud: true },
+        start_time: summary.startedAt || summary.createdAt || undefined,
+        end_time: summary.completedAt || undefined,
+        credits_used: summary.creditsUsed ?? undefined, duration_ms: summary.durationMs ?? undefined,
+      };
+      addRun(restored);
+      if (!isTerminalCloudStatus(summary.status)) {
+        pollCloudRun(summary.id, {
+          workflow_id: restored.workflow_id, workflow_name: restored.workflow_name,
+          start_time: restored.start_time,
+        });
+      }
+    }
+  }, [addRun, pollCloudRun]);
+
+  const reconcileCloudRunSubmission = useCallback(() => {
+    if (!cloudConfig?.user?.id || !cloudConfig.team?.id
+      || (cloudInviteSession && !cloudInviteSession.member)) return;
+    const generation = cloudRunPollGeneration.current;
+    for (const timer of cloudRunReconcileTimers.current) clearTimeout(timer);
+    cloudRunReconcileTimers.current.clear();
+    // A timed-out request can finish on the server later. Reconcile bounded
+    // metadata without guessing an ID from a mutable name or submitting again.
+    for (const delay of [0, 15_000, 60_000, 120_000]) {
+      const timer = setTimeout(() => {
+        cloudRunReconcileTimers.current.delete(timer);
+        void listCloudRunSummaries().then(summaries => {
+          if (generation === cloudRunPollGeneration.current) registerCloudRunSummaries(summaries);
+        }).catch(error => logError('cloud.runs.reconcile', error));
+      }, delay);
+      cloudRunReconcileTimers.current.add(timer);
+    }
+    setRunsDrawerOpen(true);
+  }, [cloudConfig?.user?.id, cloudConfig?.team?.id, cloudInviteSession, registerCloudRunSummaries]);
+
   useEffect(() => {
     if (getMcpRuntime() || !editorMode || !cloudConfig?.user?.id || !cloudConfig.team?.id
       || (cloudInviteSession && !cloudInviteSession.member)) return;
@@ -2150,29 +2205,10 @@ export default function App() {
     let cancelled = false;
     void listCloudRunSummaries().then(summaries => {
       if (cancelled) return;
-      for (const summary of summaries) {
-        const restored: RunRecord = {
-          run_id: summary.id, workflow_id: summary.workflowId || undefined,
-          workflow_name: summary.workflowName || t('common.untitled'),
-          status: mapCloudRunStatus(summary.status), execution_plan: [], node_statuses: [],
-          node_outputs: {}, previews: {}, artifacts: {}, options: { cloud: true },
-          start_time: summary.startedAt || summary.createdAt || undefined,
-          end_time: summary.completedAt || undefined,
-          credits_used: summary.creditsUsed ?? undefined, duration_ms: summary.durationMs ?? undefined,
-        };
-        addRun(restored);
-        if (!isTerminalCloudStatus(summary.status)) {
-          // The run owns its source graph; a different focused tab must never
-          // supply its execution plan or node coloring after restoration.
-          pollCloudRun(summary.id, {
-            workflow_id: restored.workflow_id, workflow_name: restored.workflow_name,
-            start_time: restored.start_time,
-          });
-        }
-      }
+      registerCloudRunSummaries(summaries);
     }).catch(error => { if (!cancelled) logError('cloud.runs.restore', error); });
     return () => { cancelled = true; };
-  }, [editorMode, cloudConfig?.user?.id, cloudConfig?.team?.id, cloudInviteSession, addRun, pollCloudRun, setRuns, setLogs, t]);
+  }, [editorMode, cloudConfig?.user?.id, cloudConfig?.team?.id, cloudInviteSession, registerCloudRunSummaries, setRuns, setLogs]);
 
   // The host opens the real cloud tabs and receives a redacted view of the
   // active graph. The conversation owns AI inference; the editor owns edits.
@@ -2221,13 +2257,21 @@ export default function App() {
           .catch(error => toast.error('Could not open the run workflow', { message: String(error) }));
         return;
       }
-      addRun({ run_id: hostRun.id, status: mapCloudRunStatus(snapshot.status), workflow_id: activeWorkflow.id,
-        workflow_name: activeWorkflow.name, name: activeWorkflow.name, start_time: snapshot.createdAt || new Date().toISOString(),
-        execution_plan: workflowExecutionPlan(activeWorkflow), node_statuses: [], node_outputs: {}, previews: {}, artifacts: {},
-      } as RunRecord);
+      const immutableContext = snapshot.workflowContext ?? null;
+      const observed = deriveCloudNodeStatuses(snapshot.logs || '');
+      const executionPlan = immutableContext?.executionNodeIds ?? [...observed.keys()];
+      const workflowName = immutableContext?.workflowName || '';
+      addRun({ run_id: hostRun.id, status: mapCloudRunStatus(snapshot.status),
+        workflow_id: snapshot.workflowId || hostRun.workflowId,
+        workflow_name: workflowName, start_time: snapshot.createdAt || new Date().toISOString(),
+        execution_plan: executionPlan, cloud_workflow_context: immutableContext,
+        node_statuses: buildCloudNodeStatuses(executionPlan, observed, mapCloudRunStatus(snapshot.status),
+          snapshot.errorMessage, immutableContext?.executionNodeIds != null),
+        node_outputs: {}, previews: {}, artifacts: {}, options: { cloud: true },
+      });
       setConsoleVisible(true);
       setRunsDrawerOpen(true);
-      pollCloudRun(hostRun.id, { workflow_id: activeWorkflow.id, workflow_name: activeWorkflow.name, execution_plan: workflowExecutionPlan(activeWorkflow) });
+      pollCloudRun(hostRun.id, { workflow_id: snapshot.workflowId || hostRun.workflowId, workflow_name: workflowName });
     });
   }, [hostRun, activeWorkflow, addRun, pollCloudRun, setConsoleVisible, openCloudWorkflow]);
 
@@ -2416,7 +2460,7 @@ export default function App() {
           setRailTab('console');
           continue;
         }
-        // Cloud editor: the run was submitted to the cloud Batch runner and is
+        // Cloud editor: the run was submitted to the cloud dispatch runner and is
         // tracked in the dashboard, not as a local in-app run.
         const cloudResult = result as RunRecord & { cloud?: boolean; dashboard_url?: string };
         if (cloudResult.cloud) {
@@ -2437,8 +2481,10 @@ export default function App() {
           // install + node logs) into both the console and node statuses by
           // polling the run snapshot until it reaches a terminal state.
           if (result.run_id) {
+            cloudRunCanvasSources.current.set(result.run_id, cloudRunWorkflowKey(activeWorkflow));
             addRun({
               run_id: result.run_id,
+              workflow_id: activeWorkflow.id,
               status: 'pending',
               workflow_name: result.workflow_name || batchName,
               node_statuses: [],
@@ -2477,9 +2523,15 @@ export default function App() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      const unknownSubmission = err instanceof CloudRunSubmissionError && err.outcomeUnknown;
+      if (err instanceof CloudRunSubmissionError) reconcileCloudRunSubmission();
       if (runSubmitted) {
         toast.warning(t('console.actions.runQueued'), {
           message: t('console.actions.runSubmittedButFollowUpFailed', { message: msg }),
+        });
+      } else if (unknownSubmission) {
+        toast.warning('Run submission outcome unknown', {
+          message: `Check run history before submitting again. ${msg}`,
         });
       } else {
         toast.error(t('console.actions.runFailedTitle'), { message: msg });
@@ -2492,10 +2544,11 @@ export default function App() {
         // -- which then completed normally -- sent the user hunting a problem
         // that did not exist. Observed as a transient auth error on run
         // 71c48448, which finished fine.
-        level: runSubmitted ? 'warn' : 'error',
+        level: runSubmitted || unknownSubmission ? 'warn' : 'error',
         message: runSubmitted
           ? t('console.actions.runSubmittedButFollowUpFailed', { message: msg })
-          : t('console.actions.runFailedLog', { message: msg }),
+          : unknownSubmission ? `Run submission outcome unknown. Check run history before submitting again. ${msg}`
+            : t('console.actions.runFailedLog', { message: msg }),
         timestamp: new Date().toISOString(),
       });
       // Auto-open console so the user sees the error
@@ -2503,7 +2556,7 @@ export default function App() {
       setRailTab('console');
     }
     setIsRunning(false);
-  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, editorMode, pollCloudRun, computeSpec, stageCloudRunInputs]);
+  }, [activeWorkflow, validate, submitRun, cacheEnabled, addLog, addRun, batchCount, dryRunPreview, resumeCheckpoint?.checkpoint, setConsoleVisible, setRailTab, t, getBool, editorMode, pollCloudRun, computeSpec, stageCloudRunInputs, reconcileCloudRunSubmission]);
 
   const handleBatchSheetSubmit = useCallback(async (runs: SampleSheetRun[]) => {
     if (runs.length === 0) return;
@@ -2594,8 +2647,10 @@ export default function App() {
       setConsoleVisible(true);
       setRailTab('console');
       if (result.run_id) {
+        cloudRunCanvasSources.current.set(result.run_id, cloudRunWorkflowKey(activeWorkflow));
         addRun({
           run_id: result.run_id, status: 'pending',
+          workflow_id: activeWorkflow.id,
           workflow_name: result.workflow_name || activeWorkflow.name,
           node_statuses: [], node_outputs: {},
           execution_plan: workflowExecutionPlan(activeWorkflow),
@@ -2607,14 +2662,22 @@ export default function App() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(t('console.actions.cloudRunFailed', { defaultValue: 'Cloud run failed' }), { message: msg });
-      addLog({ run_id: 'cloud', node_id: 'engine', level: 'error', message: msg, timestamp: new Date().toISOString() });
+      if (err instanceof CloudRunSubmissionError) reconcileCloudRunSubmission();
+      if (err instanceof CloudRunSubmissionError && err.outcomeUnknown) {
+        toast.warning('Run submission outcome unknown', { message: `Check run history before submitting again. ${msg}` });
+      } else {
+        toast.error(t('console.actions.cloudRunFailed', { defaultValue: 'Cloud run failed' }), { message: msg });
+      }
+      const unknownSubmission = err instanceof CloudRunSubmissionError && err.outcomeUnknown;
+      addLog({ run_id: 'cloud', node_id: 'engine', level: unknownSubmission ? 'warn' : 'error',
+        message: unknownSubmission ? `Run submission outcome unknown. Check run history before submitting again. ${msg}` : msg,
+        timestamp: new Date().toISOString() });
       setConsoleVisible(true);
       setRailTab('console');
     } finally {
       setIsRunning(false);
     }
-  }, [authUser, cloudConfig, clerk, editorMode, validate, activeWorkflow, promptDialog, submitRun, computeSpec, addLog, addRun, pollCloudRun, setConsoleVisible, setRailTab, setRunsDrawerOpen, setIsRunning, stageCloudRunInputs, t]);
+  }, [authUser, cloudConfig, clerk, editorMode, validate, activeWorkflow, promptDialog, submitRun, computeSpec, addLog, addRun, pollCloudRun, setConsoleVisible, setRailTab, setRunsDrawerOpen, setIsRunning, stageCloudRunInputs, t, reconcileCloudRunSubmission]);
 
   const handleRunSelected = useCallback(async (nodeIds: string[]) => {
     if (nodeIds.length === 0) return;
@@ -2835,9 +2898,14 @@ export default function App() {
       if (run.options?.cloud === true) {
         if (!run.workflow_id) throw new Error(consoleActionCopy.error.noRunWorkflowSnapshot);
         await openCloudWorkflow(run.workflow_id);
-        toast.info(t('console.actions.reviewCloudRetry', {
-          defaultValue: 'Workflow opened for review. Check its inputs and compute settings, then select Run to retry.',
-        }));
+        pollCloudRun(run.run_id, {
+          workflow_id: run.workflow_id, workflow_name: run.workflow_name, start_time: run.start_time,
+        });
+        toast.info(t('console.actions.currentWorkflowOpened', { defaultValue: 'Current saved workflow opened' }), {
+          message: t('console.actions.reviewCurrentWorkflow', {
+            defaultValue: 'The graph may have changed since this run. Review its inputs and compute settings before selecting Run.',
+          }),
+        });
         return;
       }
       const data = await apiPost<{ run_id: string; status?: string }>(
@@ -2860,7 +2928,7 @@ export default function App() {
       logError('app.run.retry', err);
       toast.error(consoleActionCopy.error.couldNotRetryRun, { message: err instanceof Error ? err.message : String(err) });
     }
-  }, [addRun, consoleActionCopy, openCloudWorkflow, t]);
+  }, [addRun, consoleActionCopy, openCloudWorkflow, pollCloudRun, t]);
 
   const handleMoveRun = useCallback(async (run: RunRecord, direction: 'up' | 'down') => {
     const pending = queuedRuns.filter(candidate => candidate.status === 'pending');
@@ -3700,7 +3768,10 @@ export default function App() {
     const missingTypes = new Set<string>(JSON.parse(missingTypesKey) as string[]);
     return new Set(activeWorkflow.nodes.filter(node => missingTypes.has(node.type)).map(node => node.id));
   }, [activeNodeTypeKey, missingTypesKey]);
-  const latestNodeStatuses = runs[0]?.node_statuses ?? [];
+  const latestCanvasRun = runs.find((run, index) => run.options?.cloud === true
+    ? canProjectCloudRunOntoWorkflow(run, activeWorkflow, cloudRunCanvasSources.current.get(run.run_id))
+    : !editorMode && index === 0);
+  const latestNodeStatuses = latestCanvasRun?.node_statuses ?? [];
   const latestNodeStatusKey = useMemo(() => nodeStatusSignature(latestNodeStatuses), [latestNodeStatuses]);
   const nodeStatusMap = useMemo<Map<string, NodeStatus['status']>>(() => (
     new Map(latestNodeStatuses.map(ns => [ns.node_id, ns.status]))
@@ -3720,7 +3791,7 @@ export default function App() {
   }, [latestNodeStatusKey, dismissedErrorNodeIds]);
   // Clear dismissed errors when a new run starts so a fresh failure on the
   // same node surfaces again.
-  const latestRunId = runs[0]?.run_id;
+  const latestRunId = latestCanvasRun?.run_id;
   useEffect(() => {
     setDismissedErrorNodeIds(new Set());
   }, [latestRunId]);

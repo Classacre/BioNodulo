@@ -41,6 +41,7 @@ from bionodulo.environments.manifest import (
 )
 from bionodulo.execution import head_preview as head_preview_mod
 from bionodulo.execution.cache import CacheStore
+from bionodulo.execution.capabilities import explicit_dorado_cpu_mode
 from bionodulo.execution.errors import (
     NodeExitCodeError,
     NodeMemoryError,
@@ -1314,6 +1315,7 @@ class WorkflowExecutor:
         force: bool = False,
         force_nodes: set[str] | None = None,
         options: dict[str, Any] | None = None,
+        _nested: bool = False,
     ) -> dict[str, Any]:
         """Return a no-execute preview of node commands, outputs, cache, and environments."""
         options = options or {}
@@ -1366,6 +1368,8 @@ class WorkflowExecutor:
             is_subgraph = self._is_subgraph_node(node)
             node_executables = list(getattr(node_class, "REQUIRED_EXECUTABLES", []) or []) if node_class else []
             node_requires_gpu = bool(getattr(node_class, "REQUIRES_GPU", False)) if node_class else False
+            if node_requires_gpu and explicit_dorado_cpu_mode(node, workflow.get("edges", []), nested=_nested):
+                node_requires_gpu = False
             executables.update(str(item) for item in node_executables)
             if node_requires_gpu:
                 gpu_nodes.append(node_id)
@@ -1541,6 +1545,7 @@ class WorkflowExecutor:
             force=force,
             force_nodes=force_nodes,
             options=inner_options,
+            _nested=True,
         )
         if preview.get("status") == "failed":
             return {**empty, "error": str(preview.get("error", ""))}

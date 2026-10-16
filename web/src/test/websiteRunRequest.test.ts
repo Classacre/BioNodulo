@@ -1,10 +1,44 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createCloudWorkflow, getCloudWorkflow, saveCloudWorkflow, submitCloudRun } from '../api/website';
+import { createCloudWorkflow, getCloudWorkflow, saveCloudWorkflow, submitCloudRun, CloudRunSubmissionError, CLOUD_RUN_SUBMISSION_TIMEOUT_MS } from '../api/website';
 import type { Workflow } from '../types';
 
 describe('submitCloudRun', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('bounds admission, aborts the response, and safely observes a late rejection without retrying', async () => {
+    vi.useFakeTimers();
+    let rejectLate!: (error: Error) => void;
+    const fetchMock = vi.fn().mockImplementation(() => new Promise((_, reject) => { rejectLate = reject; }));
+    vi.stubGlobal('fetch', fetchMock);
+    const outcome = submitCloudRun('wf-1').catch(error => error);
+    await vi.advanceTimersByTimeAsync(CLOUD_RUN_SUBMISSION_TIMEOUT_MS);
+    const error = await outcome;
+    expect(error).toBeInstanceOf(CloudRunSubmissionError);
+    expect(error.outcomeUnknown).toBe(true);
+    expect(error.message).toContain('180 seconds');
+    expect((fetchMock.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true);
+    rejectLate(new Error('Late connection rejection'));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([[422, false], [502, true], [200, true]])('classifies HTTP%s rejection without treating ambiguous responses as safe to retry', async (status, outcomeUnknown) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      success: false, error: 'Dispatch rejected the request',
+    }), { status: status as number })));
+    await expect(submitCloudRun('wf-1')).rejects.toMatchObject({
+      name: 'CloudRunSubmissionError', outcomeUnknown, message: 'Dispatch rejected the request',
+    });
+  });
+
+  it('treats a successful response missing its run ID as an unknown outcome', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: {} }), { status: 202 })));
+    await expect(submitCloudRun('wf-1')).rejects.toMatchObject({
+      name: 'CloudRunSubmissionError', outcomeUnknown: true,
+    });
   });
 
   it('sends parameters and the canonical nested file manifest', async () => {
