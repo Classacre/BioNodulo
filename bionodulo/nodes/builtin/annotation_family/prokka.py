@@ -60,6 +60,10 @@ class ProkkaNode(AnnotationCommandNode):
     )
     REQUIRED_EXECUTABLES = ["prokka"]
     REQUIRED_CONDA_PACKAGES = ["prokka"]
+    # GNU Parallel's pipe-job wrapper requires an explicit executable shell
+    # when the worker has no SHELL variable. Prokka's pipelines are POSIX sh;
+    # select it only for this node without changing the parent environment.
+    ENV_VARS = {"PARALLEL_SHELL": "/bin/sh"}
     CONDA_PACKAGE_CONSTRAINTS = {"prokka": "1.15.6"}
     VERSION = "1.15.6"
     GIT_URL = "https://github.com/tseemann/prokka.git"
