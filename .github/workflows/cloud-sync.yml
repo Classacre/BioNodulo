@@ -5,7 +5,7 @@
 #
 # Called by green CI on main, or manually with exact app and website commits.
 # CI may pass CLOUD_SYNC_WEBSITE_REF for a prepared website release; when set,
-# it must be green and ahead of master, and the version match never skips work.
+# it must be green and at or ahead of master; a version match never skips work.
 # Set CLOUD_SYNC_PREPARED_ONLY=true before a coordinated release to reject the
 # default website bump until the prepared ref is supplied.
 #
@@ -22,8 +22,8 @@
 #      new commits/image digest. The worker refuses to boot when these do not
 #      match its baked-in identity, so the pins must never move without a
 #      fresh image — step 2 exists for that reason.
-#   4. Push the website commit, which triggers the Vercel production
-#      deploy of the site + editor SPA.
+#   4. Push an ahead website commit, or request a fresh production Git build
+#      when the verified prepared commit is already master.
 #
 # One-time setup (the job no-ops until enabled):
 #   repo variable  CLOUD_SYNC_ENABLED = true
@@ -38,7 +38,7 @@ on:
   workflow_call:
     inputs:
       website_ref:
-        description: Full prepared website commit SHA ahead of master
+        description: Full CI-green website commit SHA at or ahead of master
         required: false
         type: string
   workflow_dispatch:
@@ -48,7 +48,7 @@ on:
         required: true
         type: string
       website_ref:
-        description: Full prepared website commit SHA ahead of master
+        description: Full CI-green website commit SHA at or ahead of master
         required: true
         type: string
 
@@ -146,9 +146,17 @@ jobs:
             [ "$website_ci" -gt 0 ] || { echo "No successful website CI run for prepared SHA" >&2; exit 1; }
             git -C bionodulo-website fetch origin master
             master_sha="$(git -C bionodulo-website rev-parse origin/master)"
-            [ "$web_sha" != "$master_sha" ] && git -C bionodulo-website merge-base --is-ancestor "$master_sha" "$web_sha" || {
-              echo "Prepared website SHA must be ahead of current master" >&2; exit 1;
-            }
+            validated_master_sha="$master_sha"
+            if [ "$web_sha" = "$master_sha" ]; then
+              echo "prepared_redeploy=true" >> "$GITHUB_OUTPUT"
+            else
+              git -C bionodulo-website merge-base --is-ancestor "$master_sha" "$web_sha" || {
+                echo "Prepared website SHA must be at or ahead of current master" >&2; exit 1;
+              }
+            fi
+            website_repo_id="$(gh api "repos/${WEBSITE_REPO}" --jq '.id')"
+            [[ "$website_repo_id" =~ ^[1-9][0-9]*$ ]] || exit 1
+            echo "website_repo_id=$website_repo_id" >> "$GITHUB_OUTPUT"
           fi
           version="$(node -p "require('./BioNodulo/web/package.json').version")"
           site="$(node -p "require('./bionodulo-website/apps/web/package.json').version")"
@@ -157,6 +165,11 @@ jobs:
           echo "app_sha=$app_sha" >> "$GITHUB_OUTPUT"
           master_sha="$(git -C bionodulo-website ls-remote origin refs/heads/master | cut -f1)"
           [[ "$master_sha" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          if [ -n "$WEBSITE_REF" ]; then
+            [ "$master_sha" = "$validated_master_sha" ] || {
+              echo "Website master moved during prepared source validation" >&2; exit 1;
+            }
+          fi
           echo "master_sha=$master_sha" >> "$GITHUB_OUTPUT"
           digest="$(python3 -c 'import json; print(json.load(open("BioNodulo/bionodulo/nodes/generated/catalog.lock.json"))["catalog_digest"])')"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
@@ -297,11 +310,27 @@ jobs:
           put_env WORKER_IMAGE "$WORKER_REF"
           put_env WORKER_IMAGE_OCI "$OCI_REF"
 
-      - name: Push the website commit (triggers the Vercel production deploy)
+      - name: Trigger the exact website production deployment after pins
         if: steps.rel.outputs.current != 'true'
         env:
+          APP_SHA: ${{ steps.rel.outputs.app_sha }}
           WEBSITE_SHA: ${{ inputs.website_ref || steps.bump.outputs.web_sha }}
+          EXPECTED_MASTER: ${{ steps.rel.outputs.master_sha }}
+          PREPARED_REDEPLOY: ${{ steps.rel.outputs.prepared_redeploy }}
+          WEBSITE_REPO_ID: ${{ steps.rel.outputs.website_repo_id }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
           [ "$(git -C bionodulo-website rev-parse HEAD)" = "$WEBSITE_SHA" ] || exit 1
-          git -C bionodulo-website push origin HEAD:master
+          [ "$(git ls-remote https://github.com/${GITHUB_REPOSITORY}.git refs/heads/main | cut -f1)" = "$APP_SHA" ] || {
+            echo "App main moved before the website deployment" >&2; exit 1;
+          }
+          [ "$(git -C bionodulo-website ls-remote origin refs/heads/master | cut -f1)" = "$EXPECTED_MASTER" ] || {
+            echo "Website master moved before the website deployment" >&2; exit 1;
+          }
+          if [ "$PREPARED_REDEPLOY" = true ]; then
+            [ "$WEBSITE_SHA" = "$EXPECTED_MASTER" ] || exit 1
+            python3 BioNodulo/scripts/cloud_sync_deploy.py
+          else
+            git -C bionodulo-website push origin HEAD:master
+          fi
