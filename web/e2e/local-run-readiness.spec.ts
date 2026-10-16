@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test';
 
 // Browser-to-API contract only. Every API request is intercepted; no job is run.
+const objectInfo = {
+  note: {
+    name: 'note', display_name: 'Note', category: 'Utility', visual_only: true,
+    input: { required: { text: ['STRING', { default: '' }] } }, output: [], output_name: [],
+  },
+};
+
 const scenarios: Array<{
   name: string; envReady: boolean; executionReady?: boolean; submit: boolean; resolveFails?: boolean;
 }> = [
@@ -28,6 +35,7 @@ for (const scenario of scenarios) {
       const path = new URL(request.url()).pathname;
       let body: unknown = {};
       if (path.endsWith('/config')) body = { cloudMode: false, editorMode: false };
+      if (path.endsWith('/object_info')) body = objectInfo;
       if (path.endsWith('/host_status')) body = { ready: true };
       if (path.endsWith('/workflow/validate')) body = { valid: true, errors: [], warnings: [] };
       if (path.endsWith('/manager/resolve')) body = {
@@ -46,6 +54,11 @@ for (const scenario of scenarios) {
       });
     });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
+    // This contract assumes a healthy editor registry. An empty catalog is an
+    // actual bootstrap failure whose separate notification wins the peek slot.
+    await page.locator('nav.left-rail').getByRole('button', { name: /^Nodes/ }).click();
+    await expect(page.getByText('1 node available', { exact: true })).toBeVisible();
+    await page.getByTitle('Close node library').click();
     await page.getByRole('button', { name: /^Run workflow/ }).click();
     if (scenario.submit) {
       await expect.poll(() => submissions).toBe(1);
