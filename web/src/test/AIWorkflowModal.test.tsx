@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { apiGet, apiPost, ApiError } from '../api/client';
 import { streamAIChat } from '../api/aiChat';
+import { Provider, createStore, getDefaultStore } from 'jotai';
+import { cloudConfigAtom, type CloudConfig } from '../state/appAtoms';
+import { cloudInviteSessionAtom, type CloudInviteSession } from '../collab/cloudInvite';
 import type { Workflow } from '../types';
 
 const runtimeMock = vi.hoisted(() => ({ current: undefined as unknown }));
@@ -80,6 +83,17 @@ function workflow(partial: Partial<Workflow> = {}): Workflow {
   };
 }
 
+function cloudConfig(team: string, user = 'user-a'): CloudConfig {
+  return { editorMode: true, cloudMode: true, user: { id: user }, team: { id: team } } as CloudConfig;
+}
+
+function privateSessions(marker: string) {
+  return [{ id: marker, name: marker, createdAt: 1, turns: [
+    { role: 'user', content: marker, files: [{ name: `${marker}.csv`, mime_type: 'text/csv', content: 'data:text/csv;base64,cHJpdmF0ZQ==' }] },
+    { role: 'assistant', steps: [{ type: 'propose_changes', content: '', workflow: workflow({ name: `${marker} proposal` }) }] },
+  ] }];
+}
+
 describe('AIWorkflowModal i18n', () => {
   beforeEach(() => {
     runtimeMock.current = undefined;
@@ -88,6 +102,8 @@ describe('AIWorkflowModal i18n', () => {
     vi.stubGlobal('localStorage', localStorageStub);
     Element.prototype.scrollIntoView = vi.fn();
     vi.mocked(streamAIChat).mockClear();
+    getDefaultStore().set(cloudConfigAtom, { editorMode: false, cloudMode: false } as CloudConfig);
+    getDefaultStore().set(cloudInviteSessionAtom, null);
   });
 
   afterEach(async () => {
@@ -96,6 +112,95 @@ describe('AIWorkflowModal i18n', () => {
     await setLanguage('en');
     storage.clear();
     vi.unstubAllGlobals();
+  });
+
+  it('never restores unowned legacy or other account/team chats into cloud guest or unknown contexts', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const store = createStore();
+    storage.set('bionodulo-ai-sessions', JSON.stringify(privateSessions('LEGACY_PRIVATE')));
+    storage.set('bionodulo-ai-sessions.cloud.user-a.team-a', JSON.stringify(privateSessions('TEAM_PRIVATE')));
+    store.set(cloudConfigAtom, null);
+    render(<Provider store={store}><AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} /></Provider>);
+    expect(screen.queryByText('LEGACY_PRIVATE')).not.toBeInTheDocument();
+    act(() => store.set(cloudConfigAtom, { editorMode: true, cloudMode: true, user: null, team: null } as CloudConfig));
+    expect(screen.queryByText('LEGACY_PRIVATE')).not.toBeInTheDocument();
+    expect(screen.queryByText('TEAM_PRIVATE')).not.toBeInTheDocument();
+    expect(screen.queryByText('TEAM_PRIVATE.csv')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply Changes' })).not.toBeInTheDocument();
+    expect(JSON.parse(storage.get('bionodulo-ai-sessions')!)[0].name).toBe('LEGACY_PRIVATE');
+  });
+
+  it('remounts cloud histories, drafts and pending attachments on in-page A→B→guest switches', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const store = createStore(); store.set(cloudConfigAtom, cloudConfig('team-a'));
+    storage.set('bionodulo-ai-sessions.cloud.user-a.team-a', JSON.stringify(privateSessions('TEAM_A')));
+    storage.set('bionodulo-ai-sessions.cloud.user-a.team-b', JSON.stringify(privateSessions('TEAM_B')));
+    storage.set('bionodulo-ai-sessions.cloud.other-user.team-a', JSON.stringify(privateSessions('OTHER_USER')));
+    storage.set('bionodulo-ai-sessions.cloud.other-user.team-b', JSON.stringify(privateSessions('OTHER_ACCOUNT')));
+    const view = render(<Provider store={store}><AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} /></Provider>);
+    expect(screen.getByText('TEAM_A')).toBeInTheDocument();
+    expect(screen.queryByText('OTHER_USER')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), { target: { value: 'PRIVATE_DRAFT' } });
+    fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [new File(['private'], 'PENDING_A.csv', { type: 'text/csv' })] } });
+    await screen.findByText('PENDING_A.csv');
+    act(() => store.set(cloudConfigAtom, cloudConfig('team-b')));
+    expect(screen.getByText('TEAM_B')).toBeInTheDocument();
+    expect(screen.queryByText('TEAM_A')).not.toBeInTheDocument();
+    expect(screen.queryByText('PENDING_A.csv')).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue('PRIVATE_DRAFT')).not.toBeInTheDocument();
+    act(() => store.set(cloudConfigAtom, cloudConfig('team-b', 'other-user')));
+    expect(screen.getByText('OTHER_ACCOUNT')).toBeInTheDocument();
+    expect(screen.queryByText('TEAM_B')).not.toBeInTheDocument();
+    act(() => store.set(cloudInviteSessionAtom, { member: false, workflowId: 'foreign' } as CloudInviteSession));
+    expect(screen.queryByText('TEAM_B')).not.toBeInTheDocument();
+    expect(screen.queryByText('OTHER_ACCOUNT')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply Changes' })).not.toBeInTheDocument();
+    expect(JSON.parse(storage.get('bionodulo-ai-sessions.cloud.user-a.team-a')!)[0].turns[0].content).toBe('TEAM_A');
+    expect(JSON.parse(storage.get('bionodulo-ai-sessions.cloud.user-a.team-b')!)[0].turns[0].content).toBe('TEAM_B');
+  });
+
+  it('aborts old ownership generation before paint and ignores a late proposal without applying or persisting it', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    let onLateStep!: Parameters<typeof streamAIChat>[1];
+    let resolveLate!: () => void;
+    let signal!: AbortSignal;
+    vi.mocked(streamAIChat).mockImplementationOnce(async (_request, onStep, requestSignal) => {
+      onLateStep = onStep; signal = requestSignal!;
+      await new Promise<void>(resolve => { resolveLate = resolve; });
+    });
+    const store = createStore(); store.set(cloudConfigAtom, cloudConfig('team-a'));
+    const apply = vi.fn();
+    render(<Provider store={store}><AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={apply} /></Provider>);
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), { target: { value: 'TEAM_A_PENDING_PROMPT' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(signal.aborted).toBe(false);
+    act(() => store.set(cloudConfigAtom, cloudConfig('team-b')));
+    expect(signal.aborted).toBe(true);
+    expect(screen.queryByText('TEAM_A_PENDING_PROMPT')).not.toBeInTheDocument();
+    await act(async () => {
+      onLateStep({ type: 'propose_changes', content: 'STALE_PRIVATE_PROPOSAL', workflow: workflow({ name: 'STALE_PRIVATE' }) as unknown as Record<string, unknown> });
+      resolveLate();
+    });
+    expect(screen.queryByText('STALE_PRIVATE_PROPOSAL')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Apply Changes' })).not.toBeInTheDocument();
+    expect(apply).not.toHaveBeenCalled();
+    expect(storage.get('bionodulo-ai-sessions.cloud.user-a.team-b')).not.toContain('TEAM_A_PENDING_PROMPT');
+    expect(storage.get('bionodulo-ai-sessions.cloud.user-a.team-b')).not.toContain('STALE_PRIVATE');
+  });
+
+  it('keeps MCP host instances transient and isolated from local/cloud histories', async () => {
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    storage.set('bionodulo-ai-sessions', JSON.stringify(privateSessions('LOCAL_PRIVATE')));
+    const store = createStore(); store.set(cloudConfigAtom, cloudConfig('team-a'));
+    runtimeMock.current = { sendMessage: vi.fn().mockResolvedValue(undefined) };
+    const view = render(<Provider store={store}><AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} /></Provider>);
+    expect(screen.queryByText('LOCAL_PRIVATE')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('Ask your host AI about this workflow...'), { target: { value: 'FIRST_HOST_DRAFT' } });
+    runtimeMock.current = { sendMessage: vi.fn().mockResolvedValue(undefined) };
+    view.rerender(<Provider store={store}><AIWorkflowModal workflow={workflow()} onClose={() => undefined} onApplyWorkflow={() => undefined} /></Provider>);
+    expect(screen.queryByDisplayValue('FIRST_HOST_DRAFT')).not.toBeInTheDocument();
+    expect(storage.has('bionodulo-ai-sessions.cloud.user-a.team-a')).toBe(false);
+    expect(JSON.parse(storage.get('bionodulo-ai-sessions')!)[0].name).toBe('LOCAL_PRIVATE');
   });
 
   it('renders shell and session chrome from the active locale', async () => {

@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import Icon from '../ui/Icon';
 import type { Workflow } from '../../types';
@@ -7,6 +8,9 @@ import { streamAIChat, type AIChatStep } from '../../api/aiChat';
 import { logError } from '../../state/logging';
 import { renderMarkdownToHtml } from '../../utils/markdown';
 import { getMcpRuntime } from '../../mcp/runtime';
+import { cloudConfigAtom } from '../../state/appAtoms';
+import { cloudInviteSessionAtom } from '../../collab/cloudInvite';
+import { browserStorageKey, resolveBrowserStorageScope } from '../../utils/browserStorageScope';
 import {
   AI_DRAWER_DEFAULT_WIDTH,
   clampDrawerWidth,
@@ -65,9 +69,10 @@ const QUICK_PROMPTS: { id: string; labelKey: string; promptKey: string }[] = [
   { id: 'nextStep', labelKey: 'aiWorkflow.quickPrompts.nextStep.label', promptKey: 'aiWorkflow.quickPrompts.nextStep.prompt' },
 ];
 
-function loadSessions(interruptedLabel: string): ChatSession[] {
+function loadSessions(key: string | null, interruptedLabel: string): ChatSession[] {
+  if (!key) return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) return (JSON.parse(raw) as ChatSession[]).map(session => ({
       ...session,
       turns: session.turns.map(turn => turn.streaming
@@ -78,9 +83,9 @@ function loadSessions(interruptedLabel: string): ChatSession[] {
   return [];
 }
 
-function saveSessions(sessions: ChatSession[]) {
+function saveSessions(key: string, sessions: ChatSession[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    localStorage.setItem(key, JSON.stringify(sessions));
   } catch { /* ignore */ }
 }
 
@@ -165,12 +170,36 @@ function loadSkills(): Promise<SkillSummary[]> {
   return skillsRequest;
 }
 
-export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: AIWorkflowModalProps) {
-  const { t } = useTranslation();
+const contextIds = new WeakMap<object, number>();
+let nextContextId = 0;
+function contextId(context: object): number {
+  let id = contextIds.get(context);
+  if (id === undefined) { id = ++nextContextId; contextIds.set(context, id); }
+  return id;
+}
+
+/** A changed owner replaces the whole chat before paint, including attachments. */
+export default function AIWorkflowModal(props: AIWorkflowModalProps) {
+  const config = useAtomValue(cloudConfigAtom);
+  const invite = useAtomValue(cloudInviteSessionAtom);
   const mcpRuntime = getMcpRuntime();
+  const guestInvite = invite && !invite.member;
+  const privacyScope = resolveBrowserStorageScope(config, Boolean(guestInvite));
+  const storageKey = mcpRuntime ? null : browserStorageKey(STORAGE_KEY, privacyScope);
+  let scope = privacyScope.identity;
+  if (mcpRuntime) scope = `mcp:${contextId(mcpRuntime)}:${scope}:${guestInvite ? contextId(invite) : 'member'}`;
+  else if (guestInvite) scope = `invite:${contextId(invite)}:${scope}`;
+  return <AIWorkflowSession key={storageKey || scope} {...props} storageKey={storageKey} mcpRuntime={mcpRuntime} />;
+}
+
+function AIWorkflowSession({ workflow, onClose, onApplyWorkflow, storageKey, mcpRuntime }: AIWorkflowModalProps & {
+  storageKey: string | null;
+  mcpRuntime: ReturnType<typeof getMcpRuntime>;
+}) {
+  const { t } = useTranslation();
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     if (mcpRuntime) return [createSession('Host AI', 'Send a prompt to your MCP host. Replies appear in the host chat.')];
-    const saved = loadSessions(t('aiWorkflow.generation.interrupted'));
+    const saved = loadSessions(storageKey, t('aiWorkflow.generation.interrupted'));
     return saved.length > 0 ? saved : [createSession(t('aiWorkflow.defaultSessionName'), t('aiWorkflow.greeting'))];
   });
   const [activeSessionId, setActiveSessionId] = useState<string>(sessions[0]?.id || '');
@@ -205,7 +234,12 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   // tool-using turn instead of being forced to wait for it to finish.
   const inFlightRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const mountedRef = useRef(true);
   const activeSessionIdRef = useRef(activeSessionId);
+  const invalidateRequest = useCallback(() => {
+    requestIdRef.current++;
+    inFlightRef.current?.abort();
+  }, []);
 
   useEffect(() => { activeSessionIdRef.current = activeSessionId; }, [activeSessionId]);
   useEffect(() => {
@@ -213,10 +247,13 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [sending]);
-  useEffect(() => () => {
-    requestIdRef.current++;
-    inFlightRef.current?.abort();
-  }, []);
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      invalidateRequest();
+    };
+  }, [invalidateRequest]);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const turns = activeSession?.turns || [];
@@ -229,8 +266,8 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
   }, [turns, sending]);
 
   useEffect(() => {
-    if (!mcpRuntime) saveSessions(sessions);
-  }, [sessions, mcpRuntime]);
+    if (storageKey) saveSessions(storageKey, sessions);
+  }, [sessions, storageKey]);
 
   // Persist the drawer width (clamped value, so a tiny viewport never stores a
   // width that would be off-screen on a larger display).
@@ -582,7 +619,7 @@ export default function AIWorkflowModal({ workflow, onClose, onApplyWorkflow }: 
 
   const handleApply = useCallback(
     (proposed: Workflow) => {
-      if (sending || inFlightRef.current) return;
+      if (!mountedRef.current || sending || inFlightRef.current) return;
       onApplyWorkflow(proposed);
       setSessions(prev =>
         prev.map(s =>
