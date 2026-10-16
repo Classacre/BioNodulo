@@ -828,7 +828,7 @@
   "proteomics_sage_percolator_pipeline.json": {
     "note_proteomics_pipeline": {
       "width": 260,
-      "height": 334
+      "height": 406
     },
     "spectra_001": {
       "width": 220,
