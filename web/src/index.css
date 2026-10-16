@@ -89,6 +89,10 @@ body {
 
 .app-shell > .left-rail {
   grid-row: 3;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
   display: flex;
   flex-direction: column;
   align-items: center;
