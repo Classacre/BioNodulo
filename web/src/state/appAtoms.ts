@@ -13,8 +13,8 @@ export interface CloudConfig {
   /** Shared stateless editor backend: persist workflows to the website DB and
    *  submit runs to the cloud Batch runner (no in-session execution). */
   editorMode: boolean;
-  user: { id: string; name: string; email: string } | null;
-  team: { id: string; name: string } | null;
+  user: { id: string; name: string; email: string; clerkUserId?: string } | null;
+  team: { id: string; name: string; clerkOrgId?: string | null } | null;
   plan: string | null;
   credits: { remaining: number | null; total: number | null } | null;
   accountUrl: string | null;

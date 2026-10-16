@@ -436,7 +436,7 @@ export default function App() {
   // Selected cloud compute spec (Compute panel) sent with the next cloud run.
   const computeSpec = useAtomValue(computeSpecAtom);
   // Cloud-launch config (auto-login + account snapshot). No-op in local mode.
-  const { cloudConfig, cloudMode, editorMode } = useCloudConfig();
+  const { cloudConfig, cloudMode, editorMode, syncClerkIdentity } = useCloudConfig();
   const setCloudRuntimeConfig = useSetAtom(cloudConfigAtom);
   useEffect(() => {
     if (!editorMode || !cloudLoadError) {
@@ -487,7 +487,7 @@ export default function App() {
   const hostFeaturesEnabled = configResolved && !editorMode;
   // Optional Clerk sign-in for self-host when a publishable key is configured
   // and we are not in cloud auto-login mode. No-op otherwise.
-  const clerk = useClerkAuth();
+  const clerk = useClerkAuth(syncClerkIdentity);
   const {
     authUser,
     authReady,

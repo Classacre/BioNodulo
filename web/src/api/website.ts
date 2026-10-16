@@ -335,14 +335,15 @@ export async function getCloudRun(runId: string): Promise<CloudRunSnapshot | nul
 
 export interface CloudUser {
   id: string;
+  clerkUserId?: string;
   name: string | null;
   email: string | null;
-  team: { id: string; name: string };
+  team: { id: string; name: string; clerkOrgId?: string | null };
 }
 
 /** Current signed-in user identity (cloud editor / local app). */
-export function getCurrentUser(): Promise<CloudUser> {
-  return call<CloudUser>('/me');
+export function getCurrentUser(signal?: AbortSignal): Promise<CloudUser> {
+  return call<CloudUser>('/me', signal ? { signal } : {});
 }
 
 export interface CollabClientToken {

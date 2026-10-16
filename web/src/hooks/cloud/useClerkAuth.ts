@@ -51,10 +51,23 @@ export interface UseClerkAuthResult {
   signOut: () => void;
 }
 
-export function useClerkAuth(): UseClerkAuthResult {
+/** Opaque owner changes on every session/user/org transition, including A→B→A. */
+export interface ClerkIdentitySync {
+  owner: object;
+  userId: string | null;
+  orgId: string | null;
+  ready: boolean;
+}
+
+export function useClerkAuth(
+  onIdentitySync?: (event: ClerkIdentitySync) => Promise<boolean>,
+): UseClerkAuthResult {
   const cloudConfig = useAtomValue(cloudConfigAtom);
   const setAuthUserAtom = useSetAtom(authUserAtom);
   const clerkRef = useRef<Clerk | null>(null);
+  const identitySyncRef = useRef(onIdentitySync);
+  identitySyncRef.current = onIdentitySync;
+  const invalidateRef = useRef<(() => void) | null>(null);
   const [clerkEnabled, setClerkEnabled] = useState(false);
   const [clerkSignedIn, setClerkSignedIn] = useState(false);
 
@@ -67,6 +80,33 @@ export function useClerkAuth(): UseClerkAuthResult {
     let cancelled = false;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
     let unsubscribe: (() => void) | null = null;
+    let tokenEpoch = 0;
+    let scope: { sessionKey: unknown; userId: string | null; orgId: string | null; owner: object } | null = null;
+    let identityReady = false;
+    let identityPending: object | null = null;
+    let signedOutSessionKey: unknown;
+
+    const notify = (event: ClerkIdentitySync) => {
+      const callback = identitySyncRef.current;
+      return callback ? callback(event).catch(err => {
+        if (!cancelled) logError('clerk.identity.sync', err);
+        return false;
+      }) : Promise.resolve(false);
+    };
+    const invalidateSharedIdentity = () => {
+      tokenEpoch += 1;
+      scope = { sessionKey: scope?.sessionKey ?? null,
+        userId: scope?.userId ?? null, orgId: scope?.orgId ?? null, owner: {} };
+      identityReady = false;
+      identityPending = null;
+      void notify({ owner: scope.owner, userId: null, orgId: null, ready: false });
+    };
+    const invalidate = () => {
+      const session = clerkRef.current?.session;
+      signedOutSessionKey = session?.id ?? session;
+      invalidateSharedIdentity();
+    };
+    invalidateRef.current = invalidate;
 
     // Pull the current session JWT and mirror the Clerk user into the app's
     // token store + authUser atom. Clearing happens when no session is active.
@@ -74,7 +114,26 @@ export function useClerkAuth(): UseClerkAuthResult {
       if (cancelled) return;
       try {
         const session = clerk.session;
-        if (!session || !clerk.user) {
+        const userSnapshot = clerk.user;
+        const sessionKey = session?.id ?? session;
+        const blockedSession = Boolean(session && signedOutSessionKey === sessionKey);
+        const userId = session && !blockedSession ? userSnapshot?.id ?? null : null;
+        const orgId = userId ? clerk.organization?.id ?? null : null;
+        if (!scope || scope.sessionKey !== sessionKey || scope.userId !== userId || scope.orgId !== orgId) {
+          scope = { sessionKey, userId, orgId, owner: {} };
+          identityReady = false;
+          identityPending = null;
+          clearToken();
+          // Invalidate older /me responses before awaiting a new token.
+          void notify({ ...scope, ready: false });
+        }
+        const expected = scope;
+        const epoch = ++tokenEpoch;
+        const current = () => !cancelled && tokenEpoch === epoch && scope === expected
+          && (clerk.session?.id ?? clerk.session) === sessionKey
+          && (clerk.user?.id ?? null) === userId && (clerk.organization?.id ?? null) === orgId;
+        if (!session) signedOutSessionKey = undefined;
+        if (!session || !userSnapshot || blockedSession) {
           clearToken();
           setAuthUserAtom(null);
           setClerkSignedIn(false);
@@ -88,16 +147,18 @@ export function useClerkAuth(): UseClerkAuthResult {
           });
         } catch {
           // No such template configured — fall back to the default session JWT.
+          if (!current()) return;
           token = await session.getToken(skipCache ? { skipCache: true } : undefined);
         }
-        if (cancelled) return;
+        if (!current()) return;
         if (!token) {
+          invalidateSharedIdentity();
           clearToken();
           setAuthUserAtom(null);
           setClerkSignedIn(false);
           return;
         }
-        const u = clerk.user;
+        const u = userSnapshot;
         const id = u.id;
         const name =
           u.fullName ||
@@ -114,9 +175,21 @@ export function useClerkAuth(): UseClerkAuthResult {
         setAuthUser(user);
         setAuthUserAtom(user);
         setClerkSignedIn(true);
+        // A failed initial cookie read can recover once Clerk has established
+        // its session. Do not refetch on every token refresh after success.
+        if (!identityReady && !identityPending && identitySyncRef.current) {
+          const pending = {};
+          identityPending = pending;
+          void notify({ ...expected, ready: true }).then(ready => {
+            if (!cancelled && scope === expected && identityPending === pending) {
+              identityPending = null;
+              identityReady = ready;
+            }
+          });
+        }
         return token;
       } catch (err) {
-        logError('clerk.session.sync', err);
+        if (!cancelled) logError('clerk.session.sync', err);
       }
     };
 
@@ -129,12 +202,12 @@ export function useClerkAuth(): UseClerkAuthResult {
         if (cancelled) return;
         clerkRef.current = clerk;
         setClerkEnabled(true);
-        await sync(clerk);
-        if (cancelled) return;
         // React to sign-in / sign-out / session changes.
         unsubscribe = clerk.addListener(() => {
           void sync(clerk);
         });
+        await sync(clerk);
+        if (cancelled) return;
         // Force a server token read before the mirrored bearer expires. A plain
         // getToken() may legally return Clerk's cached JWT within its TTL.
         refreshTimer = setInterval(() => {
@@ -157,12 +230,14 @@ export function useClerkAuth(): UseClerkAuthResult {
     window.addEventListener('focus', onFocus);
 
     return () => {
+      invalidate();
       cancelled = true;
       window.removeEventListener('focus', onFocus);
       if (refreshTimer) clearInterval(refreshTimer);
       registerTokenRefresher(null);
       unsubscribe?.();
       clerkRef.current = null;
+      if (invalidateRef.current === invalidate) invalidateRef.current = null;
     };
     // publishableKey/active fully determine the effect.
   }, [active, publishableKey, setAuthUserAtom]);
@@ -179,6 +254,7 @@ export function useClerkAuth(): UseClerkAuthResult {
 
   const signOut = () => {
     const clerk = clerkRef.current;
+    invalidateRef.current?.();
     clearToken();
     setAuthUserAtom(null);
     setClerkSignedIn(false);

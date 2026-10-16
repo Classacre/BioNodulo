@@ -7,7 +7,7 @@
 // In local / self-host mode `/api/config` reports `cloudMode: false` with null
 // identity, so this hook is a no-op beyond recording that config loaded.
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useAtom, useSetAtom } from 'jotai';
 import { apiGet } from '../../api/client';
 import { getUserColor } from '../../collab';
@@ -17,6 +17,7 @@ import { authUserAtom, cloudConfigAtom, type CloudConfig } from '../../state/app
 import { setSettingsEditorMode } from '../settings/useSettings';
 import { initDesktopOAuth } from './desktopOAuth';
 import { logError } from '../../state/logging';
+import type { ClerkIdentitySync } from './useClerkAuth';
 
 export interface UseCloudConfigResult {
   /** Fetched config, or null until the first /api/config response. */
@@ -25,17 +26,94 @@ export interface UseCloudConfigResult {
   cloudMode: boolean;
   /** True when served by the shared stateless editor backend (DB persistence). */
   editorMode: boolean;
+  syncClerkIdentity: (event: ClerkIdentitySync) => Promise<boolean>;
 }
 
 export function useCloudConfig(): UseCloudConfigResult {
   const [cloudConfig, setCloudConfig] = useAtom(cloudConfigAtom);
   const setAuthUserAtom = useSetAtom(authUserAtom);
+  const configRef = useRef(cloudConfig);
+  configRef.current = cloudConfig;
+  const mounted = useRef(true);
+  const identityOwner = useRef<object | null>(null);
+  const identityRequest = useRef(0);
+  const identityAbort = useRef<AbortController | null>(null);
+
+  const readIdentity = useCallback(async (expected?: ClerkIdentitySync): Promise<boolean> => {
+    const config = configRef.current;
+    if (!mounted.current || !config || (!config.editorMode && !config.cloudMode)) return false;
+    const epoch = ++identityRequest.current;
+    identityAbort.current?.abort();
+    const controller = new AbortController();
+    identityAbort.current = controller;
+    const current = () => mounted.current && identityRequest.current === epoch
+      && (!expected || identityOwner.current === expected.owner)
+      && configRef.current?.editorMode === config.editorMode
+      && configRef.current?.cloudMode === config.cloudMode
+      && configRef.current?.clerkPublishableKey === config.clerkPublishableKey
+      && configRef.current?.accountUrl === config.accountUrl;
+    try {
+      const u = await getCurrentUser(controller.signal);
+      if (!current() || !u?.id || !u.team?.id) return false;
+      const clerkUserId = u.clerkUserId || u.id;
+      if (expected && (clerkUserId !== expected.userId
+        || (expected.orgId && u.team?.clerkOrgId !== expected.orgId))) return false;
+      let applied = false;
+      setCloudConfig(previous => {
+        if (!current() || !previous || previous.editorMode !== config.editorMode
+          || previous.cloudMode !== config.cloudMode || previous.clerkPublishableKey !== config.clerkPublishableKey
+          || previous.accountUrl !== config.accountUrl) return previous;
+        const next = { ...previous,
+          user: { id: u.id, clerkUserId, name: u.name || u.email || u.id, email: u.email || '' },
+          team: u.team };
+        configRef.current = next;
+        applied = true;
+        return next;
+      });
+      if (!applied || !current()) return false;
+      const user = { id: clerkUserId, name: u.name || u.email || u.id,
+        color: getUserColor(clerkUserId), kind: 'account' as const };
+      setAuthUser(user);
+      setAuthUserAtom(previous => previous?.id === user.id && previous.name === user.name
+        && previous.kind === user.kind ? previous : user);
+      return true;
+    } catch (err) {
+      if (current()) logError('cloud.config.me', err);
+      return false;
+    } finally {
+      if (current()) identityAbort.current = null;
+    }
+  }, [setCloudConfig, setAuthUserAtom]);
+
+  const syncClerkIdentity = useCallback(async (event: ClerkIdentitySync): Promise<boolean> => {
+    const cfg = configRef.current;
+    if (!mounted.current || !cfg?.editorMode || cfg.cloudMode) return false;
+    if (identityOwner.current !== event.owner) {
+      identityOwner.current = event.owner;
+      identityRequest.current += 1;
+      identityAbort.current?.abort();
+      identityAbort.current = null;
+      // Even org→null can select a different server fallback team. Private
+      // state stays blocked until that owner has a new authoritative /me.
+      setCloudConfig(previous => {
+        if (!previous) return previous;
+        const next = { ...previous, user: null, team: null };
+        configRef.current = next;
+        return next;
+      });
+      setAuthUserAtom(null);
+    }
+    if (!event.ready || !event.userId) return false;
+    return readIdentity(event);
+  }, [readIdentity, setCloudConfig, setAuthUserAtom]);
 
   useEffect(() => {
+    mounted.current = true;
     let cancelled = false;
     apiGet<CloudConfig>('/api/config', { anonymous: true })
       .then(cfg => {
         if (cancelled || !cfg) return;
+        configRef.current = cfg;
         setCloudConfig(cfg);
         // Desktop OAuth: if we hold a stored refresh token, restore the session
         // (and keep the access token fresh) without re-opening the browser.
@@ -62,22 +140,7 @@ export function useCloudConfig(): UseCloudConfigResult {
           // The stateless editor backend's /api/config carries no user identity,
           // so fetch the signed-in user from the website (cookie/bearer) to seed
           // the collaboration identity. Without this, collab can't start.
-          getCurrentUser()
-            .then(u => {
-              if (cancelled || !u?.id) return;
-              // The shared editor's /api/config is anonymous. Keep the /api/me
-              // account and team in runtime config so cloud draft storage can
-              // be scoped to the authenticated destination before any POST.
-              setCloudConfig(previous => previous ? {
-                ...previous,
-                user: { id: u.id, name: u.name || u.email || u.id, email: u.email || '' },
-                team: u.team,
-              } : previous);
-              const user = { id: u.id, name: u.name || u.email || u.id, color: getUserColor(u.id), kind: 'account' as const };
-              setAuthUser(user);
-              setAuthUserAtom(user);
-            })
-            .catch(err => logError('cloud.config.me', err));
+          void readIdentity();
         }
       })
       .catch(err => {
@@ -97,7 +160,12 @@ export function useCloudConfig(): UseCloudConfigResult {
           });
         }
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      mounted.current = false;
+      identityRequest.current += 1;
+      identityAbort.current?.abort();
+    };
     // Run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -106,5 +174,6 @@ export function useCloudConfig(): UseCloudConfigResult {
     cloudConfig,
     cloudMode: Boolean(cloudConfig?.cloudMode && cloudConfig.user?.id),
     editorMode: Boolean(cloudConfig?.editorMode),
+    syncClerkIdentity,
   };
 }

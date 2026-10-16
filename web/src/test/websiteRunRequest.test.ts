@@ -1,11 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createCloudWorkflow, getCloudWorkflow, saveCloudWorkflow, submitCloudRun, getCloudOutputPreview, CloudRunSubmissionError, CLOUD_RUN_SUBMISSION_TIMEOUT_MS } from '../api/website';
+import { createCloudWorkflow, getCloudWorkflow, getCurrentUser, saveCloudWorkflow, submitCloudRun, getCloudOutputPreview, CloudRunSubmissionError, CLOUD_RUN_SUBMISSION_TIMEOUT_MS } from '../api/website';
 import type { Workflow } from '../types';
 
 describe('submitCloudRun', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
+    localStorage.removeItem('bionodulo_auth_token');
+  });
+
+  it('keeps identity recovery cookie-only on the same origin and forwards its abort signal', async () => {
+    localStorage.setItem('bionodulo_auth_token', 'synthetic-unused-bearer');
+    const identity = { id: 'db-user', clerkUserId: 'user-a', name: 'Ada', email: null,
+      team: { id: 'db-team', name: 'Team', clerkOrgId: 'org-a' } };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true, data: identity })));
+    vi.stubGlobal('fetch', fetchMock);
+    const signal = new AbortController().signal;
+    expect(await getCurrentUser(signal)).toEqual(identity);
+    expect(fetchMock).toHaveBeenCalledWith('/api/me', expect.objectContaining({ credentials: 'include', signal }));
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).has('Authorization')).toBe(false);
   });
 
   it('fetches preview bytes only through the authenticated team-pinned proxy and preserves cancellation', async () => {

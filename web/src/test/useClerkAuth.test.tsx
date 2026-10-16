@@ -139,8 +139,10 @@ describe('useClerkAuth token refresh', () => {
       await Promise.resolve();
     });
 
-    expect(clerkMocks.clerk.addListener).not.toHaveBeenCalled();
-    expect(clerkMocks.unsubscribe).not.toHaveBeenCalled();
+    // Observe session changes even while the first token is pending, then
+    // remove that listener on unmount without installing refresh work.
+    expect(clerkMocks.clerk.addListener).toHaveBeenCalledOnce();
+    expect(clerkMocks.unsubscribe).toHaveBeenCalledOnce();
     expect(authMocks.setToken).not.toHaveBeenCalled();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(45_000);
