@@ -8,6 +8,10 @@ import { memo, useEffect, useState } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { nodePreviewsAtom } from '../../state/nodePreviews';
+import { cloudNodeOutputsAtom, cloudPreviewSelectionAtom } from '../../state/cloudPreview';
+import { cloudConfigAtom } from '../../state/appAtoms';
+import { cloudInviteSessionAtom } from '../../collab/cloudInvite';
+import { cloudLogStorageKey } from '../../hooks/cloud/useCloudLogStorage';
 import { openLightboxAtom, htmlPreviewStateAtom } from '../../state/lightboxAtoms';
 import { appPath } from '../../utils/appBase';
 import { apiGetText } from '../../api/client';
@@ -116,6 +120,26 @@ function NodePreviewBody({ preview }: { preview: NodePreviewRef }) {
       )}
     </div>
   );
+}
+
+/** Header-sized picker preserves the template node geometry after cloud runs. */
+export function CloudNodePreviewMenu({ nodeId }: { nodeId: string }) {
+  const cloud = useAtomValue(cloudNodeOutputsAtom)[nodeId];
+  const config = useAtomValue(cloudConfigAtom);
+  const invite = useAtomValue(cloudInviteSessionAtom);
+  const openCloudPreview = useSetAtom(cloudPreviewSelectionAtom);
+  const scope = !invite || invite.member ? cloudLogStorageKey(config?.user?.id, config?.team?.id) : null;
+  if (!cloud || !scope) return null;
+  return <select className="nodrag nopan" value="" aria-label={`Preview verified outputs for ${nodeId}`}
+    title={`Verified outputs from run ${cloud.runId.slice(0, 8)}`}
+    style={{ flex: '0 0 56px', width: 56, maxWidth: 56, height: 22, fontSize: 10, color: 'var(--text)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4 }}
+    onChange={event => {
+      const output = cloud.outputs.find(candidate => candidate.key === event.target.value);
+      if (output) openCloudPreview({ runId: cloud.runId, output, scope });
+    }}>
+    <option value="">View…</option>
+    {cloud.outputs.map(output => <option key={output.key} value={output.key}>{output.name}</option>)}
+  </select>;
 }
 
 function NodePreview({ nodeId }: { nodeId: string }) {

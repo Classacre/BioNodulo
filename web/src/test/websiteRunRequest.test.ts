@@ -1,11 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createCloudWorkflow, getCloudWorkflow, saveCloudWorkflow, submitCloudRun, CloudRunSubmissionError, CLOUD_RUN_SUBMISSION_TIMEOUT_MS } from '../api/website';
+import { createCloudWorkflow, getCloudWorkflow, saveCloudWorkflow, submitCloudRun, getCloudOutputPreview, CloudRunSubmissionError, CLOUD_RUN_SUBMISSION_TIMEOUT_MS } from '../api/website';
 import type { Workflow } from '../types';
 
 describe('submitCloudRun', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it('fetches preview bytes only through the authenticated team-pinned proxy and preserves cancellation', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('data', { headers: { 'Content-Type': 'image/png' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const signal = new AbortController().signal;
+    const blob = await getCloudOutputPreview('run/id', 'team/run/node/a.png', signal, 'team');
+    expect(blob.size).toBe(4);
+    expect(fetchMock).toHaveBeenCalledWith('/api/runs/run%2Fid/outputs/preview?key=team%2Frun%2Fnode%2Fa.png', expect.objectContaining({ credentials: 'include', signal, headers: expect.objectContaining({ 'x-team-id': 'team' }) }));
   });
 
   it('bounds admission, aborts the response, and safely observes a late rejection without retrying', async () => {

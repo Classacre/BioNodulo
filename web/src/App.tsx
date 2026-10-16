@@ -1,7 +1,7 @@
 import { runDoiFlow, type DoiUploadRequest } from './doi/doiFlow';
 import { DoiUploadOverlay } from './doi/DoiUploadOverlay';
 import DynamicIsland, { EMPTY_DOI_TELEMETRY, type DoiTelemetry } from './components/canvas/DynamicIsland';
-import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo, lazy, Suspense, type ReactNode } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import TopBar from './components/layout/TopBar';
@@ -13,8 +13,9 @@ import ErrorBoundary from './components/layout/ErrorBoundary';
 import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/WorkflowCanvas';
 
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
-// localStorage key for persisted cloud-editor console logs (survive refresh).
-const CLOUD_LOGS_KEY = 'bionodulo.cloud.logs';
+import { cloudLogStorageKey, useCloudLogStorage, useCloudScopeReset } from './hooks/cloud/useCloudLogStorage';
+import { cloudNodeOutputsAtom } from './state/cloudPreview';
+import { deriveCloudNodeOutputs, latestCloudRunForWorkflow, parseCloudPreviewGraph } from './utils/cloudPreview';
 
 // Cloud editor live collaboration (Yjs over the Cloudflare Durable-Objects
 // Worker). When set, collab "rooms" are implicit (team + workflow) — there is no
@@ -122,7 +123,7 @@ import { recoverAndReprompt } from './collab/collabAuthRecovery';
 import { setCollabRemoteBase } from './collab/remoteBase';
 import { defaultsFor, valuesFromUnknownRecord } from './utils';
 import { apiGet, apiGetText, apiPost, apiDelete, ApiError } from './api/client';
-import { cancelCloudRun, getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';
+import { cancelCloudRun, getCloudRun, getCloudCredits, getCloudOutputPreview, type CloudRunInputs } from './api/website';
 import { createCloudWorkflow, saveCloudWorkflow, listCloudRunSummaries, CloudRunSubmissionError, type CloudRunSummary } from './api/website';
 import {
   mapCloudRunStatus,
@@ -510,8 +511,9 @@ export default function App() {
   const setShowOpenWorkflow = useSetAtom(showOpenWorkflowAtom);
   // Latest per-node run previews, consumed by BioNode's inline preview band.
   const setNodePreviews = useSetAtom(nodePreviewsAtom);
+  const setCloudNodeOutputs = useSetAtom(cloudNodeOutputsAtom);
   useEffect(() => {
-    setNodePreviews(deriveLatestPreviews(runs));
+    setNodePreviews(deriveLatestPreviews(runs.filter(run => run.options?.cloud !== true)));
   }, [runs, setNodePreviews]);
   const effectiveRequestedWorkflowId = requestedWorkflowId || initialRequestedWorkflowId;
   const resetCollabOnStartupRef = useRef(false);
@@ -1297,6 +1299,9 @@ export default function App() {
   }, [hostFeaturesEnabled]);
 
   const setLogs = useSetAtom(logsAtom);
+  const cloudLogsKey = editorMode && (!cloudInviteSession || cloudInviteSession.member)
+    ? cloudLogStorageKey(cloudConfig?.user?.id, cloudConfig?.team?.id)
+    : null;
   const MAX_LOGS = 5000;
   const addLog = useCallback((entry: LogEntry) => {
     setLogs(prev => {
@@ -1307,32 +1312,19 @@ export default function App() {
   }, []);
   const clearLogs = useCallback(() => {
     setLogs([]);
-    if (editorMode) { try { localStorage.removeItem(CLOUD_LOGS_KEY); } catch { /* ignore */ } }
-  }, [editorMode]);
+    if (cloudLogsKey) { try { localStorage.removeItem(cloudLogsKey); } catch { /* ignore */ } }
+  }, [cloudLogsKey, setLogs]);
 
   // Cloud editor: the console logs live in volatile atom state, so a page
-  // refresh wiped them — unhelpful when a run is executing on Batch. Persist a
-  // capped tail to localStorage and restore it once on load.
+  // refresh wiped them. Persist a capped tail for an authenticated user/team.
+  // The old unscoped cache has no provable owner and must never be restored.
   const logs = useAtomValue(logsAtom);
-  const cloudLogsRestoredRef = useRef(false);
-  useEffect(() => {
-    if (!editorMode || cloudLogsRestoredRef.current) return;
-    cloudLogsRestoredRef.current = true;
-    try {
-      const raw = localStorage.getItem(CLOUD_LOGS_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw) as LogEntry[];
-        if (Array.isArray(arr) && arr.length > 0) setLogs(arr);
-      }
-    } catch { /* corrupt/unavailable storage */ }
-  }, [editorMode, setLogs]);
-  useEffect(() => {
-    if (!editorMode || !cloudLogsRestoredRef.current) return;
-    const id = setTimeout(() => {
-      try { localStorage.setItem(CLOUD_LOGS_KEY, JSON.stringify(logs.slice(-1000))); } catch { /* quota */ }
-    }, 800);
-    return () => clearTimeout(id);
-  }, [logs, editorMode]);
+  useCloudLogStorage(editorMode, cloudLogsKey, logs, setLogs);
+  useLayoutEffect(() => {
+    setCloudNodeOutputs(editorMode && cloudConfig?.user?.id && cloudConfig.team?.id
+      && (!cloudInviteSession || cloudInviteSession.member)
+      ? deriveCloudNodeOutputs(runs, activeWorkflow, cloudConfig.team.id) : {});
+  }, [runs, activeWorkflow, editorMode, cloudConfig?.user?.id, cloudConfig?.team?.id, cloudInviteSession, setCloudNodeOutputs]);
 
   // Remaining team credits, shown in the Cloud badge. Polled in the cloud editor
   // (same-origin cookie) AND in the locally-run app when signed into a cloud
@@ -1979,15 +1971,15 @@ export default function App() {
   const cloudRunReconcileTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const cloudRunPollGeneration = useRef(0);
   const restoredCloudRunScope = useRef<string | null>(null);
-  useEffect(() => {
+  const clearCloudRunScope = useCallback(() => {
+    restoredCloudRunScope.current = null;
+    setRuns(previous => previous.filter(run => run.options?.cloud !== true));
+  }, [setRuns]);
+  useCloudScopeReset(editorMode ? cloudLogsKey : undefined, clearCloudRunScope);
+  useLayoutEffect(() => {
     const pollers = cloudRunPollers.current;
     const canvasSources = cloudRunCanvasSources.current;
     const reconcileTimers = cloudRunReconcileTimers.current;
-    if (editorMode && (!cloudConfig?.user?.id || !cloudConfig.team?.id) && restoredCloudRunScope.current) {
-      restoredCloudRunScope.current = null;
-      setRuns(previous => previous.filter(run => run.options?.cloud !== true));
-      setLogs([]);
-    }
     return () => {
       cloudRunPollGeneration.current += 1;
       for (const stop of pollers.values()) stop();
@@ -1996,7 +1988,7 @@ export default function App() {
       for (const timer of reconcileTimers) clearTimeout(timer);
       reconcileTimers.clear();
     };
-  }, [cloudConfig?.user?.id, cloudConfig?.team?.id, editorMode, setRuns, setLogs]);
+  }, [cloudLogsKey, editorMode]);
 
   const pollCloudRun = useCallback((runId: string, context: Partial<Pick<RunRecord, 'workflow_id' | 'workflow_name' | 'execution_plan' | 'start_time'>> = {}) => {
     if (!runId || cloudRunPollers.current.has(runId)) return;
@@ -2109,6 +2101,18 @@ export default function App() {
               const result = await callWebsite<{ outputs: import('./types').CloudRunOutput[] }>(`/runs/${encodeURIComponent(runId)}/outputs`);
               if (generation !== cloudRunPollGeneration.current) return;
               updateRun(runId, { cloud_outputs: result.outputs });
+              // The executed ROCrate workflow is immutable committed evidence;
+              // today's saved workflow cannot establish historical sink edges.
+              const graphOutput = result.outputs.find(output => output.name === 'bionodulo-workflow.json'
+                && output.key.startsWith(`${cloudConfig?.team?.id}/${runId}/`) && output.key.endsWith('/ro_crate/bionodulo-workflow.json')
+                && output.size <= 2 * 1024 * 1024);
+              if (graphOutput && cloudConfig?.team?.id) {
+                try {
+                  const graphBytes = await getCloudOutputPreview(runId, graphOutput.key, new AbortController().signal, cloudConfig.team.id);
+                  const graph = parseCloudPreviewGraph(JSON.parse(await graphBytes.text()));
+                  if (generation === cloudRunPollGeneration.current && graph) updateRun(runId, { cloud_preview_graph: graph });
+                } catch { /* producer outputs remain available without a sink map */ }
+              }
             } catch (error) {
               addLog({ run_id: runId, node_id: 'cloud', level: 'warn', message: 'Run completed, but output verification is not available yet. Refresh the cloud files view to retry.',
                 detail: error instanceof Error ? error.message : String(error), timestamp: new Date().toISOString() });
@@ -2146,7 +2150,21 @@ export default function App() {
       CLOUD_RUN_POLL_VISIBLE_MS,
       CLOUD_RUN_POLL_HIDDEN_MS,
     );
-  }, [addLog, updateRun, setLogs, t]);
+  }, [addLog, updateRun, setLogs, t, cloudConfig?.team?.id]);
+
+  const cloudPreviewHydrations = useRef(new Set<string>());
+  useEffect(() => {
+    if (!editorMode || !cloudConfig?.user?.id || !cloudConfig.team?.id
+      || (cloudInviteSession && !cloudInviteSession.member)) return;
+    const run = latestCloudRunForWorkflow(runs, activeWorkflow.id);
+    if (!run || run.status !== 'completed' || run.cloud_outputs !== undefined) return;
+    const key = `${cloudRunPollGeneration.current}:${run.run_id}`;
+    if (cloudPreviewHydrations.current.has(key)) return;
+    cloudPreviewHydrations.current.add(key);
+    // Fetch only the selected workflow's latest completed run after reload;
+    // bounded summary restoration does not eagerly download all run histories.
+    pollCloudRun(run.run_id, { workflow_id: run.workflow_id, workflow_name: run.workflow_name, start_time: run.start_time });
+  }, [runs, activeWorkflow.id, editorMode, cloudConfig?.user?.id, cloudConfig?.team?.id, cloudInviteSession, pollCloudRun]);
 
   const registerCloudRunSummaries = useCallback((summaries: CloudRunSummary[]) => {
     // Registration prepends new records; reverse newest-first API results so
@@ -2199,7 +2217,6 @@ export default function App() {
     const scope = `${cloudConfig.user.id}:${cloudConfig.team.id}`;
     if (restoredCloudRunScope.current && restoredCloudRunScope.current !== scope) {
       setRuns(previous => previous.filter(run => run.options?.cloud !== true));
-      setLogs([]);
     }
     restoredCloudRunScope.current = scope;
     let cancelled = false;
@@ -2494,6 +2511,7 @@ export default function App() {
               artifacts: {},
               start_time: new Date().toISOString(),
               options: { cloud: true, dashboard_url: cloudResult.dashboard_url },
+              cloud_preview_graph: parseCloudPreviewGraph(activeWorkflow),
             });
             pollCloudRun(result.run_id, { workflow_id: activeWorkflow.id, workflow_name: activeWorkflow.name, execution_plan: workflowExecutionPlan(activeWorkflow) });
           }
@@ -2656,6 +2674,7 @@ export default function App() {
           execution_plan: workflowExecutionPlan(activeWorkflow),
           previews: {}, artifacts: {}, start_time: new Date().toISOString(),
           options: { cloud: true, dashboard_url: result.dashboard_url },
+          cloud_preview_graph: parseCloudPreviewGraph(activeWorkflow),
         });
         pollCloudRun(result.run_id, { workflow_id: activeWorkflow.id, workflow_name: activeWorkflow.name, execution_plan: workflowExecutionPlan(activeWorkflow) });
         setRunsDrawerOpen(true);

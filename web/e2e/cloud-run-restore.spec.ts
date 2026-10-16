@@ -147,6 +147,16 @@ test('legacy cloud progress uses observed IDs without loading the current saved 
 });
 
 test('does not request team run summaries before a signed-in team identity exists', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('bionodulo.language', 'en');
+    localStorage.setItem('bionodulo.settings', JSON.stringify({
+      'bionodulo.getting_started.dismissed': true, 'bionodulo.getting_started.show_on_startup': false,
+    }));
+    const log = [{ run_id: 'previous-team-run', node_id: 'old-node', level: 'info',
+      message: 'PREVIOUS_TEAM_PRIVATE_LOG', timestamp: '2026-10-16T00:00:00Z' }];
+    localStorage.setItem('bionodulo.cloud.logs', JSON.stringify(log));
+    localStorage.setItem('bionodulo.cloud.logs.u-audit.team-audit', JSON.stringify(log));
+  });
   let summaryRequests = 0;
   await page.route(url => url.pathname.startsWith('/api/'), async route => {
     const url = new URL(route.request().url());
@@ -159,6 +169,50 @@ test('does not request team run summaries before a signed-in team identity exist
   await expect(page.getByRole('button', { name: /^Run workflow/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Queue: 0', exact: true })).toBeVisible();
   expect(summaryRequests).toBe(0);
+  await page.locator('nav.left-rail').getByRole('button', { name: /^Console/ }).click();
+  await expect(page.locator('.bottom-console')).not.toContainText('PREVIOUS_TEAM_PRIVATE_LOG');
+  await expect(page.locator('.bottom-console')).not.toContainText('previous-team-run');
+});
+
+test('restores only the authenticated user and team log cache across reloads', async ({ context, page }) => {
+  await context.addInitScript(() => {
+    localStorage.setItem('bionodulo.language', 'en');
+    localStorage.setItem('bionodulo.settings', JSON.stringify({
+      'bionodulo.getting_started.dismissed': true, 'bionodulo.getting_started.show_on_startup': false,
+    }));
+    const log = (message: string) => JSON.stringify([{ run_id: 'cached-run', node_id: 'cached-node', level: 'info', message, timestamp: '2026-10-16T00:00:00Z' }]);
+    localStorage.setItem('bionodulo.cloud.logs', log('UNATTRIBUTED_LEGACY_LOG'));
+    localStorage.setItem('bionodulo.cloud.logs.other-user.team-audit', log('OTHER_USER_PRIVATE_LOG'));
+    localStorage.setItem('bionodulo.cloud.logs.u-audit.team-audit', log('CURRENT_TEAM_A_LOG'));
+    localStorage.setItem('bionodulo.cloud.logs.u-audit.team-other', log('CURRENT_TEAM_B_LOG'));
+  });
+  let currentTeam = config.team;
+  await page.route(url => url.pathname.startsWith('/api/'), async route => {
+    const path = new URL(route.request().url()).pathname;
+    let body: unknown = {};
+    if (path === '/api/config') body = { ...config, team: currentTeam };
+    else if (path === '/api/me') body = { success: true, data: { ...config.user, team: currentTeam } };
+    else if (path === '/api/workflows') body = { success: true, data: [focused] };
+    else if (path === '/api/workflows/wf-focused') body = { success: true, data: focused };
+    else if (path === '/api/runs') body = { success: true, data: [] };
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  const openConsole = async () => {
+    await waitForEditor(page);
+    await page.locator('nav.left-rail').getByRole('button', { name: /^Console/ }).click();
+    await page.locator('.bottom-console').getByRole('button', { name: 'Expand All', exact: true }).click();
+  };
+  await page.goto('/');
+  await openConsole();
+  await expect(page.locator('.bottom-console')).toContainText('CURRENT_TEAM_A_LOG');
+  for (const marker of ['CURRENT_TEAM_B_LOG', 'OTHER_USER_PRIVATE_LOG', 'UNATTRIBUTED_LEGACY_LOG'])
+    await expect(page.locator('.bottom-console')).not.toContainText(marker);
+  currentTeam = { id: 'team-other', name: 'Other team' };
+  await page.reload();
+  await openConsole();
+  await expect(page.locator('.bottom-console')).toContainText('CURRENT_TEAM_B_LOG');
+  await expect(page.locator('.bottom-console')).not.toContainText('CURRENT_TEAM_A_LOG');
+  await expect(page.locator('.bottom-console')).not.toContainText('OTHER_USER_PRIVATE_LOG');
 });
 
 test('timed-out admission reconciles the server run and never submits twice when its response arrives late', async ({ context, page }) => {

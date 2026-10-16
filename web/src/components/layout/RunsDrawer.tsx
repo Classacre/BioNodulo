@@ -9,6 +9,11 @@ import Icon from '../ui/Icon';
 import { call } from '../../api/website';
 import { getMcpRuntime } from '../../mcp/runtime';
 import { safeHttpsUrl } from '../../mcp/host';
+import { cloudConfigAtom } from '../../state/appAtoms';
+import { cloudInviteSessionAtom } from '../../collab/cloudInvite';
+import { cloudPreviewSelectionAtom } from '../../state/cloudPreview';
+import { cloudLogStorageKey } from '../../hooks/cloud/useCloudLogStorage';
+import { cloudPreviewKind, withoutCloudDownloadUrl } from '../../utils/cloudPreview';
 
 type RunStatusFilter = 'all' | 'active' | 'completed' | 'error' | 'cancelled';
 type HistoryBucketId = 'today' | 'yesterday' | 'pastWeek' | 'earlier' | `month:${number}` | `year:${number}`;
@@ -239,6 +244,10 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
   locale?: string;
 }) {
   const progress = progressForRun(run);
+  const cloudConfig = useAtomValue(cloudConfigAtom);
+  const invite = useAtomValue(cloudInviteSessionAtom);
+  const openCloudPreview = useSetAtom(cloudPreviewSelectionAtom);
+  const previewScope = !invite || invite.member ? cloudLogStorageKey(cloudConfig?.user?.id, cloudConfig?.team?.id) : null;
   const canRetry = run.status === 'error' || run.status === 'cancelled' || run.status === 'completed';
   const [downloadError, setDownloadError] = useState('');
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
@@ -290,6 +299,8 @@ function HistoryRunCard({ run, onRetryRun, onLoadRunWorkflow, onDeleteHistoryEnt
               <div className="cloud-run-output" key={output.key}>
                 <span title={output.key}>{output.name}</span>
                 <span>{new Intl.NumberFormat(locale).format(output.size)} B</span>
+                {previewScope && cloudPreviewKind(output) && <button type="button" className="btn btn-sm"
+                  aria-label={`Preview ${output.name}`} onClick={() => openCloudPreview({ runId: run.run_id, output: withoutCloudDownloadUrl(output), scope: previewScope })}>Preview</button>}
                 <button type="button" className="btn btn-sm" disabled={downloadingKey !== null}
                   aria-label={`Download ${output.name}`} onClick={() => { void downloadOutput(output); }}>
                   {downloadingKey === output.key ? 'Opening…' : 'Download'}

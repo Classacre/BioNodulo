@@ -15,7 +15,7 @@ import { NODE_HEADER_H, NODE_PIN_H, toHexColor } from '../../utils/nodeLayout';
 import type { GraphNode } from './canvasModel';
 import { BioNodeActionsContext, MultiSelectContext } from './bioNodeActions';
 import NodeWidgets from './NodeWidgets';
-import NodePreview from './NodePreview';
+import NodePreview, { CloudNodePreviewMenu } from './NodePreview';
 import { isGeneratedRegistryNodeId } from '../../utils/registryNodes';
 
 export interface BioNodeData extends Record<string, unknown> {
@@ -129,6 +129,7 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
         {g.isSubgraph && <span className="bio-node-subgraph-chip">{t('canvas.subgraphChip')}</span>}
         {referenceOnly && <span className="bio-node-subgraph-chip" title={t('registry.definitionOnly', 'Execution unavailable for this generated definition')}>{t('registry.referenceChip', 'Reference only')}</span>}
         <span className="bio-node-title" title={g.title}>{g.title}</span>
+        {!g.visualOnly && <CloudNodePreviewMenu nodeId={g.id} />}
         {g.pinned && <span className="bio-node-flag" aria-hidden>📌</span>}
       </div>
 

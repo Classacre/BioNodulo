@@ -8,6 +8,7 @@ import BatchSampleSheetModal from './BatchSampleSheetModal';
 import type { SampleSheetRun } from './BatchSampleSheetModal';
 import ImageLightbox from './ImageLightbox';
 import HtmlPreviewModal from './HtmlPreviewModal';
+import CloudOutputPreviewModal from './CloudOutputPreviewModal';
 import GettingStartedModal from './GettingStartedModal';
 import {
   ShareDialog,
@@ -282,6 +283,7 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
         isOpen={htmlPreviewState !== null}
         onClose={() => setHtmlPreviewState(null)}
       />
+      <CloudOutputPreviewModal />
     </>
   );
 }

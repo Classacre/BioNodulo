@@ -241,6 +241,8 @@ export interface RunRecord {
   error?: string;
   /** Committed cloud outputs returned by the verified run-output endpoint. */
   cloud_outputs?: CloudRunOutput[];
+  /** Only IDs, types and edges captured at submission or a verified executed artifact. */
+  cloud_preview_graph?: { nodes: Pick<WorkflowNode, 'id' | 'type'>[]; edges: WorkflowEdge[] };
   /** Null marks a legacy snapshot whose plan can only be observed in logs. */
   cloud_workflow_context?: CloudRunContext | null;
   credits_used?: number;

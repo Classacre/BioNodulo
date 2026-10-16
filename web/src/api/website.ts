@@ -1,7 +1,7 @@
 // Website (cloud platform) API client — used ONLY in shared-editor mode.
 //
 // In the cloud, workflows are persisted in the website's team-scoped database
-// and runs execute on AWS Batch. The static editor SPA is served same-origin
+// and runs execute on cloud dispatch workers. The static editor SPA is served same-origin
 // with the website (cloud.bionodulo.com), so these calls go to the website
 // root API with the Clerk session cookie (credentials: 'include') — no bearer
 // token plumbing. Base is configurable for cross-origin builds.
@@ -110,6 +110,21 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<T> 
 async function websiteRequest(path: string, init: RequestInit = {}): Promise<Response> {
   const mcp = getMcpRuntime();
   return mcp ? mcp.request('website', path, init) : fetch(`${apiBase()}${path}`, websiteInit(init));
+}
+
+/** Raw bytes from the authenticated, bounded, checksum-verifying preview proxy. */
+export async function getCloudOutputPreview(runId: string, key: string, signal: AbortSignal, teamId: string): Promise<Blob> {
+  // The current MCP bridge serializes JSON/text, not binary bodies. Keep its
+  // existing Download flow instead of silently corrupting image bytes.
+  if (getMcpRuntime()) throw new Error('Preview is available in the cloud website. Download this output to view it here.');
+  const response = await websiteRequest(`/runs/${encodeURIComponent(runId)}/outputs/preview?key=${encodeURIComponent(key)}`, { signal, headers: { 'x-team-id': teamId } });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(error?.error || `Preview unavailable (${response.status}). Download the output instead.`);
+  }
+  const content = await response.blob();
+  if (content.size > 2 * 1024 * 1024) throw new Error('This output is too large to preview. Download it instead.');
+  return content;
 }
 
 export interface CloudWorkflowSummary {
