@@ -18,7 +18,8 @@
 // one absolutely-positioned container, bottom-centre, animating width,
 // max-height and opacity with a snappy spring-ish curve.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Workflow } from '../../types';
@@ -86,6 +87,8 @@ export const EMPTY_DOI_TELEMETRY: DoiTelemetry = {
 };
 
 interface DynamicIslandProps {
+  /** Move only rendered markup; keep the island's state owner stable in App. */
+  portalTarget?: HTMLElement | null;
   workflow: Workflow;
   /** Hidden when focus mode is on; the workflow tabs row already shows the name. */
   hidden?: boolean;
@@ -177,7 +180,7 @@ function toneColor(tone: NotificationRecord['tone']): string {
   }
 }
 
-export default function DynamicIsland({ workflow, hidden, systemStats = true, doi }: DynamicIslandProps) {
+export default function DynamicIsland({ workflow, hidden, systemStats = true, doi, portalTarget }: DynamicIslandProps) {
   const { t, i18n } = useTranslation();
   const stats = useMemo(() => summarise(workflow, t, t('workflowStats.categoryFallback')), [workflow, t]);
 
@@ -311,7 +314,7 @@ export default function DynamicIsland({ workflow, hidden, systemStats = true, do
   useEffect(() => {
     const el = thinkingRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [doi?.thinking, mode]);
+  }, [doi?.thinking, mode, portalTarget]);
 
   if (hidden) return null;
 
@@ -328,13 +331,14 @@ export default function DynamicIsland({ workflow, hidden, systemStats = true, do
 
   const lastLine = doi && doi.lines.length > 0 ? doi.lines[doi.lines.length - 1] : '';
   const latestNotification = notifications.length > 0 ? notifications[notifications.length - 1] : null;
+  const renderIsland = (content: ReactNode) => portalTarget ? createPortal(content, portalTarget) : content;
 
   // --- min / peek share the pill chrome; full is the panel ------------------
   if (mode !== 'full') {
     const sysSummary = sys
       ? ` · ${sys.cpu_percent.toFixed(0)}% ${t('workflowStats.cpuLabel')} · ${sys.ram_percent.toFixed(0)}% ${t('workflowStats.ramLabel')}`
       : '';
-    return (
+    return renderIsland(
       <div className={`island island-${mode}`} role="status" aria-live="polite">
         <button
           type="button"
@@ -382,7 +386,7 @@ export default function DynamicIsland({ workflow, hidden, systemStats = true, do
     );
   }
 
-  return (
+  return renderIsland(
     <div className="island island-full" role="status" aria-live="polite" style={{ opacity: systemErrored && !sys ? 0.85 : 1 }}>
       <button
         type="button"

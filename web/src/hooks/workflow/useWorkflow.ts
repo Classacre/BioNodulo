@@ -319,9 +319,9 @@ export function useWorkflow() {
   const cloudCreatedIds = useRef(new Map<string, string>());
   const cloudClosedDraftIds = useRef(new Set<string>());
   const [cloudSaveStates, setCloudSaveStates] = useState<Record<string, CloudSaveState>>({});
-  // Server ids of workflows created this session, mapped to the exact payload
-  // that was written at creation time. While the current state still matches
-  // that snapshot there is nothing to PUT.
+  // Exact confirmed server payload, initially from loading/creating the row.
+  // Advance it after every successful PUT so an Undo to an older initial
+  // snapshot is dirty after another revision has been saved.
   const cloudPristineRef = useRef(new Map<string, string>());
 
   // Local persistence (skipped in cloud editor mode).
@@ -650,6 +650,7 @@ export function useWorkflow() {
           if (!writeContext) throw new Error('Cloud write identity unavailable');
           await saveCloudWorkflow(wf, writeContext);
           if (!isCurrentCloudGeneration(generationAtSchedule, scopeAtSchedule)) return;
+          cloudPristineRef.current.set(id, key);
           cloudSavedKeys.current.set(id, key);
           if (cloudLatestKeys.current.get(id) === key) {
             setCloudSaveStates(prev => {

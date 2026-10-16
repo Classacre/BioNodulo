@@ -40,6 +40,7 @@ function runStatusLabel(t: TFunction, status: RunRecord['status'] | 'failed'): s
 type ConsoleTab = 'logs' | 'previews' | 'report';
 
 interface BottomConsoleProps {
+  statusSlotRef?: (element: HTMLDivElement | null) => void;
   onHeightChange?: (height: number) => void;
   onChromeHeightChange?: (height: number) => void;
   queue: RunRecord[];
@@ -351,6 +352,7 @@ export default function BottomConsole({
   nodeIdToName,
   editorMode = false,
   onHeightChange,
+  statusSlotRef,
   onChromeHeightChange,
 }: BottomConsoleProps) {
   const { t } = useTranslation();
@@ -605,6 +607,7 @@ export default function BottomConsole({
           <Icon name="close" size={14} />
         </button>
       </div>
+      <div className="console-status-slot" ref={statusSlotRef} />
       <div className="console-body" ref={logsBodyRef} onScroll={handleScroll}>
         {tab === 'logs' && (
           hostLogs.length === 0 && solverLogs.length === 0

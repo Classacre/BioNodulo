@@ -2080,9 +2080,21 @@ input[type="range"]::-moz-range-thumb {
 }
 .console-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--border); flex: 0 1 auto; min-height: 0; max-height: 100%; overflow: auto; }
 .console-tabs > * { flex-shrink: 0; }
+.console-status-slot {
+  flex: 0 1 auto; min-height: 0; max-height: min(40%, 180px);
+  overflow: auto; overflow-wrap: anywhere; padding: 0 8px;
+}
+.console-status-slot:empty { display: none; }
+.console-status-slot > .island {
+  position: relative; left: auto; bottom: auto; transform: none;
+  width: 100%; max-width: 100%; max-height: none;
+  overflow: visible; animation: none;
+}
+.console-status-slot > .island > .island-peek { animation: none; }
+.console-status-slot .island-pill { justify-content: center; white-space: normal; }
 .console-tab { padding: 8px 14px; border: none; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; border-bottom: 2px solid transparent; }
 .console-tab.active { color: var(--accent-dark); border-bottom-color: var(--accent); }
-.console-body { flex: 1; min-height: 0; min-width: 0; overflow-y: auto; padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; }
+.console-body { flex: 1; min-height: min(48px, 25%); min-width: 0; overflow-y: auto; padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; }
 .console-log-line { margin-bottom: 2px; }
 .console-log-line.error { color: #dc2626; }
 .console-log-line.warn { color: #f59e0b; }

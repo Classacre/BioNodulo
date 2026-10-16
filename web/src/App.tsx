@@ -1477,6 +1477,7 @@ export default function App() {
 
   const consoleVisible = useAtomValue(consoleVisibleAtom);
   const [measuredConsoleHeight, setMeasuredConsoleHeight] = useState(280);
+  const [consoleStatusTarget, setConsoleStatusTarget] = useState<HTMLDivElement | null>(null);
   const [measuredConsoleChromeHeight, setMeasuredConsoleChromeHeight] = useState(0);
   const setConsoleVisible = useSetAtom(consoleVisibleAtom);
   const [runsDrawerOpen, setRunsDrawerOpen] = useState(false);
@@ -4193,6 +4194,7 @@ export default function App() {
             commit, and the e2e suite did not run in CI, so nothing reported
             the loss. */}
         <DynamicIsland
+          portalTarget={consoleOpen ? consoleStatusTarget : null}
           workflow={activeWorkflow}
           hidden={focusMode}
           systemStats={hostFeaturesEnabled}
@@ -4309,6 +4311,7 @@ export default function App() {
               nodeIdToName={nodeIdToNameMap}
               editorMode={editorMode}
               onHeightChange={setMeasuredConsoleHeight}
+              statusSlotRef={setConsoleStatusTarget}
               onChromeHeightChange={setMeasuredConsoleChromeHeight}
             />
           </ErrorBoundary>
