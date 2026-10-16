@@ -60,6 +60,26 @@ describe('BottomConsole i18n', () => {
     vi.unstubAllGlobals();
   });
 
+  it('persists the final drag height across mouse-up and remount in both directions', async () => {
+    const { setLanguage } = await import('../i18n'); await setLanguage('en');
+    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    storage.set('bionodulo.console.height', '280');
+    const mount = () => render(<Provider><BottomConsole queue={[]} history={[]} editorMode onClose={() => undefined} /></Provider>);
+    let view = mount();
+    expect(screen.getByRole('region', { name: 'Console' })).toHaveStyle({ height: '280px' });
+    fireEvent.mouseDown(screen.getByTitle('Drag to resize'), { clientY: 400 });
+    fireEvent.mouseMove(window, { clientY: 320 });
+    expect(screen.getByRole('region', { name: 'Console' })).toHaveStyle({ height: '360px' });
+    fireEvent.mouseUp(window); view.unmount(); view = mount();
+    expect(screen.getByRole('region', { name: 'Console' })).toHaveStyle({ height: '360px' });
+    fireEvent.mouseDown(screen.getByTitle('Drag to resize'), { clientY: 400 });
+    fireEvent.mouseMove(window, { clientY: 480 });
+    expect(screen.getByRole('region', { name: 'Console' })).toHaveStyle({ height: '280px' });
+    fireEvent.mouseUp(window); view.unmount(); view = mount();
+    expect(screen.getByRole('region', { name: 'Console' })).toHaveStyle({ height: '280px' });
+    view.unmount();
+  });
+
   it('reports actual resized, canvas-capped and focus-hidden console height without losing the requested height', async () => {
     const { setLanguage } = await import('../i18n'); await setLanguage('en');
     const { default: BottomConsole } = await import('../components/layout/BottomConsole');

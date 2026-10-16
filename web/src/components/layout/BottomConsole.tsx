@@ -414,14 +414,12 @@ export default function BottomConsole({
       resizeDragging.current = false;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      // Persist so the height survives tab switches.
-      try { localStorage.setItem(CONSOLE_HEIGHT_KEY, String(resizeStartH.current)); } catch { /* ignore */ }
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [consoleHeight]);
 
-  // Persist height whenever it changes (debounced via ref approach above).
+  // Persist the latest height; mouse-up must not overwrite it with the drag's starting height.
   useEffect(() => {
     try { localStorage.setItem(CONSOLE_HEIGHT_KEY, String(consoleHeight)); } catch { /* ignore */ }
   }, [consoleHeight]);
