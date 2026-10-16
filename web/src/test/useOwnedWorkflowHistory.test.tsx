@@ -50,6 +50,30 @@ describe('workflow history ownership', () => {
     expect(apply).toHaveBeenCalledTimes(1);
   });
 
+  it('snapshots parameter-only edits, deduplicates equal values, and restores them through undo and redo', () => {
+    const initial = graph('doc-a', 'unchanged nodes');
+    initial.parameters = [{ name: 'threshold', type: 'number', default: 1 }];
+    const { result, rerender, apply, viewport, props } = setup(initial);
+    const edited = { ...initial, parameters: [{ name: 'threshold', type: 'number', default: 2 }] };
+    act(() => { result.current.queuePatch({ parameters: edited.parameters }); });
+    rerender({ ...props, workflow: edited });
+    act(() => vi.advanceTimersByTime(350));
+
+    const duplicate = { ...edited, parameters: edited.parameters.map(value => ({ ...value })) };
+    act(() => { result.current.queuePatch({ parameters: duplicate.parameters }); });
+    rerender({ ...props, workflow: duplicate });
+    act(() => vi.advanceTimersByTime(350));
+    act(() => result.current.undo());
+    expect(apply).toHaveBeenLastCalledWith(expect.objectContaining({
+      parameters: initial.parameters, nodes: initial.nodes, viewport,
+    }));
+    rerender({ ...props, workflow: { ...duplicate, ...apply.mock.lastCall![0] } });
+    act(() => result.current.undo());
+    expect(apply).toHaveBeenCalledTimes(1);
+    act(() => result.current.redo());
+    expect(apply).toHaveBeenLastCalledWith(expect.objectContaining({ parameters: edited.parameters }));
+  });
+
   it('rejects old pending timers, undo, redo and node/edge callbacks after a same-index document replacement', () => {
     const { result, rerender, apply, props } = setup();
     const old = result.current;

@@ -35,9 +35,11 @@ describe('App queue and history API validation', () => {
   it('cancels cloud runs through the website while preserving local queue cancellation', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
-    expect(appSource).toContain(
-      "import { cancelCloudRun, getCloudRun, getCloudCredits, type CloudRunInputs } from './api/website';",
-    );
+    const websiteImports = appSource.match(/import\s+\{([^}]+)\}\s+from\s+['"]\.\/api\/website['"]/)?.[1]
+      .split(',').map(value => value.trim().replace(/^type\s+/, ''));
+    expect(websiteImports).toEqual(expect.arrayContaining([
+      'cancelCloudRun', 'getCloudRun', 'getCloudCredits', 'CloudRunInputs',
+    ]));
     expect(appSource).toContain('if (run.options?.cloud === true)');
     expect(appSource).toContain('await cancelCloudRun(run.run_id);');
     expect(appSource).toContain(

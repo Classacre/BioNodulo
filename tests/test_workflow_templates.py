@@ -264,7 +264,7 @@ def test_variant_calling_template_prioritizes_annotated_variants() -> None:
     assert node_types["gate_prioritized_vcf_001"] == "gate"
     prioritizer = next(node for node in workflow["nodes"] if node["id"] == "prioritize_vcf_001")
     gate = next(node for node in workflow["nodes"] if node["id"] == "gate_prioritized_vcf_001")
-    assert prioritizer["params"]["custom_filter"] == "INFO/ANN ~ 'HIGH|MODERATE'"
+    assert prioritizer["params"]["custom_filter"] == "INFO/ANN ~ 'HIGH' || INFO/ANN ~ 'MODERATE'"
     assert prioritizer["params"]["pass_only"] is True
     assert "output_type" not in prioritizer["params"]
     assert gate["params"]["condition_mode"] == "file_exists"
@@ -387,7 +387,7 @@ def test_wgs_variant_template_prioritizes_annotated_variants() -> None:
     assert node_types["gate_prioritized_vcf_001"] == "gate"
     prioritizer = next(node for node in workflow["nodes"] if node["id"] == "prioritize_vcf_001")
     gate = next(node for node in workflow["nodes"] if node["id"] == "gate_prioritized_vcf_001")
-    assert prioritizer["params"]["custom_filter"] == "INFO/ANN ~ 'HIGH|MODERATE'"
+    assert prioritizer["params"]["custom_filter"] == "INFO/ANN ~ 'HIGH' || INFO/ANN ~ 'MODERATE'"
     assert prioritizer["params"]["pass_only"] is True
     assert "output_type" not in prioritizer["params"]
     assert gate["params"]["condition_mode"] == "file_exists"

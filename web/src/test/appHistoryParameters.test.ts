@@ -18,7 +18,7 @@ const localStorageStub: Storage = {
   },
 };
 
-describe('App inline history workflow parameters', () => {
+describe('App history workflow parameters', () => {
   beforeEach(() => {
     storage.clear();
     vi.stubGlobal('localStorage', localStorageStub);
@@ -31,14 +31,13 @@ describe('App inline history workflow parameters', () => {
     vi.unstubAllGlobals();
   });
 
-  it('tracks workflow parameters in snapshots, dedup signatures, and undo/redo restore', () => {
+  it('wires parameter restoration through the owner-scoped history hook', () => {
     const appSource = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
 
-    expect(appSource).toContain("parameters: Workflow['parameters']");
-    expect(appSource).toContain('workflow.parameters ?? []');
-    expect(appSource).toContain('parameters: wf.parameters');
-    expect(appSource).toContain('activeWorkflow.parameters');
-    expect(appSource.match(/parameters: state\.parameters/g)).toHaveLength(2);
+    expect(appSource).toContain('useOwnedWorkflowHistory({');
+    expect(appSource).toContain('owner: browserStorageOwnership,');
+    expect(appSource).toContain('workflow: activeWorkflow,');
+    expect(appSource).toContain('parameters: state.parameters');
   });
 
   it('prompts for workflow parameter overrides before submitting runs', () => {

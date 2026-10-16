@@ -13,7 +13,12 @@ describe('App template loading', () => {
     const handler = appSource.slice(start, end);
     expect(handler).toContain('setWorkflow(activeIndex, () => sharedWorkflow);');
     expect(handler).not.toContain('updateWorkflow(activeIndex, sharedWorkflow);');
-    expect(handler).toContain('setWorkflow, t]);');
+    const dependencies = handler.match(/\},\s*\[([^\]]*)\]\);\s*$/)?.[1]
+      .split(',').map(value => value.trim());
+    expect(dependencies).toEqual(expect.arrayContaining([
+      'setWorkflow', 't', 'browserStorageScope', 'browserStorageOwnership',
+    ]));
+    expect(handler).toContain('browserStorageScopeRef.current !== browserStorageOwnership');
   });
 
   it('stages template artifacts before the shared-editor Run submission', () => {
