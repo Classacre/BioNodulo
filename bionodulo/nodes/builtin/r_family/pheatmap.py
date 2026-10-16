@@ -19,20 +19,35 @@ from .adapter import (
 PHEATMAP_VERSION = "1.0.13"
 PHEATMAP_COMMIT = "ffd0f8c4b5a3dc2628a3dfd9b5fd4321c2aa1569"
 
-# Native pheatmap places legend headings using the height of "FGH". That
-# underestimates some device/font combinations. Pad the returned grobs rather
-# than changing the package namespace, matrix, labels, colors or clustering.
+# Native pheatmap emits a heading followed by its rectangle/text legend block.
+# Measure those grobs on the output device; font-code predicates and a fixed
+# offset are unreliable across devices. Preserve every non-position property.
 _ANNOTATION_LEGEND_PADDING_R = """\
 pad_annotation_legend <- function(legend, annotation_names, fontsize) {
-    offset <- grid::unit(0, "bigpts")
-    padding <- grid::unit(fontsize * 0.8, "bigpts")
-    for (index in seq_along(legend$children)) {
+    indices <- seq_along(legend$children)
+    headings <- vapply(indices, function(index) {
         child <- legend$children[[index]]
-        is_heading <- inherits(child, "text") && length(child$label) == 1L &&
-            child$label %in% annotation_names && isTRUE(as.integer(child$gp$font) == 2L)
+        inherits(child, "text") && length(child$label) == 1L &&
+            child$label %in% annotation_names && index < length(legend$children) &&
+            inherits(legend$children[[index + 1L]], "rect")
+    }, logical(1))
+    offset <- grid::unit(0, "bigpts")
+    gap <- fontsize * 0.25
+    for (index in indices) {
+        child <- legend$children[[index]]
         child$y <- child$y - offset
         legend$children[[index]] <- child
-        if (is_heading) offset <- offset + padding
+        if (headings[index]) {
+            following <- indices[headings & indices > index]
+            last <- if (length(following)) following[1] - 1L else length(indices)
+            body_top <- max(vapply(seq.int(index + 1L, last), function(body_index) {
+                body <- legend$children[[body_index]]
+                body$y <- body$y - offset
+                grid::convertY(grid::grobY(body, 90), "bigpts", valueOnly = TRUE)
+            }, numeric(1)))
+            heading_bottom <- grid::convertY(grid::grobY(child, 270), "bigpts", valueOnly = TRUE)
+            offset <- offset + grid::unit(max(0, body_top + gap - heading_bottom), "bigpts")
+        }
     }
     legend
 }
@@ -53,7 +68,7 @@ class PheatmapNode(PreparedRScriptNode):
     REQUIRED_CONDA_PACKAGES = ["r-base", "r-pheatmap"]
     CONDA_PACKAGE_CONSTRAINTS = {"r-base": R_VERSION, "r-pheatmap": PHEATMAP_VERSION}
     VERSION = PHEATMAP_VERSION
-    CACHE_VERSION = "1.0.13-render2"
+    CACHE_VERSION = "1.0.13-render3"
     GIT_URL = "https://github.com/raivokolde/pheatmap.git"
     GIT_COMMIT = PHEATMAP_COMMIT
     DOCUMENTATION_URL = "https://cran.r-project.org/package=pheatmap"
@@ -171,11 +186,6 @@ class PheatmapNode(PreparedRScriptNode):
             {_ANNOTATION_LEGEND_PADDING_R}
             legend_index <- which(heatmap$gtable$layout$name == "annotation_legend")
             if (length(legend_index) == 1L) {{
-                heatmap$gtable$grobs[[legend_index]] <- pad_annotation_legend(
-                    heatmap$gtable$grobs[[legend_index]],
-                    colnames(annotation_data),
-                    {int(inputs.get('fontsize', 10))}
-                )
                 # Reuse the computed gtable; do not cluster the matrix again.
                 grDevices::png(
                     filename = {r_string(outputs[0])},
@@ -184,6 +194,11 @@ class PheatmapNode(PreparedRScriptNode):
                     units = "in", res = 300
                 )
                 tryCatch({{
+                    heatmap$gtable$grobs[[legend_index]] <- pad_annotation_legend(
+                        heatmap$gtable$grobs[[legend_index]],
+                        colnames(annotation_data),
+                        {int(inputs.get('fontsize', 10))}
+                    )
                     grid::grid.newpage()
                     grid::grid.draw(heatmap$gtable)
                 }}, finally = grDevices::dev.off())

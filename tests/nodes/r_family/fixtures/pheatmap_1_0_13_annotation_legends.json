@@ -1,0 +1,174 @@
+{
+  "description": "Native-produced base-R grid grob DATA, not upstream executable source.",
+  "source": {
+    "package": "pheatmap",
+    "version": "1.0.13",
+    "commit": "ffd0f8c4b5a3dc2628a3dfd9b5fd4321c2aa1569",
+    "upstream_source_url": "https://github.com/raivokolde/pheatmap/blob/ffd0f8c4b5a3dc2628a3dfd9b5fd4321c2aa1569/R/pheatmap.r",
+    "upstream_description_url": "https://raw.githubusercontent.com/raivokolde/pheatmap/ffd0f8c4b5a3dc2628a3dfd9b5fd4321c2aa1569/DESCRIPTION",
+    "upstream_declared_license": "GPL-2; no upstream function source is vendored in this fixture",
+    "source_file_sha256": "1faa43a308fadb2215129247724ff028547b7a504535174a4a9687610c267960",
+    "legend_builder_text_sha256": "567c782f1810eab2929f5fb17bd030409be150197cd2c06961d421953435d81e"
+  },
+  "fixture": {
+    "filename": "pheatmap_1_0_13_annotation_legends.rds",
+    "sha256": "a2ee2bbd34979af30e43189be1631f9137aefa330142f9717cdd164c3b25bc95",
+    "rds_format_version": 2,
+    "r_version": "4.5.1",
+    "device": "base-R png 900x700px at100dpi",
+    "executable_source_functions_closures_language_objects_environments": "none; recursively inspected after unclassing S3 list wrappers",
+    "variants": [
+      "categorical",
+      "numeric"
+    ],
+    "heading_names": [
+      "geo_id",
+      "celltype",
+      "condition"
+    ],
+    "fontsize": 10,
+    "semantic_children": [
+      {
+        "variant": "categorical",
+        "index": "1",
+        "type": "text",
+        "labels": "geo_id",
+        "font": "2"
+      },
+      {
+        "variant": "categorical",
+        "index": "2",
+        "type": "rect",
+        "labels": "",
+        "font": ""
+      },
+      {
+        "variant": "categorical",
+        "index": "3",
+        "type": "text",
+        "labels": "GSM1|GSM2|GSM3|GSM4|GSM5|GSM6|GSM7|GSM8",
+        "font": ""
+      },
+      {
+        "variant": "categorical",
+        "index": "4",
+        "type": "text",
+        "labels": "celltype",
+        "font": "2"
+      },
+      {
+        "variant": "categorical",
+        "index": "5",
+        "type": "rect",
+        "labels": "",
+        "font": ""
+      },
+      {
+        "variant": "categorical",
+        "index": "6",
+        "type": "text",
+        "labels": "N052611|N061011|N080611|N61311",
+        "font": ""
+      },
+      {
+        "variant": "categorical",
+        "index": "7",
+        "type": "text",
+        "labels": "condition",
+        "font": "2"
+      },
+      {
+        "variant": "categorical",
+        "index": "8",
+        "type": "rect",
+        "labels": "",
+        "font": ""
+      },
+      {
+        "variant": "categorical",
+        "index": "9",
+        "type": "text",
+        "labels": "control|treated",
+        "font": ""
+      },
+      {
+        "variant": "numeric",
+        "index": "1",
+        "type": "text",
+        "labels": "geo_id",
+        "font": "2"
+      },
+      {
+        "variant": "numeric",
+        "index": "2",
+        "type": "rect",
+        "labels": "",
+        "font": ""
+      },
+      {
+        "variant": "numeric",
+        "index": "3",
+        "type": "text",
+        "labels": "GSM1|GSM2|GSM3|GSM4|GSM5|GSM6|GSM7|GSM8",
+        "font": ""
+      },
+      {
+        "variant": "numeric",
+        "index": "4",
+        "type": "text",
+        "labels": "celltype",
+        "font": "2"
+      },
+      {
+        "variant": "numeric",
+        "index": "5",
+        "type": "rect",
+        "labels": "",
+        "font": ""
+      },
+      {
+        "variant": "numeric",
+        "index": "6",
+        "type": "rect",
+        "labels": "",
+        "font": ""
+      },
+      {
+        "variant": "numeric",
+        "index": "7",
+        "type": "text",
+        "labels": "8|1",
+        "font": ""
+      },
+      {
+        "variant": "numeric",
+        "index": "8",
+        "type": "text",
+        "labels": "condition",
+        "font": "2"
+      },
+      {
+        "variant": "numeric",
+        "index": "9",
+        "type": "rect",
+        "labels": "",
+        "font": ""
+      },
+      {
+        "variant": "numeric",
+        "index": "10",
+        "type": "text",
+        "labels": "control|treated",
+        "font": ""
+      }
+    ]
+  },
+  "reproduction": [
+    "Load grid and exact pinned pheatmap source.",
+    "Create 8-row annotation data: geo_id GSM1..GSM8, celltype N052611/N061011/N080611/N61311 repeated twice, condition control/treated repeated4times.",
+    "Use named rainbow(8) and rainbow(4) categorical colors; condition colors #ff80ca and #ff9080.",
+    "Call native draw_annotation_legend(annotation,colors,NA,fontsize=10) on the stated PNG device; save as categorical.",
+    "Set celltype=1..8 and its gradient colors #ffffff/#222222, call the same native builder and save as numeric.",
+    "Recursively reject function/language/expression/environment objects; saveRDS(list(categorical=...,numeric=...),version=2,compress=xz)."
+  ]
+}

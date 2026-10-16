@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-from bionodulo.nodes.builtin.r_family.pheatmap import _ANNOTATION_LEGEND_PADDING_R
+from bionodulo.nodes.builtin.r_family.pheatmap import PheatmapNode, _ANNOTATION_LEGEND_PADDING_R
 
 
 def _existing_rscript() -> str | None:
@@ -76,3 +76,72 @@ dev.off()
     result = subprocess.run([rscript, "--vanilla", str(script)], capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr[-2000:]
     assert Path(output).stat().st_size > 0
+
+
+@pytest.mark.parametrize("font_metadata", ["native", "missing", "expanded"])
+@pytest.mark.parametrize("celltype", ["categorical", "numeric"])
+def test_native_three_annotation_legends_have_measured_clearance(
+    tmp_path: Path, font_metadata: str, celltype: str,
+) -> None:
+    """Use the pinned native builder, including the final condition block."""
+    rscript = _existing_rscript()
+    if rscript is None:
+        pytest.skip("An existing Rscript runtime is required for the native grid regression")
+    fixture = Path(__file__).with_name("fixtures") / "pheatmap_1_0_13_annotation_legends.rds"
+    script = tmp_path / "native-legend.R"
+    output = (tmp_path / "native-legend.png").as_posix()
+    script.write_text(
+        'library(grid)\n' + _ANNOTATION_LEGEND_PADDING_R + f'''
+png("{output}", width = 900, height = 700, res = 100)
+annotation_names <- c("geo_id", "celltype", "condition")
+original <- readRDS("{fixture.as_posix()}")[["{celltype}"]]
+heading_indices <- which(vapply(original$children,
+    function(child) inherits(child, "text") && length(child$label) == 1L &&
+        child$label %in% annotation_names, logical(1)))
+stopifnot(length(heading_indices) == 3L,
+    original$children[[heading_indices[3]]]$label == "condition")
+# A header is a native label/block boundary, not a particular font code.
+# This variation must remain valid even if device/font metadata is absent.
+if ("{font_metadata}" == "missing") {{
+    original$children[[heading_indices[3]]]$gp[["font"]] <- NULL
+}}
+if ("{font_metadata}" == "expanded") {{
+    original$children[[heading_indices[3]]]$gp$fontsize <- 24
+}}
+padded <- pad_annotation_legend(original, annotation_names, 10)
+without_y <- function(grob) {{ grob$y <- NULL; grob }}
+stopifnot(identical(lapply(original$children, without_y), lapply(padded$children, without_y)),
+    identical(original$childrenOrder, padded$childrenOrder))
+for (i in seq_along(heading_indices)) {{
+    index <- heading_indices[i]
+    last <- if (i < length(heading_indices)) heading_indices[i + 1L] - 1L else length(padded$children)
+    top <- max(vapply(seq.int(index + 1L, last), function(j)
+        convertY(grobY(padded$children[[j]], 90), "bigpts", valueOnly = TRUE), numeric(1)))
+    bottom <- convertY(grobY(padded$children[[index]], 270), "bigpts", valueOnly = TRUE)
+    stopifnot(bottom - top >= 2.5 - 1e-7)
+}}
+again <- pad_annotation_legend(padded, annotation_names, 10)
+for (i in seq_along(padded$children)) {{
+    child <- padded$children[[i]]
+    stopifnot(convertY(grobY(child, 270), "npc", valueOnly = TRUE) >= 0,
+        convertY(grobY(child, 90), "npc", valueOnly = TRUE) <= 1,
+        max(abs(convertY(child$y, "bigpts", valueOnly = TRUE) -
+            convertY(again$children[[i]]$y, "bigpts", valueOnly = TRUE))) < 1e-7)
+}}
+grid.draw(padded)
+dev.off()
+''', encoding="utf-8",
+    )
+    result = subprocess.run([rscript, "--vanilla", str(script)], capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert Path(output).stat().st_size > 0
+
+
+def test_legend_measurement_uses_output_device_and_invalidates_older_render_cache(tmp_path: Path) -> None:
+    script = PheatmapNode.build_script({"data_csv": "matrix.csv", "annotation_csv": "annotation.csv"},
+                                     [tmp_path / "heatmap.png"])
+    assert script.index("grDevices::png(") < script.index("heatmap$gtable$grobs[[legend_index]] <- pad_annotation_legend(")
+    assert script.count("heatmap <- pheatmap::pheatmap(") == 1
+    assert 'cluster_rows = TRUE' in script and 'cluster_cols = TRUE' in script
+    assert PheatmapNode.VERSION == "1.0.13"
+    assert PheatmapNode.CACHE_VERSION == "1.0.13-render3"
