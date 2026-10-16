@@ -93,6 +93,16 @@ export function useOwnedWorkflowHistory({ owner, documentId, workflow, getViewpo
     session.index = session.snapshots.length - 1;
   }, [isCurrent, session]);
 
+  const commitPatch = useCallback((patch: Partial<Pick<Workflow, 'nodes' | 'edges' | 'groups' | 'parameters'>>): boolean => {
+    if (!isCurrent()) return false;
+    // A discrete action must not merge into an earlier, still-debounced edit.
+    pushHistory();
+    if (!queuePatch(patch)) return false;
+    pushHistory();
+    latest.current.apply(session.snapshots[session.index]);
+    return true;
+  }, [isCurrent, pushHistory, queuePatch, session]);
+
   const move = useCallback((direction: -1 | 1) => {
     if (!isCurrent()) return;
     // Undo immediately after an edit must work before the 350 ms debounce.
@@ -125,5 +135,5 @@ export function useOwnedWorkflowHistory({ owner, documentId, workflow, getViewpo
     };
   }, [session, pushHistory]);
 
-  return { queuePatch, pushHistory, undo, redo, isCurrent };
+  return { queuePatch, pushHistory, commitPatch, undo, redo, isCurrent };
 }

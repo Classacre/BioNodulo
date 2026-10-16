@@ -70,6 +70,7 @@ import { useHPC } from './hooks/useHPC';
 import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages } from './hooks/workflow';
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
 import { useOwnedWorkflowHistory, useOwnershipEpoch } from './hooks/workflow/useOwnedWorkflowHistory';
+import { useInsertWorkflowSnippet } from './hooks/workflow/useInsertWorkflowSnippet';
 import { useAuth, useCollabPolling, useDeepLinkJoin } from './hooks/collab';
 import { useCollabRoomTarget } from './hooks/collab/useCollabRoomTarget';
 import { useCloudConfig, useClerkAuth } from './hooks/cloud';
@@ -1454,11 +1455,12 @@ export default function App() {
 
   // History and pending edits are invalidated before an owner/document can paint.
   const canvasRef = useRef<WorkflowCanvasRef>(null);
-  const { queuePatch: queueHistoryPatch, pushHistory, undo, redo } = useOwnedWorkflowHistory({
+  const getHistoryViewport = useCallback(() => canvasRef.current?.getViewport(), []);
+  const { queuePatch: queueHistoryPatch, pushHistory, commitPatch: commitHistoryPatch, isCurrent: isCurrentHistory, undo, redo } = useOwnedWorkflowHistory({
     owner: browserStorageOwnership,
     documentId: activeWorkflowId,
     workflow: activeWorkflow,
-    getViewport: () => canvasRef.current?.getViewport?.(),
+    getViewport: getHistoryViewport,
     apply: (state) => {
       if (bridgeRef.current) {
         bridgeRef.current.onNodesChanged(state.nodes);
@@ -2154,7 +2156,9 @@ export default function App() {
           if (context.run_id) setHostRun({ id: context.run_id, workflowId: context.workflow_id });
           return;
         }
-        if (context.workflow_id) await openCloudWorkflow(context.workflow_id);
+        if (context.workflow_id && !await openCloudWorkflow(context.workflow_id)) {
+          throw new Error('The requested workflow could not be opened.');
+        }
         if (context.run_id) setHostRun({ id: context.run_id, workflowId: context.workflow_id });
       })().catch(error => toast.error('Could not open the host request', { message: error instanceof Error ? error.message : String(error) }));
     });
@@ -2176,7 +2180,10 @@ export default function App() {
       if (!snapshot) { monitoredHostRuns.current.delete(hostRun.id); toast.error('Could not load cloud run'); return; }
       if (snapshot.workflowId && snapshot.workflowId !== activeWorkflow.id) {
         monitoredHostRuns.current.delete(hostRun.id);
-        void openCloudWorkflow(snapshot.workflowId).then(() => setHostRun({ id: hostRun.id, workflowId: snapshot.workflowId! }))
+        void openCloudWorkflow(snapshot.workflowId).then(opened => {
+          if (!opened) throw new Error('The requested workflow could not be opened.');
+          setHostRun({ id: hostRun.id, workflowId: snapshot.workflowId! });
+        })
           .catch(error => toast.error('Could not open the run workflow', { message: String(error) }));
         return;
       }
@@ -2696,40 +2703,13 @@ export default function App() {
     toast.success(t('snippets.savedTitle'), { message: t('snippets.savedMessage', { count: snippetNodes.length }) });
   }, [activeWorkflow, t, browserStorageScope, browserStorageOwnership]);
 
-  const handleInsertSnippet = useCallback(async () => {
-    if (browserStorageScope.mode === 'blocked') return;
-    const { listWorkflowSnippets, instantiateSnippet } = await import('./state/workflowSnippets');
-    if (browserStorageScopeRef.current !== browserStorageOwnership) return;
-    const snippets = listWorkflowSnippets(browserStorageScope);
-    if (snippets.length === 0) {
-      toast.info(t('snippets.emptyLibrary'));
-      return;
-    }
-    // Quick "pick one" via prompt — full chooser modal is a future polish item.
-    const labels = snippets.map((s, i) => `${i + 1}. ${s.name} (${s.nodes.length}n)`).join('\n');
-    const choice = await promptDialog({
-      title: t('snippets.insertPromptTitle'),
-      message: t('snippets.insertPromptMessage', { labels }),
-      inputLabel: t('snippets.insertPromptInputLabel'),
-      defaultValue: '1',
-    });
-    if (!choice || browserStorageScopeRef.current !== browserStorageOwnership) return;
-    const index = Math.max(1, Math.min(snippets.length, parseInt(choice, 10))) - 1;
-    if (Number.isNaN(index)) return;
-    const snippet = snippets[index];
-    const vp = canvasRef.current?.getViewport();
-    const centreWorld = vp
-      ? { x: (-vp.x + window.innerWidth / 2) / vp.scale, y: (-vp.y + window.innerHeight / 2) / vp.scale }
-      : { x: 100, y: 100 };
-    const { nodes: newNodes, edges: newEdges } = instantiateSnippet(snippet, centreWorld);
-    const next: Workflow = {
-      ...activeWorkflow,
-      nodes: [...activeWorkflow.nodes, ...newNodes],
-      edges: [...activeWorkflow.edges, ...newEdges],
-    };
-    updateWorkflow(activeIndex, next);
-    toast.success(t('snippets.insertedTitle'), { message: `${snippet.name}` });
-  }, [activeWorkflow, activeIndex, t, updateWorkflow, browserStorageScope, browserStorageOwnership]);
+  const handleInsertSnippet = useInsertWorkflowSnippet({
+    storageScope: browserStorageScope,
+    workflow: activeWorkflow,
+    isCurrent: isCurrentHistory,
+    commitPatch: commitHistoryPatch,
+    getViewport: getHistoryViewport,
+  });
 
   // Restore the saved viewport whenever the user switches workflow tabs.
   const prevActiveIndexRef = useRef(activeIndex);
@@ -2796,7 +2776,7 @@ export default function App() {
     try {
       if (run.options?.cloud === true) {
         if (!run.workflow_id) throw new Error(consoleActionCopy.error.noRunWorkflowSnapshot);
-        await openCloudWorkflow(run.workflow_id);
+        if (!await openCloudWorkflow(run.workflow_id)) throw new Error(consoleActionCopy.error.couldNotLoadWorkflow);
         pollCloudRun(run.run_id, { workflow_id: run.workflow_id, workflow_name: run.workflow_name });
         toast.success(consoleActionCopy.toast.workflowLoadedFromRun, { message: run.workflow_name });
         return;
@@ -2827,7 +2807,7 @@ export default function App() {
     try {
       if (run.options?.cloud === true) {
         if (!run.workflow_id) throw new Error(consoleActionCopy.error.noRunWorkflowSnapshot);
-        await openCloudWorkflow(run.workflow_id);
+        if (!await openCloudWorkflow(run.workflow_id)) throw new Error(consoleActionCopy.error.couldNotLoadWorkflow);
         pollCloudRun(run.run_id, {
           workflow_id: run.workflow_id, workflow_name: run.workflow_name, start_time: run.start_time,
         });
@@ -3505,6 +3485,7 @@ export default function App() {
     get,
     getBinding,
     getBool,
+    handleInsertSnippet,
     handleClearQueue,
     handleDuplicateTab,
     handleRun,
