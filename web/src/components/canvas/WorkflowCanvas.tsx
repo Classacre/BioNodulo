@@ -46,6 +46,7 @@ import { edgeColorForSource } from '../../utils';
 import { nodeCategoryDisplayLabel } from '../../utils/nodeCategories';
 import { getVisibleInputSpecs } from '../../utils/nodeInputVisibility';
 import { resolveNodeOutputs } from '../../utils/nodeOutputs';
+import { connectedImplicitPorts } from '../../utils/canvasImplicitPorts';
 import {
   NODE_WIDTH, NODE_NOTE_WIDTH, nodeColor,
   type GraphNode, type WorkflowCanvasRef,
@@ -263,6 +264,7 @@ function toGraphNode(
   const isSubgraph = wn.type === 'subgraph';
   const subgraphInputs = isSubgraph ? getSubgraphPorts(wn, 'input_ports') : null;
   const subgraphOutputs = isSubgraph ? getSubgraphPorts(wn, 'output_ports') : null;
+  const implicitPorts = connectedImplicitPorts(wn, connectedIn, connectedOut, meta);
   return {
     id: wn.id,
     type: wn.type,
@@ -292,6 +294,9 @@ function toGraphNode(
       connected: connectedOut.has(`${wn.id}:${output.name}`),
     })) : [],
     params: wn.params || {},
+    headerInputs: implicitPorts.inputs.filter(port => !(collapsed && promotedInputs.includes(port.name))
+      && !visibleInputs.required[port.name] && !visibleInputs.optional[port.name]),
+    headerOutputs: implicitPorts.outputs.filter(port => !subgraphOutputs?.some(output => output.name === port.name)),
     promotedInputs,
     meta,
     color: wn.ui?.color || nodeColor(meta),
@@ -586,9 +591,12 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       for (const p of getSubgraphPorts(wn, 'output_ports')) {
         map.set(`${wn.id}:${p.name}`, p.type);
       }
+      for (const port of connectedImplicitPorts(wn, connectedPorts.cin, connectedPorts.cout).outputs) {
+        map.set(`${wn.id}:${port.name}`, port.type);
+      }
     }
     return map;
-  }, [viewNodes, objectInfo]);
+  }, [viewNodes, objectInfo, connectedPorts]);
 
   // Stable `${nodeId}:${inputName}` -> input type map, for connection validation.
   const inTypeByNodeInput = useMemo(() => {
@@ -607,6 +615,9 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       for (const [name, spec] of [...Object.entries(visible.required), ...Object.entries(visible.optional)]) {
         map.set(`${wn.id}:${name}`, spec.type || '');
       }
+      for (const port of connectedImplicitPorts(wn, connectedPorts.cin, connectedPorts.cout, meta).inputs) {
+        map.set(`${wn.id}:${port.name}`, port.type);
+      }
     }
     for (const wn of viewNodes) {
       if (wn.type !== 'subgraph') continue;
@@ -615,7 +626,7 @@ const WorkflowCanvasInner = forwardRef<WorkflowCanvasRef, WorkflowCanvasProps>(f
       }
     }
     return map;
-  }, [viewNodes, objectInfo]);
+  }, [viewNodes, objectInfo, connectedPorts]);
 
   // Edges are local React Flow state (like nodes), reconciled from props but
   // carrying their own `selected` flag — a controlled flow only surfaces edge

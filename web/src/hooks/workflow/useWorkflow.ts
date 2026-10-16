@@ -22,6 +22,7 @@ import { collectLocalInputArtifacts } from '../../utils/workflowFiles';
 import { isCuratedTemplateInputArtifact } from '../../localTemplates';
 import { getMcpRuntime } from '../../mcp/runtime';
 import { toast } from '../../components/ui';
+import { normalizeWorkflowPortAliases } from '../../utils/workflowPortCompatibility';
 
 function createWorkflowId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -85,13 +86,13 @@ function withEdgeIds(edges: Workflow['edges']): Workflow['edges'] {
 }
 
 function normalizeWorkflow(wf: Workflow): Workflow {
-  return {
+  return normalizeWorkflowPortAliases({
     ...wf,
     id: wf.id || createWorkflowId(),
     nodes: Array.isArray(wf.nodes) ? wf.nodes.filter(n => n && typeof n.id === 'string') : [],
     edges: withEdgeIds(usableEdges(wf)),
     parameters: Array.isArray(wf.parameters) ? wf.parameters : [],
-  };
+  });
 }
 
 function emptyWorkflow(): Workflow {
@@ -1040,11 +1041,11 @@ export function useWorkflow() {
   const importWorkflow = useCallback(async (source: string, format: string) => {
     try {
       const data = await apiPost<{ workflow?: Workflow }>('/workflow/import', { source: format, content: source });
-      return data.workflow ?? null;
+      return data.workflow ? normalizeWorkflowPortAliases(data.workflow) : null;
     } catch (err) {
       logError('workflow.import', err);
       // Try parsing as JSON directly
-      try { return JSON.parse(source) as Workflow; } catch { /* not JSON */ }
+      try { return normalizeWorkflowPortAliases(JSON.parse(source) as Workflow); } catch { /* not JSON */ }
     }
     return null;
   }, []);

@@ -86,6 +86,28 @@ describe('cloud workflow restoration', () => {
     expect(website.createCloudWorkflow).not.toHaveBeenCalled();
   });
 
+  it('normalizes legacy ports in memory on load without autosaving the remote document', async () => {
+    const original: Workflow = { ...workflow('legacy'),
+      nodes: [{ id: 'source', type: 'input_file', position: [0, 0], params: {} },
+        { id: 'view', type: 'samtools_view', position: [300, 0], params: {} }],
+      edges: [{ id: 'wire', from: { node: 'source', output: 'file' }, to: { node: 'view', input: 'sam' } }],
+    };
+    website.listCloudWorkflows.mockResolvedValue([{ id: 'legacy' }]);
+    website.getCloudWorkflow.mockResolvedValue(original);
+    vi.useFakeTimers();
+    try {
+      const hook = renderHook(() => useWorkflow(), { wrapper: cloudWrapper() });
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(hook.result.current.cloudRestored).toBe(true);
+      expect(hook.result.current.activeWorkflow.edges[0].to.input).toBe('alignment');
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+      expect(website.saveCloudWorkflow).not.toHaveBeenCalled();
+      expect(website.createCloudWorkflow).not.toHaveBeenCalled();
+      expect(original.edges[0].to.input).toBe('sam');
+      hook.unmount();
+    } finally { vi.useRealTimers(); }
+  });
+
   it('settles restoration after a guest cloud-create failure so local import can continue', async () => {
     website.listCloudWorkflows.mockRejectedValue(new Error('unauthorized'));
     website.createCloudWorkflow.mockRejectedValue(new Error('unauthorized'));

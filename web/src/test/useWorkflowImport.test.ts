@@ -92,6 +92,23 @@ describe('useWorkflow importWorkflow', () => {
     expect(imported?.name).toBe('Fallback JSON Workflow');
     expect(loggingMock.logError).toHaveBeenCalledWith('workflow.import', importError);
   });
+
+  it.each(['backend', 'json fallback'])('normalizes known input aliases during %s import without mutating the response', async path => {
+    const imported = {
+      version: '2.0', app: 'bionodulo', name: 'Legacy alignment', description: '',
+      nodes: [{ id: 'source', type: 'input_file', position: [0, 0], params: {} },
+        { id: 'sort', type: 'samtools_sort', position: [300, 0], params: {} }],
+      edges: [{ id: 'wire', from: { node: 'source', output: 'file' }, to: { node: 'sort', input: 'bam' } }],
+      groups: [], outputs: {},
+    } as Workflow;
+    if (path === 'backend') vi.mocked(apiPost).mockResolvedValueOnce({ workflow: imported });
+    else vi.mocked(apiPost).mockRejectedValueOnce(new Error('offline'));
+    const { result } = renderHook(() => useWorkflow());
+    let normalized: Workflow | null = null;
+    await act(async () => { normalized = await result.current.importWorkflow(JSON.stringify(imported), 'json'); });
+    expect(normalized!.edges).toEqual([{ ...imported.edges[0], to: { node: 'sort', input: 'alignment' } }]);
+    expect(imported.edges[0].to.input).toBe('bam');
+  });
 });
 
 describe('useWorkflow normalization', () => {

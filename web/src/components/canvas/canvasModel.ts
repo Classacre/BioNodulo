@@ -17,6 +17,9 @@ export interface GraphNode {
   height: number;
   inputs: { name: string; type: string; connected: boolean }[];
   outputs: { name: string; type: string; connected: boolean }[];
+  // Connected engine-only ports anchor to the fixed header without new rows.
+  headerInputs?: { name: string; type: string; connected: boolean }[];
+  headerOutputs?: { name: string; type: string; connected: boolean }[];
   params: Record<string, unknown>;
   // Param keys promoted from widgets to input ports (see WorkflowNode.ui).
   promotedInputs: string[];

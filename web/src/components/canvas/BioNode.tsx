@@ -6,8 +6,8 @@
 // node action menu is React Flow's native <NodeToolbar>, shown while the node is
 // selected. Interactive params render as on-node widgets (NodeWidgets). No custom
 // overlays, previews, comments or collab cursors — those were removed in the rewrite.
-import { memo, useContext } from 'react';
-import { Handle, Position, NodeToolbar, NodeResizer, type NodeProps } from '@xyflow/react';
+import { memo, useContext, useEffect, useRef } from 'react';
+import { Handle, Position, NodeToolbar, NodeResizer, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import { nodeDownloadProgressAtom } from '../../state/runAtoms';
@@ -36,6 +36,17 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
   // toast in the corner is both far from the work and easy to miss; toasts are
   // reserved for the user's own uploads.
   const download = useAtomValue(nodeDownloadProgressAtom)[g.id];
+  const updateNodeInternals = useUpdateNodeInternals();
+  const headerHandleKey = JSON.stringify([g.headerInputs?.map(port => port.name), g.headerOutputs?.map(port => port.name)]);
+  const previousHeaderHandleKey = useRef(headerHandleKey);
+  useEffect(() => {
+    // Header-only handles do not resize the node, so a ResizeObserver cannot
+    // discover their addition/removal. Refresh React Flow's handle bounds.
+    if ((g.headerInputs?.length || g.headerOutputs?.length) || previousHeaderHandleKey.current !== headerHandleKey) {
+      updateNodeInternals(id);
+    }
+    previousHeaderHandleKey.current = headerHandleKey;
+  }, [id, headerHandleKey, g.collapsed, g.headerInputs?.length, g.headerOutputs?.length, updateNodeInternals]);
 
   // Reroute: a bare pass-through dot with a single in/out handle.
   if (g.type === 'reroute') {
@@ -132,6 +143,19 @@ function BioNodeComponent({ id, data, selected }: NodeProps) {
         {!g.visualOnly && <CloudNodePreviewMenu nodeId={g.id} />}
         {g.pinned && <span className="bio-node-flag" aria-hidden>📌</span>}
       </div>
+
+      {!g.visualOnly && <>
+        {g.headerInputs?.map(port => (
+          <Handle key={`header-in-${port.name}`} type="target" position={Position.Left} id={port.name}
+            className="bio-handle bio-handle-in connected" style={{ top: NODE_HEADER_H / 2 }}
+            aria-label={port.name} title={`${port.name}: ${port.type}`} data-implicit-port={port.name} />
+        ))}
+        {g.headerOutputs?.map(port => (
+          <Handle key={`header-out-${port.name}`} type="source" position={Position.Right} id={port.name}
+            className="bio-handle bio-handle-out connected" style={{ top: NODE_HEADER_H / 2 }}
+            aria-label={port.name} title={`${port.name}: ${port.type}`} data-implicit-port={port.name} />
+        ))}
+      </>}
 
       {/* Note nodes are a text card; collapsed nodes hide their body. Every real
           port still gets a <Handle> so edges stay anchored — collapsed handles
@@ -272,6 +296,8 @@ function bioNodePropsEqual(prev: NodeProps, next: NodeProps): boolean {
     ga.meta === gb.meta &&
     portsEqual(ga.inputs, gb.inputs) &&
     portsEqual(ga.outputs, gb.outputs) &&
+    portsEqual(ga.headerInputs ?? [], gb.headerInputs ?? []) &&
+    portsEqual(ga.headerOutputs ?? [], gb.headerOutputs ?? []) &&
     stringListEqual(ga.promotedInputs, gb.promotedInputs) &&
     paramsEqual(ga.params, gb.params)
   );
