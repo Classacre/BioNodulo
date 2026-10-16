@@ -62,19 +62,21 @@ class PGGBCommandNode(CommandNode):
 
     CATEGORY = "pangenomics"
     REQUIRED_EXECUTABLES = ["pggb", "samtools", "bash", "cp"]
-    REQUIRED_CONDA_PACKAGES = ["pggb", "samtools", "bash", "coreutils"]
+    REQUIRED_CONDA_PACKAGES = ["pggb", "samtools", "bash", "coreutils", "wfa2-lib"]
     VERSION = "0.7.4"
     CONDA_PACKAGE_CONSTRAINTS = {
         "pggb": VERSION,
         "samtools": "1.23.1",
         "bash": "*",
         "coreutils": "9.5",
+        "wfa2-lib": "2.3.5",
     }
     PACKAGE_CONSTRAINTS = (
         f"pggb=={VERSION}",
         "samtools==1.23.1",
         "bash",
         "coreutils==9.5",
+        "wfa2-lib==2.3.5",
     )
     PACKAGE_CONSTRAINT = "; ".join(PACKAGE_CONSTRAINTS)
     GIT_URL = "https://github.com/pangenome/pggb.git"

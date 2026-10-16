@@ -138,18 +138,20 @@ def test_pggb_metadata_is_pinned_with_its_odgi_runtime() -> None:
             "f443a6354f30307573545d03c7491de299ca50dfcba2a12832fb77e0452e46f4"
         )
         assert node_class.REQUIRED_EXECUTABLES == ["pggb", "samtools", "bash", "cp"]
-        assert node_class.REQUIRED_CONDA_PACKAGES == ["pggb", "samtools", "bash", "coreutils"]
+        assert node_class.REQUIRED_CONDA_PACKAGES == ["pggb", "samtools", "bash", "coreutils", "wfa2-lib"]
         assert node_class.CONDA_PACKAGE_CONSTRAINTS == {
             "pggb": "0.7.4",
             "samtools": "1.23.1",
             "bash": "*",
             "coreutils": "9.5",
+            "wfa2-lib": "2.3.5",
         }
         assert node_class.PACKAGE_CONSTRAINTS == (
             "pggb==0.7.4",
             "samtools==1.23.1",
             "bash",
             "coreutils==9.5",
+            "wfa2-lib==2.3.5",
         )
 
 

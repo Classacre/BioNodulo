@@ -184,6 +184,7 @@ def test_committed_samtools_manifests_use_explicit_exact_constraint() -> None:
         "4997531d441c35bf",
         "5789cfdfd03011a4",
         "5f56c77e87adf0dc",
+        "895ab4720eff4948",
         "a3e1f5870a14637e",
         "a6d14540abf27c14",
         "a8aef18369bd202f",

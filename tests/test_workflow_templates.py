@@ -125,7 +125,7 @@ def test_variant_calling_template_genotypes_gvcf_before_filtering() -> None:
 
     assert node_types["gatk_001"] == "gatk_haplotype_caller"
     assert node_types["gatk_genotype_001"] == "gatk_genotype_gvcfs"
-    assert _node_by_id(workflow, "gatk_001")["params"] == {"emit_ref_confidence": "GVCF"}
+    assert _node_by_id(workflow, "gatk_001")["params"] == {"emit_ref_confidence": "GVCF", "sample_ploidy": 1}
     assert _node_by_id(workflow, "gatk_genotype_001")["params"] == {"standard_min_confidence": 30}
     _assert_edge(
         workflow,
@@ -602,7 +602,7 @@ def test_phylogenetics_template_renders_tree_and_adds_report() -> None:
     assert node_types["image_preview_001"] == "image_preview"
     tree_viewer = next(node for node in workflow["nodes"] if node["id"] == "tree_viewer_001")
     iqtree = next(node for node in workflow["nodes"] if node["id"] == "iqtree_001")
-    assert tree_viewer["params"]["format"] == "png"
+    assert tree_viewer["params"]["format"] == "svg"
     assert tree_viewer["params"]["layout"] == "rectangular"
     assert iqtree["params"]["ufboot_replicates"] == 1000
     assert iqtree["params"]["alrt_replicates"] == 1000

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from bionodulo.manager.example_data import EXAMPLE_DATA_MANIFEST
@@ -16,6 +18,40 @@ from bionodulo.workflow.validation import validate_workflow
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_pggb_environment_resolves_the_portable_wfa_build_and_invalidates_unsafe_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from bionodulo.environments.constants import PACKAGE_BUILD_CONSTRAINTS
+    from bionodulo.environments.manifest import (
+        _manifest_text_for_plan,
+        get_environment_plan_id,
+        materialize_committed_lock,
+        workflow_to_environment_plan,
+    )
+
+    workflow = _load_template("pangenomics_graph_pipeline.json")
+    plan = workflow_to_environment_plan(workflow, NodeRegistry())
+    environment_id = get_environment_plan_id(plan)
+    assert environment_id != "5f56c77e87adf0dc"
+    bundle = ROOT / "bionodulo/environments/locks" / environment_id
+    manifest_text = (bundle / "pixi.toml").read_text(encoding="utf-8")
+    assert manifest_text == _manifest_text_for_plan(plan)
+    manifest = tomllib.loads(manifest_text)
+    assert manifest["workspace"]["platforms"] == ["linux-64"]
+    assert manifest["dependencies"]["wfa2-lib"] == {"version": "==2.3.5", "build": "h9948957_3"}
+    lock = yaml.safe_load((bundle / "pixi.lock").read_text(encoding="utf-8"))
+    package_url = "https://conda.anaconda.org/bioconda/linux-64/wfa2-lib-2.3.5-h9948957_3.tar.bz2"
+    selected = [package["conda"] for package in lock["environments"]["default"]["packages"]["linux-64"]]
+    assert [url for url in selected if "/wfa2-lib-" in url] == [package_url]
+    package = next(package for package in lock["packages"] if package["conda"] == package_url)
+    # Independently downloaded official package, verified by SHA and disassembly:
+    # _3 has no AVX512; 2.3.6 _0 and 2.3.5 _2 cannot run on the tested Milan CPU.
+    assert package["sha256"] == "7f72dd792fb72d80b0b0c49d397b5cb50431c672c88b5a9b3e67fbdda005a60a"
+    assert materialize_committed_lock(tmp_path / "portable", list(plan.default_packages)) == hashlib.sha256((bundle / "pixi.lock").read_bytes()).hexdigest()
+    assert (tmp_path / "portable/pixi.lock").read_bytes() == (bundle / "pixi.lock").read_bytes()
+    monkeypatch.setitem(PACKAGE_BUILD_CONSTRAINTS, "wfa2-lib", "h4ac6f70_2")
+    assert get_environment_plan_id(plan) != environment_id
+    assert materialize_committed_lock(tmp_path / "unsafe", list(plan.default_packages)) is None
 
 
 def _load_template(name: str) -> dict[str, Any]:

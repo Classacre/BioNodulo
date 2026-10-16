@@ -479,6 +479,7 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
     "cas-offinder": "2.4.1",
     "odgi": "0.9.2",
     "pggb": "0.7.4",
+    "wfa2-lib": "==2.3.5",
     "cactus": "2.9.9",
     "panacus": "0.3.3",
     "panaroo": "1.5.0",
@@ -532,4 +533,8 @@ PACKAGE_MIN_VERSIONS: dict[str, str] = {
 # build: https://github.com/usegalaxy-it/usegalaxy-it-tools/issues/2
 PACKAGE_BUILD_CONSTRAINTS: dict[str, str] = {
     "macs2": "py311hdad781d_1",
+    # The 2.3.6 build and 2.3.5 _2 contain unconditional AVX512 instructions.
+    # PGGB's wfmash also ships libwfa2.so.0, so the transitive library can
+    # replace it. This exact official build was verified without AVX512.
+    "wfa2-lib": "h9948957_3",
 }

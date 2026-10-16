@@ -1,14 +1,11 @@
 """Official templates must default to real, pinned, public input data.
 
-Templates previously shipped synthetic fixtures under ``templates/data/smoke/``.
-That broke in the cloud — the worker image never copies ``templates/`` — and it
-taught users nothing about where real data comes from. Inputs now point at
-upstream public files, which the input nodes fetch at run time (see
+Templates prefer upstream public files, which the input nodes fetch at run time (see
 ``bionodulo/nodes/builtin/input_family/adapter.py``: "templates ship URLs
 directly in their node params and download on run").
 
-The remaining local paths are genuinely synthetic artefacts with no upstream
-counterpart. They are listed explicitly so the list cannot grow silently.
+The worker image copies ``templates/data/`` for curated local examples. These
+paths are listed explicitly so the reviewed fixture set cannot grow silently.
 """
 from __future__ import annotations
 
@@ -30,6 +27,9 @@ TEMPLATES = ROOT / "templates"
 # accessions for Sage (a plain proteome has none). Sequence data has real
 # upstream sources; these do not.
 ALLOWED_LOCAL_INPUTS = {
+    # Arbitrary illustrative groups using real significant airway Ensembl IDs;
+    # these groups deliberately make no biological pathway claim.
+    "templates/data/deseq2_airway_example_gene_sets.json",
     "templates/data/deseq2_gene_sets.json",
     "templates/data/mirna_seeds_hsa_top20.tsv",
     "templates/data/smoke/coding_sequences.fasta",
@@ -79,10 +79,10 @@ def _input_values() -> set[str]:
 
 
 def test_no_unexpected_local_input_paths() -> None:
-    """A local path in a template is invisible to the cloud worker."""
+    """Every bundled template input must belong to the reviewed fixture set."""
     local = {value for value in _input_values() if value.startswith("templates/data/")}
     assert local <= ALLOWED_LOCAL_INPUTS, (
-        "template inputs reference local files the worker image does not ship: "
+        "template inputs reference local files outside the reviewed fixture set: "
         f"{sorted(local - ALLOWED_LOCAL_INPUTS)}"
     )
 
@@ -127,10 +127,8 @@ def test_bundled_template_data_is_not_used_beyond_the_allow_list() -> None:
       * ``external/…``  — BYOL vendor assets the user must supply (the Cello
         compiler jar, Dorado basecalling models). These are placeholders by
         design; the node fails with a clear "provide your own" error.
-      * ``examples/data/…`` — example inputs resolved outside the template
-        bundle.
-    Neither is shipped in the repo, so neither is affected by moving the
-    template fixtures to public URLs.
+      * ``examples/data/…`` — curated example inputs resolved by the separate
+        example-data manifest, outside this template-data allow-list.
     """
     bundled = {v for v in _input_values() if v.startswith("templates/")}
     assert bundled <= ALLOWED_LOCAL_INPUTS
