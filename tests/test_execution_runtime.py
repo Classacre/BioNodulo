@@ -997,6 +997,15 @@ async def test_executor_dry_run_marks_checkpoint_resume_without_executing_upstre
     assert preview["resume_checkpoint"]["checkpoint_name"] == "saved"
 
 
+async def _wait_for_pause_request(task: asyncio.Task[dict[str, Any]], pause_file: Path) -> None:
+    async with asyncio.timeout(5):
+        while not pause_file.exists():
+            if task.done():
+                await task  # Surface an executor exception instead of masking it as a missing file.
+                pytest.fail("Workflow executor finished before creating the pause request")
+            await asyncio.sleep(0.01)
+
+
 @pytest.mark.asyncio
 async def test_workflow_executor_blocks_downstream_until_pause_approval(tmp_path: Path) -> None:
     from bionodulo.nodes.builtin.workflow_enhancement import PauseResumeNode
@@ -1054,20 +1063,25 @@ async def test_workflow_executor_blocks_downstream_until_pause_approval(tmp_path
     DownstreamNode.calls = []
     executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
 
-    task = asyncio.create_task(executor.execute("pause-run", workflow))
-    await asyncio.sleep(0.05)
-
+    cancel_event = asyncio.Event()
+    task = asyncio.create_task(executor.execute("pause-run", workflow, cancel_event=cancel_event))
     pause_file = tmp_path / "pause_requests" / "pause-run__pause.json"
-    assert pause_file.exists()
-    assert DownstreamNode.calls == []
-    assert not task.done()
+    try:
+        await _wait_for_pause_request(task, pause_file)
+        assert pause_file.exists()
+        assert DownstreamNode.calls == []
+        assert not task.done()
 
-    PauseResumeNode.resolve_pause_request(pause_file, action="approve", reviewer="ana")
-    result = await asyncio.wait_for(task, timeout=1)
+        PauseResumeNode.resolve_pause_request(pause_file, action="approve", reviewer="ana")
+        result = await asyncio.wait_for(task, timeout=1)
 
-    assert result["status"] == "completed"
-    assert DownstreamNode.calls == ["review-me"]
-    assert result["outputs"]["downstream"] == {"out": "approved:review-me"}
+        assert result["status"] == "completed"
+        assert DownstreamNode.calls == ["review-me"]
+        assert result["outputs"]["downstream"] == {"out": "approved:review-me"}
+    finally:
+        if not task.done():
+            cancel_event.set()
+            await asyncio.wait_for(task, timeout=5)
 
 
 @pytest.mark.asyncio
@@ -1123,16 +1137,21 @@ async def test_workflow_executor_fails_when_pause_request_is_rejected(tmp_path: 
     DownstreamNode.calls = []
     executor = WorkflowExecutor(workspace_dir=tmp_path, cache_dir=tmp_path / "cache", registry=Registry())
 
-    task = asyncio.create_task(executor.execute("pause-reject-run", workflow))
-    await asyncio.sleep(0.05)
-
+    cancel_event = asyncio.Event()
+    task = asyncio.create_task(executor.execute("pause-reject-run", workflow, cancel_event=cancel_event))
     pause_file = tmp_path / "pause_requests" / "pause-reject-run__pause.json"
-    PauseResumeNode.resolve_pause_request(pause_file, action="reject", reviewer="ana")
-    result = await asyncio.wait_for(task, timeout=1)
+    try:
+        await _wait_for_pause_request(task, pause_file)
+        PauseResumeNode.resolve_pause_request(pause_file, action="reject", reviewer="ana")
+        result = await asyncio.wait_for(task, timeout=1)
 
-    assert result["status"] == "failed"
-    assert "Pause request rejected" in result["node_results"]["pause"]["error"]
-    assert DownstreamNode.calls == []
+        assert result["status"] == "failed"
+        assert "Pause request rejected" in result["node_results"]["pause"]["error"]
+        assert DownstreamNode.calls == []
+    finally:
+        if not task.done():
+            cancel_event.set()
+            await asyncio.wait_for(task, timeout=5)
 
 
 @pytest.mark.asyncio
@@ -1176,23 +1195,20 @@ async def test_workflow_executor_cancels_while_pause_request_is_waiting(tmp_path
     task = asyncio.create_task(executor.execute("pause-cancel-run", workflow, cancel_event=cancel_event))
     pause_path = tmp_path / "pause_requests" / "pause-cancel-run__pause.json"
     try:
-        async with asyncio.timeout(5):
-            while not pause_path.exists() and not task.done():
-                await asyncio.sleep(0.01)
-    except TimeoutError:
+        await _wait_for_pause_request(task, pause_path)
+        assert pause_path.exists()
+        assert not task.done()
         cancel_event.set()
-        await asyncio.wait_for(task, timeout=5)
-        raise
+        result = await asyncio.wait_for(task, timeout=1)
 
-    assert pause_path.exists()
-    assert not task.done()
-    cancel_event.set()
-    result = await asyncio.wait_for(task, timeout=1)
-
-    assert result["status"] == "cancelled"
-    saved = json.loads((tmp_path / "pause_requests" / "pause-cancel-run__pause.json").read_text(encoding="utf-8"))
-    assert saved["status"] == "cancelled"
-    assert saved["approved"] is False
+        assert result["status"] == "cancelled"
+        saved = json.loads((tmp_path / "pause_requests" / "pause-cancel-run__pause.json").read_text(encoding="utf-8"))
+        assert saved["status"] == "cancelled"
+        assert saved["approved"] is False
+    finally:
+        if not task.done():
+            cancel_event.set()
+            await asyncio.wait_for(task, timeout=5)
 
 
 @pytest.mark.asyncio
