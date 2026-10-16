@@ -1,0 +1,15 @@
+{
+  "run_id": "7b08b6c2-0813-4c5f-a38a-373178045ca9",
+  "source_artifact": "tree.treefile",
+  "source_sha256": "b7e02ded34e38784dc165f1df943282dd81e3f9e7de7b028195ced2b9a2f8fac",
+  "taxon_ids": [
+    "NR_024570.1",
+    "NR_027552.1",
+    "NR_036781.1",
+    "NR_026078.1",
+    "NR_028747.1"
+  ],
+  "expected_media_type": "image/svg+xml",
+  "source_template": "phylogenetics_pipeline",
+  "note": "Previously published IQ-TREE result from the pinned source accession fixture; no signed URL or credential retained."
+}

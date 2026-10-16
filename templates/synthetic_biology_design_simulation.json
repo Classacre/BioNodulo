@@ -98,7 +98,7 @@
         319
       ],
       "params": {
-        "file": "https://www.ebi.ac.uk/biomodels/model/download/BIOMD0000000012?filename=BIOMD0000000012_url.xml",
+        "file": "https://raw.githubusercontent.com/biomodels/BIOMD0000000012/7de3848305224ace0523c1328ac3423d2c007f68/BIOMD0000000012/BIOMD0000000012.xml",
         "source": "url"
       },
       "ui": {

@@ -141,7 +141,7 @@
         "show_bootstrap": true,
         "bootstrap_threshold": 70,
         "title": "16S Phylogenetic Tree",
-        "format": "png"
+        "format": "svg"
       },
       "ui": {
         "title": "Render Tree"

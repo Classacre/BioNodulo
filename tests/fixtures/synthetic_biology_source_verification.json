@@ -1,0 +1,22 @@
+{
+  "source_url": "https://raw.githubusercontent.com/biomodels/BIOMD0000000012/7de3848305224ace0523c1328ac3423d2c007f68/BIOMD0000000012/BIOMD0000000012.xml",
+  "license_url": "https://github.com/biomodels/BIOMD0000000012/blob/7de3848305224ace0523c1328ac3423d2c007f68/LICENSE.txt",
+  "license": "CC0-1.0",
+  "source_sha": "7de3848305224ace0523c1328ac3423d2c007f68",
+  "status": 200,
+  "bytes": 47423,
+  "sha256": "0fb6eb542c51de086feb614550994536faf07fb07b134641887e8c377b128987",
+  "model_id": "BIOMD0000000012",
+  "model_name": "Elowitz2000 - Repressilator",
+  "sbml_root": "{http://www.sbml.org/sbml/level2/version3}sbml",
+  "counts": {
+    "species": 6,
+    "reaction": 12,
+    "parameter": 16,
+    "assignmentRule": 9
+  },
+  "identical_to_current_biomodels": false,
+  "identical_after_removing_notes_annotations": false,
+  "normalized_equations_match_current_biomodels": true,
+  "normalization": "Remove XML whitespace, metaid/SBO labels, notes and RDF annotation; all executable XML remains equal."
+}

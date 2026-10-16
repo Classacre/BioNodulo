@@ -21,7 +21,7 @@
         80
       ],
       "params": {
-        "text": "Variant calling pipeline: aligns with BWA-MEM, processes BAM, and calls variants with GATK/bcftools.\n\nData source:\n- Reads: Staphylococcus aureus mutant paired-end WGS (12,480 read pairs)\n  Zenodo: https://zenodo.org/record/582600\n  Files: mutant_R1.fastq (3.9M), mutant_R2.fastq (3.9M)\n- Reference: S. aureus wildtype genome (200,684 bp, 1 contig)\n  Zenodo: https://zenodo.org/record/582600\n  File: wildtype.fna (196K)\n- Galaxy Training Material: Microbial Variant Calling tutorial\n  https://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/microbial-variants/tutorial.html\nNote: This is a demonstration dataset. For real analysis, use appropriate reference genomes and databases."
+        "text": "Bacterial variant-calling example: align with BWA-MEM, process BAM, and call small variants with haploid GATK settings.\n\nDefaults are the Galaxy microbial-variants tutorial: 12,480 paired 150 bp S. aureus mutant reads, the matching Wildtype reference (197,394 bp), and its annotation, all from Zenodo 582600. The structural-caller branches demonstrate tool execution; their genotype models are not validated for this bacterial fixture.\n\nhttps://training.galaxyproject.org/training-material/topics/variant-analysis/tutorials/microbial-variants/tutorial.html"
       },
       "ui": {
         "title": "Notes",
@@ -226,7 +226,8 @@
         510
       ],
       "params": {
-        "emit_ref_confidence": "GVCF"
+        "emit_ref_confidence": "GVCF",
+        "sample_ploidy": 1
       },
       "ui": {
         "title": "GATK HaplotypeCaller"

@@ -59,7 +59,7 @@ def test_deseq2_template_combines_all_visualizations_in_final_report_preview() -
     assert pca_plot["params"]["y_column"] == "PC2"
     assert pca_plot["params"]["color_column"] == "condition"
     assert pca_plot["params"]["format"] == "html"
-    assert pathway_gene_sets["params"]["file"] == "templates/data/deseq2_gene_sets.json"
+    assert pathway_gene_sets["params"]["file"] == "templates/data/deseq2_airway_example_gene_sets.json"
     assert pathway_enrichment["params"]["input_column"] == "gene"
     assert pathway_enrichment["params"]["database_format"] == "json"
     assert pathway_enrichment["params"]["case_sensitive"] is False

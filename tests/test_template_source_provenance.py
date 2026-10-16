@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import hashlib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -67,3 +69,23 @@ def test_proteomics_note_matches_the_enabled_decoy_generation() -> None:
     assert sage["params"]["generate_decoys"] is True
     assert "target-only" in _note(workflow)
     assert sage["params"]["decoy_tag"] in _note(workflow)
+
+
+def test_synthetic_biology_model_uses_the_verified_immutable_official_source() -> None:
+    fixtures = Path(__file__).parent / "fixtures"
+    evidence = json.loads((fixtures / "synthetic_biology_source_verification.json").read_text())
+    workflow = _workflow("synthetic_biology_design_simulation")
+    model = next(node for node in workflow["nodes"] if node["id"] == "copasi_model_001")
+    assert model["params"]["file"] == evidence["source_url"]
+    assert f"/{evidence['source_sha']}/" in model["params"]["file"]
+    assert model["params"]["file"].startswith("https://raw.githubusercontent.com/biomodels/")
+    assert evidence["license"] == "CC0-1.0"
+    assert evidence["normalized_equations_match_current_biomodels"] is True
+    content = (fixtures / "synthetic_biology_repressilator.xml").read_bytes()
+    assert hashlib.sha256(content).hexdigest() == evidence["sha256"]
+    root = ET.fromstring(content)
+    namespace = "{http://www.sbml.org/sbml/level2/version3}"
+    assert root.tag == namespace + "sbml"
+    assert root.find(namespace + "model").get("id") == "BIOMD0000000012"
+    for name, expected_count in evidence["counts"].items():
+        assert len(list(root.iter(namespace + name))) == expected_count

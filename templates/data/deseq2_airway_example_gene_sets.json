@@ -1,0 +1,23 @@
+{
+  "Illustrative group A": [
+    "ENSG00000002834",
+    "ENSG00000003096",
+    "ENSG00000003402",
+    "ENSG00000004059",
+    "ENSG00000004487"
+  ],
+  "Illustrative group B": [
+    "ENSG00000004700",
+    "ENSG00000004799",
+    "ENSG00000004866",
+    "ENSG00000005249",
+    "ENSG00000006451"
+  ],
+  "Illustrative group C": [
+    "ENSG00000006607",
+    "ENSG00000006788",
+    "ENSG00000006831",
+    "ENSG00000007866",
+    "ENSG00000007944"
+  ]
+}

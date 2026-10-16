@@ -10,3 +10,7 @@ bionodulo/nodes/node_capabilities.json text eol=lf
 # Scientific receipt hashes cover exact bytes, including upstream whitespace.
 reports/run-receipts/** -text -whitespace
 tests/nodes/**/fixtures/** -text -whitespace
+# Template source receipts compare these exact public-source bytes.
+tests/fixtures/synthetic_biology_repressilator.xml -text -whitespace
+tests/fixtures/phylogenetics_cloud_tree.treefile -text -whitespace
+templates/data/deseq2_airway_example_gene_sets.json text eol=lf

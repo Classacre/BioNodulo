@@ -21,7 +21,7 @@
         80
       ],
       "params": {
-        "text": "WGS variant pipeline: complete germline variant discovery from whole-genome sequencing data.\n\nData source: Galaxy Training variant-calling tutorial (Zenodo 582600) --\nStaphylococcus aureus wildtype reference (wildtype.fna, 197 kb, single contig\n'Wildtype') with its Prokka annotation (wildtype.gff, 167 CDS) and 12,480\npaired 150 bp mutant reads.\n\nReads and reference are the SAME organism -- verified 100% of a 10k-read\nsubset aligns. The previous pairing used sarscov2 reads against an E. coli\nreference and mapped 0%.\n\nThe SnpEff database is BUILT in-workflow from this reference + annotation, so\nthe pipeline needs no pre-published SnpEff genome and no user-supplied file."
+        "text": "Bacterial WGS variant example: align and process reads, call haploid small variants with FreeBayes, and annotate against the supplied reference.\n\nDefaults are the matched Galaxy microbial-variants tutorial data (Zenodo 582600): 12,480 paired 150 bp S. aureus mutant reads, the 197,394 bp Wildtype reference, and its 167-CDS annotation.\n\nStructural-caller branches demonstrate execution; their genotype models are not validated for this bacterial fixture. Replace the study inputs and choose suitable caller/ploidy settings for biological interpretation."
       },
       "ui": {
         "title": "Notes",
@@ -228,7 +228,7 @@
         80
       ],
       "params": {
-        "ploidy": 2
+        "ploidy": 1
       },
       "ui": {
         "title": "FreeBayes"

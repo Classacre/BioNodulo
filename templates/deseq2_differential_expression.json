@@ -12,7 +12,7 @@
         80
       ],
       "params": {
-        "text": "DESeq2 Differential Expression Pipeline\n\nLoad a gene count matrix and sample metadata, fit the design and contrast with DESeq2, and preview differential-expression tables, plots, normalized counts, and illustrative enrichment results.\n\nDefault counts and metadata come from the real human airway RNA-seq example in bioconnector/workshops. The downloader relabels gene/sample/condition headers to match the template; it does not simulate measurements. The bundled gene sets are an illustrative enrichment fixture. Requires the configured R/Bioconductor environment."
+        "text": "DESeq2 Differential Expression\n\nFit DESeq2 to a count matrix and sample metadata, then preview results, normalized counts, plots, gene-group overlaps, and live STRING enrichment.\n\nDefaults are the real human airway example from bioconnector/workshops. Headers are relabelled to match the template; measurements retain their original values. The bundled groups arbitrarily divide 15 genes from the default significant results to demonstrate overlap. They are not biological pathways or a validated enrichment reference."
       },
       "ui": {
         "title": "Notes",
@@ -214,10 +214,10 @@
         800
       ],
       "params": {
-        "file": "templates/data/deseq2_gene_sets.json"
+        "file": "templates/data/deseq2_airway_example_gene_sets.json"
       },
       "ui": {
-        "title": "Example Gene Sets"
+        "title": "Illustrative Gene Groups"
       }
     },
     {
@@ -249,7 +249,7 @@
         "case_sensitive": false
       },
       "ui": {
-        "title": "Pathway Overlap"
+        "title": "Illustrative Gene Overlap"
       }
     },
     {
@@ -326,7 +326,7 @@
       ],
       "params": {},
       "ui": {
-        "title": "View Table: pathway_enrichment"
+        "title": "View Illustrative Overlap"
       }
     },
     {

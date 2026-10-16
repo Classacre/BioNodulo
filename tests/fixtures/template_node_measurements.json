@@ -322,7 +322,7 @@
   "deseq2_differential_expression.json": {
     "note_deseq2": {
       "width": 260,
-      "height": 370
+      "height": 334
     },
     "counts_001": {
       "width": 220,
@@ -1096,7 +1096,7 @@
   "variant_calling_pipeline.json": {
     "note_variant_calling_pipeline": {
       "width": 260,
-      "height": 514
+      "height": 352
     },
     "reads_001": {
       "width": 220,
@@ -1276,7 +1276,7 @@
   "wgs_variant_pipeline.json": {
     "note_wgs_variant_pipeline": {
       "width": 260,
-      "height": 460
+      "height": 352
     },
     "reads_001": {
       "width": 220,

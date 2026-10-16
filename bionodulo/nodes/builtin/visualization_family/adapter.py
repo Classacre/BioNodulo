@@ -2048,10 +2048,15 @@ def _tree_internal_nodes(root: TreeNode) -> list[TreeNode]:
 
 
 def _bootstrap_value(name: str) -> float | None:
-    value = _parse_float(name)
-    if value is None:
+    # IQ-TREE's paired support convention is SH-aLRT (%) / UFBoot (%).
+    # Apply the bootstrap threshold to UFBoot while retaining the full label.
+    parts = str(name).strip().split("/")
+    if len(parts) not in {1, 2}:
         return None
-    return value
+    values = [_parse_float(part) for part in parts]
+    if any(value is None or not 0 <= value <= 100 for value in values):
+        return None
+    return values[-1]
 
 
 def _polar_tree_positions(
@@ -4781,7 +4786,7 @@ def _render_tree_svg(
         parts.append(
             f'<text class="tree-bootstrap" x="{x + 5:.2f}" y="{y - 5:.2f}" '
             'font-family="Arial, sans-serif" font-size="10" fill="#475569" '
-            f'data-bootstrap="{support:g}">{support:g}</text>'
+            f'data-bootstrap="{support:g}">{html.escape(node.name.strip())}</text>'
         )
 
     for leaf in _tree_leaves(root):
@@ -4901,7 +4906,7 @@ def _render_tree_html(
                 "name": "Bootstrap",
                 "x": [round(positions[id(node)][0] + 5.0, 4) for node in bootstrap_nodes],
                 "y": [round(positions[id(node)][1] - 5.0, 4) for node in bootstrap_nodes],
-                "text": [f"bootstrap: {_bootstrap_value(node.name):g}" for node in bootstrap_nodes],
+                "text": [f"bootstrap: {node.name.strip()}" for node in bootstrap_nodes],
                 "textposition": "top right",
                 "textfont": {"size": 11, "color": "#475569"},
                 "hoverinfo": "skip",
