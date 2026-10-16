@@ -1,7 +1,7 @@
-import { renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiGet } from '../api/client';
-import { useObjectInfo } from '../hooks/data/useObjectInfo';
+import { OBJECT_INFO_TIMEOUT_MS, useObjectInfo } from '../hooks/data/useObjectInfo';
 
 const apiMocks = vi.hoisted(() => ({
   apiGet: vi.fn(),
@@ -12,6 +12,66 @@ vi.mock('../api/client', () => apiMocks);
 describe('useObjectInfo', () => {
   beforeEach(() => {
     vi.mocked(apiGet).mockReset();
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('bounds a stalled registry, aborts it, and restores native port metadata on explicit retry', async () => {
+    vi.useFakeTimers();
+    let finishOld!: (value: unknown) => void;
+    vi.mocked(apiGet).mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+    const { result } = renderHook(() => useObjectInfo());
+    const signal = vi.mocked(apiGet).mock.calls[0][1]?.signal;
+    await act(async () => { await vi.advanceTimersByTimeAsync(OBJECT_INFO_TIMEOUT_MS); });
+    expect(signal?.aborted).toBe(true);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error?.message).toContain('timed out');
+    vi.mocked(apiGet).mockResolvedValueOnce({ input_fastq: {
+      name: 'input_fastq', display_name: 'Input FASTQ', category: 'Input',
+      input: { required: { file_path: ['STRING', {}] } }, output: ['FASTQ_LIST'], output_name: ['reads'],
+    } });
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.error).toBeNull();
+    expect(result.current.objectInfo.input_fastq.return_names).toEqual(['reads']);
+    expect(result.current.objectInfo.input_fastq.input_types?.required?.file_path.type).toBe('STRING');
+    // A transport which ignored AbortSignal must not replace the retried map.
+    await act(async () => { finishOld({ stale: { name: 'stale', output: [], output_name: [] } }); });
+    expect(Object.keys(result.current.objectInfo)).toEqual(['input_fastq']);
+  });
+
+  it('retains good ports on refresh failure and ignores superseded A/B/A completion', async () => {
+    vi.mocked(apiGet).mockResolvedValueOnce({ first: { name: 'first', output: ['FILE'], output_name: ['file'] } });
+    const { result } = renderHook(() => useObjectInfo());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    vi.mocked(apiGet).mockRejectedValueOnce(new Error('offline'));
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.objectInfo.first.return_names).toEqual(['file']);
+    vi.mocked(apiGet).mockResolvedValueOnce(null);
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.error).not.toBeNull();
+    expect(result.current.objectInfo.first.return_names).toEqual(['file']);
+    let finishOld!: (value: unknown) => void;
+    vi.mocked(apiGet).mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+    let oldRequest!: Promise<void>;
+    act(() => { oldRequest = result.current.refresh(); });
+    const oldSignal = vi.mocked(apiGet).mock.calls[3][1]?.signal;
+    vi.mocked(apiGet).mockResolvedValueOnce({ first: { name: 'first', output: ['FILE'], output_name: ['new_file'] } });
+    await act(async () => { await result.current.refresh(); await oldRequest; });
+    expect(oldSignal?.aborted).toBe(true);
+    await act(async () => { finishOld({ first: { name: 'first', output: [], output_name: [] } }); });
+    expect(result.current.objectInfo.first.return_names).toEqual(['new_file']);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('aborts on unmount and rejects retained refresh callbacks without another request', async () => {
+    let finish!: (value: unknown) => void;
+    vi.mocked(apiGet).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { result, unmount } = renderHook(() => useObjectInfo());
+    const retry = result.current.refresh;
+    const signal = vi.mocked(apiGet).mock.calls[0][1]?.signal;
+    unmount();
+    expect(signal?.aborted).toBe(true);
+    await act(async () => { finish({ ignored: {} }); await retry(); });
+    expect(apiGet).toHaveBeenCalledTimes(1);
   });
 
   it.each(['raw', 'normalized'] as const)('preserves validated knowledge from %s object info', async shape => {

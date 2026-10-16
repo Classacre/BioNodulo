@@ -77,6 +77,17 @@ describe('NodeLibraryPanel i18n', () => {
     });
   });
 
+  it('shows a persistent registry failure and an actionable Retry without an endless skeleton', async () => {
+    const { default: NodeLibraryPanel } = await import('../components/panels/NodeLibraryPanel');
+    const retry = vi.fn();
+    render(<NodeLibraryPanel objectInfo={{}} loading={false} error="Registry timed out"
+      onRetry={retry} onAddNode={vi.fn()} onAddGeneratedNode={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Registry timed out');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Loading Nodes...')).not.toBeInTheDocument();
+  });
+
   it('renders panel controls and result affordances from the active locale', async () => {
     const { default: NodeLibraryPanel } = await import('../components/panels/NodeLibraryPanel');
     const { setLanguage } = await import('../i18n');

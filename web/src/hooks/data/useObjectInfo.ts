@@ -167,6 +167,8 @@ export function normalizeObjectInfo(data: unknown): ObjectInfo {
   }));
 }
 
+export const OBJECT_INFO_TIMEOUT_MS = 30_000;
+
 export function useObjectInfo() {
   const [objectInfo, setObjectInfo] = useState<ObjectInfo>({});
   const generatedRef = useRef<ObjectInfo>({});
@@ -179,34 +181,71 @@ export function useObjectInfo() {
   // banner from `error`; we KEEP the last-good map so a transient 401/blip
   // doesn't wipe an already-loaded canvas.
   const [error, setError] = useState<ApiError | Error | null>(null);
+  const mounted = useRef(true);
+  const requestEpoch = useRef(0);
+  const activeRequest = useRef<{ cancel: () => void } | null>(null);
 
   const refresh = useCallback(async () => {
+    if (!mounted.current) return;
+    const epoch = ++requestEpoch.current;
+    activeRequest.current?.cancel();
+    const controller = new AbortController();
+    let cancel!: () => void;
+    let timer: ReturnType<typeof setTimeout>;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      cancel = () => {
+        controller.abort();
+        reject(new DOMException('Node registry request cancelled', 'AbortError'));
+      };
+      timer = setTimeout(() => {
+        reject(new Error('Loading the node registry timed out. Retry the request.'));
+        controller.abort();
+      }, OBJECT_INFO_TIMEOUT_MS);
+    });
+    activeRequest.current = { cancel };
+    const isCurrent = () => mounted.current && requestEpoch.current === epoch;
     setLoading(true);
+    setError(null);
     try {
-      const data = await apiGet<unknown>('/object_info');
-      // Reject the whole payload only if the top-level shape is wrong; the
-      // per-key normaliser already tolerates missing inner fields.
+      const data = await Promise.race([
+        apiGet<unknown>('/object_info', { signal: controller.signal }), deadline,
+      ]);
+      if (!isCurrent()) return;
+      // Shape errors and empty responses must not erase a working registry.
+      // Per-node normalization still accepts both supported metadata schemas.
       const validation = safeValidateObjectInfo(data);
-      if (validation.ok) {
-        setObjectInfo({ ...normalizeObjectInfo(validation.value), ...generatedRef.current });
-      } else {
-        // Fall back to the raw normaliser so a backend rolling out a
-        // schema change doesn't leave the panel empty.
-        setObjectInfo({ ...normalizeObjectInfo(data), ...generatedRef.current });
-      }
+      if (!validation.ok) throw validation.error;
+      const normalized = normalizeObjectInfo(validation.value);
+      if (Object.keys(normalized).length === 0) throw new Error('The node registry response was empty');
+      setObjectInfo({ ...normalized, ...generatedRef.current });
       setError(null);
     } catch (err) {
+      if (!isCurrent()) return;
       // Do NOT reset objectInfo to {} — keep the last-good registry so an
       // authed reload blip or an anonymous 401 doesn't erase node ports and
       // orphan every edge. Record the error so the UI can prompt sign-in/retry.
       const e = err instanceof Error ? err : new Error(String(err));
       logError('objectInfo.fetch', e);
       setError(e);
+    } finally {
+      clearTimeout(timer!);
+      if (isCurrent()) {
+        activeRequest.current = null;
+        setLoading(false);
+      }
     }
-    setLoading(false);
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    mounted.current = true;
+    void refresh();
+    return () => {
+      mounted.current = false;
+      requestEpoch.current += 1;
+      activeRequest.current?.cancel();
+      activeRequest.current = null;
+    };
+  }, [refresh]);
 
   const registerNode = useCallback((nodeId: string): Promise<NodeMetadata> => {
     const existing = generatedRef.current[nodeId];
@@ -219,11 +258,15 @@ export function useObjectInfo() {
         if (!meta || !meta.registry_origin || meta.registry_origin.execution_status !== 'definition_only') {
           throw new Error(`Invalid generated node metadata for ${nodeId}`);
         }
-        generatedRef.current = { ...generatedRef.current, [nodeId]: meta };
-        setObjectInfo(previous => ({ ...previous, [nodeId]: meta }));
+        if (mounted.current) {
+          generatedRef.current = { ...generatedRef.current, [nodeId]: meta };
+          setObjectInfo(previous => ({ ...previous, [nodeId]: meta }));
+        }
         return meta;
       })
-      .finally(() => { inFlightRef.current.delete(nodeId); });
+      .finally(() => {
+        if (inFlightRef.current.get(nodeId) === request) inFlightRef.current.delete(nodeId);
+      });
     inFlightRef.current.set(nodeId, request);
     return request;
   }, []);

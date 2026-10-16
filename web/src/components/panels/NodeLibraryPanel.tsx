@@ -23,6 +23,8 @@ const ToolAtlas = lazy(() => import('../modals/ToolAtlas'));
 interface NodeLibraryPanelProps {
   objectInfo: ObjectInfo;
   loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   onAddNode: (meta: NodeMetadata) => void;
   onAddGeneratedNode: (nodeId: string) => Promise<void>;
   onAddBlueprint?: (blueprint: SubgraphBlueprint) => void;
@@ -239,7 +241,7 @@ function NodeLibraryResult({
   );
 }
 
-export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAddGeneratedNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
+export default function NodeLibraryPanel({ objectInfo, loading, error, onRetry, onAddNode, onAddGeneratedNode, onAddBlueprint, onClose }: NodeLibraryPanelProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [showAtlas, setShowAtlas] = useState(false);
@@ -401,6 +403,14 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
         </button>
       </div>
       <div className="rail-panel-body">
+        {error && (
+          <div role="alert" style={{ marginBottom: 8, overflowWrap: 'anywhere' }}>
+            <p>{error}</p>
+            {onRetry && <button type="button" className="btn btn-sm" onClick={onRetry} disabled={loading}>
+              {t('objectInfo.retry')}
+            </button>}
+          </div>
+        )}
         <button type="button" className="btn btn-sm" style={{ marginBottom: 8, marginRight: 6 }} onClick={() => setShowAtlas(true)}>
           {t('toolAtlas.open')}
         </button>
@@ -464,7 +474,7 @@ export default function NodeLibraryPanel({ objectInfo, loading, onAddNode, onAdd
           </div>
         )}
         <div className="node-search-results node-library-results">
-          {totalNodes === 0 && (
+          {loading && totalNodes === 0 && (
             <div className="node-search-group" style={{ padding: '8px 12px' }}>
               <SkeletonList count={6} rowHeight={18} widths={['65%', '90%', '40%', '75%', '85%', '55%']} />
             </div>

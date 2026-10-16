@@ -3813,6 +3813,8 @@ export default function App() {
         <NodeLibraryPanel
           objectInfo={objectInfo}
           loading={objectInfoLoading}
+          error={objectInfoError ? t('objectInfo.loadErrorMessage') : null}
+          onRetry={() => { void refreshObjectInfo(); }}
           onAddNode={(meta) => {
             const newNode: WorkflowNode = {
               id: `${meta.id}_${Date.now()}`,
