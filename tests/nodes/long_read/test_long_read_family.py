@@ -606,8 +606,8 @@ def test_nanoplot_renders_one_source_with_documented_defaults_and_flags() -> Non
         }
     )
 
-    assert command == [
-        "NanoPlot",
+    assert command[:2] == ["python", "-c"]
+    assert command[3:] == [
         "--outdir",
         "/tmp/run/nanoplot",
         "--threads",

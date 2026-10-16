@@ -12,6 +12,28 @@ from .adapter import (
 )
 
 
+# NanoPlot's bare Kaleido 0.2.1 scope defaults to the frozen Plotly.js 1.58.5
+# CDN bundle. Modern Plotly serializes numeric arrays using an encoding that
+# bundle cannot render. Bind only NanoPlot's static scope to its producer's
+# installed JavaScript; retain the native entry point, figures and arguments.
+_NANOPLOT_DRIVER = """
+import functools
+from pathlib import Path
+import sys
+import plotly
+from kaleido.scopes.plotly import PlotlyScope
+
+bundle = Path(plotly.__file__).resolve().parent / "package_data" / "plotly.min.js"
+if not bundle.is_file():
+    raise RuntimeError("NanoPlot static export requires the installed Plotly.js bundle")
+import nanoplotter.plot as nanoplot_plot
+nanoplot_plot.PlotlyScope = functools.partial(PlotlyScope, plotlyjs=str(bundle))
+from nanoplot.NanoPlot import main
+sys.argv[0] = "NanoPlot"
+sys.exit(main())
+""".strip()
+
+
 class NanoPlotQCNode(LongReadCommandNode):
     """Generate NanoPlot's native HTML report and NanoStats text file."""
 
@@ -38,6 +60,7 @@ class NanoPlotQCNode(LongReadCommandNode):
     CONDA_PACKAGE_CONSTRAINTS = {"nanoplot": "1.44.1", "python-kaleido": "0.2.1"}
     PACKAGE_CONSTRAINT = "nanoplot = 1.44.1"
     VERSION = "1.44.1"
+    CACHE_VERSION = "1.44.1-plotlyjs2"
     SOURCE_URL = (
         "https://files.pythonhosted.org/packages/0d/b4/"
         "4b1aa17b9a4f2c750ddde6a53132e1ecdc23dbcb0db823032dca8e17489c/"
@@ -154,4 +177,4 @@ class NanoPlotQCNode(LongReadCommandNode):
         key, paths = selected
         command.append(cls.INPUT_FLAGS[key])
         command.extend(paths)
-        return command
+        return ["python", "-c", _NANOPLOT_DRIVER, *command[1:]]
