@@ -32,6 +32,19 @@ export function latestCloudRunForWorkflow(runs: RunRecord[], workflowId?: string
   return workflowId ? runs.filter(run => run.options?.cloud === true && run.workflow_id === workflowId).sort((a, b) => time(b) - time(a))[0] : undefined;
 }
 
+/** Recognize both the worker's automatic ROCrate and an explicit ROCrate node. */
+export function cloudExecutedGraphOutput(outputs: CloudRunOutput[], teamId: string, runId: string, observedNodeIds: Iterable<string>): CloudRunOutput | undefined {
+  const prefix = `${teamId}/${runId}/`;
+  const observed = new Set(observedNodeIds);
+  return outputs.find(output => output.name === 'bionodulo-workflow.json' && output.size <= CLOUD_PREVIEW_MAX_BYTES
+    && output.key === `${prefix}ro-crate/workflow/bionodulo-workflow.json`)
+    || outputs.find(output => {
+      if (output.name !== 'bionodulo-workflow.json' || output.size > CLOUD_PREVIEW_MAX_BYTES || !output.key.startsWith(prefix)) return false;
+      const path = output.key.slice(prefix.length).split('/');
+      return path.length === 3 && observed.has(path[0]) && path[1] === 'ro_crate' && path[2] === 'bionodulo-workflow.json';
+    });
+}
+
 export function cloudPreviewKind(output: Pick<CloudRunOutput, 'name'>): CloudPreviewKind | null {
   const ext = output.name.split('.').pop()?.toLowerCase();
   if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext || '')) return 'image';

@@ -15,7 +15,7 @@ import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/Work
 import type { TemplateSaveDraft } from './components/panels/TemplatesPanel';
 import { cloudLogStorageKey, useCloudLogStorage, useCloudScopeReset } from './hooks/cloud/useCloudLogStorage';
 import { cloudNodeOutputsAtom } from './state/cloudPreview';
-import { deriveCloudNodeOutputs, latestCloudRunForWorkflow, parseCloudPreviewGraph } from './utils/cloudPreview';
+import { cloudExecutedGraphOutput, deriveCloudNodeOutputs, latestCloudRunForWorkflow, parseCloudPreviewGraph } from './utils/cloudPreview';
 
 // Cloud editor live collaboration (Yjs over the Cloudflare Durable-Objects
 // Worker). When set, collab "rooms" are implicit (team + workflow) — there is no
@@ -2103,9 +2103,8 @@ export default function App() {
               updateRun(runId, { cloud_outputs: result.outputs });
               // The executed ROCrate workflow is immutable committed evidence;
               // today's saved workflow cannot establish historical sink edges.
-              const graphOutput = result.outputs.find(output => output.name === 'bionodulo-workflow.json'
-                && output.key.startsWith(`${cloudConfig?.team?.id}/${runId}/`) && output.key.endsWith('/ro_crate/bionodulo-workflow.json')
-                && output.size <= 2 * 1024 * 1024);
+              const graphOutput = cloudConfig?.team?.id
+                ? cloudExecutedGraphOutput(result.outputs, cloudConfig.team.id, runId, executionPlan) : undefined;
               if (graphOutput && cloudConfig?.team?.id) {
                 try {
                   const graphBytes = await getCloudOutputPreview(runId, graphOutput.key, new AbortController().signal, cloudConfig.team.id);

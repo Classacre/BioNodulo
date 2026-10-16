@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import type { CloudRunOutput, RunRecord, Workflow } from '../types';
-import { cloudOutputNodeId, cloudPreviewKind, deriveCloudNodeOutputs, parseCloudPreviewGraph, sandboxedCloudHtml, withoutCloudDownloadUrl } from '../utils/cloudPreview';
+import { cloudExecutedGraphOutput, cloudOutputNodeId, cloudPreviewKind, deriveCloudNodeOutputs, parseCloudPreviewGraph, sandboxedCloudHtml, withoutCloudDownloadUrl } from '../utils/cloudPreview';
 
 const output = (node: string, name: string, run = 'run', team = 'team'): CloudRunOutput => ({ key: `${team}/${run}/${node}/tool/${name}`, name, size: 20, sha256: 'a'.repeat(64), url: 'https://signed.example/secret' });
 const workflow = { id: 'wf', nodes: [{ id: 'source', type: 'plot' }, { id: 'preview', type: 'image_preview' }], edges: [{ from: { node: 'source', output: 'image' }, to: { node: 'preview', input: 'file' } }] } as Workflow;
 const run = (id = 'run'): RunRecord => ({ run_id: id, workflow_id: 'wf', workflow_name: 'Test', status: 'completed', execution_plan: ['source', 'preview'], node_statuses: [], node_outputs: {}, previews: {}, artifacts: {}, start_time: '2026-10-16T01:00:00Z', options: { cloud: true }, cloud_outputs: [output('source', 'a.png', id), output('source', 'b.png', id)], cloud_preview_graph: parseCloudPreviewGraph(workflow) });
 
 describe('verified cloud node preview association', () => {
+  it('recognizes actual automatic worker ROCrate keys and exact observed explicit-node keys', () => {
+    const automatic = { ...output('source', 'bionodulo-workflow.json'), key: 'team/run/ro-crate/workflow/bionodulo-workflow.json' };
+    const explicit = { ...automatic, key: 'team/run/ro-node/ro_crate/bionodulo-workflow.json' };
+    expect(cloudExecutedGraphOutput([automatic], 'team', 'run', [])).toBe(automatic);
+    expect(cloudExecutedGraphOutput([explicit], 'team', 'run', ['ro-node'])).toBe(explicit);
+    expect(cloudExecutedGraphOutput([explicit, automatic], 'team', 'run', ['ro-node'])).toBe(automatic);
+    expect(cloudExecutedGraphOutput([explicit], 'team', 'run', [])).toBeUndefined();
+    expect(cloudExecutedGraphOutput([automatic], 'other-team', 'run', [])).toBeUndefined();
+    expect(cloudExecutedGraphOutput([automatic], 'team', 'other-run', [])).toBeUndefined();
+    expect(cloudExecutedGraphOutput([{ ...automatic, size: 2 * 1024 * 1024 + 1 }], 'team', 'run', [])).toBeUndefined();
+  });
   it('associates exact node prefixes and offers all upstream choices without guessing a port', () => {
     const previews = deriveCloudNodeOutputs([run()], workflow, 'team');
     expect(previews.preview.outputs.map(item => item.name)).toEqual(['a.png', 'b.png']);
