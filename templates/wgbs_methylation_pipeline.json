@@ -33,7 +33,7 @@
         80
       ],
       "params": {
-        "text": "WGBS methylation profiling: bisulfite alignment with Bismark, then per-CpG\nmethylation extraction with MethylDackel.\n\nData: nf-core methylseq test set -- Ecoli_10K_methylated paired reads (10,000\npairs) against the lambda-phage reference they were built on (contig 'chr',\n48,502 bp).\n\nThese are REAL bisulfite-converted reads. The previous pairing used sarscov2\nWGS, which is not methylation data, and whose FASTA header (MT192765.1) did\nnot match the contig Bismark emitted -- MethylDackel then segfaulted with\n'The sequence \"chr\" was not found'."
+        "text": "WGBS methylation smoke test: Bismark alignment, sorted/indexed BAM,\nthen extraction with Bismark and MethylDackel.\n\nData: nf-core Ecoli_10K_methylated paired reads (10,000 pairs) and a\nsmall bundled reference (contig 'chr', 48,502 bp).\n\nCoverage is sparse: the cloud test aligned 5 of 10,000 read pairs and\nproduced 41 covered CpG sites. This validates execution and consistent\ncontig names; it is not a representative whole-genome methylome and\nmust not support biological conclusions."
       },
       "ui": {
         "title": "Notes",
