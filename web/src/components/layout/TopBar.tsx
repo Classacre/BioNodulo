@@ -15,6 +15,7 @@ function withShortcut(label: string, binding?: string | null): string {
 }
 
 interface TopBarProps {
+  onOpenAI?: () => void;
   validationValid: boolean;
   validationErrors: string[];
   onRun: () => void;
@@ -89,7 +90,7 @@ export default function TopBar({
   dryRunPreview = false, onDryRunPreviewChange,
   resumeCheckpointLabel = null, onOpenRuntimeArtifacts, onResumeCheckpointClear,
   onToggleQueue, onRunOnCloud, collabControls, cloudAccount = null,
-  editorMode = false, onHostFullscreen,
+  editorMode = false, onHostFullscreen, onOpenAI,
 }: TopBarProps) {
   const isRunning = useAtomValue(isRunningAtom);
   const [batchCount, setBatchCount] = useAtom(batchCountAtom);
@@ -450,7 +451,7 @@ export default function TopBar({
         </button>
         <button
           className="btn btn-ai btn-sm"
-          onClick={() => setShowAI(true)}
+          onClick={() => onOpenAI ? onOpenAI() : setShowAI(true)}
           title={withShortcut(t('topbar.aiAssistant'), aiShortcut)}
           aria-label={withShortcut(t('topbar.openAiAssistant'), aiShortcut)}
         >

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -40,6 +40,8 @@ function runStatusLabel(t: TFunction, status: RunRecord['status'] | 'failed'): s
 type ConsoleTab = 'logs' | 'previews' | 'report';
 
 interface BottomConsoleProps {
+  onHeightChange?: (height: number) => void;
+  onChromeHeightChange?: (height: number) => void;
   queue: RunRecord[];
   history: RunRecord[];
   onClose: () => void;
@@ -348,6 +350,8 @@ export default function BottomConsole({
   onClearLogs,
   nodeIdToName,
   editorMode = false,
+  onHeightChange,
+  onChromeHeightChange,
 }: BottomConsoleProps) {
   const { t } = useTranslation();
   const logs = useAtomValue(logsAtom);
@@ -371,6 +375,23 @@ export default function BottomConsole({
     try { return parseInt(localStorage.getItem(CONSOLE_HEIGHT_KEY) || String(CONSOLE_DEFAULT_HEIGHT), 10); }
     catch { return CONSOLE_DEFAULT_HEIGHT; }
   });
+  const consoleRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = consoleRef.current;
+    if (!element || !onHeightChange) return;
+    const chrome = element.closest('.main-canvas')?.querySelectorAll<HTMLElement>('.react-flow__controls, .react-flow__minimap');
+    const measure = () => {
+      const height = element.getBoundingClientRect().height;
+      if (Number.isFinite(height)) onHeightChange(Math.max(0, height));
+      const heights = [...(chrome ?? [])].map(item => item.getBoundingClientRect().height).filter(Number.isFinite);
+      onChromeHeightChange?.(Math.max(0, ...heights));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    chrome?.forEach(item => observer.observe(item));
+    return () => { observer.disconnect(); onHeightChange(0); onChromeHeightChange?.(0); };
+  }, [onHeightChange, onChromeHeightChange]);
   const resizeDragging = useRef(false);
   const resizeStartY = useRef(0);
   const resizeStartH = useRef(0);
@@ -525,7 +546,7 @@ export default function BottomConsole({
   const previewCount = imagePreviews.length + htmlPreviews.length;
 
   return (
-    <div className="bottom-console" style={{ height: consoleHeight }}>
+    <div ref={consoleRef} className="bottom-console" style={{ height: consoleHeight }} tabIndex={-1} role="region" aria-label={t('panels.console')}>
       {/* Drag handle — grab and pull to resize the drawer */}
       <div
         className="console-resize-handle"

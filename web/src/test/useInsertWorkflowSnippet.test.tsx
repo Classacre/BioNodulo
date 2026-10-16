@@ -12,6 +12,7 @@ import { LOCAL_BROWSER_STORAGE_SCOPE, resolveBrowserStorageScope } from '../util
 import type { BrowserStorageScope } from '../utils/browserStorageScope';
 import type { Workflow } from '../types';
 import { placementBounds, placementOverlaps, snippetNodeSize } from '../utils/snippetPlacement';
+import { getViewportForBounds } from '@xyflow/react';
 
 vi.mock('../state/dialogs', () => ({ promptDialog: vi.fn() }));
 vi.mock('../state/notifications', () => ({ toast: { info: vi.fn(), success: vi.fn() } }));
@@ -253,6 +254,72 @@ describe('snippet insertion history transaction', () => {
     act(() => frames.shift()!(16));
     expect(reveal).toHaveBeenCalledWith({ nodes: insertedIds.map(id => ({ id })), minZoom: 0, duration: 220,
       padding: { left: '424px', right: '224px', top: '24px', bottom: '474px' } });
+  });
+
+  it('reveals above actual MiniMap, controls and activity chrome, ignoring hidden or covered chrome', async () => {
+    const shell = document.createElement('div');
+    shell.className = 'app-shell';
+    shell.dataset.placementFixture = '';
+    shell.style.setProperty('--left-panel-inset', '372px');
+    shell.innerHTML = '<div class="main-canvas"><div class="react-flow"></div></div>';
+    document.body.append(shell);
+    const main = shell.querySelector<HTMLElement>('.main-canvas')!;
+    const rect = (left: number, top: number, width: number, height: number): DOMRect => ({
+      x: left, y: top, left, top, width, height, right: left + width, bottom: top + height,
+    } as DOMRect);
+    vi.spyOn(main.querySelector<HTMLElement>('.react-flow')!, 'getBoundingClientRect')
+      .mockReturnValue(rect(56, 76, 1224, 644));
+    const overlays = [
+      { className: 'bottom-console', bounds: rect(428, 440, 852, 280) },
+      { className: 'react-flow__minimap', bounds: rect(1064, 302, 200, 150) },
+      { className: 'react-flow__controls', bounds: rect(443, 330, 28, 106) },
+      { className: 'island', bounds: rect(820, 680, 64, 30) },
+    ];
+    for (const overlay of [...overlays,
+      { className: 'react-flow__controls', bounds: rect(60, 100, 28, 106) }, // Behind Workspace.
+      { className: 'react-flow__minimap', bounds: rect(1300, 100, 200, 150) }, // Outside canvas.
+      { className: 'island', bounds: rect(700, 100, 200, 100), hidden: true },
+    ]) {
+      const element = document.createElement('div');
+      element.className = overlay.className;
+      if ('hidden' in overlay) element.style.visibility = 'hidden';
+      vi.spyOn(element, 'getBoundingClientRect').mockReturnValue(overlay.bounds);
+      main.append(element);
+    }
+    const reveal = vi.fn();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
+    const { result } = setup(LOCAL_BROWSER_STORAGE_SCOPE, {
+      viewport: { x: 600, y: 300, scale: 1 }, onInserted: reveal,
+    });
+    const before = structuredClone(result.current.workflow);
+    saveSnippet(before);
+    await act(async () => { await result.current.insert(); });
+    expect(result.current.workflow.nodes.slice(0, 3)).toEqual(before.nodes);
+    act(() => frames.shift()!(0));
+    // The controls move higher after layout; reveal must use their new bounds.
+    const controls = main.querySelector<HTMLElement>('.react-flow__controls')!;
+    vi.mocked(controls.getBoundingClientRect).mockReturnValue(rect(443, 282, 28, 150));
+    act(() => frames.shift()!(16));
+    expect(reveal).toHaveBeenCalledOnce();
+    const options = reveal.mock.calls[0][0];
+    expect(options.padding.bottom).toBe('462px'); // Actual canvas bottom720 - controlstop282 + margin24.
+    const added = result.current.workflow.nodes.slice(3);
+    expect(options.nodes).toEqual(added.map(node => ({ id: node.id })));
+    const bounds = placementBounds(added.map(node => ({ x: node.position[0], y: node.position[1], ...snippetNodeSize(node) })));
+    const view = getViewportForBounds(bounds, 1224, 644, options.minZoom, 2, options.padding);
+    const projected = { x: 56 + bounds.x * view.zoom + view.x, y: 76 + bounds.y * view.zoom + view.y,
+      width: bounds.width * view.zoom, height: bounds.height * view.zoom };
+    expect(projected.y + projected.height).toBeLessThanOrEqual(282 - 24 + 0.0001);
+    expect(projected.x).toBeGreaterThanOrEqual(56 + 372 + 24 - 0.0001);
+    expect(projected.x + projected.width).toBeLessThanOrEqual(56 + 1224 - 24 + 0.0001);
+    for (const overlay of overlays) {
+      expect(placementOverlaps(projected, { x: overlay.bounds.left, y: overlay.bounds.top,
+        width: overlay.bounds.width, height: overlay.bounds.height }, 0)).toBe(false);
+    }
+    act(() => result.current.history.undo());
+    expect(result.current.workflow.nodes).toEqual(before.nodes);
+    expect(result.current.workflow.edges).toEqual(before.edges);
   });
 
   it.each(['document', 'owner', 'owner-return'] as const)('rejects a chooser result after a %s change', async transition => {

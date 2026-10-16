@@ -21,13 +21,25 @@ function measureCanvasArea() {
   };
   const leftInset = Math.min(width - 1, inset('--left-panel-inset'));
   const rightInset = Math.min(width - leftInset - 1, inset('--right-panel-inset'));
-  const consoleRect = style ? shell?.querySelector<HTMLElement>('.bottom-console')?.getBoundingClientRect() : undefined;
   const top = rect?.top ?? 0;
   const left = rect?.left ?? 0;
-  const consoleOverlaps = consoleRect && consoleRect.width > 0 && consoleRect.height > 0
-    && consoleRect.left < left + width && consoleRect.right > left
-    && consoleRect.top < top + height && consoleRect.bottom > top;
-  const bottomInset = consoleOverlaps ? Math.min(height - 1, Math.max(0, top + height - consoleRect.top)) : 0;
+  const main = canvas?.closest('.main-canvas');
+  const overlays = [...(main?.querySelectorAll<HTMLElement>('.react-flow__minimap, .react-flow__controls, .island') ?? [])];
+  const consoleElement = style ? shell?.querySelector<HTMLElement>('.bottom-console') : null;
+  if (consoleElement) overlays.push(consoleElement);
+  let usableBottom = top + height;
+  for (const element of overlays) {
+    const visibility = getComputedStyle(element).visibility;
+    if (visibility === 'hidden' || visibility === 'collapse') continue;
+    const bounds = element.getBoundingClientRect();
+    if (![bounds.top, bounds.bottom, bounds.left, bounds.right, bounds.width, bounds.height].every(Number.isFinite)
+      || bounds.width <= 0 || bounds.height <= 0) continue;
+    if (bounds.left < left + width - rightInset && bounds.right > left + leftInset
+      && bounds.top < top + height && bounds.bottom > top) usableBottom = Math.min(usableBottom, bounds.top);
+  }
+  // Bottom chrome can sit above the console (notably MiniMap). Reserve its
+  // actual upper edge across the usable strip so a fitted node stays readable.
+  const bottomInset = Math.min(height - 1, Math.max(0, top + height - usableBottom));
   return { canvas, width, height, leftInset, rightInset, bottomInset };
 }
 

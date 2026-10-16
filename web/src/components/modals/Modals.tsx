@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import ExportModal from './ExportModal';
 import ImportModal from './ImportModal';
 import AIWorkflowModal from './AIWorkflowModal';
+import ConsolePanelSlot from '../layout/ConsolePanelSlot';
 import BatchSampleSheetModal from './BatchSampleSheetModal';
 import type { SampleSheetRun } from './BatchSampleSheetModal';
 import ImageLightbox from './ImageLightbox';
@@ -49,6 +50,7 @@ const BulkParamModal = lazy(() => import('./BulkParamModal'));
 const WorkflowDoctorModal = lazy(() => import('./WorkflowDoctorModal'));
 
 export interface ModalWorkflowContext {
+  consoleExclusive?: boolean;
   activeWorkflow: Workflow;
   activeWorkflowId: string;
   activeIndex: number;
@@ -139,6 +141,7 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
         onCreateRoom={onCreateCollabSession}
       />
 
+      <ConsolePanelSlot suspended={Boolean(ctx.consoleExclusive)}>
       <CommentsPanel
         workflowId={activeWorkflowId}
         comments={comments}
@@ -153,6 +156,7 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
         onResolveComment={onResolveComment}
         onDeleteComment={onDeleteComment}
       />
+      </ConsolePanelSlot>
       <VersionHistory
         workflowId={activeWorkflowId}
         isOpen={showVersions}
@@ -233,11 +237,14 @@ export function Modals({ ctx }: { ctx: ModalWorkflowContext }) {
         );
       })()}
       {showAI && (
+        <ConsolePanelSlot suspended={Boolean(ctx.consoleExclusive)}>
         <AIWorkflowModal
+          presentationHidden={ctx.consoleExclusive}
           workflow={activeWorkflow}
           onClose={() => setShowAI(false)}
           onApplyWorkflow={handleApplyWorkflow}
         />
+        </ConsolePanelSlot>
       )}
       {showBatchSheet && (
         <BatchSampleSheetModal

@@ -11,6 +11,7 @@ import { openDocs } from '../../utils/links';
 export type RailTab = 'data' | 'nodes' | 'templates' | 'environments' | 'runtimeArtifacts' | 'help' | 'console' | 'settings' | 'hpc' | 'user' | 'compute' | string | null;
 
 interface LeftRailProps {
+  panelsSuspended?: boolean;
   active: RailTab;
   onChange: (tab: RailTab) => void;
 }
@@ -61,11 +62,11 @@ function RailButton({ active, icon, label, shortcut, onClick }: RailButtonProps)
   );
 }
 
-export default function LeftRail({ active, onChange }: LeftRailProps) {
+export default function LeftRail({ active, onChange, panelsSuspended = false }: LeftRailProps) {
   const { t } = useTranslation();
   const consoleVisible = useAtomValue(consoleVisibleAtom);
   const setConsoleVisible = useSetAtom(consoleVisibleAtom);
-  const toggle = (tab: RailTab) => onChange(active === tab ? null : tab);
+  const toggle = (tab: RailTab) => onChange(!panelsSuspended && active === tab ? null : tab);
   const toggleConsole = () => {
     const isVisible = consoleVisible || active === 'console';
     setConsoleVisible(!isVisible);

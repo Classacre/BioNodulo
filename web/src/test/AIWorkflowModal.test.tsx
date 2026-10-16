@@ -114,6 +114,46 @@ describe('AIWorkflowModal i18n', () => {
     vi.unstubAllGlobals();
   });
 
+  it('preserves console-suspended AI drafts and attachments and disables hidden popout Escape', async () => {
+    const { setLanguage } = await import('../i18n'); await setLanguage('en');
+    const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
+    const { default: ConsolePanelSlot } = await import('../components/layout/ConsolePanelSlot');
+    const { installDomOverlayBridge, hasOpenOverlay } = await import('../state/overlays');
+    const { useGlobalShortcut } = await import('../hooks/ui/useKeybindings');
+    const onGraphUndo = vi.fn();
+    function KeyboardProbe() { useGlobalShortcut('canvas.undo', onGraphUndo); return null; }
+    const stopOverlayBridge = installDomOverlayBridge();
+    const store = createStore(); store.set(cloudConfigAtom, { editorMode: false, cloudMode: false } as CloudConfig);
+    const wf = workflow();
+    const content = (hidden: boolean) => <Provider store={store}><KeyboardProbe /><ConsolePanelSlot suspended={hidden}>
+      <AIWorkflowModal workflow={wf} presentationHidden={hidden} onClose={() => undefined} onApplyWorkflow={() => undefined} />
+    </ConsolePanelSlot></Provider>;
+    const view = render(content(false));
+    fireEvent.change(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)'), { target: { value: 'UNSENT_CONSOLE_DRAFT' } });
+    fireEvent.change(view.container.querySelector('input[type="file"]')!, { target: { files: [new File(['data'], 'UNSENT_CONSOLE.csv', { type: 'text/csv' })] } });
+    await screen.findByText('UNSENT_CONSOLE.csv');
+    await act(async () => { fireEvent.click(screen.getByTitle('Open in window')); await Promise.resolve(); });
+    expect(view.container.querySelector('.ai-popout')).not.toBeNull();
+    expect(hasOpenOverlay()).toBe(true);
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true }); expect(onGraphUndo).not.toHaveBeenCalled();
+    await act(async () => { view.rerender(content(true)); await Promise.resolve(); });
+    expect(view.container.querySelector('.console-panel-slot')).toHaveAttribute('inert');
+    expect(hasOpenOverlay()).toBe(false);
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true }); expect(onGraphUndo).toHaveBeenCalledOnce();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(view.container.querySelector('.ai-popout')).not.toBeNull();
+    await act(async () => { view.rerender(content(false)); await Promise.resolve(); });
+    expect(hasOpenOverlay()).toBe(true);
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true }); expect(onGraphUndo).toHaveBeenCalledOnce();
+    expect(screen.getByPlaceholderText('Ask about workflows... (Paste images directly)')).toHaveValue('UNSENT_CONSOLE_DRAFT');
+    expect(screen.getByText('UNSENT_CONSOLE.csv')).toBeInTheDocument();
+    await act(async () => { fireEvent.keyDown(document, { key: 'Escape' }); await Promise.resolve(); });
+    expect(view.container.querySelector('.ai-popout')).toBeNull();
+    expect(view.container.querySelector('.ai-drawer')).not.toBeNull();
+    expect(hasOpenOverlay()).toBe(false);
+    view.unmount(); stopOverlayBridge();
+  });
+
   it('never restores unowned legacy or other account/team chats into cloud guest or unknown contexts', async () => {
     const { default: AIWorkflowModal } = await import('../components/modals/AIWorkflowModal');
     const store = createStore();

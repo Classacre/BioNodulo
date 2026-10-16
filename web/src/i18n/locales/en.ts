@@ -1025,7 +1025,7 @@ const en = {
     insertPromptInputLabel: 'Number',
     insertedTitle: 'Snippet inserted',
     saveCommandDescription: 'Capture selected nodes and their interconnections to the snippet library',
-    insertCommandDescription: 'Pick from saved snippets and stamp at canvas centre',
+    insertCommandDescription: 'Insert a saved snippet into available canvas space',
   },
   runs: {
     title: 'Runs',

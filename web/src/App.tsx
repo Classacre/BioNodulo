@@ -8,6 +8,7 @@ import TopBar from './components/layout/TopBar';
 import LeftRail, { type RailTab } from './components/layout/LeftRail';
 import WorkflowTabs from './components/layout/WorkflowTabs';
 import BottomConsole from './components/layout/BottomConsole';
+import ConsolePanelSlot from './components/layout/ConsolePanelSlot';
 import RunsDrawer from './components/layout/RunsDrawer';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import WorkflowCanvas, { type WorkflowCanvasRef } from './components/canvas/WorkflowCanvas';
@@ -65,7 +66,7 @@ import { useRegistryNodeHydration } from './hooks/data/useRegistryNodeHydration'
 import { useWebSocket } from './hooks/useWebSocket';
 import { usePanelLayout } from './hooks/usePanelLayout';
 import { useResponsiveEditorLayout } from './hooks/useResponsiveEditorLayout';
-import { fitDockedPanels } from './utils/panelLayout';
+import { activateConsolePanel, consoleChromeFits, consoleHidesRailPanel, consolePanelLayout, fitDockedPanels } from './utils/panelLayout';
 import { useHPC } from './hooks/useHPC';
 import { useAutoSave, useQueueMode, useWorkflow, useWorkflowMessages } from './hooks/workflow';
 import type { CheckpointRecord } from './hooks/workflow/useWorkflowRuntimeArtifacts';
@@ -1475,6 +1476,8 @@ export default function App() {
   });
 
   const consoleVisible = useAtomValue(consoleVisibleAtom);
+  const [measuredConsoleHeight, setMeasuredConsoleHeight] = useState(280);
+  const [measuredConsoleChromeHeight, setMeasuredConsoleChromeHeight] = useState(0);
   const setConsoleVisible = useSetAtom(consoleVisibleAtom);
   const [runsDrawerOpen, setRunsDrawerOpen] = useState(false);
   const [railTab, setRailTabState] = useState<RailTab>(null);
@@ -1544,6 +1547,26 @@ export default function App() {
   }, []);
   const focusMode = useAtomValue(focusModeAtom);
   const setFocusMode = useSetAtom(focusModeAtom);
+  // Total pixel width of all panels currently docked to the RIGHT edge —
+  // exposed as `--right-panel-inset` so .minimap / .canvas-controls slide
+  // left to stay visible instead of being clipped by the panel.
+  const rightPanelInset = reservedDrawerWidth + fittedDockedPanels.filter(panel => panel.side === 'right')
+    .reduce((total, panel) => total + panel.width + 32, 0);
+  const leftPanelInset = fittedDockedPanels.filter(panel => panel.side === 'left')
+    .reduce((total, panel) => total + panel.width + 32, 0);
+  const consoleOpen = consoleVisible || railTab === 'console';
+  const consoleLayout = consolePanelLayout(consoleOpen, focusMode, editorLayout.width, leftPanelInset, rightPanelInset);
+  const canvasChromeWidth = consoleLayout.width;
+  const closeConsoleForPanel = useCallback(() => {
+    setConsoleVisible(false);
+    setRailTabState(current => current === 'console' ? null : current);
+  }, [setConsoleVisible]);
+  const handleOpenAI = useCallback(() => {
+    activateConsolePanel(consoleLayout.exclusive, setShowAI, closeConsoleForPanel);
+  }, [consoleLayout.exclusive, setShowAI, closeConsoleForPanel]);
+  const handleToggleComments = useCallback(() => {
+    activateConsolePanel(consoleLayout.exclusive, setShowComments, closeConsoleForPanel, true);
+  }, [consoleLayout.exclusive, setShowComments, closeConsoleForPanel]);
   const toggleFocusMode = useCallback(() => {
     setFocusMode(prev => !prev);
   }, [setFocusMode]);
@@ -1640,6 +1663,10 @@ export default function App() {
   }, [setFloatingPanel, rightDockedPanels, toggleRightDocked]);
 
   const setRailTab = useCallback((next: RailTab | ((prev: RailTab) => RailTab)) => {
+    const intended = typeof next === 'function' ? next(railTab) : next;
+    if (intended && intended !== 'console' && consoleHidesRailPanel(consoleLayout.exclusive, consoleOpen, focusMode, Boolean(floatingPanels[intended]))) {
+      setConsoleVisible(false);
+    }
     setRailTabState(prev => {
       const resolved = typeof next === 'function' ? next(prev) : next;
       if (resolved && resolved !== 'console') {
@@ -1655,7 +1682,7 @@ export default function App() {
       }
       return resolved;
     });
-  }, []);
+  }, [consoleLayout.exclusive, consoleOpen, focusMode, floatingPanels, railTab, setConsoleVisible]);
 
   // WebSocket connection for real-time logs. The cloud editor (editorMode) has
   // no such socket — it's served statically and the Lambda can't hold a WS — so
@@ -2928,8 +2955,8 @@ export default function App() {
   }, [activeWorkflow, activeWorkflowId, appCollabCopy, collabSessionActive, publishCollabWorkflowSnapshot]);
 
   const handleToggleQueue = useCallback(() => {
-    setRunsDrawerOpen(open => !open);
-  }, []);
+    activateConsolePanel(consoleLayout.exclusive, setRunsDrawerOpen, closeConsoleForPanel, true);
+  }, [consoleLayout.exclusive, closeConsoleForPanel]);
 
   const handleLoadTemplate = useCallback(async (template: TemplateInfo) => {
     logTelemetry('template.load', { id: template.id, name: template.name, category: template.category });
@@ -3043,8 +3070,8 @@ export default function App() {
       handleToggleQueue();
       return;
     }
-    setRailTab(prev => prev === tab ? null : tab);
-  }, [handleToggleQueue, setRailTab]);
+    setRailTab(prev => consoleHidesRailPanel(consoleLayout.exclusive, consoleOpen, focusMode, Boolean(floatingPanels[tab])) || prev !== tab ? tab : null);
+  }, [handleToggleQueue, setRailTab, consoleLayout.exclusive, consoleOpen, focusMode, floatingPanels]);
 
   const appCommands = useMemo<CommandItem[]>(() => {
     const baseCommands: CommandItem[] = [
@@ -3266,7 +3293,7 @@ export default function App() {
         group: 'Tools',
         groupLabelKey: 'commandPalette.groups.tools',
         shortcut: getBinding('ai.open') ?? undefined,
-        onSelect: () => setShowAI(true),
+        onSelect: handleOpenAI,
       },
       {
         id: 'shortcuts.open',
@@ -3489,6 +3516,7 @@ export default function App() {
     getBinding,
     getBool,
     handleInsertSnippet,
+    handleOpenAI,
     handleClearQueue,
     handleDuplicateTab,
     handleRun,
@@ -3524,6 +3552,7 @@ export default function App() {
         groupLabelKey: 'nodePalette.addNode',
         keywords: [meta.id, meta.category, ...(meta.search_aliases || []), ...(meta.requires_external_tools || [])],
         onSelect: () => {
+          if (!isCurrentHistory()) return;
           const vp = canvasRef.current?.getViewport();
           const world = vp
             ? { x: (-vp.x + window.innerWidth / 2) / vp.scale, y: (-vp.y + window.innerHeight / 2) / vp.scale }
@@ -3536,7 +3565,7 @@ export default function App() {
             node_info: meta,
             ui: { title: meta.display_name },
           };
-          updateWorkflow(activeIndex, { ...activeWorkflow, nodes: [...activeWorkflow.nodes, newNode] });
+          commitHistoryPatch({ nodes: [...activeWorkflowRef.current.nodes, newNode] });
         },
       });
     }
@@ -3562,7 +3591,7 @@ export default function App() {
       }
     } catch { /* ignore */ }
     return items;
-  }, [objectInfo, activeWorkflow, activeIndex, updateWorkflow, handleLoadTemplate, t, browserStorageScope, browserStorageOwnership]);
+  }, [objectInfo, commitHistoryPatch, isCurrentHistory, handleLoadTemplate, t, browserStorageScope, browserStorageOwnership]);
   useRegisteredCommands('dynamic', dynamicCommands);
 
   useGlobalShortcut('commandPalette.open', () => toggleCommandPalette());
@@ -3577,7 +3606,7 @@ export default function App() {
   useGlobalShortcut('canvas.redoAlternate', redo);
   useGlobalShortcut('settings.toggle', () => togglePanel('settings'));
   useGlobalShortcut('console.toggle', handleToggleQueue);
-  useGlobalShortcut('ai.open', () => setShowAI(true));
+  useGlobalShortcut('ai.open', handleOpenAI);
   useGlobalShortcut('rail.workspace', () => togglePanel('data'));
   useGlobalShortcut('rail.nodes', () => togglePanel('nodes'));
   useGlobalShortcut('rail.templates', () => togglePanel('templates'));
@@ -3733,14 +3762,6 @@ export default function App() {
     (consoleVisible || railTab === 'console') ? 'console-open' : '',
     focusMode ? 'focus-mode' : '',
   ].filter(Boolean).join(' ')), [consoleVisible, focusMode, railTab, runsDrawerOpen, showAI, showComments]);
-  // Total pixel width of all panels currently docked to the RIGHT edge —
-  // exposed as `--right-panel-inset` so .minimap / .canvas-controls slide
-  // left to stay visible instead of being clipped by the panel.
-  const rightPanelInset = reservedDrawerWidth + fittedDockedPanels.filter(panel => panel.side === 'right')
-    .reduce((total, panel) => total + panel.width + 32, 0);
-  const leftPanelInset = fittedDockedPanels.filter(panel => panel.side === 'left')
-    .reduce((total, panel) => total + panel.width + 32, 0);
-  const canvasChromeWidth = Math.max(0, editorLayout.width - leftPanelInset - rightPanelInset);
   // NOTE: The "Unsaved changes / Autosave" pill that used to live in the top
   // bar was removed in Wave L. The amber dot on each workflow tab now carries
   // the dirty signal, and pre-flight save state is still surfaced inline when
@@ -3890,13 +3911,14 @@ export default function App() {
 
   return (
     <div
-      className={`${appShellClassName}${canvasChromeWidth < 300 ? ' canvas-crowded' : ''}`}
+      className={`${appShellClassName}${canvasChromeWidth < 300 ? ' canvas-crowded' : ''}${consoleOpen && !focusMode && !consoleChromeFits(editorLayout.height, measuredConsoleHeight, measuredConsoleChromeHeight) ? ' console-chrome-hidden' : ''}`}
       style={{
-        '--right-panel-inset': `${rightPanelInset}px`,
+        '--right-panel-inset': `${consoleLayout.rightInset}px`,
         '--editor-content-top': `${editorLayout.top}px`,
         '--ai-panel-width': `${editorLayout.aiWidth}px`,
-        '--left-panel-inset': `${leftPanelInset}px`,
-        '--canvas-chrome-center': `${leftPanelInset + canvasChromeWidth / 2}px`,
+        '--left-panel-inset': `${consoleLayout.leftInset}px`,
+        '--console-height': `${measuredConsoleHeight}px`,
+        '--canvas-chrome-center': `${consoleLayout.leftInset + canvasChromeWidth / 2}px`,
         '--canvas-chrome-width': `${canvasChromeWidth}px`,
       } as Record<string, string>}
     >
@@ -3920,6 +3942,7 @@ export default function App() {
       )}
 
       <TopBar
+        onOpenAI={handleOpenAI}
         runDisabled={collabViewerReadOnly}
         validationValid={validation.valid}
         validationErrors={validation.errors}
@@ -3947,6 +3970,7 @@ export default function App() {
         } : null}
         collabControls={(
           <CollabBadge
+            onToggleComments={handleToggleComments}
             enabled={collabEnabled}
             connected={collabConnected}
             connecting={collabConnecting}
@@ -4030,8 +4054,9 @@ export default function App() {
           : dirty ? new Set([activeIndex]) : undefined}
       />
 
-      <LeftRail active={railTab} onChange={setRailTab} />
+      <LeftRail active={railTab} onChange={setRailTab} panelsSuspended={consoleHidesRailPanel(consoleLayout.exclusive, consoleOpen, focusMode, Boolean(railTab && floatingPanels[railTab]))} />
 
+      <ConsolePanelSlot suspended={consoleLayout.exclusive}>
       <RunsDrawer
         open={runsDrawerOpen}
         queue={queuedRuns}
@@ -4046,6 +4071,7 @@ export default function App() {
         onClearHistory={editorMode ? undefined : handleClearHistory}
         allowCompare={!editorMode}
       />
+      </ConsolePanelSlot>
 
       <div
         className="main-canvas"
@@ -4191,8 +4217,8 @@ export default function App() {
                 ? { right: offset, width }
                 : { left: offset, width };
             return (
+              <ConsolePanelSlot key={tab} suspended={consoleHidesRailPanel(consoleLayout.exclusive, consoleOpen, focusMode, side === 'float')}>
               <div
-                key={tab}
                 className={`rail-panel-wrap ${floating ? 'floating' : ''} ${isRight ? 'docked-right' : ''} ${draggingPanelTab === tab ? 'is-dragging' : ''}`}
                 style={style}
               >
@@ -4248,6 +4274,7 @@ export default function App() {
                   onKeyDown={event => handlePanelResizeKey(tab, isRight, event)}
                 />
               </div>
+              </ConsolePanelSlot>
             );
           };
           const dockedRendered = fittedDockedPanels.map(panel => renderPanel(panel.id, panel.side, panel.offset, panel.width));
@@ -4281,12 +4308,15 @@ export default function App() {
               onClearLogs={clearLogs}
               nodeIdToName={nodeIdToNameMap}
               editorMode={editorMode}
+              onHeightChange={setMeasuredConsoleHeight}
+              onChromeHeightChange={setMeasuredConsoleChromeHeight}
             />
           </ErrorBoundary>
         )}
       </div>
 
       <Modals ctx={{
+        consoleExclusive: consoleLayout.exclusive,
         activeWorkflow,
         activeWorkflowId,
         activeIndex,

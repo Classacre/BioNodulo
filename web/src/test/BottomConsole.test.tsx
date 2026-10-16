@@ -60,6 +60,43 @@ describe('BottomConsole i18n', () => {
     vi.unstubAllGlobals();
   });
 
+  it('reports actual resized, canvas-capped and focus-hidden console height without losing the requested height', async () => {
+    const { setLanguage } = await import('../i18n'); await setLanguage('en');
+    const { default: BottomConsole } = await import('../components/layout/BottomConsole');
+    storage.set('bionodulo.console.height', '430');
+    let canvasHeight = 644; let visible = true;
+    let notify: () => void = () => undefined;
+    const disconnect = vi.fn();
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { notify = callback; }
+      observe() {} disconnect = disconnect;
+    });
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { x: 0, y: 0, top: 0, left: 0, right: 240, bottom: 0, width: 240,
+        height: visible ? Math.min(parseFloat(this.style.height) || 0, canvasHeight) : 0,
+        toJSON: () => ({}) };
+    });
+    const onHeightChange = vi.fn(); const onClose = vi.fn();
+    const view = render(<Provider><BottomConsole queue={[]} history={[]} onClose={onClose} onHeightChange={onHeightChange} /></Provider>);
+    const consoleElement = screen.getByRole('region', { name: 'Console' });
+    expect(consoleElement).toHaveStyle({ height: '430px' });
+    expect(onHeightChange).toHaveBeenLastCalledWith(430);
+    fireEvent.mouseDown(screen.getByTitle('Drag to resize'), { clientY: 400 });
+    fireEvent.mouseMove(window, { clientY: 320 }); fireEvent.mouseUp(window);
+    notify();
+    expect(consoleElement).toHaveStyle({ height: '510px' });
+    expect(onHeightChange).toHaveBeenLastCalledWith(510);
+    canvasHeight = 360; notify();
+    expect(onHeightChange).toHaveBeenLastCalledWith(360);
+    expect(consoleElement).toHaveStyle({ height: '510px' });
+    visible = false; notify(); expect(onHeightChange).toHaveBeenLastCalledWith(0);
+    visible = true; notify(); expect(onHeightChange).toHaveBeenLastCalledWith(360);
+    fireEvent.click(screen.getByRole('button', { name: 'Close console' })); expect(onClose).toHaveBeenCalledOnce();
+    view.unmount(); expect(disconnect).toHaveBeenCalledOnce();
+    expect(onHeightChange).toHaveBeenLastCalledWith(0);
+    rect.mockRestore();
+  });
+
   it('keeps history bucket identifiers locale-neutral', () => {
     const source = readFileSync(resolve(__dirname, '../components/layout/RunsDrawer.tsx'), 'utf8');
 

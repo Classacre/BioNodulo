@@ -13,6 +13,7 @@ import {
 } from '../state/uiAtoms';
 
 interface CollabBadgeProps {
+  onToggleComments?: () => void;
   enabled: boolean;
   connected: boolean;
   connecting: boolean;
@@ -70,6 +71,7 @@ const disabledMenuButtonStyle: React.CSSProperties = {
 
 const CollabBadge: React.FC<CollabBadgeProps> = ({
   enabled,
+  onToggleComments,
   connected,
   connecting,
   activeUsers,
@@ -299,7 +301,7 @@ const CollabBadge: React.FC<CollabBadgeProps> = ({
                 onClose={() => setUsersOpen(false)}
               />
             )}
-            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => setShowComments(value => !value))} disabled={!enabled}>
+            <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => onToggleComments ? onToggleComments() : setShowComments(value => !value))} disabled={!enabled}>
               <Icon name="comment" size={14} /> {t('collab.commentsTitle')}
             </button>
             <button style={enabled ? menuButtonStyle : disabledMenuButtonStyle} onClick={() => closeThen(() => setShowVersions(value => !value))} disabled={!enabled}>

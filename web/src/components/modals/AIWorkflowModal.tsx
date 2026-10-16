@@ -19,6 +19,7 @@ import {
 } from '../../utils/aiAssistant';
 
 interface AIWorkflowModalProps {
+  presentationHidden?: boolean;
   workflow: Workflow;
   onClose: () => void;
   onApplyWorkflow: (wf: Workflow) => void;
@@ -193,7 +194,7 @@ export default function AIWorkflowModal(props: AIWorkflowModalProps) {
   return <AIWorkflowSession key={storageKey || scope} {...props} storageKey={storageKey} mcpRuntime={mcpRuntime} />;
 }
 
-function AIWorkflowSession({ workflow, onClose, onApplyWorkflow, storageKey, mcpRuntime }: AIWorkflowModalProps & {
+function AIWorkflowSession({ workflow, onClose, onApplyWorkflow, storageKey, mcpRuntime, presentationHidden = false }: AIWorkflowModalProps & {
   storageKey: string | null;
   mcpRuntime: ReturnType<typeof getMcpRuntime>;
 }) {
@@ -291,7 +292,7 @@ function AIWorkflowSession({ workflow, onClose, onApplyWorkflow, storageKey, mcp
   // Esc leaves pop-out mode (back to the drawer). Skill-dropdown Escape and
   // session-rename Escape handle themselves first.
   useEffect(() => {
-    if (!isPoppedOut) return;
+    if (!isPoppedOut || presentationHidden) return;
     function handleKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
       if (renamingId !== null || skillQuery !== null) return;
@@ -299,7 +300,7 @@ function AIWorkflowSession({ workflow, onClose, onApplyWorkflow, storageKey, mcp
     }
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [isPoppedOut, renamingId, skillQuery]);
+  }, [isPoppedOut, renamingId, skillQuery, presentationHidden]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -308,9 +309,9 @@ function AIWorkflowSession({ workflow, onClose, onApplyWorkflow, storageKey, mcp
         setShowMenu(false);
       }
     }
-    if (showMenu) document.addEventListener('mousedown', handleClick);
+    if (showMenu && !presentationHidden) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMenu]);
+  }, [showMenu, presentationHidden]);
 
   // Keep the highlighted skill inside the visible match list.
   useEffect(() => {
@@ -973,6 +974,7 @@ function AIWorkflowSession({ workflow, onClose, onApplyWorkflow, storageKey, mcp
   if (isPoppedOut) {
     return (
       <div className="ai-popout-backdrop" onClick={() => setIsPoppedOut(false)}>
+        {!presentationHidden && <span data-overlay="true" hidden />}
         <div
           className="ai-popout"
           role="dialog"
